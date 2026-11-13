@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
-import { Input, Select } from '../../components/Field'
+import { Checkbox, Input, Select } from '../../components/Field'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useMe } from '../../lib/auth'
@@ -69,6 +69,7 @@ function MappingsForm({ connectionId, data, onClose }: { connectionId: string; d
             {errors.mappings}
           </p>
         )}
+        {data.options_unavailable && <p className="text-sm text-muted">QuickBooks did not answer, so type the account codes, or try again later.</p>}
         {rows.length === 0 && <p className="text-sm text-muted">No mappings yet.</p>}
         {rows.map((row, i) => {
           const choices = (row.kind === 'revenue_class' ? options.classes : options.accounts) ?? []
@@ -140,17 +141,32 @@ export function SyncDialog({ connection, onClose }: { connection: Schemas['Exter
   const [locationId, setLocationId] = useState(connection.location_id ?? me.primary_location_id ?? '')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  // On by default: a day that failed (say, an unmapped key) is tried again once the mapping is fixed.
+  const [retryFailed, setRetryFailed] = useState(true)
+  const qc = useQueryClient()
+  const path = { external_connection_id: connection.id }
+  const status = useQuery({ queryKey: ['sync-status', connection.id], queryFn: () => api.get('/api/v1/external-connections/{external_connection_id}/sync', { path }) })
+  const reset = useMutation({
+    mutationFn: () => api.post('/api/v1/external-connections/{external_connection_id}/sync/reset', { path }),
+    onSuccess: (out) => {
+      qc.setQueryData(['sync-status', connection.id], out)
+      toast('success', 'The stuck sync was stopped. You can queue a new one.')
+    },
+    onError: (e) => toast('error', e.message),
+  })
   const run = useMutation({
     mutationFn: () =>
       api.post('/api/v1/external-connections/{external_connection_id}/sync', {
-        path: { external_connection_id: connection.id },
-        body: { location_id: connection.location_id ? null : locationId || null, from: from || null, to: to || null, retries_failed: false },
+        path,
+        body: { location_id: connection.location_id ? null : locationId || null, from: from || null, to: to || null, retries_failed: retryFailed },
       }),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['sync-status', connection.id] })
       toast('success', 'Sync queued. Each day posts in the background; check back in a few minutes.')
       onClose()
     },
   })
+  const last = status.data
   const errors = fieldErrors(run.error)
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -184,6 +200,20 @@ export function SyncDialog({ connection, onClose }: { connection: Schemas['Exter
         )}
         <Input label="From" type="date" value={from} error={errors.from} onChange={(e) => setFrom(e.target.value)} />
         <Input label="To" type="date" value={to} error={errors.to} onChange={(e) => setTo(e.target.value)} />
+        <Checkbox label="Try failed days again" hint="Days that failed before, for example over a missing mapping." checked={retryFailed} onChange={(e) => setRetryFailed(e.target.checked)} />
+        {last && last.status !== 'idle' && (
+          <div role="status" className="rounded border border-border p-3 text-sm">
+            <p>
+              Last sync: {last.is_stale ? 'stopped answering' : last.status}
+              {Object.entries(last.counts).length > 0 && ` (${Object.entries(last.counts).map(([k, n]) => `${n} ${k.replaceAll('_', ' ')}`).join(', ')})`}
+            </p>
+            {last.is_stale && (
+              <Button variant="secondary" size="sm" className="mt-2" loading={reset.isPending} onClick={() => reset.mutate()}>
+                Stop the stuck sync
+              </Button>
+            )}
+          </div>
+        )}
       </form>
     </Dialog>
   )

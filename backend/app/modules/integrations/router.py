@@ -186,7 +186,7 @@ def update_external_connection(
 @router.get("/external-connections/{external_connection_id}/sync-mappings", response_model=s.SyncMappingsOut)
 def get_sync_mappings(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.connection.manage"))):
     """The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts
-    and classes fetched live. Errors: provider-unavailable."""
+    and classes fetched live; `options_unavailable` when the provider did not answer."""
     return quickbooks.get_mappings(ctx.session, ctx.principal, external_connection_id)
 
 
@@ -205,6 +205,19 @@ def run_sync(external_connection_id: UUID, body: s.SyncRun, ctx: Ctx = Depends(r
     most 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.
     Errors: invalid-state-transition, sync-in-progress, validation-failed."""
     return quickbooks.run_sync(ctx.session, ctx.principal, external_connection_id, body.model_dump(by_alias=True))
+
+
+@router.get("/external-connections/{external_connection_id}/sync", response_model=s.SyncStatusOut)
+def get_sync_status(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """The connection's latest sync: status (idle, running, completed, failed), cursor, counts, last chunk time,
+    and whether a running one has gone stale (no chunk for ten minutes)."""
+    return quickbooks.get_sync_status(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.post("/external-connections/{external_connection_id}/sync/reset", response_model=s.SyncStatusOut)
+def reset_sync(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """Mark a stale sync failed so a new one can start. Errors: sync-in-progress, invalid-state-transition."""
+    return quickbooks.reset_sync(ctx.session, ctx.principal, external_connection_id)
 
 
 @router.post("/accounting-exports/{accounting_export_id}/retry", response_model=s.AccountingExportOut, status_code=202)
@@ -376,16 +389,25 @@ def get_public_calendar_feed(token: str, request: Request, response: Response):
     return _calendar_feed(token, request, response)
 
 
-# Calendar apps also send HEAD, OPTIONS and PROPFIND. Answering them here keeps the token out of the access log,
-# which would otherwise record a 405 with the full path before any handler runs (handover: redact in core.api).
-@inbound.api_route("/public/calendar-feeds/{token}", methods=["HEAD", "OPTIONS", "PROPFIND"], include_in_schema=False)
+# Every other method is answered here, so none reaches the framework's 405, which logs the full path before any
+# handler runs (handover: redact in core.api). Listed in tests/test_security.py HIDDEN.
+_FEED_METHODS = {"Allow": "GET, HEAD, OPTIONS"}
+
+
+@inbound.api_route(
+    "/public/calendar-feeds/{token}",
+    methods=["HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"],
+    include_in_schema=False,
+)
 def other_public_calendar_feed_methods(token: str, request: Request, response: Response):
     if request.method == "HEAD":
         return _calendar_feed(token, request, response)
     _redact(request, token)
     if request.method == "OPTIONS":
-        return Response(status_code=204, headers={"Allow": "GET, HEAD, OPTIONS"})
-    raise NotFound()  # no WebDAV: a read-only feed, never a CalDAV collection
+        return Response(status_code=204, headers=_FEED_METHODS)
+    if request.method == "PROPFIND":
+        raise NotFound()  # no WebDAV: a read-only feed, never a CalDAV collection
+    return Response(status_code=405, headers=_FEED_METHODS)
 
 
 @router.get("/public-schedule-settings", response_model=s.PublicScheduleSettingsOut, tags=["scheduling"])

@@ -59,8 +59,16 @@ ROUTES = list(_walk(app.routes))
 
 def test_the_route_walk_sees_the_whole_api():
     operations = sum(len(methods) for methods in app.openapi()["paths"].values())
-    # Hidden routes (the calendar-feed HEAD/OPTIONS/PROPFIND twin) are walked and checked, just not documented.
     assert sum(len(route.methods) for _, route, _ in ROUTES if route.include_in_schema) == operations > 40
+    # The tenancy, idempotency and contract suites are generated from the schema, so a hidden route escapes
+    # them: only this reviewed one (calendar apps' other methods, so none reaches a token-logging 405) may hide.
+    hidden = {(path, frozenset(route.methods)) for path, route, _ in ROUTES if not route.include_in_schema}
+    assert hidden == HIDDEN
+
+
+HIDDEN = {
+    ("/api/v1/public/calendar-feeds/{token}", frozenset({"HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"})),
+}
 
 
 @pytest.mark.parametrize(("path", "route", "calls"), ROUTES, ids=[f"{sorted(r.methods)[0]} {p}" for p, r, _ in ROUTES])

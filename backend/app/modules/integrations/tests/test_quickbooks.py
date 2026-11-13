@@ -385,6 +385,100 @@ def test_a_rolled_back_day_reposts_with_the_same_request_id_and_rotated_tokens_s
         assert quickbooks.credentials(session, row).access_token == "at-old+"
 
 
+def _active(client, owner) -> tuple[str, str]:
+    started = _connect(client, owner)
+    _callback(client, owner, started["authorize_url"])
+    return f"{API}/external-connections/{started['id']}", started["id"]
+
+
+def test_a_lost_sync_goes_stale_and_staff_can_see_reset_or_take_it_over(client, tenant, owner, enabled):
+    base, ident = _active(client, owner)
+    location = _location(client, owner)
+    day = str(_chicago_today() - timedelta(days=2))
+    run = {"from": day, "to": day, "location_id": location}
+    assert client.post(f"{base}/sync", headers=owner, json=run).status_code == 202  # its message is then lost
+    status = client.get(f"{base}/sync", headers=owner).json()
+    assert (status["status"], status["is_stale"], status["next_on"]) == ("running", False, day)
+    fresh = client.post(f"{base}/sync/reset", headers=owner)
+    assert (fresh.status_code, fresh.json()["code"]) == (409, "sync-in-progress")
+    # a settings write while it runs keeps the job (both writers lock the row and merge over the stored value)
+    client.put(f"{base}/sync-mappings", headers=owner, json={"mappings": []})
+    client.patch(base, headers=owner, json={"settings": {"auto_sync": False}})
+    assert client.get(f"{base}/sync", headers=owner).json()["status"] == "running"
+
+    with clock.freeze(clock.now() + quickbooks.STALE_SYNC + timedelta(minutes=1)):
+        assert client.get(f"{base}/sync", headers=owner).json()["is_stale"] is True
+        reset = client.post(f"{base}/sync/reset", headers=owner)
+        assert (reset.status_code, reset.json()["status"]) == (200, "failed")
+        assert client.post(f"{base}/sync", headers=owner, json=run).status_code == 202
+    with tenant_session(tenant.id) as session:  # that one is lost too: a new sync takes it over, no reset needed
+        row = session.get(ExternalConnection, UUID(ident))
+        lost = (clock.now() - 2 * quickbooks.STALE_SYNC).isoformat()
+        row.settings = {**row.settings, "sync": {**row.settings["sync"], "beat_at": lost}}
+    assert client.post(f"{base}/sync", headers=owner, json=run).status_code == 202
+    assert _drain_sync(tenant, ident) == {"status": "completed", "counts": {"skipped": 1}}
+    assert client.post(f"{base}/sync/reset", headers=owner).status_code == 409  # nothing running to reset
+    assert client.get(f"{API}/external-connections/{new_id()}/sync", headers=owner).status_code == 404
+
+
+def test_the_sync_job_runs_on_the_worker_and_its_dead_letter_fails_the_sync(client, tenant, owner, enabled):
+    from dramatiq import Worker
+
+    from app.core.jobs import DEAD_LETTER_HOOKS, broker
+
+    base, ident = _active(client, owner)
+    location = _location(client, owner)
+    today = _chicago_today()
+    run = {"from": str(today - timedelta(days=3)), "to": str(today - timedelta(days=1)), "location_id": location}
+    assert client.post(f"{base}/sync", headers=owner, json=run).status_code == 202
+    worker = Worker(broker, worker_timeout=100)
+    worker.start()
+    try:  # the actor re-sends itself after each committed chunk until the range is done
+        broker.join("default", fail_fast=True, timeout=60_000)
+        worker.join()
+    finally:
+        worker.stop()
+    sync = client.get(f"{base}/sync", headers=owner).json()
+    assert (sync["status"], sync["counts"]) == ("completed", {"skipped": 3})
+
+    assert client.post(f"{base}/sync", headers=owner, json=run).status_code == 202
+    broker.flush_all()  # this run's message is never worked: its chunks kept failing and it dead-lettered
+    with _job_session(tenant) as session:
+        DEAD_LETTER_HOOKS["sync_accounting_job"](session, ident)
+    assert client.get(f"{base}/sync", headers=owner).json()["status"] == "failed"
+    with _job_session(tenant) as session:  # a late duplicate dead letter changes nothing
+        quickbooks.fail_sync(session, UUID(ident))
+    assert client.post(f"{base}/sync", headers=owner, json=run).status_code == 202
+
+
+def test_the_sync_route_refuses_the_locations_unfinished_day_when_utc_is_ahead(client, owner, enabled):
+    base, _ = _active(client, owner)
+    location = _location(client, owner)
+    with clock.freeze(datetime(2026, 3, 10, 2, tzinfo=UTC)):  # 2026-03-09 20:00 in Chicago
+        unfinished = {"from": "2026-03-09", "to": "2026-03-09", "location_id": location}
+        assert client.post(f"{base}/sync", headers=owner, json=unfinished).status_code == 422
+        finished = {"from": "2026-03-08", "to": "2026-03-08", "location_id": location}
+        assert client.post(f"{base}/sync", headers=owner, json=finished).status_code == 202
+
+
+def test_a_refresh_survives_quickbooks_failing_to_list_options(client, tenant, owner, enabled, monkeypatch):
+    base, ident = _active(client, owner)
+    with tenant_session(tenant.id) as session:  # the access token is due
+        row = session.get(ExternalConnection, UUID(ident))
+        quickbooks._seal(row, Credentials("at-old", "rt-old", clock.now().timestamp(), "4620816365"), tenant.id)
+
+    def down(self, credentials):
+        raise RuntimeError("QuickBooks is down")
+
+    monkeypatch.setattr(FakeQuickBooks, "list_options", down)
+    listed = client.get(f"{base}/sync-mappings", headers=owner)
+    assert listed.status_code == 200 and listed.json()["options_unavailable"] is True
+    assert listed.json()["external_options"] == {"accounts": [], "classes": []}
+    with tenant_session(tenant.id) as session:  # the rotated tokens were kept, though the listing failed
+        row = session.get(ExternalConnection, UUID(ident))
+        assert quickbooks.credentials(session, row).access_token == "at-old+"
+
+
 def test_mappings_settings_sync_retry_and_disconnect(client, tenant, owner, enabled):
     started = _connect(client, owner)
     _callback(client, owner, started["authorize_url"])

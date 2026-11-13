@@ -93,8 +93,9 @@ through `service.adapter_for`.
 - **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
   a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
   secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
-  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204 and PROPFIND 404, so the methods
-  calendar apps send never reach the framework's 405, which logs the raw path (handover: redact in `core.api`).
+  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and POST, PUT and DELETE
+  our own 405 with `Allow`, so no method reaches the framework's 405 (the one hidden route `tests/test_security.py`
+  allows), which logs the raw path (handover: redact in `core.api`).
   A per-IP bucket (`calendar-feed-ip`, generous, because calendar services fetch every feed from a few
   addresses) runs first; the per-feed bucket (`calendar-feed`, 12 an hour) counts only once the token opens an
   active feed of an active tenant (`feeds.live_feed`), so unknown tokens never make buckets. Content is
@@ -164,7 +165,12 @@ through `service.adapter_for`.
   `sync_accounting_job` posts one day per committed chunk, with the connection's `settings.sync` as its status
   and cursor, so a failure on a later day never rolls back days already posted. A second sync while one runs is
   `409 sync-in-progress`. Due tokens are refreshed under a row lock in a chunk of their own, so a rotated
-  refresh token commits before anything that might roll back.
+  refresh token commits before anything that might roll back. Each chunk stamps `beat_at`; a running sync with
+  no chunk for ten minutes (`STALE_SYNC`: a lost message, a dead worker) is stale, and a new sync takes it over.
+  `GET .../sync` shows the status and `POST .../sync/reset` marks a stale one failed (the screen offers it).
+  Settings and mapping writes lock the row first, so they never restore an old sync status. Listing mappings
+  answers `options_unavailable` instead of failing when QuickBooks does not answer, so a token refreshed on the
+  way still commits.
 - Zoom: a Server-to-Server app per tenant instead of a marketplace OAuth app (ADR 0012 section 5 names
   account-level authorisation; this needs no platform Zoom app and no browser flow). The client id `simulated`
   selects the simulated adapter in dev and test only (core settings were frozen). Not built: `/webhooks/zoom`

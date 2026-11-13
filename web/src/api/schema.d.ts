@@ -5064,7 +5064,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Sync Status
+         * @description The connection's latest sync: status (idle, running, completed, failed), cursor, counts, last chunk time,
+         *     and whether a running one has gone stale (no chunk for ten minutes).
+         */
+        get: operations["getSyncStatus"];
         put?: never;
         /**
          * Run Sync
@@ -5089,7 +5094,7 @@ export interface paths {
         /**
          * Get Sync Mappings
          * @description The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts
-         *     and classes fetched live. Errors: provider-unavailable.
+         *     and classes fetched live; `options_unavailable` when the provider did not answer.
          */
         get: operations["getSyncMappings"];
         /**
@@ -5098,6 +5103,26 @@ export interface paths {
          */
         put: operations["putSyncMappings"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}/sync/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Sync
+         * @description Mark a stale sync failed so a new one can start. Errors: sync-in-progress, invalid-state-transition.
+         */
+        post: operations["resetSync"];
         delete?: never;
         options?: never;
         head?: never;
@@ -39317,6 +39342,11 @@ export interface components {
             };
             /** Mappings */
             mappings: components["schemas"]["SyncMappingIn"][];
+            /**
+             * Options Unavailable
+             * @default false
+             */
+            options_unavailable: boolean;
             /** Unmapped */
             unmapped: {
                 [key: string]: unknown;
@@ -39349,6 +39379,30 @@ export interface components {
             status: string;
             /** Status Url */
             status_url: string;
+        };
+        /** SyncStatusOut */
+        SyncStatusOut: {
+            /** Beat At */
+            beat_at: string | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Is Stale */
+            is_stale: boolean;
+            /** Last On */
+            last_on: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Next On */
+            next_on: string | null;
+            /** Retries Failed */
+            retries_failed: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "idle" | "running" | "completed" | "failed";
         };
         /** SystemAlertOut */
         SystemAlertOut: {
@@ -53888,6 +53942,40 @@ export interface operations {
             };
         };
     };
+    getSyncStatus: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     runSync: {
         parameters: {
             query?: never;
@@ -53985,6 +54073,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SyncMappingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resetSync: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatusOut"];
                 };
             };
             /** @description Validation Error */

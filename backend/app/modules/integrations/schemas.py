@@ -164,6 +164,7 @@ class SyncMappingsOut(Out):
     mappings: list[SyncMappingIn]
     unmapped: list[dict]
     external_options: dict
+    options_unavailable: bool = False
 
 
 class SyncRun(In):
@@ -196,6 +197,17 @@ class SyncRunOut(Out):
     status: str
     counts: dict[str, int]
     status_url: str
+
+
+class SyncStatusOut(Out):
+    status: Literal["idle", "running", "completed", "failed"]
+    counts: dict[str, int]
+    location_id: UUID | None
+    next_on: date | None
+    last_on: date | None
+    retries_failed: bool
+    beat_at: datetime | None
+    is_stale: bool
 
 
 class AccountingExportRun(In):

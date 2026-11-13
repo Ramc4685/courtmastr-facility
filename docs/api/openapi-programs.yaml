@@ -6947,6 +6947,38 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
       x-problem-codes: [invalid-state-transition, mappings-incomplete]
+    get:
+      operationId: getSyncStatus
+      tags: [integrations]
+      summary: The latest sync's status, cursor, counts and last chunk time, and whether it went stale
+      x-priority: P0
+      x-permission: integrations.sync.run
+      x-features: [INT-07]
+      responses:
+        '200': {description: The sync status}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /external-connections/{connection_id}/sync/reset:
+    parameters:
+    - name: connection_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    post:
+      operationId: resetSync
+      tags: [integrations]
+      summary: Mark a stale sync failed so a new one can start
+      x-priority: P0
+      x-permission: integrations.sync.run
+      x-features: [INT-07]
+      responses:
+        '200': {description: The sync status}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+      x-problem-codes: [sync-in-progress, invalid-state-transition]
   /accounting-exports/{accounting_export_id}/retry:
     parameters:
     - name: accounting_export_id

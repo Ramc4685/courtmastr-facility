@@ -73529,6 +73529,11 @@
             "title": "Mappings",
             "type": "array"
           },
+          "options_unavailable": {
+            "default": false,
+            "title": "Options Unavailable",
+            "type": "boolean"
+          },
           "unmapped": {
             "items": {
               "additionalProperties": true,
@@ -73619,6 +73624,95 @@
           "status_url"
         ],
         "title": "SyncRunOut",
+        "type": "object"
+      },
+      "SyncStatusOut": {
+        "properties": {
+          "beat_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beat At"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "is_stale": {
+            "title": "Is Stale",
+            "type": "boolean"
+          },
+          "last_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last On"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "next_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next On"
+          },
+          "retries_failed": {
+            "title": "Retries Failed",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "idle",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "counts",
+          "location_id",
+          "next_on",
+          "last_on",
+          "retries_failed",
+          "beat_at",
+          "is_stale"
+        ],
+        "title": "SyncStatusOut",
         "type": "object"
       },
       "SystemAlertOut": {
@@ -105543,6 +105637,67 @@
       }
     },
     "/api/v1/external-connections/{external_connection_id}/sync": {
+      "get": {
+        "description": "The connection's latest sync: status (idle, running, completed, failed), cursor, counts, last chunk time,\nand whether a running one has gone stale (no chunk for ten minutes).",
+        "operationId": "getSyncStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sync Status",
+        "tags": [
+          "integrations"
+        ]
+      },
       "post": {
         "description": "Queue the export of each finished day in the range (the location's own dates; default its yesterday, at\nmost 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.\nErrors: invalid-state-transition, sync-in-progress, validation-failed.",
         "operationId": "runSync",
@@ -105617,7 +105772,7 @@
     },
     "/api/v1/external-connections/{external_connection_id}/sync-mappings": {
       "get": {
-        "description": "The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts\nand classes fetched live. Errors: provider-unavailable.",
+        "description": "The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts\nand classes fetched live; `options_unavailable` when the provider did not answer.",
         "operationId": "getSyncMappings",
         "parameters": [
           {
@@ -105744,6 +105899,69 @@
           }
         },
         "summary": "Put Sync Mappings",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/external-connections/{external_connection_id}/sync/reset": {
+      "post": {
+        "description": "Mark a stale sync failed so a new one can start. Errors: sync-in-progress, invalid-state-transition.",
+        "operationId": "resetSync",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Sync",
         "tags": [
           "integrations"
         ]

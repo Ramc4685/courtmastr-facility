@@ -163,6 +163,7 @@ describe('integrations settings', () => {
           ? { status: 422, body: { status: 422, code: 'validation-failed', detail: 'Invalid', errors: [{ pointer: '/mappings/0/local_key', code: 'invalid', detail: 'Each key is mapped once' }] } }
           : { status: 200, body: mappings },
       'POST /api/v1/external-connections/q1/sync': { status: 202, body: { status: 'running', status_url: '/x', counts: {} } },
+      'GET /api/v1/external-connections/q1/sync': { status: 200, body: { status: 'idle', counts: {}, location_id: null, next_on: null, last_on: null, retries_failed: false, beat_at: null, is_stale: false } },
     })
     await user.click(await screen.findByRole('tab', { name: 'Connections' }))
     await user.click(await screen.findByRole('button', { name: 'Mappings for QuickBooks Online' }))
@@ -178,7 +179,26 @@ describe('integrations settings', () => {
     await user.click(screen.getByRole('button', { name: 'Sync QuickBooks Online' }))
     await user.click(within(await screen.findByRole('dialog', { name: 'Sync to QuickBooks' })).getByRole('button', { name: 'Queue sync' }))
     expect(await screen.findByText(/Sync queued/)).toBeInTheDocument()
-    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/sync'))?.body).toEqual({ location_id: null, from: null, to: null, retries_failed: false })
+    // failed days (an unmapped key, now mapped) are tried again by default
+    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/sync'))?.body).toEqual({ location_id: null, from: null, to: null, retries_failed: true })
+  })
+
+  it('shows a stuck sync and stops it', async () => {
+    const user = userEvent.setup()
+    const qbo = { id: 'q1', location_id: 'l1', provider: 'quickbooks_online', status: 'active', external_account_id: '4620', external_account_name: 'Demo Co', connected_at: '2026-11-10T00:00:00Z', last_sync_at: null, last_error: null, created_at: '2026-11-10T00:00:00Z' }
+    const stuck = { status: 'running', counts: { posted: 2 }, location_id: 'l1', next_on: '2026-11-08', last_on: '2026-11-09', retries_failed: true, beat_at: '2026-11-10T00:00:00Z', is_stale: true }
+    const calls = renderAt([...ALL, 'integrations.sync.run'], {
+      'GET /api/v1/external-connections': { status: 200, body: page([qbo]) },
+      'GET /api/v1/external-connections/q1/sync': { status: 200, body: stuck },
+      'POST /api/v1/external-connections/q1/sync/reset': { status: 200, body: { ...stuck, status: 'failed', is_stale: false } },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Connections' }))
+    await user.click(await screen.findByRole('button', { name: 'Sync QuickBooks Online' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sync to QuickBooks' })
+    expect(await within(dialog).findByText(/stopped answering \(2 posted\)/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Stop the stuck sync' }))
+    expect(await within(dialog).findByText(/Last sync: failed/)).toBeInTheDocument()
+    expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/sync/reset'))).toBe(true)
   })
 
   it('publishes a location schedule and offers the embed snippet with its proxy caveat', async () => {

@@ -10,7 +10,7 @@ import hashlib
 import json
 import os
 from dataclasses import asdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -33,6 +33,7 @@ from app.ports.accounting import AccountingConnect, Credentials
 PROVIDER = Provider.QUICKBOOKS_ONLINE
 STATE_TTL = 600  # seconds the authorise round trip may take
 MAX_SYNC_DAYS = 31
+STALE_SYNC = timedelta(minutes=10)  # a running sync whose last chunk is older than this was lost
 MAPPING_KINDS = ("ledger_account", "tender_account", "tax_account", "revenue_account", "revenue_class")
 SETTINGS_KEYS = {"default_income_account", "sync_from", "auto_sync"}
 _ENV = ("FH_QUICKBOOKS_CLIENT_ID", "FH_QUICKBOOKS_CLIENT_SECRET", "FH_QUICKBOOKS_WEBHOOK_VERIFIER")
@@ -222,6 +223,7 @@ def get_connection(session: Session, principal: Principal, connection_id: UUID) 
 def update_settings(session: Session, principal: Principal, connection_id: UUID, settings: dict) -> ExternalConnection:
     """Merge-patch of the provider settings we use; null removes a key. Unknown keys are refused."""
     row = _load(session, principal, connection_id, "integrations.connection.manage")
+    session.refresh(row, with_for_update=True)  # merge over the stored settings, never a stale sync status
     if row.provider == Provider.GOOGLE_ANALYTICS:
         from app.modules.integrations import analytics
 
@@ -269,6 +271,7 @@ def get_mappings(session: Session, principal: Principal, connection_id: UUID) ->
     row = _load(session, principal, connection_id, "integrations.connection.manage")
     mappings = (row.settings or {}).get("mappings", [])
     options: dict[str, list] = {"accounts": [], "classes": []}
+    unavailable = False
     if row.provider == PROVIDER and row.status == ConnectionStatus.ACTIVE:
         try:
             for option in _port(session, row.location_id).list_options(credentials(session, row)):
@@ -277,17 +280,18 @@ def get_mappings(session: Session, principal: Principal, connection_id: UUID) ->
                 )
         except Conflict:
             raise
-        except Exception:  # the provider boundary
-            raise ValidationFailed("QuickBooks did not answer", code="provider-unavailable") from None
+        except Exception:  # the provider boundary: answer anyway, so tokens refreshed above still commit
+            options, unavailable = {"accounts": [], "classes": []}, True
     mapped = {m["local_key"] for m in mappings}
     unmapped = [{"local_key": key} for key in sorted(_posting_keys(session, row) - mapped)]
-    return {"mappings": mappings, "unmapped": unmapped, "external_options": options}
+    return {"mappings": mappings, "unmapped": unmapped, "external_options": options, "options_unavailable": unavailable}
 
 
 def put_mappings(session: Session, principal: Principal, connection_id: UUID, mappings: list[dict]) -> dict:
     """Replace the mapping set. `account_map` (posting key -> account id) and `class_map` are derived from it
     and are what the daily export reads."""
     row = _load(session, principal, connection_id, "integrations.connection.manage")
+    session.refresh(row, with_for_update=True)  # merge over the stored settings, never a stale sync status
     seen = set()
     for index, mapping in enumerate(mappings):
         # accounts of every kind share one account_map, so a posting key is unique across them
@@ -320,7 +324,7 @@ def run_sync(session: Session, principal: Principal, connection_id: UUID, data: 
     session.refresh(row, with_for_update=True)
     if row.status != ConnectionStatus.ACTIVE:
         raise Conflict("The connection is not active")
-    if (row.settings or {}).get("sync", {}).get("status") == "running":
+    if _live(row):  # a stale one was lost (its message or worker died) and is taken over
         raise Conflict("A sync is already running for this connection", code="sync-in-progress")
     location_id = row.location_id or data.get("location_id")
     if location_id is None:
@@ -336,6 +340,7 @@ def run_sync(session: Session, principal: Principal, connection_id: UUID, data: 
     job: dict[str, Any] = {
         "status": "running", "location_id": str(location_id), "next_on": first.isoformat(),
         "last_on": last.isoformat(), "retries_failed": bool(data.get("retries_failed")), "counts": {},
+        "beat_at": clock.now().isoformat(),
     }  # fmt: skip
     row.settings = {**(row.settings or {}), "sync": job}
     audit.record(session, "integrations.sync.start", row, location_id=location_id, changes=audit.diff(row))
@@ -355,8 +360,45 @@ def _sync_view(row: ExternalConnection) -> dict:
     job = row.settings["sync"]
     return {
         "status": job["status"], "counts": job["counts"],
-        "status_url": f"/api/v1/accounting-exports?external_connection_id={row.id}&location_id={job['location_id']}",
+        "status_url": f"/api/v1/external-connections/{row.id}/sync",
     }  # fmt: skip
+
+
+def _is_stale(job: dict) -> bool:
+    beat = job.get("beat_at")
+    return job.get("status") == "running" and (beat is None or clock.now() - datetime.fromisoformat(beat) > STALE_SYNC)
+
+
+def _live(row: ExternalConnection) -> bool:
+    job = (row.settings or {}).get("sync") or {}
+    return job.get("status") == "running" and not _is_stale(job)
+
+
+def _status(row: ExternalConnection) -> dict:
+    job = (row.settings or {}).get("sync") or {}
+    keys = ("location_id", "next_on", "last_on", "beat_at")
+    return {"status": job.get("status", "idle"), "counts": job.get("counts", {}),
+            "retries_failed": bool(job.get("retries_failed")), "is_stale": _is_stale(job),
+            **{k: job.get(k) for k in keys}}  # fmt: skip
+
+
+def get_sync_status(session: Session, principal: Principal, connection_id: UUID) -> dict:
+    return _status(_load(session, principal, connection_id, "integrations.sync.run"))
+
+
+def reset_sync(session: Session, principal: Principal, connection_id: UUID) -> dict:
+    """Stop a sync that stopped answering (no chunk for STALE_SYNC), so the connection is usable again."""
+    row = _load(session, principal, connection_id, "integrations.sync.run")
+    session.refresh(row, with_for_update=True)
+    job = (row.settings or {}).get("sync") or {}
+    if _live(row):
+        raise Conflict("The sync is still working", code="sync-in-progress")
+    if job.get("status") != "running":
+        raise Conflict("No sync is running", code="invalid-state-transition")
+    row.settings = {**row.settings, "sync": {**job, "status": "failed"}}
+    audit.record(session, "integrations.sync.reset", row, location_id=row.location_id, changes=audit.diff(row))
+    session.flush()
+    return _status(row)
 
 
 def sync_chunk(session: Session, connection_id: UUID) -> bool:
@@ -369,8 +411,10 @@ def sync_chunk(session: Session, connection_id: UUID) -> bool:
     if row is None or job.get("status") != "running":
         return False
     counts = dict(job["counts"])
+    job["beat_at"] = clock.now().isoformat()
     rotates = row.provider == PROVIDER and get_settings().integrations.quickbooks_enabled
     if row.status == ConnectionStatus.ACTIVE and rotates and refresh_if_due(session, row):
+        row.settings = {**row.settings, "sync": job}
         return True  # the rotated tokens commit on their own before the next chunk posts anything
     if row.status != ConnectionStatus.ACTIVE:
         job["status"] = "failed"
