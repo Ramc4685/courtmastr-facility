@@ -19,9 +19,9 @@ import unicodedata
 # Digit groups joined by separator runs. A separator holds no digit, so each step is unambiguous: linear.
 _RUN = re.compile(r"\d+(?:[\s./_,\u2010-\u2015-]+\d+)*")  # dashes of every width and commas too
 _GROUP = re.compile(r"\d+")
-# Free-text fields are capped far below this by their schemas (10,000 characters at most); a longer value is
-# checked on its first 64 KiB.
-MAX_SCAN = 65_536
+# Above every scanned field's max_length (the longest, a document template's body_html, is 200,000), so the whole
+# accepted value is read; tests/test_pan_detector.py holds every *_html request field to it.
+MAX_SCAN = 262_144
 _MIN_GROUP = 3
 _NETWORKS = (  # (prefixes, lengths)
     (("4",), (16, 19)),
@@ -32,6 +32,11 @@ _NETWORKS = (  # (prefixes, lengths)
     (("62",), (16, 17, 18, 19)),
 )
 _LENGTHS = sorted({n for _, lengths in _NETWORKS for n in lengths})
+# prefix -> card lengths, looked up by the first 1 to 4 digits instead of walking 560 prefixes per window
+_BY_PREFIX: dict[str, set[int]] = {}
+for _prefixes, _lengths in _NETWORKS:
+    for _prefix in _prefixes:
+        _BY_PREFIX.setdefault(_prefix, set()).update(_lengths)
 
 
 def _luhn(digits: str) -> bool:
@@ -45,7 +50,7 @@ def _luhn(digits: str) -> bool:
 
 
 def _is_card(digits: str) -> bool:
-    return any(digits.startswith(p) and len(digits) in n for p, n in _NETWORKS) and _luhn(digits)
+    return any(len(digits) in _BY_PREFIX.get(digits[:n], ()) for n in (1, 2, 3, 4)) and _luhn(digits)
 
 
 def _unbroken_has_card(digits: str) -> bool:

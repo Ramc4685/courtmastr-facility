@@ -116,6 +116,52 @@ def test_html_fields_are_scanned_with_their_tags_removed():
     assert model(body_html="<p>Court <b>4</b> at 6pm, call 217-555-0123</p>").body_html
 
 
+def test_html_tag_stripping_is_linear_and_still_refuses_unclosed_and_nested_tags():
+    model = type("_Html", (In,), {"__annotations__": {"body_html": str}})
+    started = time.perf_counter()
+    model(body_html="<" * 200_000)
+    assert time.perf_counter() - started < 0.5
+    for hidden in (
+        "<<b>4111</b>> <i><u>1111</u></i> 1111 1111",
+        "<p 4111 1111 1111 1111",
+        "4111<br/>1111<br>1111<hr>1111",
+        "4111&nbsp;1111&#32;1111&nbsp;1111",
+    ):
+        assert _refused(model, body_html=hidden) == [("card-data-not-allowed", ("body_html",))], hidden
+
+
+def test_a_card_at_the_end_of_the_longest_html_body_is_refused():
+    from app.modules.documents.schemas import DocumentTemplateDraft
+
+    limit = DocumentTemplateDraft.model_fields["body_html"].metadata[0].max_length
+    card = "4111 1111 1111 1111"
+    body = "<p>" + "x" * (limit - len(card) - 7) + "</p>" + card
+    assert len(body) == limit
+    started = time.perf_counter()
+    with pytest.raises(ValidationError, match="card-data-not-allowed|Card numbers"):
+        DocumentTemplateDraft(body_html=body, acceptance_text="I agree")
+    assert time.perf_counter() - started < 1.0
+
+
+def test_every_html_request_field_has_a_maximum_the_scan_covers():
+    """The scan must see the whole accepted value, so every *_html request field is capped and the cap is within
+    what contains_card_number reads."""
+    from app.core.pan import MAX_SCAN
+    from app.main import app  # noqa: F401  (imports every module's schemas)
+
+    def subclasses(cls):
+        for sub in cls.__subclasses__():
+            yield sub
+            yield from subclasses(sub)
+
+    html = [(c, n, f) for c in subclasses(In) if c.__module__.startswith("app.") for n, f in c.model_fields.items()
+            if n.endswith("_html")]  # fmt: skip
+    assert html
+    for cls, name, field in html:
+        caps = [m.max_length for m in field.metadata if getattr(m, "max_length", None)]
+        assert caps and caps[0] <= MAX_SCAN, f"{cls.__name__}.{name}"
+
+
 def _request_string_fields() -> set[str]:
     """Names of string properties reachable from every JSON request body in the OpenAPI document."""
     from app.main import app

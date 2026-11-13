@@ -1,5 +1,6 @@
 """Base request and response models shared by every context's schemas.py (overview 3.13, 3.14)."""
 
+import html as html_text
 import re
 from typing import Any
 
@@ -73,15 +74,18 @@ FREE_TEXT_FIELDS = frozenset({
     "tagline", "team_fee_text", "text", "text_answers", "text_value", "title", "typed_signature", "unit_label",
     "values", "welcome_message", "welcome_text",
 })  # fmt: skip
-_TAG = re.compile(r"<[^>]*>")
+# Bounded and stopping at the next `<`, so a body of unclosed `<` stays linear. A tag longer than 1000 characters
+# is left in place: the scan then sees more text, never less. The size cap is each field's own max_length.
+_TAG = re.compile(r"<[^<>]{0,1000}>")
 CARD_DATA = "card-data-not-allowed"
 CARD_DATA_DETAIL = "Card numbers cannot be stored here. Take payments through the payment form."
 
 
 def _has_card(value: Any, html: bool = False) -> bool:
     if isinstance(value, str):
-        # a tag between groups would hide them ("4111<b>1111</b>..."); a space keeps words apart
-        return contains_card_number(_TAG.sub(" ", value) if html else value)
+        if html:  # what a reader sees: tags, stray brackets and entities (&nbsp;) between groups would hide them
+            value = html_text.unescape(_TAG.sub(" ", value).replace("<", " ").replace(">", " "))
+        return contains_card_number(value)
     if isinstance(value, dict):
         return any(_has_card(v, html) for v in value.values())
     if isinstance(value, (list, tuple, set)):
