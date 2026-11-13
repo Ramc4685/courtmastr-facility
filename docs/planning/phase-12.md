@@ -3,7 +3,7 @@
 Date: 2026-11-12. Phase branch: `claude/phase12-wave4-54830f`, cut from `main` at `752a99b` (Phase 9 merged, chain
 head `1331`). Source: `docs/planning/remaining-work.md` "Wave 4", `docs/planning/phase-features.md` "Phase 12" (46
 rows: 7 P0, 39 P1; RPT-30 is listed under both, so 45 distinct features) and ADR 0010.
-Status: **planned; chips running.** Phase 14 (1400s) and Phase 11 (1500s) run beside this phase.
+Status: **built; integrated on `claude/phase12-reports-exports-4e22fb` on top of main `aa20e1b` (chain 1401 → 1601 → 1621 → 1641 → 1661).** Phase 14 (1400s) and Phase 11 (1500s) run beside this phase.
 
 ## How the phase runs
 
@@ -165,3 +165,15 @@ at merge (in merge order) and again onto main's head at hand-back if Phase 14 or
 | Date | Step | Result | Commit |
 |---|---|---|---|
 | 2026-11-12 | plan, `last_30_days` fix, catalogue seam | reporting suite green on lane p12; A, B, C proposed | 9d9ffa8 |
+| 2026-11-13 | integration: coordinator, A, B, C merged onto main (head 1401); one shared `rpt_client_package`; dashboard served as `getManagementDashboard`; chip D (1661) and RPT-41 built in the integration branch | reporting 69, security/isolation/location-scope/RLS 3962 green on fresh lane p12 | see PR |
+
+## Done, per chip (2026-11-13)
+
+| Chip | Done | Partial or not done |
+|---|---|---|
+| A | RPT-01, RPT-02 (now at `/dashboards/management`), RPT-03 | none |
+| B | RPT-06, RPT-07, RPT-08, RPT-09, RPT-10, RPT-11, RPT-13, RPT-14, RPT-15, RPT-16, RPT-22, RPT-23, BIL-19, MEM-21, PKG-15 | none (RPT-11 has no future presets) |
+| C | RPT-17, RPT-18, RPT-19, RPT-20, RPT-24, RPT-25, RPT-26, RPT-27, RPT-28, RPT-30, RPT-31, RPT-33, RPT-34, RPT-39, RNT-12, CHK-20, IMP-03 | RPT-29 partial: opens, clicks and bounces wait for Phase 13 provider webhooks |
+| D | STF-08, STF-09, STF-11, FIT-03, LGE-32, RPT-40, RPT-41 | FIT-04 partial (no maximum-age option); RPT-38 partial (only device registrations are recorded) |
+
+Open owner question: `/pos-reports/*` is gated by `pos.sale.read`, the report centre's POS reports by `reporting.pos.run`; unchanged.

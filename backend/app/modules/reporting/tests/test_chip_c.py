@@ -66,6 +66,9 @@ def test_check_ins_count_on_each_location_s_own_day(client, owner, world):
     assert hours == {"00:00"}  # New York's local hour, not UTC's 05:00
     north = ran(client, owner, "check_in_summary", from_on="2026-03-07", to_on="2026-03-07", location_ids=[world.north])
     assert north["totals"]["check_ins"] == 0
+    detail = ran(client, owner, "check_in_details", from_on="2026-03-08", to_on="2026-03-08")  # RPT-41
+    listed = rows(client, owner, detail["id"])["data"]
+    assert detail["totals"]["check_in_count"] == 1 and listed[0]["check_in_hour"] == 0
 
 
 def test_pos_sales_group_by_coupon_with_buying_price_and_margin(client, owner, world):

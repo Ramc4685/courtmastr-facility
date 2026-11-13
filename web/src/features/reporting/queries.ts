@@ -12,10 +12,11 @@ export type Params = Record<string, unknown>
 
 export const EXPORT_KEY = 'reporting.report.export'
 // Any report family key opens the report centre (rbac-matrix 6.17); the catalogue lists only what the caller may run.
-export const RUN_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run', 'reporting.league.run', 'reporting.client.run']
+export const RUN_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run', 'reporting.league.run', 'reporting.client.run', 'reporting.payroll.run', 'reporting.marketing.run', 'reporting.program.run']
 
 export const CATEGORY_LABEL: Record<string, string> = {
   financial: 'Financial', membership: 'Memberships', programs: 'Attendance', packages: 'Packages', pos: 'Point of sale', time_clock: 'Time clock', leagues: 'Leagues', lockers: 'Lockers',
+  clients: 'Clients', payroll: 'Payroll', fitness: 'Fitness assessments', operations: 'Operations', marketing: 'Marketing',
 }
 
 export const useDefinitions = () => useQuery({ queryKey: ['reporting', 'definitions'], queryFn: () => api.get('/api/v1/report-definitions') })
@@ -43,6 +44,8 @@ export const ID_SOURCES: Record<string, () => Promise<Option[]>> = {
   membership_type_ids: async () => (await api.get('/api/v1/membership-types', { query: { limit: 100 } })).data.map((t) => ({ value: t.id, label: t.name })),
   reservation_type_ids: async () => (await api.get('/api/v1/reservation-types', { query: { limit: 200 } })).data.map((t) => ({ value: t.id, label: t.name })),
   trainer_resource_ids: async () => (await api.get('/api/v1/resources', { query: { kind: 'trainer', limit: 200 } })).data.map((r) => ({ value: r.id, label: r.name })),
+  assessment_template_ids: async () => (await api.get('/api/v1/assessment-templates', { query: { limit: 200 } })).data.map((t) => ({ value: t.id, label: t.name })),
+  job_classification_ids: async () => (await api.get('/api/v1/job-classifications', { query: { limit: 200 } })).data.map((j) => ({ value: j.id, label: j.name })),
   staff_user_ids: async () =>
     (await api.get('/api/v1/staff-users', { query: { sort: 'last_name,first_name', limit: 200 } })).data.map((s) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` })),
 }

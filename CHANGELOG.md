@@ -21,6 +21,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Reports: export to Excel or PDF as well as CSV, print the results, filter by category, type, trainer or staff, chart revenue against the goal, and email saved reports on a schedule; the home page shows at-a-glance tiles.
 - Reports: receivables by instalment due date, unapplied payments, income and balances, underpaid items, accrued and unused session value, package pipeline and sales, and membership revenue, deferred revenue, actions, attrition, expiry and referrals.
 - Reports: low-usage check-ins, check-in summary, client activity items, contacts and demographics with export, referral sources, trial conversions, retention, non-training clients, group rosters and waitlists, campaign history, POS returns, inventory and re-order, equipment, rental plan sales, and POS sales by coupon with buying price and margin.
+- Reports: time entries, payroll and commission statements, trainer performance, assessment history (with a trend chart on the client's assessments) and summary, league venues, officials and demographics, app installs, resource utilization, peak times, class popularity, check-in details and new memberships.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.

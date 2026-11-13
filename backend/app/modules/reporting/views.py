@@ -184,10 +184,42 @@ rental_plan_sale = _view(
     status quantity_total balance charge_id""",
 )
 
+# phase 12 chip D (migration 1661)
+time_entry_pay = _view("rpt_time_entry_pay", """time_entry_id location_id staff_user_id staff_name job_classification_id
+    job_name work_on clock_in_time clock_out_time source is_edited minutes pay_status paid_minutes clock_in_at""")  # fmt: skip
+pay_statement = _view("rpt_pay_statement", """pay_statement_id location_id payroll_run_id period_starts_on
+    period_ends_on run_status commission_basis payee_name staff_user_id payee_resource_id session_pay_minor
+    commission_minor bonus_minor hourly_pay_minor additional_income_minor total_minor""")  # fmt: skip
+pay_line = _view("rpt_pay_statement_line", """pay_statement_line_id pay_statement_id location_id period_ends_on
+    run_status payee_resource_id kind occurred_on description quantity rate_minor commission_pct base_minor
+    amount_minor was_paid_before""")  # fmt: skip
+trainer_package_sale = _view("rpt_trainer_package_sale", """client_package_id location_id sold_on
+    reservation_type_id reservation_type_name trainer_resource_id trainer_name price_minor is_complimentary""")  # fmt: skip
+assessment_value = _view("rpt_assessment_value", """assessment_result_value_id location_id client_id client_name
+    assessment_result_id recorded_on recorded_at assessment_template_id template_name assessment_field_id field_name
+    unit_label better_direction decimal_places value template_sort field_sort""")  # fmt: skip
+game_official = _view("rpt_game_official", """game_official_id location_id official_id official_name role game_id
+    game_on game_time venue_name competition_name sport_name home_name away_name status""")  # fmt: skip
+league_roster = _view("rpt_league_roster", """roster_entry_id location_id competition_id competition_name sport_name
+    age_group_name team_name role gender age""")  # fmt: skip
+device = _view("rpt_device_registration", """device_registration_id location_id client_id platform app_version
+    is_push_enabled registered_on last_active_on revoked_on""")  # fmt: skip
+resource_hold = _view("rpt_resource_hold", """resource_hold_id location_id resource_id resource_name resource_kind
+    booking_id booking_kind held_on weekday start_hour held_minutes""")  # fmt: skip
+availability = _view("rpt_availability_window", """availability_window_id location_id resource_id resource_name
+    resource_kind starts_on ends_on weekdays interval_weeks window_minutes""")  # fmt: skip
+booking_start = _view(
+    "rpt_booking_start", "booking_id location_id kind reservation_type_id starts_on weekday start_hour"
+)
+class_session = _view("rpt_class_session", """session_id location_id booking_id reservation_type_id
+    reservation_type_name trainer_resource_id trainer_name session_on start_time capacity booked_count""")  # fmt: skip
+
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
        time_entry,
        league_game, league_team, locker,
        receivable, instalment, client_account, charge_item, client_package, package_credit,  # chip B
        membership_term, membership_action, membership_billing,
        client, client_task, check_in, group_roster, group_waitlist, campaign,  # chip C
-       campaign_message, return_line, product_stock, equipment_item, equipment_loan, rental_plan_sale)  # fmt: skip
+       campaign_message, return_line, product_stock, equipment_item, equipment_loan, rental_plan_sale,
+       time_entry_pay, pay_statement, pay_line, trainer_package_sale, assessment_value, game_official,  # chip D
+       league_roster, device, resource_hold, availability, booking_start, class_session)  # fmt: skip

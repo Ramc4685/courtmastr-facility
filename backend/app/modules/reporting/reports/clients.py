@@ -3,6 +3,7 @@
 (RPT-24), retention (RPT-25) and non-training clients (RPT-26). Clients are tenant-wide; their rows carry the
 home location, so location scope means "clients whose home location you can see" (README assumptions)."""
 
+from collections.abc import Sequence
 from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Literal
@@ -30,7 +31,7 @@ from app.modules.reporting.registry import (
 )
 
 CLIENT, ATTENDANCE = "reporting.client.run", "reporting.attendance.run"
-MEMBERSHIP_STATUSES = ("upcoming", "active", "frozen", "suspended", "expired", "cancelled")
+MembershipStatus = Literal["upcoming", "active", "frozen", "suspended", "expired", "cancelled"]
 CANCELLED = ("early_cancel", "late_cancel")  # rpt_attendance statuses that are not a scheduled session
 COUNTED = ("granted", "granted_override")  # a denied check-in is not a visit
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -42,7 +43,7 @@ def _in(view, scope: Scope):
     return view.c.location_id.in_(scope.location_ids) if scope.location_ids is not None else literal(True)
 
 
-def _capped(rows: list) -> list:
+def _capped(rows: Sequence) -> Sequence:
     if len(rows) > MAX_ROWS:
         raise too_large()  # rows are reshaped in Python, so the service's count would miss the cap
     return rows
@@ -55,7 +56,7 @@ class LowUsageParams(RangeParams):
     min_check_ins: int = Field(0, ge=0, description="Fewest check-ins in the period to be listed")
     max_check_ins: int = Field(4, ge=0, description="Most check-ins in the period to be listed")
     client_category_ids: list[UUID] | None = None
-    membership_statuses: list[Literal[MEMBERSHIP_STATUSES]] | None = Field(
+    membership_statuses: list[MembershipStatus] | None = Field(
         None, description="Only clients holding a membership in one of these statuses"
     )
     membership_type_ids: list[UUID] | None = None
@@ -134,11 +135,11 @@ def _check_in_summary(session: Session, p: CheckInSummaryParams, scope: Scope) -
 
 # --- RPT-18 client activity items ----------------------------------------------------------------------------
 
-TASK_STATUSES = ("open", "in_progress", "done", "cancelled")
+TaskStatus = Literal["open", "in_progress", "done", "cancelled"]
 
 
 class ActivityParams(Params):
-    statuses: list[Literal[TASK_STATUSES]] | None = None
+    statuses: list[TaskStatus] | None = None
     note_subject_ids: list[UUID] | None = None
     assignee_staff_user_ids: list[UUID] | None = None
     due_by_on: date | None = Field(None, description="Latest due date; empty lists every task")
@@ -234,7 +235,7 @@ def _demographics(session: Session, p: DemographicsParams, scope: Scope) -> dict
         total = sum(int(r.n) for r in found)
         rows += [{"group_key": _key(key, r.value), "section": title, "label": label(r.value), "client_count": int(r.n),
                   "share_pct": _pct(int(r.n), total)} for r in found]  # fmt: skip
-    clients = sum(r["client_count"] for r in rows if r["group_key"].startswith("age:"))
+    clients = sum(int(r["client_count"] or 0) for r in rows if str(r["group_key"]).startswith("age:"))
     return {"rows": rows, "totals": {"client_count": clients}, "details": None}
 
 
@@ -255,7 +256,7 @@ def _referrals(session: Session, p: ReferralParams, scope: Scope) -> dict:
     total = sum(int(r.n) for r in grouped)
     rows = [{"group_key": _key(r.value), "label": r.value or "(not recorded)", "client_count": int(r.n),
              "share_pct": _pct(int(r.n), total)} for r in grouped]  # fmt: skip
-    rows.sort(key=lambda r: (-r["client_count"], r["label"]))
+    rows.sort(key=lambda r: (-int(r["client_count"] or 0), str(r["label"])))
     details = []
     for r in session.execute(_loc(
         select(column.label("value"), c.created_on, c.client_name, c.referral_source, c.referral_category_name, c.email)

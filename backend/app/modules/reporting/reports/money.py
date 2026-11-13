@@ -3,7 +3,6 @@
 session value (RPT-22), the package pipeline (RPT-23) and package sales (PKG-15). Builders read the chip B views
 only, every query goes through `_loc` and every date window through `_between` (ADR 0010 sections 1 and 2)."""
 
-from collections.abc import Callable
 from datetime import date
 from types import SimpleNamespace
 from typing import Literal
@@ -33,11 +32,6 @@ from app.modules.reporting.registry import (
     _sum,
     too_large,
 )
-
-
-def _built(fn: Callable[..., dict]) -> Callable[[Session, Params, Scope], dict]:
-    """Each builder takes its own Params subclass; the service validates the parameters with that class."""
-    return fn
 
 
 def _upto(cut: date, start: date | None = None) -> SimpleNamespace:
@@ -473,7 +467,7 @@ SPECS = (
          *_PAID, *_BUCKET_COLS, Col("days_past_due", "Days past due", "count"), Col("is_autopay", "Auto-pay", "bool"),
          Col("in_collections", "In collections", "bool")),
         (Col("invoice_count", "Invoices", "count"), *_PAID, *_BUCKET_COLS),
-        _built(_receivables),
+        _receivables,
         (Col("number", "Invoice", "number"), Col("invoice_on", "Invoice date", "date"),
          Col("due_on", "Due", "date"), Col("days_past_due", "Days past due", "count"), *_PAID,
          Col("is_autopay", "Auto-pay", "bool"), Col("last_decline_reason", "Last decline"),
@@ -489,7 +483,7 @@ SPECS = (
          Col("unpaid_minor", "Unpaid invoices", "money"), Col("liability_minor", "Liability", "money")),
         (Col("unapplied_minor", "Unapplied payments", "money"), Col("unpaid_minor", "Unpaid invoices", "money"),
          Col("liability_minor", "Liability", "money")),
-        _built(_unapplied), None, ("RPT-07",),
+        _unapplied, None, ("RPT-07",),
     ),
     ReportSpec(
         "income_balances", "Income and balances by customer",
@@ -497,7 +491,7 @@ SPECS = (
         "financial", FINANCIAL, "invoice_date", RangeParams,
         (Col("client_name", "Customer"), Col("invoice_count", "Invoices", "count"), *_PAID),
         (Col("invoice_count", "Invoices", "count"), *_PAID),
-        _built(_income_balances),
+        _income_balances,
         (Col("number", "Invoice", "number"), Col("invoice_on", "Invoice date", "date"),
          Col("due_on", "Due", "date"), Col("status", "Status"), Col("total_minor", "Total", "money"),
          Col("paid_minor", "Paid", "money"), Col("balance_minor", "Balance", "money")),
@@ -510,7 +504,7 @@ SPECS = (
         "financial", FINANCIAL, "as_of", UnderpaidParams,
         (Col("client_name", "Customer"), Col("item_count", "Items", "count"), *_PAID),
         (Col("item_count", "Items", "count"), *_PAID),
-        _built(_underpaid),
+        _underpaid,
         (Col("invoice_number", "Invoice", "number"), Col("invoice_on", "Invoice date", "date"),
          Col("revenue_on", "Revenue date", "date"), Col("description", "Item"),
          Col("revenue_category", "Revenue category"), *_PAID),
@@ -523,7 +517,7 @@ SPECS = (
         "financial", FINANCIAL, "session_date", AccruedParams,
         (Col("trainer", "Trainer"), Col("sessions", "Sessions", "count"), Col("value_minor", "Value", "money")),
         (Col("sessions", "Sessions", "count"), Col("value_minor", "Value", "money")),
-        _built(_accrued),
+        _accrued,
         (Col("session_on", "Date", "date"), Col("client_name", "Client"), Col("package_name", "Package"),
          Col("sessions", "Sessions", "count"), Col("unit_value_minor", "Per session", "money"),
          Col("value_minor", "Value", "money")),
@@ -539,7 +533,7 @@ SPECS = (
          Col("unused", "Unused sessions", "count"), Col("value_minor", "Value", "money")),
         (Col("package_count", "Packages", "count"), Col("unused", "Unused sessions", "count"),
          Col("value_minor", "Value", "money")),
-        _built(_unused),
+        _unused,
         (Col("package_name", "Package"), Col("reservation_type", "Service"), Col("sold_on", "Sold", "date"),
          Col("valid_to_on", "Expires", "date"), Col("granted", "Sessions", "count"), Col("used", "Used", "count"),
          Col("unused", "Unused", "count"), Col("unit_value_minor", "Per session", "money"),
@@ -549,14 +543,14 @@ SPECS = (
     ReportSpec(
         "package_summary", "Client package summary",
         "Every open package per client, with sessions used, booked and remaining.",
-        PACKAGES, ATTENDANCE, "none", PipelineParams, _PACKAGE_COLUMNS, _PACKAGE_TOTALS, _built(_package_summary), None,
+        PACKAGES, ATTENDANCE, "none", PipelineParams, _PACKAGE_COLUMNS, _PACKAGE_TOTALS, _package_summary, None,
         ("RPT-23", "PKG-15"), own_reach=True,
     ),
     ReportSpec(
         "expiring_packages", "Expiring packages",
         "Open packages whose last valid day falls in the period.",
         PACKAGES, ATTENDANCE, "expiry_date", ExpiringPackageParams, _PACKAGE_COLUMNS, _PACKAGE_TOTALS,
-        _built(_expiring_packages), None, ("RPT-23",), own_reach=True,
+        _expiring_packages, None, ("RPT-23",), own_reach=True,
     ),
     ReportSpec(
         "renewal_candidates", "Renewal candidates",
@@ -566,7 +560,7 @@ SPECS = (
          Col("default_trainer_name", "Default trainer"), Col("package_count", "Packages", "count"),
          Col("sessions_remaining", "Remaining", "count"), Col("last_session_on", "Last booked session", "date")),
         (Col("client_count", "Clients", "count"), Col("package_count", "Packages", "count")),
-        _built(_renewal_candidates), None, ("RPT-23",), own_reach=True,
+        _renewal_candidates, None, ("RPT-23",), own_reach=True,
     ),
     ReportSpec(
         "package_sales", "Package sales",
@@ -578,7 +572,7 @@ SPECS = (
         (Col("package_count", "Packages", "count"), Col("sessions", "Sessions", "count"),
          Col("cost_minor", "Cost", "money"), Col("paid_minor", "Paid", "money"),
          Col("balance_minor", "Balance", "money")),
-        _built(_package_sales),
+        _package_sales,
         (Col("sold_on", "Sold", "date"), Col("client_name", "Client"), Col("package_name", "Package"),
          Col("sold_by_name", "Salesperson"), Col("sessions_granted_count", "Sessions", "count"),
          Col("cost_minor", "Cost", "money"), Col("paid_minor", "Paid", "money"),

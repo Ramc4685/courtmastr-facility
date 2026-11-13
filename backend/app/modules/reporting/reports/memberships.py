@@ -2,7 +2,6 @@
 attrition (RPT-14), expiring memberships (RPT-15) and referrals (RPT-16). Builders read the chip B views only,
 every query goes through `_loc` and every date window through `_between` (ADR 0010 sections 1 and 2)."""
 
-from collections.abc import Callable
 from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Literal
@@ -27,11 +26,6 @@ from app.modules.reporting.registry import (
     _pct,
     _sum,
 )
-
-
-def _built(fn: Callable[..., dict]) -> Callable[[Session, Params, Scope], dict]:
-    """Each builder takes its own Params subclass; the service validates the parameters with that class."""
-    return fn
 
 
 def _window(start: date | None, end: date | None) -> SimpleNamespace:
@@ -289,7 +283,7 @@ SPECS = (
          Col("scheduled_minor", "Scheduled", "money"), Col("total_minor", "Total", "money")),
         (Col("posted_minor", "Billed", "money"), Col("scheduled_minor", "Scheduled", "money"),
          Col("total_minor", "Total", "money")),
-        _built(_revenue_by_month),
+        _revenue_by_month,
         (Col("revenue_on", "Revenue date", "date"), Col("client_name", "Member"), Col("contract_name", "Membership"),
          Col("description", "Item"), Col("is_posted", "Billed", "bool"), Col("amount_minor", "Amount", "money")),
         ("RPT-11", "MEM-21"),
@@ -306,7 +300,7 @@ SPECS = (
         (Col("billed_minor", "Billed", "money"), Col("paid_minor", "Paid", "money"),
          Col("recognized_minor", "Recognised", "money"), Col("remaining_minor", "Unearned", "money"),
          Col("recognized_month_minor", "Recognised this month", "money")),
-        _built(_deferred), None, ("MEM-21",),
+        _deferred, None, ("MEM-21",),
     ),
     ReportSpec(
         "membership_actions", "Membership actions",
@@ -314,7 +308,7 @@ SPECS = (
         "membership", MEMBERSHIP, "action_date", ActionParams,
         (Col("action", "Action"), Col("membership_type", "Membership type"), Col("action_count", "Count", "count")),
         (Col("action_count", "Count", "count"),),
-        _built(_actions),
+        _actions,
         (Col("client_name", "Member"), Col("contract_name", "Membership"), Col("action_on", "Action date", "date"),
          Col("starts_on", "From", "date"), Col("ends_on", "To", "date"), Col("cancel_reason", "Reason")),
         ("RPT-13", "MEM-21"),
@@ -328,7 +322,7 @@ SPECS = (
          Col("attrition_pct", "Attrition", "pct")),
         (Col("at_start", "At start", "count"), Col("lost", "Lost", "count"), Col("average_pct", "Average", "pct"),
          Col("total_pct", "Total for period", "pct")),
-        _built(_attrition),
+        _attrition,
         (Col("client_name", "Member"), Col("contract_name", "Membership"), Col("status", "Status"),
          Col("end_on", "Ends", "date"), Col("cancelled_on", "Cancelled", "date"), Col("cancel_reason", "Reason")),
         ("RPT-14", "MEM-21"),
@@ -342,7 +336,7 @@ SPECS = (
          Col("contract_name", "Membership"), Col("membership_type_name", "Type"), Col("status", "Status"),
          Col("end_on", "Ends", "date"), Col("is_auto_renew", "Auto-renews", "bool")),
         (Col("contract_count", "Contracts", "count"),),
-        _built(_expiring), None, ("RPT-15", "MEM-21"),
+        _expiring, None, ("RPT-15", "MEM-21"),
     ),
     ReportSpec(
         "membership_referrals", "Membership referrals",
@@ -351,7 +345,7 @@ SPECS = (
         (Col("referrer_name", "Referred by"), Col("contract_count", "Memberships", "count"),
          Col("value_minor", "Value", "money")),
         (Col("contract_count", "Memberships", "count"), Col("value_minor", "Value", "money")),
-        _built(_referrals),
+        _referrals,
         (Col("sold_on", "Sold", "date"), Col("client_name", "Member"), Col("contract_name", "Membership"),
          Col("membership_type_name", "Type"), Col("sold_by_name", "Sold by"), Col("value_minor", "Value", "money")),
         ("RPT-16",),

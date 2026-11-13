@@ -95862,9 +95862,9 @@
         ]
       }
     },
-    "/api/v1/dashboard": {
+    "/api/v1/dashboards/management": {
       "get": {
-        "operationId": "getDashboard",
+        "operationId": "getManagementDashboard",
         "parameters": [
           {
             "in": "query",
@@ -95925,7 +95925,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Dashboard",
+        "summary": "Get Management Dashboard",
         "tags": [
           "reporting"
         ]

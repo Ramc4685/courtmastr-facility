@@ -6,7 +6,7 @@ Branch `claude/reporting-57d4aa`, migration `0953_reporting_core` (tables `saved
 isolation, RLS, location-scope and security suites, `web/src/features/reporting/reporting.test.tsx` (5) and
 `web/e2e/reporting.spec.ts` (axe on the catalogue, results, save dialog and export).
 
-Counts: P0 8 done, 2 partial; P1 (phase 12 chip B) 11 done.
+Counts: P0 13 done; P1 36 done, 3 partial (RPT-29, RPT-38, FIT-04).
 
 | Feature | Priority | Status | Where | Tests | Notes |
 |---|---|---|---|---|---|
@@ -53,3 +53,38 @@ Counts: P0 8 done, 2 partial; P1 (phase 12 chip B) 11 done.
 | BIL-19 Accounts receivable | P1 | done | `receivables` | `test_money_memberships::test_receivables_by_due_date_count_instalments_as_they_fall_due` | Folded into RPT-06's due-date mode; export from the engine. |
 | MEM-21 Membership revenue and lifecycle | P1 | done | `membership_revenue_by_month`, `deferred_membership_revenue`, `membership_actions`, `membership_attrition`, `expiring_memberships`, `membership_referrals` | `test_money_memberships` | Covered by RPT-11 and RPT-13 to RPT-16. |
 | PKG-15 Package sales and usage | P1 | done | `package_sales`, `package_summary`, `unused_session_value`, `accrued_session_revenue` | `test_money_memberships::test_package_pipeline_and_sales` | Covered by RPT-10, RPT-22 and RPT-23 plus a package sales report. |
+
+| STF-08 Time entries | P0 | done | `time_entries` | `test_chip_d::test_time_entries_and_payroll_count_on_each_location_s_own_day` | Per staff, day or both, with job, source, edited flag and payroll state (open, unpaid, in payroll, paid) and paid minutes; CSV/XLSX/PDF from the engine. |
+| STF-09 Trainer payroll and commission | P0 | done | `payroll_statements` (own reach) | same test, `test_operations_reports_use_local_time_and_trainers_see_only_themselves` | Pay statements by run with earnings by kind (hourly, session, commissions, bonus) and lines as details; voided runs left out. |
+| STF-11 Trainer performance | P1 | done | `trainer_performance` (own reach) | `test_chip_d` (two zones) | Bookings, hours, sessions, attendance, no-shows, packages sold, session value delivered per trainer; coaches see their own row. |
+| FIT-03 Assessment history | P0 | done | `assessment_history`; web trend chart on the client's Assessments tab with a link to the report | `test_chip_d::test_assessment_history_and_summary_on_local_days`, vitest `TrendChart`, `web/e2e/staff-assessments.spec.ts` | Values per client, template and field over time on the local recorded date. |
+| FIT-04 Assessment summary | P1 | partial | `assessment_summary` | same test | Count, min, max, average and improvement first to last, honouring the better direction. **Not built**: the maximum-age-of-values option. |
+| LGE-32 League operational reports | P1 | done | `league_games_by_venue`, `league_officials`, `league_demographics` | `test_chip_d` (two zones) | Games by venue, official assignments, rostered players by age band and gender. |
+| RPT-38 Branded-app analytics | P1 | partial | `app_devices` | `test_chip_d::test_app_installs_count_on_each_location_s_own_day` | New, active, removed and installed devices by platform and app version, push-enabled counts. **Not built**: screen views, sessions and daily or monthly active users (nothing records them). |
+| RPT-40 Operational analytics | P1 | done | `resource_utilization`, `peak_times`, `class_popularity`, `trainer_performance` (productivity) | `test_chip_d` (two zones) | Booked vs available hours, bookings and check-ins by local weekday and hour, class fill rates. |
+| RPT-41 Reports known by name | P1 | done | `check_in_details`, `new_memberships` plus the map below | `test_chip_c::test_check_ins_count_on_each_location_s_own_day` | Every name maps to a key or a recorded gap. |
+
+## RPT-41: names from the discovery docs
+
+| Name | Catalogue key or gap |
+|---|---|
+| Check-in details / check-in summary | `check_in_details`, `check_in_summary` (station and client category filters) |
+| Insurer visit reports (two senior-fitness programmes) | `check_in_details` filtered on a client category that flags the participants; no insurer-specific file format (gap: format unknown from public sources) |
+| Deferred membership revenue / un-accrued membership revenue | `deferred_membership_revenue` (no "liable contracts only" filter) |
+| Membership overview | `memberships_by_status` |
+| Membership ending actions | `membership_actions` (reason and type filters) |
+| New memberships | `new_memberships` |
+| Assessment summary | `assessment_summary` |
+| Trainer performance | `trainer_performance` |
+| Trainer schedule | `attendance` with the trainer filter and future dates |
+| Session notes | gap: sessions carry no notes field to report |
+| Trainer payroll / commission | `payroll_statements` |
+| Salesperson commission | `payroll_statements` (membership and package sale commission lines) |
+| Accounts receivable | `receivables` |
+| Card processor disbursements | gap: replaced by the payment provider's payout reconciliation (integrations) |
+| Direct debit batch | gap: no bank-debit batch file in billing |
+| Resource schedule (bookings with cost) | gap: `resource_utilization` and `peak_times` cover load, not per-booking cost |
+
+## Open questions
+
+- `/pos-reports/*` is gated by `pos.sale.read`, while the report centre's POS reports use `reporting.pos.run`. Left as is for the owner to decide.

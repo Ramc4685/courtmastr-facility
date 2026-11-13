@@ -61,7 +61,7 @@ class ReportSpec:
     params: type[Params]
     columns: tuple[Col, ...]
     totals: tuple[Col, ...]
-    build: Callable[[Session, Params, Scope], dict]
+    build: Callable[..., dict]  # (session, its own Params subclass, scope); the service validates with spec.params
     detail_columns: tuple[Col, ...] | None = None
     features: tuple[str, ...] = ()
     own_reach: bool = False

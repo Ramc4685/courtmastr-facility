@@ -25,8 +25,8 @@ export function ScheduleDialog({ saved, def, onClose }: { saved: Saved; def: Def
   const me = useMe()
   const { locationId } = useCurrentLocation()
   const [form, setForm] = useState({
-    location_id: locationId ?? me.locations?.[0]?.id ?? '', frequency: 'weekly' as Schedule['frequency'], weekday: 0, month_day: 1,
-    send_time: '07:00', format: 'pdf' as Schedule['format'], includes_details: false, recipient_staff_user_ids: [] as string[],
+    location_id: locationId ?? me.locations?.[0]?.id ?? '', frequency: 'weekly' as Schemas['ReportScheduleCreate']['frequency'], weekday: 0, month_day: 1,
+    send_time: '07:00', format: 'pdf' as Schemas['ReportScheduleCreate']['format'], includes_details: false, recipient_staff_user_ids: [] as string[],
   })
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
   const recipients = useQuery({
@@ -53,7 +53,7 @@ export function ScheduleDialog({ saved, def, onClose }: { saved: Saved; def: Def
     <FormDialog title={`Schedule "${saved.name}"`} submitLabel="Schedule" busy={save.isPending} error={save.error} onSubmit={() => save.mutate()} onClose={onClose}
       description="Each recipient gets the report run with their own access, and an email with a sign-in link to the file. The file itself is never emailed.">
       <LocationSelect label="Send time zone from" value={form.location_id} error={errors.location_id} onChange={(v) => set({ location_id: v })} />
-      <Select label="How often" value={form.frequency} onChange={(e) => set({ frequency: e.target.value as Schedule['frequency'] })}
+      <Select label="How often" value={form.frequency} onChange={(e) => set({ frequency: e.target.value as Schemas['ReportScheduleCreate']['frequency'] })}
         options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]} />
       {form.frequency === 'weekly' && (
         <Select label="Day" value={String(form.weekday)} error={errors.weekday} onChange={(e) => set({ weekday: Number(e.target.value) })}
@@ -64,7 +64,7 @@ export function ScheduleDialog({ saved, def, onClose }: { saved: Saved; def: Def
           onChange={(e) => set({ month_day: Number(e.target.value) })} />
       )}
       <Input label="Send at" type="time" required value={form.send_time} error={errors.send_time} onChange={(e) => set({ send_time: e.target.value })} />
-      <Select label="Format" value={form.format} options={FORMATS} onChange={(e) => set({ format: e.target.value as Schedule['format'] })} />
+      <Select label="Format" value={form.format} options={FORMATS} onChange={(e) => set({ format: e.target.value as Schemas['ReportScheduleCreate']['format'] })} />
       {def.supports_detail && <Checkbox label="Include detail rows" checked={form.includes_details} onChange={(e) => set({ includes_details: e.target.checked })} />}
       <fieldset className="space-y-1">
         <legend className="text-sm font-medium">Recipients</legend>

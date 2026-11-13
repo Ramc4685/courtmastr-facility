@@ -4111,15 +4111,15 @@ export interface paths {
         patch: operations["updateCustomField"];
         trace?: never;
     };
-    "/api/v1/dashboard": {
+    "/api/v1/dashboards/management": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Dashboard */
-        get: operations["getDashboard"];
+        /** Get Management Dashboard */
+        get: operations["getManagementDashboard"];
         put?: never;
         post?: never;
         delete?: never;
@@ -49334,7 +49334,7 @@ export interface operations {
             };
         };
     };
-    getDashboard: {
+    getManagementDashboard: {
         parameters: {
             query?: {
                 location_id?: string | null;

@@ -66,10 +66,17 @@ test('assessments: set-up and a client profile tab pass axe', async ({ page }) =
   await page.getByRole('link', { name: 'Morgan Member' }).click()
   await page.getByRole('tab', { name: 'Assessments' }).click()
   await expect(page.getByRole('table', { name: 'Assessment progress' })).toContainText('Weight')
+  await expect(page.getByRole('img', { name: /^Weight from / })).toBeVisible() // FIT-03 trend chart
   await scan(page, 'client tab')
   await page.getByRole('button', { name: 'Record assessment' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await scan(page, 'record dialog')
+  await page.keyboard.press('Escape')
+  await page.getByRole('link', { name: /Assessment history report/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Assessment history' })).toBeVisible()
+  await page.getByRole('button', { name: /^Run/ }).click()
+  await expect(page.getByRole('table').first()).toContainText('Weight')
+  await scan(page, 'assessment history report')
 })
 
 test('the member portal shows progress', async ({ page }) => {

@@ -112,6 +112,28 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Campaign history (RPT-29)** reads the counters and messages `engagement` records; opens, clicks and bounces stay
   zero until the provider webhooks (Phase 13, parked) report them.
 - **`rpt_client_package`** is one view shared by the package (chip B) and trial-conversion (chip C) reports.
+- **Time entries (STF-08)** have no approval step or rounding of their own: the payroll state stands in for
+  approval (open, unpaid, in payroll, paid by a finalized run), and paid minutes are payroll's paid hours times 60.
+  An entry in several runs takes the finalized one, then the newest; voided runs are ignored.
+- **Payroll (STF-09)** reports a statement when its run's period ends in the range (voided runs out); a run over
+  every location uses the payee's location. Own reach matches the payee's trainer resource (or the staff user's
+  linked resource) to the caller's, so a salesperson with no linked resource sees nothing.
+- **Trainer performance (STF-11) and productivity (RPT-40)**: hours from the trainer's confirmed holds; sessions,
+  attendance and no-shows from attendance; packages sold by a staff user linked to the trainer resource; value
+  delivered as in accrued session revenue. Coaches see their own row; the other RPT-40 reports have no own reach.
+- **Assessments (FIT-03, FIT-04)**: a value falls on its local recorded date at the result's location, else the
+  client's home location. The summary compares each client's first and last value in the period (two or more
+  values only) and counts "improved" by the field's better direction.
+- **League reports (LGE-32)** group by venue name, else court name; officials cover scheduled, played and postponed
+  games; demographics count players and captains on active teams, age at the competition start, league age bands.
+- **App analytics (RPT-38)** only have `device_registration` to read: new, active, removed and installed devices by
+  platform and version. Screen views, sessions and active-user counts are not recorded anywhere.
+- **Utilization (RPT-40)**: booked hours are confirmed holds on their local start day (unavailable blocks out);
+  available hours from active availability windows per day, honouring every-n-weeks repeats. Overlapping windows
+  double count, blackouts are not subtracted, and bookings outside windows can push past 100%.
+- **Named reports (RPT-41)**: the map from discovery names to keys and gaps is in `docs/status/15-reporting.md`.
+- `/pos-reports/*` stays gated by `pos.sale.read` while report-centre POS reports use `reporting.pos.run` (owner
+  question, unchanged).
 
 ## Deviations from the contract
 

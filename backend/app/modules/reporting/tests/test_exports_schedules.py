@@ -212,10 +212,15 @@ def test_dashboard_composes_reports_per_caller_and_caches_briefly(client, tenant
     assert {"revenue_summary", "deposits", "open_invoices", "attendance_overview"} <= set(tiles)
     net = next(t for t in tiles["revenue_summary"]["totals"] if t["key"] == "net_minor")
     assert net["value"] == 9000 and net["type"] == "money"
-    assert ok(client.get(f"{API}/dashboards/management", headers=owner))["generated_at"] == first["generated_at"]  # cached
+    assert (
+        ok(client.get(f"{API}/dashboards/management", headers=owner))["generated_at"] == first["generated_at"]
+    )  # cached
 
     managed = {t["key"]: t for t in ok(client.get(f"{API}/dashboards/management", headers=team.manager))["tiles"]}
     assert next(t for t in managed["revenue_summary"]["totals"] if t["key"] == "net_minor")["value"] == 2000
-    assert code(client.get(f"{API}/dashboards/management?location_id={world.north}", headers=team.manager), 404) == "not-found"
+    assert (
+        code(client.get(f"{API}/dashboards/management?location_id={world.north}", headers=team.manager), 404)
+        == "not-found"
+    )
     coach = login(client, tenant, add_staff(tenant, "coach", all_locations=True)[0])
     assert code(client.get(f"{API}/dashboards/management", headers=coach), 403) == "permission-denied"

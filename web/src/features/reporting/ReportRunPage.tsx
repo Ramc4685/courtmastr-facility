@@ -293,7 +293,7 @@ function SaveDialog({ def, params, onClose }: { def: Definition; params: Params;
   )
 }
 
-export function ReportRunPage({ reportKey, savedId }: { reportKey: string; savedId?: string | null }) {
+export function ReportRunPage({ reportKey, savedId, initial }: { reportKey: string; savedId?: string | null; initial?: Params }) {
   const { can } = useAuth()
   const defs = useDefinitions()
   const saved = useQuery({
@@ -305,7 +305,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
   const [run, setRun] = useState<Run | null>(null)
   const [saving, setSaving] = useState(false)
   const [scheduling, setScheduling] = useState(false)
-  const params: Params = edited ?? (saved.data?.params as Params | undefined) ?? {}
+  const params: Params = edited ?? (saved.data?.params as Params | undefined) ?? initial ?? {}
   const go = useMutation({
     mutationFn: () => api.post('/api/v1/report-runs', { body: { report_key: reportKey, params, saved_report_id: savedId && !edited ? savedId : undefined } }),
     onSuccess: setRun,
@@ -354,5 +354,8 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
 export function ReportRunRoute() {
   const { reportKey = '' } = useParams()
   const [search] = useSearchParams()
-  return <ReportRunPage key={`${reportKey}-${search.get('saved') ?? ''}`} reportKey={reportKey} savedId={search.get('saved')} />
+  const clientId = search.get('client_id') // a client screen's link: that client over the last year
+  const day = (back: number) => new Date(Date.now() - back * 86_400_000).toLocaleDateString('en-CA')
+  const initial = clientId ? { client_ids: [clientId], from_on: day(365), to_on: day(0) } : undefined
+  return <ReportRunPage key={`${reportKey}-${search.get('saved') ?? ''}`} reportKey={reportKey} savedId={search.get('saved')} initial={initial} />
 }
