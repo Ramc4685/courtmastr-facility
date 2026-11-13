@@ -8,3 +8,17 @@
 # OpenAPI document has no cookie or header parameters for it, and the diff against the merge base with main is
 # four added endpoints plus three description edits (no breaking entry). So S1 needs no line here; the contract
 # change is recorded in docs/status/phase8-s1-signin.md and docs/dev/checks.md ("What the diff cannot see").
+
+# Phase 11 security review: the documents `portal_terms` binding is the only portal terms source, so the old
+# portal-settings `terms_text` / `terms_version` are no longer served or taken (a tenant using them got no
+# recorded acknowledgment); `allows_online_rentals` was never enforced and rentals' `is_online_enabled` is the one
+# switch. The columns stay. Web and mobile read terms only through the terms endpoint. Remove after merge.
+GET /api/v1/locations/{location_id}/portal-settings removed the required property `allows_online_rentals` from the response with the `200` status
+GET /api/v1/locations/{location_id}/portal-settings removed the required property `terms_text` from the response with the `200` status
+GET /api/v1/locations/{location_id}/portal-settings removed the required property `terms_version` from the response with the `200` status
+PUT /api/v1/locations/{location_id}/portal-settings removed the required property `allows_online_rentals` from the response with the `200` status
+PUT /api/v1/locations/{location_id}/portal-settings removed the required property `terms_text` from the response with the `200` status
+PUT /api/v1/locations/{location_id}/portal-settings removed the required property `terms_version` from the response with the `200` status
+GET /api/v1/public/portal-config removed the required property `locations/items/allows_online_rentals` from the response with the `200` status
+GET /api/v1/public/portal-config removed the required property `locations/items/terms_text` from the response with the `200` status
+GET /api/v1/public/portal-config removed the required property `locations/items/terms_version` from the response with the `200` status
