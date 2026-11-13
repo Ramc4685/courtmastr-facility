@@ -66,8 +66,51 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 - A portal session waitlist entry that is auto-promoted is not re-checked against the booking policy at
   promotion time. Joining and claiming check it.
 
+## Group tools and event forms (Phase 14 chip A)
+
+Group tools live in `tools.py` and event forms in `forms.py`; both use the two gates, one audit row per
+aggregate and keyset lists like the rest of the module.
+
+- **Group tools:** classifiers (REG-03) are tenant-wide (`authorize_tenant_wide`), and a classifier that
+  programs use can only be deactivated (`in-use`). The program list filters on the three classifier columns
+  (REG-04). Saved views and page settings (REG-04, REG-06) belong to the staff user who made them, so another
+  user's id is 404. A move (REG-08) is one command with a savepoint per registration and a per-row outcome;
+  it re-prices nothing already billed. A location's registration defaults (REG-11) are copied into a group's
+  online settings when the group first gets them. Copy, generate and export (REG-13) are in the next list.
+- **Event forms (REG-15 to REG-24):** a form has versioned question sets (draft, then publish), stock caps
+  per choice or quantity question, a window in location wall time, capacity and an optional wait list.
+  Submissions take a confirmation number from `next_number("form_confirmation")` and email a confirmation.
+  Priced answers post one charge each through `billing.service` on one invoice; portal sales end in
+  `secure_online_checkout`, and coupons go through the billing coupon engine.
+
+Assumptions (chip A):
+- **Who may submit:** anyone may submit a free form without an account, and no client is created; staff can
+  link one later. A priced form needs portal sign-in (`sign-in-required`). Client sign-in always lands on the
+  portal home, so the public page's "Sign in and register" link only reaches the form for a member who is
+  already signed in (handover to the auth owner: honour `next` for `/portal` paths).
+- **Wait list:** it is a `waitlisted` submission status with staff promote, not a `waitlist_entry` row.
+- **Window and capacity:** the window is entered in the location's wall time. Capacity counts confirmed
+  submissions.
+- **Header image:** a JPEG or PNG of 900 KB or less, uploaded through `platform.files`. It is served
+  publicly only once the form is published.
+- **Questions:** topics are plain text. There are no members-only choices, and forms are addressed by id
+  (no vanity slug).
+- **Staff edits (REG-21):** an edit covers contact details, the client link and text answers only. Choices
+  and quantities are not re-priced; cancel and resubmit instead.
+- **Cancel:** it reverses only charges that are still live. A coupon re-prices a charge into reversal lines,
+  so those lines are skipped.
+- **Coach reach:** a coach's `own` reach on form answers finds nothing; forms have no coach link yet.
+- **Generate (REG-13):** it creates a series of sibling programs from a template, one per interval (the
+  plan), not child nodes under it (the parity row). At most 52 at once, and copies of trees over 50 nodes are
+  refused (`tree-too-large`).
+- **CSV exports:** they are synchronous `POST` downloads on a router without idempotency replay, because a
+  replayed CSV body cannot be stored as JSON. A cell that starts with `=`, `+`, `-` or `@` gets an apostrophe
+  prefix against formula injection.
+- **Summaries (REG-22):** the form is loaded before the summary key is checked, so an unknown key on a form
+  you can see is 422, and a form you cannot see is 404.
+
 ## Not built
 
-Virtual meeting links (CLS-08), group classifiers, search and copy tools (REG-03, 04, 13), moving members
-between groups (REG-08), account-wide registration defaults (REG-11), event forms (REG-15 to 24), and
-captain rosters (REG-26).
+Virtual meeting links (CLS-08) and captain rosters (REG-26). From chip A: bulk resend of confirmations,
+a portal list of open forms (members reach a form by its link), and saved cards at form checkout (a new card
+only).

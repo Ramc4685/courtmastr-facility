@@ -30,6 +30,7 @@ _TABLES = {
     "request": "data_subject_request", "schedule_session": "session", "session": "auth_session",
     "series": "package_series", "suspension": "membership_suspension", "task": "client_task",
     "template": "document_template",
+    "classifier": "program_classifier", "saved_view": "program_saved_view",
 }  # fmt: skip
 # Writes under the client-following billing.payment.take that post to another location's books (M-04).
 LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment"}

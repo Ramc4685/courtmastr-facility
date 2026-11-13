@@ -243,6 +243,18 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | CLS-09 Client self-booking | P0 | not built | Portal/mobile. |
 | CLS-10 Program registration | P0 | not built | Module 6. |
 
+Phase 14 chip A (event forms and group tools). Detail: `06-programs.md`; rules and assumptions: the programs README.
+
+| Feature | Priority | Status | What is missing |
+|---|---|---|---|
+| REG-03 Group classifiers | P1 | done | Program setup screen; filing on the program Tools tab. |
+| REG-04 Group search, views and filters | P1 | done | Classifier filters and per-user saved views on the program list. No recently-accessed list. |
+| REG-06 Page personalisation and columns | P2 | partial | Program-list columns and page size per user. The member grid stores columns but has no chooser yet. |
+| REG-08 Move members between groups | P1 | done | One command with per-row outcomes; nothing re-priced. |
+| REG-11 Online-registration defaults | P1 | done | Per location; copied into a group's settings when first set. |
+| REG-13 Copy, export, generate | P1 | done | Generate makes sibling programs, not child nodes (README). |
+| REG-15 to REG-24 Event forms | P1 | 9 done, 1 partial | REG-19 partial: header image and accent colour, no width or font. No bulk resend, no portal list of forms, new card only at checkout. |
+
 ## Module 7: Waivers and documents
 
 Lane detail: `07-waivers-documents.md`.

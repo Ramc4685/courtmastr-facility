@@ -32,6 +32,8 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Lockers', to: '/lockers', permission: ['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination'], icon: 'door' },
   { label: 'Programs & registration', to: '/programs', permission: 'programs.registration.read', icon: 'clipboard' },
   { label: 'Booking policies', to: '/programs/booking-policies', permission: 'programs.registration_config.manage', icon: 'gear' },
+  { label: 'Event forms', to: '/programs/forms', permission: 'programs.form.manage', icon: 'clipboard' },
+  { label: 'Program setup', to: '/programs/setup', permission: 'programs.program.manage', icon: 'gear' },
   { label: 'Check-in', to: '/check-in', permission: 'access.checkin.create', icon: 'door' },
   { label: 'Who is in', to: '/check-in/occupancy', permission: 'access.checkin.read', icon: 'list' },
   { label: 'Leagues & tournaments', to: '/leagues', permission: 'leagues.competition.manage', icon: 'trophy' },

@@ -14,6 +14,7 @@ import { InvoicesPage } from './InvoicesPage'
 import { MembershipsPage } from './MembershipsPage'
 import { PackagesPage } from './PackagesPage'
 import { PortalPrograms } from './PortalPrograms'
+import { PortalFormPage } from '../programs/PublicFormPage'
 import { PortalSessions } from './PortalSessions'
 import { ProfilePage } from './ProfilePage'
 import { RentalPlansPage } from './RentalPlansPage'
@@ -152,6 +153,7 @@ export function PortalApp() {
           <Route index element={<HomePage />} />
           <Route path="bookings" element={<BookingsPage />} />
           <Route path="programs" element={<PortalPrograms />} />
+          <Route path="forms/:id" element={<PortalFormPage />} />
           <Route path="sessions" element={<PortalSessions />} />
           <Route path="memberships" element={<MembershipsPage />} />
           <Route path="packages" element={<PackagesPage />} />

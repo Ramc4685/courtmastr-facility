@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, fieldErrors } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -11,8 +11,10 @@ import { EmptyState } from '../../components/States'
 import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
+import { formatDate } from '../../lib/format'
 import { useRevenueCategories } from '../rentals/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
+import { COLUMN_LABEL, ProgramListControls, useClassifiers, usePageSetting } from './groupTools'
 import { dateRange, KIND_LABEL, KINDS, programError, seats, STATUS_TONE, WAITLIST_LABEL, type ProgramGroup } from './queries'
 
 const int = (v: string) => (v.trim() === '' ? null : Number(v))
@@ -99,9 +101,35 @@ export function ProgramsPage() {
   const [status, setStatus] = useState('active')
   const [q, setQ] = useState('')
   const [creating, setCreating] = useState(false)
-  const paging = useKeysetQuery(['program-groups', 'list', location?.id, status, q], (cursor) =>
-    api.get('/api/v1/program-groups', { query: { location_id: location?.id, status: status || undefined, q: q.trim() || undefined, cursor, limit: 50 } }),
+  const [filters, setFilters] = useState<Record<string, string>>({})
+  const setting = usePageSetting('program_list')
+  const classifiers = useClassifiers()
+  const title = (id: string | null) => classifiers.data?.find((c) => c.id === id)?.title ?? ''
+  const paging = useKeysetQuery(['program-groups', 'list', location?.id, status, q, filters], (cursor) =>
+    api.get('/api/v1/program-groups', {
+      query: { location_id: location?.id, status: status || undefined, q: q.trim() || undefined, cursor, limit: setting.data?.page_size ?? 50, ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) },
+    }),
   )
+  const cells: Record<string, (g: ProgramGroup) => ReactNode> = {
+    name: (g) => (
+      <Link to={`/programs/${g.id}`} className="font-medium text-primary hover:underline">
+        {g.name}
+      </Link>
+    ),
+    kind: (g) => KIND_LABEL[g.kind] ?? g.kind,
+    status: (g) => <Badge tone={STATUS_TONE[g.status]?.tone}>{STATUS_TONE[g.status]?.label ?? g.status}</Badge>,
+    starts_on: (g) => dateRange(g),
+    ends_on: (g) => (g.ends_on ? formatDate(g.ends_on) : ''),
+    capacity: (g) => <span className="tabular">{g.capacity ?? ''}</span>,
+    enrolled_count: (g) => <span className="tabular">{seats(g)}</span>,
+    spots_left: (g) => <span className="tabular">{g.spots_left ?? ''}</span>,
+    waiting_count: (g) => <span className="tabular">{g.waiting_count}</span>,
+    season: (g) => title(g.season_classifier_id),
+    sport: (g) => title(g.sport_classifier_id),
+    age_division: (g) => title(g.age_division_classifier_id),
+    contact_name: (g) => g.contact_name ?? '',
+  }
+  const shown = (setting.data?.columns ?? ['name', 'kind', 'starts_on', 'enrolled_count', 'waiting_count', 'status']).filter((c) => cells[c])
   return (
     <>
       <PageHeader
@@ -123,26 +151,13 @@ export function ProgramsPage() {
         <Select className="w-44" label="Status" value={status} onChange={(e) => setStatus(e.target.value)} options={[{ value: '', label: 'Any status' }, ...Object.entries(STATUS_TONE).map(([value, s]) => ({ value, label: s.label }))]} />
         <Input className="w-56" label="Search" type="search" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+      <ProgramListControls filters={filters} onFilters={setFilters} />
       <Table<ProgramGroup>
         caption="Programs"
         paging={paging}
         rowKey={(g) => g.id}
         empty={<EmptyState title="No programs match">{can('programs.program.manage') ? 'Create a program to start taking registrations.' : 'Nothing has been set up here yet.'}</EmptyState>}
-        columns={[
-          {
-            header: 'Program',
-            cell: (g) => (
-              <Link to={`/programs/${g.id}`} className="font-medium text-primary hover:underline">
-                {g.name}
-              </Link>
-            ),
-          },
-          { header: 'Kind', cell: (g) => KIND_LABEL[g.kind] ?? g.kind },
-          { header: 'Dates', cell: (g) => dateRange(g) },
-          { header: 'Registered', cell: (g) => <span className="tabular">{seats(g)}</span> },
-          { header: 'Waiting', cell: (g) => <span className="tabular">{g.waiting_count}</span> },
-          { header: 'Status', cell: (g) => <Badge tone={STATUS_TONE[g.status]?.tone}>{STATUS_TONE[g.status]?.label ?? g.status}</Badge> },
-        ]}
+        columns={shown.map((c) => ({ header: COLUMN_LABEL[c] ?? c, cell: cells[c] as (g: ProgramGroup) => ReactNode }))}
       />
       {creating && location && <NewProgramDialog locationId={location.id} onClose={() => setCreating(false)} onCreated={(g) => navigate(`/programs/${g.id}`)} />}
     </>

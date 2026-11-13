@@ -30,6 +30,11 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Help & support: send a request, with a screenshot, to the support team and follow your requests.
 - Container images, a reverse proxy with security headers, and backup and restore scripts for self-hosting.
 - Settings > Import data: bring clients and households, memberships, opening balances and products over from a CSV file, with a check that imports nothing, a problem report and progress. Imports send no welcome messages, and in GDPR mode marketing consent is kept only with the date and source of consent.
+- Event forms: build a sign-up page for an event with its own questions, prices, stock limits, sign-up window, capacity and wait list; anyone can sign up for a free event without an account, and priced events take payment in the member portal.
+- Event form registrations: look up, edit, cancel (with refunds of live charges), promote from the wait list, export to CSV and see summaries by registration, revenue, demographics and answers.
+- Programs can be filed under seasons, sports and age divisions, filtered by them, and saved as personal views with your own choice of columns.
+- Program tools: copy a program, create a repeating series from it, export its members to CSV, and move registrations to another program in one step.
+- Registration defaults per location that new programs start with.
 
 ### Changed
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
