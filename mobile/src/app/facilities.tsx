@@ -54,12 +54,12 @@ export default function Facilities() {
             <Row
               key={entry.tenant_id}
               title={entry.name}
-              subtitle={[entry.city, busy === entry.host ? 'Opening…' : null].filter(Boolean).join(' · ')}
-              onPress={() => open(entry.host)}
+              subtitle={[entry.city, busy === entry.slug ? 'Opening…' : null].filter(Boolean).join(' · ')}
+              onPress={() => open(entry.slug)}
             />
           ))
         ) : (
-          <Empty text="No facilities match. Try the facility code instead." />
+          <Empty text={q.trim().length < 2 ? 'Type at least two letters of the facility name.' : 'No facilities match. Try the facility code instead.'} />
         )}
       </Surface>
       <Heading>Have a facility code?</Heading>

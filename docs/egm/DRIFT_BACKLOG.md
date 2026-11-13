@@ -266,3 +266,32 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] Taking the last trainer off a session that has no other resource is refused with `409 session-needs-resource` (`service.py:1016-1017`). The instructor-assignment paragraph (lines 22-26) mentions only `booking-conflict`.
 - [ ] [wording] Lines 68-69 ("`resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`...") sit inside the `own-sessions-only` bullet (lines 66-67) but describe trainer-payee creation (`service.py:152-162`; `resources/service.py:376-391`). They belong with the line 60 bullet.
 - [ ] [wording] Lines 16-20 list the cross-context reads that payroll uses. The list leaves out `memberships.eligibility` (`service.py:1356`), which line 98 says is used for membership-type pay. It also leaves out the write-side calls `platform.service.set_linked_resource` (`service.py:156,198`), `resources.service.trainer_group` and `resources.service.create_resource` (`service.py:158-162`).
+
+## Added on this branch (drift refresh 2026-11-12)
+Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
+
+### access (+3) — [evidence](drift/access.md)
+
+- [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
+- [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
+- [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
+
+### engagement (+6) — [evidence](drift/engagement.md)
+
+- [ ] [wording] README:9 "15 tables", now 16 (app_config models.py:579); lines 3-5,10,16 omit member-app config (domain/app_config.py, AppConfigPage.tsx)
+- [ ] [undocumented] app_config feature: GET|PUT /app-config (router.py:442-452), gate app_content.manage with tenant-wide writes (service.py:1862) vs per-location Gates rule; invalid-app-config
+- [ ] [undocumented] GET /public/app-config, /public/app-directory (router.py:493,499; service.py:1885,1919); directory is the only cross-tenant read (core.db.platform.search_app_directory)
+- [ ] [undocumented] present_schedule registered into programs listing presenter (service.py:1906,1929); APP-18 flags change portal session listing
+- [ ] [undocumented] event engagement.app_config.updated (events.py:31-34)
+- [ ] [wording] mobile adapter also calls /public/app-config, /public/app-directory, wallet-passes, package-plans, setup-intents, payment confirm; README list omits them
+
+### platform (+3) — [evidence](drift/platform.md)
+
+- [ ] [undocumented] privacy.register_subject_handler (privacy.py:84) not in README:373-377
+- [ ] [wording] README:21-22 privacy "calls clients.service for erasure"; it only lazily imports clients.get (privacy.py:89-92), erasure via HANDLERS (privacy.py:176)
+- [ ] [missing] branding.public_url_for_key (branding.py:31) called by engagement/service.py:1924; branding not in README:21 "service, auth, staff only"
+
+### programs (+2) — [evidence](drift/programs.md)
+
+- [ ] [undocumented] selfservice.register_listing_presenter (selfservice.py:34-41,192-193; engagement/service.py:1929) not in README:14 or Rules
+- [ ] [undocumented] portal listing rows carry time_zone (schemas.py:516, selfservice.py:183-184)

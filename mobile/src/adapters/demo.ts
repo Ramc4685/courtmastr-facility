@@ -11,6 +11,7 @@ import type {
   PortalAdapter,
   PortalInvoice,
   SessionListing,
+  WalletPass,
 } from './types';
 
 const HOUR = 3_600_000;
@@ -45,8 +46,9 @@ type State = {
   invoicesPaid: Set<string>;
   inboxRead: Map<string, string>;
   seq: number;
+  walletPass: WalletPass | null;
 };
-const state: State = { enrollments: new Map(), invoicesPaid: new Set(), inboxRead: new Map(), seq: 1 };
+const state: State = { enrollments: new Map(), invoicesPaid: new Set(), inboxRead: new Map(), seq: 1, walletPass: null };
 
 /** Test hook: start from a clean demo world. */
 export function resetDemo() {
@@ -83,6 +85,8 @@ function sessions(fromMs: number, toMs: number, clientId: string): SessionListin
       out.push({
         session_id: sessionId,
         name: c.name,
+        location_id: 'demo-loc',
+        time_zone: null,
         starts_at: new Date(startsAt).toISOString(),
         ends_at: new Date(startsAt + c.minutes * 60_000).toISOString(),
         resource_name: c.resource,
@@ -107,8 +111,8 @@ export const demoAdapter: PortalAdapter = {
   isDemo: true,
   searchDirectory: (q) => {
     const all = [
-      { tenant_id: 'courtside-demo', name: 'Courtside Demo Club', city: 'Chicago', icon_url: null, host: 'courtside-demo' },
-      { tenant_id: 'riverside-athletic', name: 'Riverside Athletic Center', city: 'Boulder', icon_url: null, host: 'riverside-athletic' },
+      { tenant_id: 'courtside-demo', slug: 'courtside-demo', name: 'Courtside Demo Club', city: 'Chicago', icon_url: null, host: 'courtside-demo' },
+      { tenant_id: 'riverside-athletic', slug: 'riverside-athletic', name: 'Riverside Athletic Center', city: 'Boulder', icon_url: null, host: 'riverside-athletic' },
     ];
     const needle = q.trim().toLowerCase();
     return delay(all.filter((e) => !needle || `${e.name} ${e.city}`.toLowerCase().includes(needle)));
@@ -197,4 +201,24 @@ export const demoAdapter: PortalAdapter = {
     return delay({ ...item, read_at: readAt });
   },
   registerDevice: (registration) => delay({ ...registration, id: 'demo-device-1' }),
+  authenticatePayment: () => delay(undefined),
+  confirmPayment: ({ paymentId, invoiceIds }) =>
+    delay({ id: paymentId, receipt_number: 5000 + state.seq, amount_minor: 0, currency: 'USD', status: 'succeeded' as const, invoice_ids: invoiceIds, next_action: null }),
+  checkoutProvider: () => delay('fake' as const),
+  listOffers: () =>
+    delay([
+      { kind: 'membership' as const, id: 'demo-mp-1', name: 'Adult monthly', price_minor: 8900, detail: 'every month' },
+      { kind: 'package' as const, id: 'demo-pp-1', name: '10-Visit Court Pass', price_minor: 12000, detail: '10 sessions' },
+    ]),
+  buy: ({ offer, methodToken }) =>
+    methodToken === 'tok_card_ok' ? delay({ id: `demo-sale-${state.seq++}`, name: offer.name, payment_status: 'succeeded' }) : Promise.reject(new Error('The card was declined.')),
+  listWalletPasses: () => delay(state.walletPass ? [state.walletPass] : []),
+  issueWalletPass: ({ clientId, deviceLabel }) => {
+    state.walletPass = { credential_id: `demo-wallet-${state.seq++}`, client_id: clientId, device_label: deviceLabel, issued_at: new Date().toISOString() };
+    return delay({ ...state.walletPass, format: 'fake-pass+json', media_type: 'application/json', content: '{}', is_signed: false });
+  },
+  revokeWalletPass: () => {
+    state.walletPass = null;
+    return delay(undefined);
+  },
 };

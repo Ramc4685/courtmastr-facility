@@ -3,11 +3,12 @@ import * as Crypto from 'expo-crypto';
 import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
-import { portal, type PortalInvoice } from '../adapters';
+import { portal, type PortalInvoice, type PortalPayment } from '../adapters';
 import { useApp } from '../lib/app-state';
 import { clientName, useHousehold } from '../lib/household';
 import { formatDate, formatMoney } from '../ui/format';
 import { Badge, Body, Button, DemoBanner, Empty, ErrorBox, Heading, Loading, Screen, Small, Surface } from '../ui/kit';
+import { useCheckoutProvider } from '../ui/NewCard';
 import { ProfileSwitcher } from '../ui/ProfileSwitcher';
 
 const tone = (i: PortalInvoice) => (i.status === 'paid' ? 'success' : i.is_past_due ? 'danger' : i.status === 'voided' ? 'neutral' : 'warning');
@@ -22,6 +23,10 @@ export default function Invoices() {
   const methods = useQuery({ queryKey: ['payment-methods', tenant?.slug], queryFn: () => portal.listPaymentMethods() });
   const keys = useRef(new Map<string, string>());
   const [notice, setNotice] = useState<string | null>(null);
+  const [check, setCheck] = useState<{ payment: PortalPayment; invoice: PortalInvoice } | null>(null);
+  const provider = useCheckoutProvider();
+  const paid = (payment: PortalPayment, invoice: PortalInvoice) =>
+    setNotice(payment.status === 'succeeded' ? `Paid invoice #${invoice.number}. Receipt #${payment.receipt_number}.` : `Payment is ${payment.status.replace(/_/g, ' ')}.`);
 
   const pay = useMutation({
     mutationFn: (invoice: PortalInvoice) => {
@@ -33,13 +38,23 @@ export default function Invoices() {
     },
     onSuccess: (payment, invoice) => {
       keys.current.delete(invoice.id);
-      setNotice(
-        payment.status === 'succeeded'
-          ? `Paid invoice #${invoice.number}. Receipt #${payment.receipt_number}.`
-          : payment.next_action
-            ? 'Your bank needs to confirm this payment. In-app card confirmation arrives with the payment sheet; finish it on the web portal for now.'
-            : `Payment is ${payment.status}.`,
-      );
+      if (payment.next_action?.client_secret) {
+        setNotice(null);
+        setCheck({ payment, invoice });
+      } else paid(payment, invoice);
+      void qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+  // The bank's check (3-D Secure), then confirmPortalPayment re-reads the payment and applies it.
+  const authenticate = useMutation({
+    mutationFn: async (approve: boolean) => {
+      const { payment, invoice } = check!;
+      await portal.authenticatePayment({ clientSecret: payment.next_action!.client_secret!, approve });
+      return portal.confirmPayment({ paymentId: payment.id, invoiceIds: [invoice.id], idempotencyKey: Crypto.randomUUID() });
+    },
+    onSuccess: (payment) => {
+      paid(payment, check!.invoice);
+      setCheck(null);
       void qc.invalidateQueries({ queryKey: ['invoices'] });
     },
   });
@@ -62,6 +77,20 @@ export default function Invoices() {
       {actingFor && <Heading>Billed to {clientName(actingFor)}</Heading>}
       {notice && <Body>{notice}</Body>}
       {pay.error ? <ErrorBox error={pay.error} /> : null}
+      {check && (
+        <Surface>
+          <Body>Your bank asks you to confirm this payment. Nothing is charged until you do.</Body>
+          {authenticate.error ? <ErrorBox error={authenticate.error} /> : null}
+          {provider.data === 'fake' ? (
+            <>
+              <Button label="Approve as the bank (test)" onPress={() => authenticate.mutate(true)} loading={authenticate.isPending && authenticate.variables} />
+              <Button variant="secondary" label="Fail the check (test)" onPress={() => authenticate.mutate(false)} loading={authenticate.isPending && !authenticate.variables} />
+            </>
+          ) : (
+            <Small>Confirming with your bank in the app needs the card processor's sheet, which is not available yet. Finish it on the web portal.</Small>
+          )}
+        </Surface>
+      )}
       {invoices.isLoading ? <Loading /> : invoices.error ? <ErrorBox error={invoices.error} /> : !invoices.data?.length ? <Empty text="No invoices." /> : invoices.data.map((inv) => (
         <Surface key={inv.id}>
           <Body>Invoice #{inv.number}</Body>

@@ -48,6 +48,8 @@ function Navigator() {
         <Stack.Protected guard={status === 'signedIn'}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Back' }} />
           <Stack.Screen name="memberships" options={{ title: 'Memberships & packages' }} />
+          <Stack.Screen name="buy" options={{ title: 'Buy' }} />
+          <Stack.Screen name="wallet" options={{ title: 'Wallet pass' }} />
           <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
           <Stack.Screen name="progress" options={{ title: 'Progress' }} />
           <Stack.Screen name="inbox" options={{ title: 'Notifications' }} />

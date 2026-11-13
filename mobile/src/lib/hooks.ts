@@ -24,6 +24,19 @@ export function useZone(): string {
   return home?.time_zone ?? data?.[0]?.time_zone ?? 'UTC';
 }
 
+/** getPublicAppConfig for the active facility: home layout and feature switches (the theme is applied by
+ * app-state through fetchBrand). Null while unavailable, so screens fall back to their built-in behaviour. */
+export function useAppConfig() {
+  const { tenant } = useApp();
+  return useQuery({
+    queryKey: ['app-config', tenant?.slug],
+    queryFn: () => portal.getAppConfig(),
+    enabled: !!tenant && !portal.isDemo,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 export function useInbox() {
   const { tenant } = useApp();
   return useQuery({ queryKey: ['inbox', tenant?.slug], queryFn: () => portal.listInbox() });
