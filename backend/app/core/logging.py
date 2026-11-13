@@ -10,7 +10,10 @@ import re
 import sys
 import threading
 import time
+from collections.abc import Mapping
 from typing import Any
+
+import dramatiq
 
 from app.core import context
 
@@ -88,9 +91,11 @@ def scrub(value: str, limit: int = MAX_CHARS) -> str:
 
 
 def redact(value: Any, depth: int = 0) -> Any:
-    if isinstance(value, (dict, list, tuple, set)) and depth >= MAX_DEPTH:
+    if isinstance(value, dramatiq.Message):  # its str() carries args and kwargs; the id is enough to trace it
+        return f"{value.actor_name}({value.message_id})"
+    if isinstance(value, (Mapping, list, tuple, set)) and depth >= MAX_DEPTH:
         return TRUNCATED
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         items = list(value.items())
         out = {scrub(str(k)): REDACTED if _denied(k) else redact(v, depth + 1) for k, v in items[:MAX_ITEMS]}
         return out | ({TRUNCATED: len(items) - MAX_ITEMS} if len(items) > MAX_ITEMS else {})
@@ -107,10 +112,10 @@ def redact(value: Any, depth: int = 0) -> Any:
 def _message(record: logging.LogRecord) -> str:
     """getMessage(), with containers among the arguments redacted first: Dramatiq logs actor arguments this way."""
     args = record.args
-    if isinstance(args, dict):
+    if isinstance(args, Mapping):
         args = redact(args)
     elif isinstance(args, tuple):
-        args = tuple(redact(a) if isinstance(a, (dict, list, tuple, set)) else a for a in args)
+        args = tuple(redact(a) if isinstance(a, (Mapping, list, tuple, set, dramatiq.Message)) else a for a in args)
     msg = str(record.msg)
     return msg % args if args else msg
 

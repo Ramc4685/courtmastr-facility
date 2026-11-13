@@ -289,6 +289,21 @@ def test_a_dict_passed_as_a_message_argument_goes_through_the_key_deny_list():
     assert "t-1" in stream.getvalue() and "fine" in stream.getvalue()
 
 
+def test_a_dramatiq_message_logs_as_actor_and_id_and_any_mapping_is_redacted():
+    from types import MappingProxyType
+
+    from app.modules.integrations.handlers import webhook_fan_out
+
+    logger, stream = _capture("test.redaction.message")
+    message = webhook_fan_out.message("t", "e", {"password": "x"})
+    logger.info("Enqueueing message %r", message)
+    logger.info("Failed to process message %s with unhandled exception.", message)
+    logger.info("mapping %s", MappingProxyType({"client_secret": "s3cr3t-value", "a": "fine"}))
+    out = stream.getvalue()
+    assert "password" not in out and "'x'" not in out and "s3cr3t-value" not in out
+    assert out.count(f"integrations.webhook_fan_out({message.message_id})") == 2 and "fine" in out
+
+
 @pytest.mark.parametrize(
     "key", ["pwd", "pass", "user_pass", "otp", "cvv2", "pincode", "session", "session_cookie", "jwt"]
 )
