@@ -192,6 +192,27 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
     return out
 
 
+def public_seats(session: Db, location_id: UUID, starts_from, starts_before, *, limit: int) -> list[dict]:
+    """Internal (integrations' anonymous public schedule): the location's sessions anyone may see, by the same
+    listing rule as the portal: hidden and unlisted policies, sessions beyond the visible range, and full ones
+    where the policy hides them are left out. Returns scheduling's session views."""
+    now = clock.now()
+    seats = scheduling.service.session_window(session, starts_from, starts_before, location_id=location_id,
+                                              limit=limit)  # fmt: skip
+    out, cache = [], {}
+    for seat in seats:
+        key = (seat["location_id"], seat["reservation_type_id"])
+        policy = cache.get(key) or cache.setdefault(key, effective(session, *key))
+        if policy["listing_mode"] in ("hidden", "unlisted"):
+            continue
+        if seat["starts_at"] >= now + timedelta(days=policy["visible_range_days"]):
+            continue
+        if seat["booked_count"] >= seat["capacity"] and policy["hides_full_sessions"]:
+            continue
+        out.append(seat)
+    return out
+
+
 def _bookable_seat(session: Db, session_id: UUID, client_id: UUID) -> tuple[dict, dict]:
     try:
         seat = scheduling.service.get_session(session, session_id)

@@ -11,7 +11,7 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 | `service.py` | session places: enrol, batch (CLS-02), rebook (CLS-03), cancel, roster, attendance, roster message, waitlist with auto-promote and open offers (CLS-06); dispatches group targets to `groups` |
 | `groups.py` | the group tree and lifecycle, capacity along the chain, linked sessions, fees, registration config and publish, staff registration with its invoice, cancellation, group waitlist, public listing |
 | `checkout.py` | staff and portal registration baskets: held places, one invoice, documents, payment via `billing.checkout.secure_online_checkout` |
-| `selfservice.py` | session booking policy (location default plus per-type override) and the portal session and waitlist routes |
+| `selfservice.py` | session booking policy (location default plus per-type override) and the portal session and waitlist routes; `public_seats` is the internal read integrations' anonymous public schedule uses, with the same listing rule |
 | `jobs.py` | `expire_registration_holds` (every minute: expired baskets, lapsed offers), `auto_archive_programs` (hourly) |
 | `subject.py` | merge, export and erasure across enrolments, waitlist entries and baskets |
 

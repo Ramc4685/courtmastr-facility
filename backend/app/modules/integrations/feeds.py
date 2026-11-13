@@ -354,9 +354,9 @@ def public_schedule(session: Session, location_id: UUID, from_on: date | None, d
     last = min(first + timedelta(days=span), today + timedelta(days=setting.days_ahead))
     start = datetime.combine(first, time(), zone).astimezone(UTC)
     end = datetime.combine(last, time(), zone).astimezone(UTC)
-    # Published sessions come from scheduling's own public gate (confirmed and self-bookable, the portal listing's
-    # source), never from a second copy of the rule here.
-    published = scheduling.service.session_window(session, start, end, location_id=location_id, limit=MAX_EVENTS)
+    # Published sessions come from programs' listing rule (the portal's: hidden, unlisted, out-of-range and hidden-
+    # when-full sessions are left out), never from a second copy of the rule here.
+    published = programs.selfservice.public_seats(session, location_id, start, end, limit=MAX_EVENTS)
     sessions = [
         {
             "starts_at": seat["starts_at"], "ends_at": seat["ends_at"], "title": public_title(seat),
@@ -367,7 +367,9 @@ def public_schedule(session: Session, location_id: UUID, from_on: date | None, d
     busy = []
     if setting.show_busy:  # everything else that holds a resource, with no title or name at all
         shown = {seat["booking_id"] for seat in published} if setting.show_sessions else set()
-        ids = session.scalars(scheduling.service.booking_ids(starts_from=start, starts_to=end)).all()
+        ids = session.scalars(  # this location and the shown window only, at most MAX_EVENTS bookings
+            scheduling.service.booking_ids(starts_from=start, starts_to=end, location_id=location_id).limit(MAX_EVENTS)
+        ).all()
         for view in scheduling.service.booking_views(session, ids).values():
             if view["location_id"] != location_id or view["status"] == "cancelled" or view["id"] in shown:
                 continue

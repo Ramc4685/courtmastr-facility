@@ -231,6 +231,41 @@ def test_public_schedule_is_off_until_published_and_shows_no_names(client, tenan
     assert response.headers["cache-control"].startswith("public")
 
 
+def test_public_schedule_follows_the_portal_listing_rule(client, tenant, owner):
+    from app.modules.programs.tests.test_selfservice import POLICY
+
+    f = facility(client, owner)
+    seat = _session(client, owner, f, public_title="Open clinic", session={"capacity": 1})["session"]["id"]
+    settings = {"location_id": f.location, "is_enabled": True}
+    ok(client.patch(f"{API}/public-schedule-settings", headers=owner, json=settings), 200)
+    slug, url = {"X-Tenant-Slug": tenant.slug}, f"{API}/public/schedule?location_id={f.location}"
+
+    def titles(**policy) -> list[str]:
+        put = client.put(f"{API}/locations/{f.location}/session-booking-policy", headers=owner, json=POLICY | policy)
+        ok(put, 200)
+        with clock.freeze(datetime(2031, 5, 2, 12, tzinfo=UTC)):  # the session starts 27 hours later
+            return [s["title"] for s in ok(client.get(url, headers=slug), 200)["sessions"]]
+
+    assert titles() == ["Open clinic"]
+    assert titles(listing_mode="hidden") == []
+    assert titles(listing_mode="unlisted") == []
+    assert titles(visible_range_days=1) == []  # beyond the visible range
+    person = new_client(client, owner, f.location)
+    ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": seat, "client_id": person["id"]}))
+    assert titles() == ["Open clinic"]  # full, shown as full
+    assert titles(hides_full_sessions=True) == []
+
+
+def test_public_busy_times_stay_at_their_location(client, tenant, owner):
+    f, other = facility(client, owner), facility(client, owner, "America/Denver")
+    ok(book(client, owner, other, [other.court], "2031-05-03T17:00:00Z", "2031-05-03T18:00:00Z", title="Elsewhere"))
+    body = {"location_id": f.location, "is_enabled": True, "show_busy": True}
+    ok(client.patch(f"{API}/public-schedule-settings", headers=owner, json=body), 200)
+    with clock.freeze(datetime(2031, 5, 2, 12, tzinfo=UTC)):
+        answer = client.get(f"{API}/public/schedule?location_id={f.location}", headers={"X-Tenant-Slug": tenant.slug})
+    assert ok(answer, 200)["busy"] == []
+
+
 def test_public_schedule_settings_need_their_key(client, tenant, owner):
     f = facility(client, owner)
     email, _ = add_staff(tenant, "front_desk", location_ids=[f.location])
