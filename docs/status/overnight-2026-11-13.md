@@ -2,6 +2,16 @@
 
 Running report from the lead session for the owner. Updated at each merge. Times are America/Chicago.
 
+## Daytime update, 11:00
+
+- Phase 11 (portal and member app), the portal guard fix, the API-key allow-list fix, the portal browser-test
+  fixes and the OpenAPI-at-startup fix all merged after the table below was written. The owner pushed `main` at
+  `07f708d`; CI on it is green (run 43456977515). The C2 and Phase 15 merge times in the table are about 20
+  minutes late (actual about 06:10 and 06:25).
+- Not merged: hardening (verification found a blocker), Phase 9, Phase 13, the owner-decisions branch.
+- Started for the pilot facility CIRQT: a fit check, door codes and court lights on a simulated controller, and
+  narrated demo videos. Current state is in `docs/dev/lead-handoff.md`.
+
 ## What to do in the morning
 
 1. Push `main` (the guard reserves that for you). Local `main` is ahead of `origin/main`; the same commits are on
