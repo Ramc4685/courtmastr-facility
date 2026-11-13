@@ -141,6 +141,18 @@ test('the public schedule settings save and show the embed snippet, and pass axe
   await scan(page, 'public schedule dark')
 })
 
+test('the API reference lists operations with their scopes, filters, and passes axe', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('tab', { name: 'API reference' }).click()
+  const table = page.getByRole('table', { name: 'API operations and their scopes' })
+  await expect(table.getByRole('cell', { name: '/api/v1/clients', exact: true }).first()).toBeVisible()
+  await page.getByRole('searchbox', { name: 'Filter' }).fill('clients.client.read')
+  await expect(table.getByRole('cell', { name: /clients\.client\.read/ }).first()).toBeVisible()
+  await scan(page, 'api reference')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await scan(page, 'api reference dark')
+})
+
 test("a session's online meeting panel and dialog pass axe", async ({ page }) => {
   await signIn(page)
   await page.goto('/schedule')

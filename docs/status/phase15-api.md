@@ -17,7 +17,7 @@ Server-to-Server app, and run one connection end to end in a sandbox account of 
 
 | ID | State | Notes |
 |---|---|---|
-| INT-01 | partial | Generated reference with `x-api-key-scopes` per operation; tenant-wide ceiling across a tenant's keys; rate-limit tests. Keys hold only an allow-list of the documented resources' contexts (`KEY_CONTEXTS`). Not built: the API reference tab in the web app. |
+| INT-01 | partial | Generated reference with `x-api-key-scopes` per operation; tenant-wide ceiling across a tenant's keys; rate-limit tests. Keys hold only an allow-list of the documented resources' contexts (`KEY_CONTEXTS`). Web: API reference tab with a filter. Not built: OAuth 2.0 client-credentials (16-integrations). |
 | INT-02, CLI-21, MEM-22, INT-04, PKG-16, INT-03, BIL-23, INT-06, LGE-27 | done | Key reach proven per resource (scope, refusal, location 404); money routes replay on `Idempotency-Key`. |
 | INT-05, SSP-19 | done | Client bearer token reaches `/portal/*`; a key does not. |
 | INT-08, SCH-19, STF-13, LGE-25 | done | Staff and team calendar feeds; address shown once, stored hashed; web panel. |

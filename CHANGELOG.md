@@ -16,6 +16,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Connections: edit an accounting connection's account and class mappings, and queue a QuickBooks sync.
 - Staff can add, replace or remove a session's online meeting (a pasted link or a Zoom meeting) from the session panel.
 - Portal: a Join online button on bookings from 10 minutes before the start, and a calendar card to get or stop your calendar feed.
+- An API reference tab on Integrations lists every operation a key may call and its scopes, with a filter.
 - A Public schedule tab to publish a location's schedule and copy an embed snippet (other sites cannot load it until the proxy allows it).
 
 ### Security

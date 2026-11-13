@@ -54,6 +54,7 @@ describe('integrations settings', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Integrations' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Directory' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'API keys' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'API reference' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Calendar feeds' })).toBeInTheDocument()
     expect(await screen.findByText('Not configured')).toBeInTheDocument()
   })
@@ -223,6 +224,20 @@ describe('integrations settings', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save meeting' }))
     expect(await screen.findByRole('link', { name: 'https://meet.example.com/abc' })).toBeInTheDocument()
     expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ provider: 'manual', join_url: 'http://meet.example.com/abc', passcode: null })
+  })
+
+  it('lists the API reference to key managers and filters it', async () => {
+    const user = userEvent.setup()
+    const op = (method: string, path: string, scopes: string[], summary: string) => ({ method, path, scopes, summary, operation_id: `${method}${path}`, tag: path.split('/')[3] })
+    renderAt(['integrations.api_key.manage'], {
+      'GET /api/v1/api-reference': { status: 200, body: [op('get', '/api/v1/clients', ['clients.client.read'], 'List clients'), op('post', '/api/v1/charges', ['billing.charge.create'], 'Post a charge')] },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'API reference' }))
+    const table = await screen.findByRole('table', { name: 'API operations and their scopes' })
+    expect(within(table).getAllByRole('row')).toHaveLength(3)
+    await user.type(screen.getByRole('searchbox', { name: 'Filter' }), 'billing')
+    expect(within(table).getAllByRole('row')).toHaveLength(2)
+    expect(within(table).getByRole('cell', { name: '/api/v1/charges' })).toBeInTheDocument()
   })
 
   it('shows a new calendar feed address once, to any staff member', async () => {
