@@ -41,7 +41,9 @@ def sim():
 
 @pytest.fixture(autouse=True)
 def quick_verify(monkeypatch):
-    monkeypatch.setattr(building, "VERIFY_FLOOR_SECONDS", 0.0)  # the timing test sets its own floor
+    """Real delays are 0.4 s to 5 s; tests keep the shape at a hundredth (the timing test sets its own floor)."""
+    monkeypatch.setattr(building, "EVAL_FLOOR_SECONDS", 0.0)
+    monkeypatch.setattr(building, "DOOR_DELAYS", (0.0, 0.01, 0.02, 0.04, 0.05))
 
 
 @pytest.fixture
@@ -147,11 +149,11 @@ def test_device_gates_and_scope(client, tenant, owner, b):
     assert refused.status_code == 422 and "/resource_ids" in refused.text
     # a rotated credential retires the old one at once; a retired door has none
     fresh = ok(client.post(f"{API}/door-devices/{b.door}/credential", headers=owner))
-    assert client.post(f"{API}/door/verify", headers=b.device, json={"code": "123456"}).status_code == 401
+    assert client.post(f"{API}/door/verify", headers=b.device, json={"code": "12345678"}).status_code == 401
     b.device = {"Authorization": f"Bearer {fresh['credential']}"}
-    assert verify(client, b, "123456") == {"result": "deny", "unlock_seconds": 0}
+    assert verify(client, b, "12345678") == {"result": "deny", "unlock_seconds": 0}
     ok(client.patch(f"{API}/door-devices/{b.door}", headers=owner, json={"is_active": False}), 200)
-    assert client.post(f"{API}/door/verify", headers=b.device, json={"code": "123456"}).status_code == 401
+    assert client.post(f"{API}/door/verify", headers=b.device, json={"code": "12345678"}).status_code == 401
 
 
 # --- entry codes -----------------------------------------------------------------------------------------------
@@ -321,9 +323,12 @@ def details_of(f, kind: str) -> list[str]:
                                     .order_by(BuildingEvent.id)))  # fmt: skip
 
 
+def events_count(f) -> int:
+    return len(kinds(f))
+
+
 def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone_out(client, b):
-    """Eight digits; wrong codes never lock the keypad for everyone: the valid code inside the per-door cap is
-    admitted in the middle of an attack."""
+    """Eight digits; wrong codes only slow the door down: a valid code is admitted while wrong codes keep coming."""
     with clock.freeze(at(9)):
         booking = book(b, 10, 11)
         sync(b, booking)
@@ -334,35 +339,63 @@ def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone
         assert verify(client, b, code) == {"result": "allow", "unlock_seconds": 5}
         check_in = scalar(b.tenant, select(CheckIn).where(CheckIn.client_id == UUID(b.person["id"])))
         assert (check_in.channel, check_in.result) == ("door", "granted")
-        for _ in range(8):  # nine verifies this minute so far
+        for _ in range(20):
             assert verify(client, b, wrong_for(code))["result"] == "deny"
-        assert verify(client, b, code)["result"] == "allow"  # the tenth, still inside the cap
-        assert verify(client, b, code)["result"] == "deny"  # over the cap: denied without evaluating
-        assert details_of(b, "entry_denied")[-1] == "rate_limited"
-    with clock.freeze(at(9.8) + timedelta(minutes=1)):
-        assert verify(client, b, code)["result"] == "allow"  # a new minute, no lockout carried over
+            assert verify(client, b, code)["result"] == "allow"  # at the ceiling delay, still admitted
     assert code not in str(
         scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.verify"))
     )
 
 
-def test_fifty_concurrent_wrong_codes_are_all_counted_and_staff_are_alerted_once(client, b, mailbox):
-    """The count is an atomic Redis INCR per door, so parallel guesses cannot slip past it; more than the
-    location's threshold of wrong codes in an hour alerts staff once and shows in the activity view."""
+def test_wrong_codes_raise_the_delay_which_decays(client, b):
+    with clock.freeze(at(9.8)):
+        location = UUID(b.location)
+        assert building.door_delay(location) == building.DOOR_DELAYS[0]
+        for n in range(1, 4):
+            verify(client, b, f"{n:08d}")
+            assert building.door_delay(location) == building.DOOR_DELAYS[n]
+        for n in range(4, 9):
+            verify(client, b, f"{n:08d}")
+        assert building.door_delay(location) == building.DOOR_DELAYS[-1]  # the ceiling
+    with clock.freeze(at(9.8) + building.DOOR_BAD_WINDOW + timedelta(seconds=1)):
+        assert building.door_delay(location) == building.DOOR_DELAYS[0]  # wrong codes stopped: back to the floor
+
+
+def test_fifty_concurrent_wrong_codes_are_mostly_refused_unevaluated_and_alert_at_most_once(
+    client, b, mailbox, monkeypatch
+):
+    """Verifies are serialised per location with a short queue: a flood beyond it is answered deny at once with
+    no database work, no event and no audit row."""
     from concurrent.futures import ThreadPoolExecutor
 
-    from app.core import ratelimit
-
+    monkeypatch.setattr(building, "DOOR_DELAYS", (1.5,) * 5)  # the flood lands inside the first turn
     with clock.freeze(at(9.8)):
+        verify(client, b, "99999999")  # the door's location is known to the gate from now on
+        before = len(details_of(b, "entry_denied"))
         with ThreadPoolExecutor(max_workers=8) as pool:
             answers = list(pool.map(lambda i: verify(client, b, f"{i:08d}")["result"], range(50)))
-        minute = int(clock.now().timestamp() // 60)
-        counted = ratelimit._redis().get(f"{ratelimit.PREFIX}:door-verify:{b.door}:{minute}")
-    assert answers == ["deny"] * 50 and int(counted) == 50
-    denied = details_of(b, "entry_denied")
-    assert denied.count("unknown_code") == 10 and denied.count("rate_limited") == 40
-    assert details_of(b, "bad_code_alert") == ["threshold:20"]
-    assert sum("wrong codes" in m.subject for m in mailbox) == 1
+    assert answers == ["deny"] * 50
+    assert len(details_of(b, "entry_denied")) - before <= building.DOOR_QUEUE + 1  # at most the queue was evaluated
+    assert len(details_of(b, "bad_code_alert")) <= 1 and sum("wrong codes" in m.subject for m in mailbox) <= 1
+
+
+def test_the_flood_path_and_a_short_code_touch_no_database(client, b, monkeypatch):
+    from app.core import ratelimit
+    from app.modules.access import router
+
+    with clock.freeze(at(9.8)):
+        verify(client, b, "99999999")
+        before = events_count(b)
+
+        def no_database(*args, **kwargs):
+            raise AssertionError("the database was used")
+
+        monkeypatch.setattr(router, "request_session", no_database)
+        assert verify(client, b, "123456") == {"result": "deny", "unlock_seconds": 0}  # not CODE_DIGITS long
+        ratelimit._redis().set(f"{ratelimit.PREFIX}:door-queue:loc:{b.location}", building.DOOR_QUEUE + 1, ex=60)
+        assert verify(client, b, "12345678") == {"result": "deny", "unlock_seconds": 0}  # the queue is full
+        monkeypatch.undo()
+    assert events_count(b) == before
 
 
 def test_limiter_down_denies_and_verify_takes_constant_time(client, b, monkeypatch):
@@ -376,21 +409,21 @@ def test_limiter_down_denies_and_verify_takes_constant_time(client, b, monkeypat
         booking = book(b, 10, 11)
         sync(b, booking)
         code = clear(b, codes(b, booking)[0])
-        monkeypatch.setattr(building, "VERIFY_FLOOR_SECONDS", 0.3)
-        timings = {}
-        for label, value in (("matched", code), ("unknown", wrong_for(code))):
+        monkeypatch.setattr(building, "EVAL_FLOOR_SECONDS", 0.3)
+        for value in (code, wrong_for(code)):  # matched and unknown both take the evaluation floor
             began = time.monotonic()
-            verify(client, b, value)
-            timings[label] = time.monotonic() - began
-        assert min(timings.values()) >= 0.3, timings  # both padded to the same floor
+            with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+                building.verify_code(session, session.get(building.DoorDevice, UUID(b.door)), value)
+            assert time.monotonic() - began >= 0.3
 
         class Down:
-            def pipeline(self):
+            def __getattr__(self, name):
                 raise redis.ConnectionError("down")
 
+        before = events_count(b)
         monkeypatch.setattr(ratelimit, "_redis", lambda: Down())
         assert verify(client, b, code) == {"result": "deny", "unlock_seconds": 0}  # fail closed
-    assert details_of(b, "entry_denied")[-1] == "limiter_unavailable"
+    assert events_count(b) == before
 
 
 def test_check_in_evaluation_refuses_blocked_and_unpaid_holders(client, tenant, owner, b, mailbox):

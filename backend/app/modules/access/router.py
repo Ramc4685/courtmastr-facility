@@ -507,12 +507,17 @@ def exit_kiosk(body: s.KioskExitRequest, request: Request, response: Response, d
 # --- door controllers (device credential, no principal) --------------------------------------------------------
 
 
-def door_device(request: Request) -> DoorDevice:
-    """The door behind `Authorization: Bearer fhb_...`, with its own audit actor."""
+def _door_credential(request: Request) -> tuple[str, UUID]:
     scheme, _, raw = request.headers.get("authorization", "").partition(" ")
     tenant_id = tokens.tenant_of(raw if scheme.lower() == "bearer" else None, "fhb")
     if tenant_id is None:
         raise Unauthenticated("Door credential required", code="device-unauthenticated")
+    return raw, tenant_id
+
+
+def door_device(request: Request) -> DoorDevice:
+    """The door behind `Authorization: Bearer fhb_...`, with its own audit actor."""
+    raw, tenant_id = _door_credential(request)
     host = _host_tenant(request)
     if host is not None and host.id != tenant_id:
         raise Unauthenticated("Host and token disagree", code="device-unauthenticated")
@@ -524,10 +529,22 @@ def door_device(request: Request) -> DoorDevice:
     return door
 
 
-Door = Annotated[DoorDevice, Depends(door_device)]
-
-
 @kiosk.post("/door/verify", response_model=s.DoorVerifyResult)
-def verify_door_code(body: s.DoorVerifyRequest, request: Request, door: Door):
-    """A keypad's code: allow (with how long to release the lock) or deny, and nothing else."""
-    return building.verify_code(_session(request), door, body.code)
+def verify_door_code(body: s.DoorVerifyRequest, request: Request):
+    """A keypad's code: allow (with how long to release the lock) or deny, and nothing else. Before any database
+    work: a code that is not CODE_DIGITS long is denied, then `door_enter` queues the verify for its location,
+    serialises it and sleeps the current delay (Redis only); a full queue or an unreachable Redis is denied with
+    nothing written. The session is opened only after the delay. This sync route holds a threadpool thread while it
+    waits; the queue bounds that to DOOR_QUEUE + 1 threads per location (README)."""
+    raw, _ = _door_credential(request)
+    if len(body.code) != building.CODE_DIGITS:
+        return building.DENY
+    ticket = building.door_enter(raw)
+    if ticket is None:
+        return building.DENY
+    door = None
+    try:
+        door = door_device(request)
+        return building.verify_code(_session(request), door, body.code)
+    finally:
+        building.door_leave(ticket, raw, door.location_id if door else None)

@@ -45,8 +45,12 @@ CODE_KINDS = ("rental", "session")  # bookings whose party gets a door code
 LIT_KINDS = ("rental", "session", "game")  # bookings that light their courts
 CODE_HORIZON = timedelta(days=7)  # codes are issued (and emailed) at most this long before the booking
 CODE_DIGITS = 8
-DOOR_VERIFIES_PER_MINUTE = 10  # per door, counted atomically in Redis; more is answered deny without evaluating
-VERIFY_FLOOR_SECONDS = 0.4  # every verify answers after this long, so a matched code is not slower than a wrong one
+DENY = {"result": "deny", "unlock_seconds": 0}
+DOOR_QUEUE = 3  # verifies that may wait behind the one being evaluated, per location; beyond it: deny, no DB work
+DOOR_DELAYS = (0.4, 1.0, 2.0, 4.0, 5.0)  # seconds before evaluating, by wrong codes in the window (0, 1, 2, 3, 4+)
+DOOR_BAD_WINDOW = timedelta(minutes=5)  # wrong codes older than this stop counting: the delay decays
+DOOR_LOCK_WAIT = 30.0  # seconds a queued verify waits for its turn before it is denied
+EVAL_FLOOR_SECONDS = 0.25  # an evaluation answers after this long, so a matched code is not slower than a wrong one
 FAILURES_BEFORE_ALERT = 3  # failed light commands in a row before staff are emailed
 _RESOURCE = table("resource", column("id"), column("location_id"))  # read under RLS; resources may not be imported
 log = logging.getLogger(__name__)
@@ -61,7 +65,7 @@ notifications.register_template(
     "access.door_bad_codes",
     subject="Building control: many wrong codes at $door, $location",
     body="$door at $location has had more than $count wrong codes in the last hour. Someone may be guessing codes. "
-    "Each door answers at most $cap codes a minute, and the activity view shows every attempt.\n",
+    "The door slows down with every wrong code (up to $cap seconds a try), and the activity view shows each one.\n",
 )
 
 
@@ -501,7 +505,7 @@ def _count(key: str, window_sec: int) -> int | None:
 
 
 def _note_bad_code(session: Session, door: DoorDevice) -> None:
-    """One more wrong (or over-the-cap) code this hour at the door; crossing the location threshold emails staff
+    """One more wrong code this hour at the door; crossing the location threshold emails staff
     once per hour (the INCR result is exact, so exactly one request sees threshold + 1)."""
     hour = int(clock.now().timestamp() // 3600)
     count = _count(f"{ratelimit.PREFIX}:door-bad:{door.id}:{hour}", 3600)
@@ -513,27 +517,93 @@ def _note_bad_code(session: Session, door: DoorDevice) -> None:
     to = location.alert_email or location.email
     if to:
         notifications.send(session, "access.door_bad_codes", to, {
-            "door": door.name, "location": location.name, "count": threshold, "cap": DOOR_VERIFIES_PER_MINUTE})  # fmt: skip
+            "door": door.name, "location": location.name, "count": threshold, "cap": int(DOOR_DELAYS[-1])})  # fmt: skip
+
+
+def _bad_key(location_id) -> str:
+    return f"{ratelimit.PREFIX}:door-bad:{location_id}"
+
+
+def door_delay(location_id: UUID | str | None, r=None) -> float:
+    """The wait before the next verify at the location: one step per wrong code inside DOOR_BAD_WINDOW."""
+    if location_id is None:
+        return DOOR_DELAYS[0]
+    r = r or ratelimit._redis()
+    since = (clock.now() - DOOR_BAD_WINDOW).timestamp()
+    wrong = int(r.zcount(_bad_key(location_id), f"({since}", "+inf"))
+    return DOOR_DELAYS[min(wrong, len(DOOR_DELAYS) - 1)]
+
+
+def door_enter(raw: str) -> tuple | None:
+    """Internal, Redis only (no database): queue for the door's location, wait for its turn (verifies there are
+    serialised), then sleep the current delay. A ticket for `door_leave`, or None meaning answer deny at once: the
+    queue is full, the turn never came, or Redis is unreachable (fail closed). The location comes from a cache the
+    first evaluated verify fills; until then the credential itself is the key."""
+    digest = tokens.digest(raw)[:32]
+    try:
+        r = ratelimit._redis()
+        cached = r.get(f"{ratelimit.PREFIX}:door-loc:{digest}")
+        location = cached.decode() if cached else None
+        key = f"loc:{location}" if location else f"tok:{digest}"
+        queue, lock = f"{ratelimit.PREFIX}:door-queue:{key}", f"{ratelimit.PREFIX}:door-lock:{key}"
+        pipe = r.pipeline()
+        pipe.incr(queue)
+        pipe.expire(queue, 60)
+        if int(pipe.execute()[0]) > DOOR_QUEUE + 1:
+            r.decr(queue)
+            return None
+        mine, deadline = secrets.token_hex(8), time.monotonic() + DOOR_LOCK_WAIT
+        while not r.set(lock, mine, nx=True, px=int((DOOR_LOCK_WAIT + DOOR_DELAYS[-1]) * 1000)):
+            if time.monotonic() > deadline:
+                r.decr(queue)
+                return None
+            time.sleep(0.02)
+        time.sleep(door_delay(location, r))
+        return (queue, lock, mine)
+    except redis.RedisError:
+        log.warning("door gate unavailable")
+        return None
+
+
+def door_leave(ticket: tuple, raw: str, location_id: UUID | None) -> None:
+    """Give up the turn and leave the queue; remember the door's location for the next gate."""
+    queue, lock, mine = ticket
+    try:
+        r = ratelimit._redis()
+        if location_id is not None:
+            r.set(f"{ratelimit.PREFIX}:door-loc:{tokens.digest(raw)[:32]}", str(location_id), ex=86400)
+        if r.get(lock) == mine.encode():
+            r.delete(lock)
+        r.decr(queue)
+    except redis.RedisError:
+        log.warning("door gate unavailable on leave")  # the lock and the queue key expire on their own
+
+
+def _note_wrong(location_id: UUID) -> None:
+    now = clock.now().timestamp()
+    try:
+        r = ratelimit._redis()
+        pipe = r.pipeline()
+        pipe.zadd(_bad_key(location_id), {secrets.token_hex(8): now})
+        pipe.zremrangebyscore(_bad_key(location_id), "-inf", now - DOOR_BAD_WINDOW.total_seconds())
+        pipe.expire(_bad_key(location_id), int(DOOR_BAD_WINDOW.total_seconds()) + 60)
+        pipe.execute()
+    except redis.RedisError:
+        log.warning("door wrong-code record unavailable")
 
 
 def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
-    """Internal (device-authenticated): a keypad's code, allow or deny and nothing else. Every attempt counts
-    atomically on the door (Redis, per minute); over DOOR_VERIFIES_PER_MINUTE, or with the counter unreachable, the
-    answer is deny without evaluating (fail closed). There is no lockout: a right code inside the cap always gets
-    in. Every answer waits until VERIFY_FLOOR_SECONDS so timing does not tell a matched code from a wrong one."""
+    """Internal (device-authenticated, after `door_enter`): a keypad's code, allow or deny and nothing else. A wrong
+    code raises the location's delay and counts toward the hourly staff alert; there is no lockout, so a right code
+    is always admitted, at worst a few seconds late. The evaluation answers after EVAL_FLOOR_SECONDS, so timing does
+    not tell a matched code from a wrong one."""
     began, location_id = time.monotonic(), door.location_id
-    row, reason, check_in = None, None, None
-    attempts = _count(f"{ratelimit.PREFIX}:door-verify:{door.id}:{int(clock.now().timestamp() // 60)}", 60)
-    if attempts is None:
-        reason = "limiter_unavailable"
-    elif attempts > DOOR_VERIFIES_PER_MINUTE:
-        reason = "rate_limited"
-    else:
-        row = session.scalar(select(EntryCode).where(
-            EntryCode.location_id == location_id, EntryCode.status == "active",
-            EntryCode.code_hash == _digest(location_id, code)))  # fmt: skip
-        reason, check_in = _admit(session, row, _booking(session, row.booking_id)) if row else ("unknown_code", None)
-    if reason in ("unknown_code", "rate_limited"):
+    row = session.scalar(select(EntryCode).where(
+        EntryCode.location_id == location_id, EntryCode.status == "active",
+        EntryCode.code_hash == _digest(location_id, code)))  # fmt: skip
+    reason, check_in = _admit(session, row, _booking(session, row.booking_id)) if row else ("unknown_code", None)
+    if reason == "unknown_code":
+        _note_wrong(location_id)
         _note_bad_code(session, door)
     kind = "entry_denied" if reason else "entry_granted"
     _event(session, location_id, kind, door_device_id=door.id, entry_code_id=row.id if row else None,
@@ -541,8 +611,8 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
     audit.record(session, "access.door.verify", door, location_id=location_id,
                  changes={"result": "deny" if reason else "allow", "reason": reason})  # fmt: skip
     session.flush()
-    time.sleep(max(0.0, VERIFY_FLOOR_SECONDS - (time.monotonic() - began)))
-    return {"result": "deny" if reason else "allow", "unlock_seconds": 0 if reason else door.unlock_seconds}
+    time.sleep(max(0.0, EVAL_FLOOR_SECONDS - (time.monotonic() - began)))
+    return dict(DENY) if reason else {"result": "allow", "unlock_seconds": door.unlock_seconds}
 
 
 def _unlock(session: Session, door: DoorDevice, kind: str, **fields) -> BuildingEvent:
