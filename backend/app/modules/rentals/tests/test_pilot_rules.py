@@ -249,6 +249,24 @@ def test_a_guardian_books_and_names_the_children_who_play(client, owner, f):
               200)["birth_on_unknown"] == [parent]  # fmt: skip
 
 
+def test_a_guardian_spends_a_plan_bought_in_the_childs_name_when_the_child_plays(client, owner, f):
+    parent, kid = family(client, owner, f)
+    plan = ok(client.post(f"{API}/rental-plans", headers=owner, json={
+        "location_id": f.location, "name": "Junior hours", "rental_type_id": f.rtype, "model": "per_hour",
+        "quantity": "3", "price_minor": 6000, "revenue_category_id": f.category,
+    }))  # fmt: skip
+    purchase = ok(client.post(f"{API}/rental-plan-purchases", headers=owner | {"Idempotency-Key": uuid4().hex},
+                              json={"rental_plan_id": plan["id"], "client_id": kid}))  # fmt: skip
+    cover = {"decision": "plan", "rental_plan_purchase_id": purchase["id"]}
+    refused(
+        rent(client, owner, body(f, parent, 15, 16, charge=cover)), 422, "validation-failed"
+    )  # the child is not playing
+    covered = ok(rent(client, owner, body(f, parent, 15, 16, charge=cover, parties=[{"client_id": kid}])))["rental"]
+    assert covered["charge_state"] == "plan_covered"
+    refused(rent(client, owner, body(f, f.guest, 16, 17, charge=cover, parties=[{"client_id": kid}])), 422,
+            "minor-needs-guardian")  # fmt: skip
+
+
 def test_the_minor_age_is_the_tenant_setting(client, owner, f):
     _, kid = family(client, owner, f)
     ok(client.patch(f"{API}/tenant", headers=owner, json={"settings": {"minor_age": 8}}), 200)

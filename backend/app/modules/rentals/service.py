@@ -702,6 +702,7 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
         or (
             purchase.client_id != client_id
             and not (plan.is_shareable and client_id in _shared_with(session, purchase.id))
+            and not _guardian_spends_players_plan(session, purchase.client_id, client_id, rows)
         )  # a plan made unshareable later ignores its old share rows
     ):
         raise ValidationFailed("Unknown plan for this client.", pointer=pointer)
@@ -723,6 +724,13 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
     ):
         raise Conflict("The plan is not valid on these dates.", code="plan-not-valid")
     return purchase
+
+
+def _guardian_spends_players_plan(session: Db, owner: UUID, holder: UUID, rows: list[RentalBooking]) -> bool:
+    """A plan bought in a child's name: the child never holds a rental (the minors rule), so the guardian who
+    holds it may spend the child's plan when the child is one of its players."""
+    played = select(RentalParty.client_id).where(RentalParty.rental_booking_id.in_([r.id for r in rows]))
+    return owner in set(session.scalars(played)) and holder in clients.households.guardian_ids(session, owner)
 
 
 def _cover(session: Db, purchase_id: UUID, client_id: UUID, rtype: RentalType, rows: list[RentalBooking]) -> Decimal:

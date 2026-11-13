@@ -213,6 +213,9 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   booking is refused (`minor-needs-guardian`); the dialog says "Only a parent or guardian can bring ..." and does not
   offer the child as a player. Decided for the pilot: the guardian is the person answerable for the child at the court. The portal rental view still carries no
   co-party ids (S-06).
+- **A child's own plan.** A rental plan bought in a child's name can be spent by a guardian holding the rental
+  when the child is one of its players (`_purchase_for`, staff and portal); otherwise it stays the child's alone.
+  The ledger records the holder as the user.
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
 - **Out of scope** (seen, not built): online recurring bookings by members, club contracts, no-show and overstay
   handling, independent-coach payouts, the utilisation report, leagues.
