@@ -137,7 +137,31 @@ test('bulk reverse takes one reason for the selected items', async ({ page }) =>
   await scan(page, 'bulk reverse dialog')
   await dialog.getByRole('textbox', { name: 'Reason' }).fill('Entered twice')
   await dialog.getByRole('button', { name: 'Reverse items' }).click()
-  await expect(page.getByText('1 reversed.')).toBeVisible()
+  await expect(dialog.getByRole('status')).toContainText('1 done, 0 failed.')
+  await expect(dialog.getByRole('table', { name: 'Bulk reverse result' })).toContainText('Done')
+  await scan(page, 'bulk action status view')
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  await expect(dialog).toBeHidden()
+})
+
+test('bulk invoice PDFs are checked before they are saved', async ({ page }) => {
+  await signIn(page, '/billing')
+  await page.getByRole('tab', { name: 'Invoices' }).click()
+  await page.getByRole('checkbox', { name: /Select invoice #/ }).first().check()
+  await page.getByRole('button', { name: /Save PDFs \(1\)/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Save invoice PDFs in bulk' })
+  await expect(dialog).toContainText('At most 1,000 items per action.')
+  await dialog.getByRole('button', { name: 'Check' }).click()
+  await expect(dialog.getByRole('table', { name: 'Invoices checked' })).toBeVisible()
+  await scan(page, 'bulk send dialog')
+})
+
+test('adding an item to clients in bulk opens on a client picker', async ({ page }) => {
+  await signIn(page, '/billing')
+  await page.getByRole('button', { name: 'Add an item to clients' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add an item to clients' })
+  await expect(dialog.getByRole('combobox', { name: 'Add a client' })).toBeVisible()
+  await scan(page, 'bulk add item dialog')
 })
 
 test('every billing screen passes the axe WCAG 2.1 AA scan', async ({ page }) => {

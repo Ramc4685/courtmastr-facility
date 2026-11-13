@@ -150,9 +150,16 @@ function ItemsTab({ clientId, homeLocationId }: { clientId: string; homeLocation
   )
 }
 
-export function InvoicesTable({ query, caption = 'Invoices', showClient = false }: { query: Record<string, string | undefined>; caption?: string; showClient?: boolean }) {
+type InvoicesTableProps = { query: Record<string, string | undefined>; caption?: string; showClient?: boolean; chosen?: string[]; onChoose?: (ids: string[]) => void }
+
+export function InvoicesTable({ query, caption = 'Invoices', showClient = false, chosen, onChoose }: InvoicesTableProps) {
   const paging = useKeysetQuery(['billing', 'invoices', query], (cursor) => api.get('/api/v1/invoices', { query: { cursor, ...query } }))
+  const select: Column<Schemas['InvoiceOut']>[] =
+    chosen && onChoose
+      ? [{ header: 'Select', cell: (i) => (i.status === 'voided' ? null : <input type="checkbox" className="h-4 w-4" aria-label={`Select invoice #${i.number}`} checked={chosen.includes(i.id)} onChange={(e) => onChoose(e.target.checked ? [...chosen, i.id] : chosen.filter((x) => x !== i.id))} />) }]
+      : []
   const columns: Column<Schemas['InvoiceOut']>[] = [
+    ...select,
     { header: 'Number', cell: (i) => <Link className="font-medium text-primary underline-offset-2 hover:underline" to={`/billing/invoices/${i.id}`}>#{i.number}</Link> },
     ...(showClient ? [{ header: 'Bill to', cell: (i: Schemas['InvoiceOut']) => <ClientName id={i.bill_to_client_id} /> }] : []),
     { header: 'Date', cell: (i) => i.invoice_on },
