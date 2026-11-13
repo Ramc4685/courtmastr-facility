@@ -441,3 +441,39 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [undocumented] public-schedule, PATCH purchase, cancel purchase, plan archive and portal abandon routes not described (router.py:137,201,262,275; service.py:1643,1787,1817)
 - [ ] [wording] README:9 "13 tables"; models.py defines 16 (adds rental_portal_setting, rental_plan_share, locker_lease)
 - [ ] [wording] README:75-76 "confirm takes no stored method" contradicts L152-153 and schemas.py:454-455
+
+## Added on this branch (drift refresh 2026-11-13, rentals pilot follow-up)
+Re-run after the minors and member-price follow-up touched clients, memberships, scheduling and billing tests.
+Rentals re-found the same items as above (13 with the three unlisted routed operations split out). New items only:
+
+### clients (+6) — [evidence](drift/clients.md)
+
+- [ ] [undocumented] migration 1982 and `client.is_birth_on_unverified` (portal-entered birth date flagged for staff) not in README
+- [ ] [undocumented] internal `possible_duplicates`, `create_self_service`, `terms.acknowledge`, `find_by_primary_email`, `matchable_addresses` not in the interface list
+- [ ] [contract] member-number PUT (yaml) vs POST (code); location settings PATCH vs PUT; attachment download path; photo, attachment and timeline ops absent from openapi-people.yaml
+- [ ] [missing] yaml `portalGetMemberCard`, `portalSetClientPhoto` have no route; `is_portal_photo_edit_enabled` has no effect
+- [ ] [undocumented] permission keys `client.export`, `client.merge`, `consent.update`, `config.manage` unnamed in README
+- [ ] [wording] `merge.py:381` comment "wait for K1" stale; `data_subject_request` is exempt from the merge/erase meta-test though README implies none is
+
+### memberships (+5) — [evidence](drift/memberships.md)
+
+- [ ] [stale-not-built] README:68-69 MEM-22 API keys "unverified" but routes use `require()`; "MEM-23 checklist" listed both not built and built
+- [ ] [missing] erasure refused with `live-membership` not in README
+- [ ] [contract] `PUT .../agreement`, `GET /clients/{id}/system-alerts`, `upcoming-renewals`, `reprice` not in docs/api; portal buy contract a stub; path-id and three operationId mismatches
+- [ ] [undocumented] portal terms acknowledgement, 30-day online start window, `save_method`/`coupon_code`, standings/visit-adjustments/sold-by/history routes, several settings fields
+- [ ] [wording] handlers.py also handles invoice paid/voided; suspension lifts on any invoice no longer owing; `run_membership_day` docstring says unscheduled but scheduler.py runs it hourly
+
+### scheduling (+5) — [evidence](drift/scheduling.md)
+
+- [ ] [contract] README "40 operations" vs 49 routes; participants, direct-link regenerate, POST resolve and POST /bookings/{id}/merge have no contract op
+- [ ] [contract] series merge path/body, direct-link resolve method, and `session_id` vs `schedule_session_id` differ from openapi-core.yaml
+- [ ] [stale-not-built] README:15 "eight more contract ops not built"; four remain (slot-offer direct link, three public-schedule ops)
+- [ ] [undocumented] five events (`session.direct_link_changed`, `participant.*`, `series.merged`), `booking_participant`, `sharing.py` and internal functions (incl. `add_rule(source_data=)`) missing from README
+- [ ] [undocumented] packages/handlers.py subscribes to `scheduling.booking.completed`, which scheduling never emits
+
+### billing (+4) — [evidence](drift/billing.md)
+
+- [ ] [contract] spec ops not built: bulk-action reads, disputes list/get/evidence, surcharge preview, account-credit issue, portal bank verify; webhook `/webhooks/{provider}` vs `/webhooks/stripe`
+- [ ] [contract] collections tags/profile/report, period lock, receivables ageing, expiring cards, statement batches, PDFs and public routes in no docs/api yaml
+- [ ] [undocumented] portal guard lives in `billing/collections.py` (README implies core.auth.deps); payment cancel/void/mark-paid/refunds/ledger/autopay-attempt, account-credit and coupon routes unnamed
+- [ ] [wording] `equal_instalments(total=)` is `total_minor`; two `billing_summary` signatures not distinguished

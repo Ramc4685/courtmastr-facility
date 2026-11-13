@@ -1,18 +1,36 @@
 ## backend/app/modules/clients/README.md
 
-- [stale-not-built] README:44-45 lists "a scheduler for task reminders" as not built, but it runs hourly: `backend/app/scheduler.py:21-25` (`EVERY_HOUR` includes `send_client_task_reminders`), `backend/app/modules/clients/activity.py:284`. The README itself says so at line 105, so the two sections contradict each other.
-- [stale-not-built] README:27-30 says billing tables (`invoice`, `charge`, `payment`, `refund`, `ledger_entry`) are allow-listed in `MONEY` until the money lane registers handlers. No `MONEY` set exists: the meta-test allow-list is only `MERGE_ALLOWED = {"data_subject_request"}` (`backend/app/modules/clients/tests/test_activity_merge.py:20`), and billing now registers both handlers (`backend/app/modules/billing/subject.py:168-169`).
-- [stale-not-built] README:44 lists "the portal member card" as not built. A portal app card exists: `GET/POST /portal/app-cards` (`backend/app/modules/access/router.py:283,288`), `PortalAppCardCreate/Issued` (`backend/app/modules/access/schemas.py:454,459`), rendered by `mobile/src/ui/MemberCard.tsx`. The web portal (`web/src/features/portal/`) has no card page, so the claim holds only for web, and the README does not say that.
-- [wording] README:45 lists "derived system alerts" as not built, while README:107 says they are built in memberships (`GET /clients/{client_id}/system-alerts`, `backend/app/modules/memberships/router.py:318`). The not-built list should say "not in this context" or drop the item.
-- [wording] README:18-19 says `is_minor` takes the age of majority "from `tenant.settings`, default 18". The function takes an explicit `age_of_majority` argument with no default (`backend/app/modules/clients/service.py:1033`). The tenant-settings lookup with default 18 lives in `households._is_minor` (`backend/app/modules/clients/households.py:259-263`).
-- [wording] README:21-22 gives `activity.active_alerts(..., "check_in" | "booking", on)`. The code also accepts `"profile"` (`backend/app/modules/clients/activity.py:336-340`).
-- [undocumented] README:16-22 (internal interface) leaves out internal functions that other contexts call: `service.audience` and `service.client_ids_for_address` (engagement), `service.find_by_member_number` (access, imports), `service.find_by_last_name_prefix` (access), `service.display_names` (access desk), `service.reach_filter` (memberships, packages, documents), `service.possible_duplicates` (pos; described at README:106 but not listed here) and `households.guardian_ids` (documents). Definitions: `backend/app/modules/clients/service.py:101,1055,1081,1238,1251,1267,1273`, `backend/app/modules/clients/households.py:341`.
-- [undocumented] README:4 names only migration `0201_clients_households`. Client tables also come from `backend/migrations/versions/0002_kernel_clients_billing.py` and `backend/migrations/versions/1091_clients_photo_and_note_attachments.py`.
-- [undocumented] README:8 lists the tables in `models.py` but leaves out `referral_category` (`backend/app/modules/clients/models.py:312`) and `client_location_settings` (`models.py:392`). It also says photo storage is excluded, yet `client_note_attachment` (`models.py:618`) is defined in `models.py`.
-- [undocumented] The README names only the `clients.client.created`, `ClientUpdated` and `NoteAttachmentChanged` events. `backend/app/modules/clients/events.py:23,29,38` also defines `ClientDisabled`, `ClientMerged` and `RelationshipChanged`.
+Checked against `backend/app/modules/clients/*.py`, `backend/openapi.json` and `docs/api/openapi-people.yaml`. Only divergences are listed.
 
-- [undocumented] README:6-14 (file table) omits `terms.py` (`backend/app/modules/clients/terms.py:1-28`, `register` and `acknowledge`), which `__init__.py:8-10` exports. It appears only in the Phase 11 section at README:109-114.
-- [undocumented] README:16-22 (internal interface) omits the Phase 11 internals `service.create_self_service` (`backend/app/modules/clients/service.py:1178`; callers `engagement/signup.py:90`, `programs/checkout.py:503,510`) and `terms.acknowledge` (callers `memberships/service.py:2018`, `packages/service.py:1234`, `programs/checkout.py:182`, `rentals/service.py:1449`).
-- [untested] No test in `backend/app/modules/clients/tests/` covers `create_self_service` (the no-email-match rule, `verified_email` setting `client_email.verified_at`) or `terms.acknowledge`/`register`. The README states both behaviours as rules.
-- [logic-shortcut] `terms.acknowledge` uses `assert _recorder is not None` (`terms.py:26`). Under `python -O` the assert vanishes and a missing recorder becomes a `TypeError` instead of a clear failure. The registration depends on `app.modules.documents` being imported (`documents/service.py:1259`), which clients does not guarantee.
-- [wording] `create_self_service` accepts any `created_via` string. Any value other than `portal` is treated as `registration` (`service.py:1182`), while the README says only `portal|registration`. Nothing validates it.
+### [contract]
+
+- README:87-88 (`getClientNoteAttachment` "always as a download") vs YAML. YAML defines `GET /client-notes/{note_id}/attachment` as "Signed URL for a note attachment" (`docs/api/openapi-people.yaml:1761-1763`). Code serves the bytes at `GET /client-notes/{note_id}/attachments/{attachment_id}` (`backend/app/modules/clients/router.py:549`). The path and the response kind both differ.
+- README:11 (`service.py` holds member numbers) vs YAML. YAML declares `PUT /clients/{client_id}/member-number` (`openapi-people.yaml:429-430`). Code registers `POST` (`router.py:101`).
+- `PATCH /client-location-settings/{location_id}` in YAML (`openapi-people.yaml:928-930`, `updateClientLocationSettings`) is `PUT` in code (`router.py:226`). The README does not mention the route.
+- README:87 names `getClientPhoto` and the attachment operations, but `openapi-people.yaml` has no `getClientPhoto` (only `PUT` and `DELETE` on `/clients/{client_id}/photo`, lines 292-326), no `listClientNoteAttachments`, `uploadClientNoteAttachment` or `deleteClientNoteAttachment`, and no `getClientTimeline`. Code: `router.py:530,535,540,554,468`.
+- README:56 says portal GET ids differ from the YAML ids and gives the reason, but it does not list them. Five differ: `portalListActableClients`, `portalGetClient`, `portalGetEmergencyContacts`, `portalListRelationshipTypes` and `portalListRelationships` (YAML lines 1262, 1291, 1383, 1467, 1496) against `listPortalActableClients`, `getPortalClient` and so on in `backend/openapi.json`.
+
+### [missing]
+
+- YAML `portalGetMemberCard` (`GET /portal/clients/{client_id}/member-card`, `openapi-people.yaml:1440`) has no route in the clients router or anywhere else. README:48-50 says the API has a member card "in `access`", but `access/router.py:285-297` serves `/portal/app-cards`, which is a different path. README:49 should name that path and say the YAML route is unbuilt.
+- YAML `portalSetClientPhoto` (`PUT /portal/clients/{client_id}/photo`, `openapi-people.yaml:1348`) has no route. README:48 lists portal photo edit as not built, but code ships the setting `is_portal_photo_edit_enabled` (`models.py:402`, `service.py:196`) without saying it has no effect yet.
+
+### [stale-not-built]
+
+No drift detected. The "Not built" list (README:46-50) matches the code: no webcam or portal photo route, no `createClientExport` route, no web portal member-card page (`web/src/app/App.tsx:264` has a staff-only card page), and `service.py:78-79` still lacks the booking clause.
+
+### [undocumented]
+
+- Migration `1982_clients_birth_on_unverified.py` is not in the README:4-5 migration list. It adds `client.is_birth_on_unverified` (`models.py:201`, `schemas.py:106`).
+- The flag has no README entry. README:66 says only that the portal may set `birth_on` while it is blank. The code also flags that first portal-entered date for staff review (`service.py:781,832`; `households.py:536-537`).
+- README:17-24 (internal interface) omits `service.possible_duplicates` (`service.py:1085`; it is described only at README:110), `create_self_service` (`service.py:1182`) and `terms.acknowledge` (`terms.py:21`). Also omitted: `find_by_primary_email` (`service.py:1249`; it appears only in the imports paragraph, line 42) and `matchable_addresses` (`service.py:1115`).
+- README:44 states that an imported client's event carries `source: "import"`. The code also sets `source: "guest"` for `created_via=registration` (`service.py:797`), which is not documented.
+- The README does not describe the clients routes it never names: `GET /clients/{client_id}/timeline` (`router.py:468`) and `POST /public/email-verifications/confirm` (`router.py:373`). The latter is in `openapi-programs.yaml:4146`, not in the people YAML.
+- `permissions.py:24-39` registers `client.export`, `client.merge`, `consent.update` and `config.manage`. The README documents the keys only for photos and attachments (lines 90-93), not the rest of the catalogue.
+
+### [wording]
+
+- README:19-20 says `is_minor` "takes the age of majority as an argument". That is correct (`service.py:1037`). The tenant-setting lookup with default 18 lives in `households._is_minor` (`households.py:259-263`), as the README implies, but the README does not name that function.
+- README:115-116 gives `created_via=portal|registration`. `create_self_service` accepts any string and treats every non-`portal` value as the `registration` context (`service.py:1196`). `_create` receives the raw `created_via` value, so nothing validates it.
+- README:98-101 says erasure and replace purge file bytes through `platform.files.remove`. The comment at `merge.py:381` says the bytes "wait for K1", which contradicts that. `files.py:134-141` does call `files.remove`, so the comment is the stale part.
+- README:26-32 says that for each table with a client foreign key, no table is exempt from the meta-test. The test exempts `data_subject_request` (`tests/test_activity_merge.py:20,42-43`).

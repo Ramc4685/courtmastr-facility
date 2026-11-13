@@ -8,7 +8,7 @@ This check builds CIRQT in the product and drives it the way the owner would. No
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 18 pass, 0 fail, 7 gaps.** First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot` (head 1981), which re-ran the scenarios.
+**Result: 20 pass, 0 fail, 7 gaps.** First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot` (head 1981), which re-ran the scenarios; the minors follow-up (head 1982) added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
 
 ## Assumptions (owner to confirm)
 
@@ -47,7 +47,7 @@ These are the values the seed uses. Marked items are assumptions.
 | f | Desk work: check-in, a walk-in rental, cash, cancel, refund. | pass (secondary, because CIRQT is unmanned). The front desk role may not refund, so a manager does it. |
 | g | Prime and off-prime pricing in Chicago time, with a booking that straddles 18:00 ($24 + $30), the noon morning edge, Saturday, and the public slot prices. | pass |
 | g | Member prices on bookings. | pass (closed on `claude/rentals-pilot`): members pay the member rate per band; quote and charge share one pricing function |
-| h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass |
+| h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass (a walk-in guest pays the guest price, $24) |
 | h | No-show rule for rentals. | **gap** |
 | i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
 | i | Utilisation measured from opening hours. | **gap** |
@@ -59,6 +59,8 @@ These are the values the seed uses. Marked items are assumptions.
 | m | A parent buys a lesson for a child and drops the child off. | pass |
 | m | Online, a parent can rent only in their own name, so a child cannot be put on a court alone from the portal. | pass |
 | m | A child cannot be booked on a court without a parent on the booking. | pass (closed on `claude/rentals-pilot`): a minor never holds a rental; the parent holds it and names the child as a player |
+| m | A child the parent added in the portal (`manager` authority) never holds a court online; the parent books and names the child. | pass |
+| m | A dependant with no birth date cannot hold a court online (unknown is not an adult online). | pass |
 | n | Staff coach versus independent coach: pay rates and what the coach sees. | pass (see below) |
 
 ## What is missing, ranked for CIRQT

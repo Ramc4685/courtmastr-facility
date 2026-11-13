@@ -221,5 +221,10 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   when the child is one of its players (`_purchase_for`, staff and portal); otherwise it stays the child's alone.
   The ledger records the holder as the user.
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
+- **Open question for the owner.** Should a child's own membership earn the member price when a parent (not a
+  member) holds the booking and the child plays? Today the price follows the holder only.
+- **Seam (claude/building-control).** That branch emails the door entry code to the rental holder and, for
+  sessions, to every participant, children included. Rentals now never have a child holder, but a child player of a
+  session gets the code; the owner should confirm that is wanted before both land.
 - **Out of scope** (seen, not built): online recurring bookings by members, club contracts, no-show and overstay
   handling, independent-coach payouts, the utilisation report, leagues.
