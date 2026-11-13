@@ -79,6 +79,7 @@ class ClientUpdate(_Profile):
     last_name: Name | None = None
     home_location_id: UUID | None = None
     version: int | None = None  # optimistic concurrency: a stale version is 409 version-conflict
+    confirm_age: bool = False  # also confirm the age (ID seen): needs clients.client.confirm_age; nothing else confirms
 
 
 class ClientListItem(Out):
@@ -107,6 +108,7 @@ class ClientOut(ClientListItem):
     age_confirmed: bool = False  # a birth date staff entered or confirmed (clients.service.is_age_confirmed)
     age_confirmed_at: datetime | None = None
     age_confirmed_by_staff_user_id: UUID | None = None
+    age_confirmation_reset: bool = False  # this edit changed a confirmed date: it waits for staff again
     organization_name: str | None
     phone_home: str | None
     phone_work: str | None

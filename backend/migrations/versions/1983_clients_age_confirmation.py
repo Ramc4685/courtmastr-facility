@@ -1,7 +1,7 @@
 """clients: staff confirm a self-declared birth date once (owner decision 2026-11-13, "Staff confirm once").
 
-Records who confirmed and when; nothing about the document seen. Birth dates already on records created online
-(sign-up, guest checkout, portal dependants) before 1982 are flagged too, so they also wait for staff.
+Records who confirmed and when; nothing about the document seen. Only the confirm action confirms, so every
+birth date already on file is flagged and waits for it (seeds confirm theirs through the action).
 
 Revision ID: 1983
 Revises: 1982
@@ -26,8 +26,7 @@ def upgrade() -> None:
     # The owner is subject to forced RLS like everyone else; lift it for this one backfill (as 1331 does).
     op.execute("ALTER TABLE client NO FORCE ROW LEVEL SECURITY")
     op.execute(
-        "UPDATE client SET is_birth_on_unverified = true WHERE birth_on IS NOT NULL "
-        "AND created_via IN ('portal', 'registration') AND NOT is_birth_on_unverified"
+        "UPDATE client SET is_birth_on_unverified = true WHERE birth_on IS NOT NULL AND NOT is_birth_on_unverified"
     )
     op.execute("ALTER TABLE client FORCE ROW LEVEL SECURITY")
 

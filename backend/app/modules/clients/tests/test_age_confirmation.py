@@ -108,11 +108,6 @@ def test_merge_carries_the_flag_with_a_backfilled_birth_date(client, owner, tena
     assert (merged["birth_on"], merged["is_birth_on_unverified"]) == (ADULT, True)
 
 
-def test_a_staff_entered_date_on_a_staff_record_counts_as_confirmed(client, owner, f):
-    seen = new_client(client, owner, f.location, birth_on=ADULT)
-    assert seen["is_birth_on_unverified"] is False
-
-
 # --- item 2: staff confirm age once ---------------------------------------------------------------------------------
 
 
@@ -148,11 +143,83 @@ def test_confirming_needs_a_date(client, owner, tenant, f):
     assert (refused.status_code, refused.json()["code"]) == (422, "birth-date-required")
 
 
-def test_a_staff_save_of_a_new_date_confirms_it_and_fires_the_event(client, owner, tenant, f):
+def test_only_the_confirm_action_confirms_a_staff_entered_date_is_not_enough(client, owner, f):
+    """Coordinator security review: staff typing a date (create or edit) is not an ID check."""
+    seen = new_client(client, owner, f.location, birth_on=ADULT)
+    assert (seen["is_birth_on_unverified"], seen["age_confirmed"]) == (True, False)
+
+
+def test_a_desk_edit_without_the_key_leaves_the_date_unconfirmed_and_fires_nothing(client, owner, tenant, f):
     who = self_declared(client, owner, tenant, f)
-    seen = ok(client.patch(f"{API}/clients/{who}", headers=owner, json={"birth_on": "1990-01-03"}), 200)
-    assert (seen["is_birth_on_unverified"], seen["age_confirmed"]) == (False, True)
+    email, desk_id = add_staff(tenant, "front_desk", location_ids=[f.location])
+    deny = {"grants": [{"permission_key": "clients.client.confirm_age", "is_allowed": False}]}
+    ok(client.put(f"{API}/staff-users/{desk_id}/permission-overrides", headers=owner, json=deny), 200)
+    desk = login(client, tenant, email)
+    seen = ok(client.patch(f"{API}/clients/{who}", headers=desk, json={"birth_on": "1990-01-03"}), 200)
+    assert (seen["birth_on"], seen["is_birth_on_unverified"], seen["age_confirmed"]) == ("1990-01-03", True, False)
+    asked = client.patch(f"{API}/clients/{who}", headers=desk, json={"birth_on": ADULT, "confirm_age": True})
+    assert asked.status_code == 403 and staff_view(client, owner, who)["birth_on"] == "1990-01-03"
+    assert confirm(client, desk, who).status_code == 403
+    assert confirmed_events(tenant, who) == 0
+
+
+def test_an_edit_with_the_key_and_the_explicit_flag_confirms_once(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    body = {"birth_on": "1990-01-03", "confirm_age": True}
+    seen = ok(client.patch(f"{API}/clients/{who}", headers=owner, json=body), 200)
+    assert (seen["birth_on"], seen["age_confirmed"]) == ("1990-01-03", True)
     assert confirmed_events(tenant, who) == 1
+    ok(client.patch(f"{API}/clients/{who}", headers=owner, json={"comments": "seen", "confirm_age": True}), 200)
+    assert confirmed_events(tenant, who) == 1
+
+
+def test_changing_a_confirmed_date_without_confirming_resets_it_and_says_so(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    ok(confirm(client, owner, who), 200)
+    seen = ok(client.patch(f"{API}/clients/{who}", headers=owner, json={"birth_on": "1990-01-04"}), 200)
+    assert (seen["age_confirmed"], seen["age_confirmation_reset"], seen["age_confirmed_at"]) == (False, True, None)
+    other = ok(client.patch(f"{API}/clients/{who}", headers=owner, json={"comments": "x"}), 200)
+    assert other["age_confirmation_reset"] is False
+
+
+def test_an_import_never_confirms(client, owner, tenant, f):
+    from app.modules.clients import service
+
+    who = self_declared(client, owner, tenant, f)
+    ok(confirm(client, owner, who), 200)
+    member = staff_view(client, owner, who)
+    with tenant_session(tenant.id, actor=system_principal("import")) as session:
+        created, fresh = service.import_client(session, {
+            "first_name": "Imo", "last_name": f"Port-{uuid4().hex[:6]}", "home_location_id": f.location,
+            "birth_on": ADULT})  # fmt: skip
+        assert fresh and created.is_birth_on_unverified
+        session.execute(update(Client).where(Client.id == who).values(member_number="M-AGE-1"))
+        service.import_client(session, {"member_number": "M-AGE-1", "first_name": member["first_name"],
+                                        "last_name": member["last_name"], "birth_on": "1990-02-02"})  # fmt: skip
+    assert staff_view(client, owner, who)["age_confirmed"] is False
+    assert confirmed_events(tenant, who) == 1  # only the action's
+
+
+def test_a_merge_backfill_never_confirms(client, owner, tenant, f):
+    survivor = new_client(client, owner, f.location)["id"]
+    loser = self_declared(client, owner, tenant, f)
+    ok(confirm(client, owner, loser), 200)
+    merged = ok(client.post(f"{API}/clients/{survivor}/merge", headers=owner, json={"merged_client_ids": [loser]}), 200)
+    assert (merged["birth_on"], merged["age_confirmed"]) == (ADULT, False)
+    assert confirmed_events(tenant, survivor) == 0
+
+
+def test_an_api_key_can_never_hold_or_use_confirm_age(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    given = client.post(f"{API}/api-keys", headers=owner, json={"name": "Partner", "scopes": ["clients.client.confirm_age"]})
+    assert (given.status_code, given.json()["code"]) == (422, "scope-not-grantable")
+    key = ok(client.post(f"{API}/api-keys", headers=owner, json={"name": "Partner", "scopes": ["clients.client.update"]}))
+    bearer = {"Authorization": f"Bearer {key['secret']}"}
+    asked = client.patch(f"{API}/clients/{who}", headers=bearer, json={"birth_on": ADULT, "confirm_age": True})
+    assert asked.status_code == 403
+    assert confirm(client, bearer, who).status_code == 403
+    edited = ok(client.patch(f"{API}/clients/{who}", headers=bearer, json={"birth_on": "1990-03-03"}), 200)
+    assert edited["age_confirmed"] is False and confirmed_events(tenant, who) == 0
 
 
 def test_confirm_age_has_its_own_key_and_stays_in_location_scope(client, owner, tenant, f):

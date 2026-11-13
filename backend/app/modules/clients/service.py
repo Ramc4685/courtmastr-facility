@@ -135,6 +135,7 @@ def client_view(session: Session, principal: Principal, client: Client) -> dict:
     )
     view["tag_ids"] = list(session.scalars(select(ClientTag.tag_id).where(ClientTag.client_id == client.id)))
     view["age_confirmed"] = _age_confirmed(client)  # not masked: says nothing of the date itself
+    view["age_confirmation_reset"] = getattr(client, "age_confirmation_reset", False)  # set by update_client
     masked = not principal.has(_SENSITIVE)
     if masked:
         view.update(dict.fromkeys(SENSITIVE_FIELDS))
@@ -780,8 +781,8 @@ def _create(
         created_via=created_via,
         created_by_staff_user_id=principal.staff_user_id,
         member_number_source="manual" if data.get("member_number") else None,
-        # A date the person typed (sign-up, guest checkout, a portal dependant) waits for staff to confirm it once.
-        is_birth_on_unverified=context in ("portal", "registration") and data.get("birth_on") is not None,
+        # Any typed date (sign-up, guest checkout, a dependant, the desk, an import) waits for confirm_age.
+        is_birth_on_unverified=data.get("birth_on") is not None,
     )
     session.add(client)
     session.flush()
@@ -831,11 +832,8 @@ def apply_update(session: Session, client: Client, data: dict, *, context: str, 
     _check_refs(session, data)
     check_capture(session, context, _policy_values(data, emails, custom), _policy_current(session, client))
     if "birth_on" in data and data["birth_on"] != client.birth_on:
-        # Staff entering a birth date confirm it; one first entered through the portal waits for staff.
-        if context == "portal":
-            client.is_birth_on_unverified = True
-        else:
-            _mark_age_confirmed(client, actor_staff_id)
+        # Only confirm_age confirms (coordinator security review): every other change of the date unconfirms it.
+        _mark_age_unconfirmed(client)
     for key, value in data.items():
         setattr(client, key, value)
     if custom is not None:
@@ -860,13 +858,26 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
     if data.get("home_location_id") and principal.location_ids is not None:
         if data["home_location_id"] not in principal.location_ids:
             raise ValidationFailed("Unknown location.", pointer="/home_location_id")
+    wants_confirm = data.pop("confirm_age", False)
+    if wants_confirm:  # the confirm-age gate on the loaded client, before anything is written
+        authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
     confirmed = _age_confirmed(client)
     changes = apply_update(session, client, data, context="staff", actor_staff_id=principal.staff_user_id)
+    if wants_confirm:
+        if client.birth_on is None:
+            raise ValidationFailed("Enter the birth date shown on the ID.", pointer="/birth_on",
+                                   code="birth-date-required")  # fmt: skip
+        if not changes:
+            client.version += 1
+            client.updated_by_staff_user_id = principal.staff_user_id
+        _mark_age_confirmed(client, principal.staff_user_id)
+        changes = changes | audit.diff(client)
     if changes:
         audit.record(session, "clients.client.update", client, location_id=client.home_location_id, changes=changes)
         events.publish(session, ClientUpdated(client_id=client.id), client.id)
-        if not confirmed and _age_confirmed(client):
-            events.publish(session, ClientAgeConfirmed(client_id=client.id), client.id)
+    if not confirmed and _age_confirmed(client):
+        events.publish(session, ClientAgeConfirmed(client_id=client.id), client.id)
+    client.age_confirmation_reset = confirmed and not _age_confirmed(client)  # type: ignore[attr-defined]
     session.flush()
     return client
 
@@ -876,6 +887,11 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
 
 def _age_confirmed(client: Client) -> bool:
     return client.birth_on is not None and not client.is_birth_on_unverified
+
+
+def _mark_age_unconfirmed(client: Client) -> None:
+    client.is_birth_on_unverified = True
+    client.age_confirmed_at = client.age_confirmed_by_staff_user_id = None
 
 
 def _mark_age_confirmed(client: Client, staff_user_id: UUID | None) -> None:

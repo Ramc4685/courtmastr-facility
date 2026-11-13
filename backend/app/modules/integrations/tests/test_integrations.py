@@ -172,7 +172,7 @@ _GRANTABLE_COUNTS = {
 _WITHHELD_IN_LISTED_CONTEXTS = {
     "access.kiosk.manage", "access.device.manage", "billing.tax.manage", "billing.settings.manage",
     "billing.provider.manage", "pos.terminal.manage", "resources.padlock.reveal_combination",
-    "rentals.portal_setting.manage",
+    "rentals.portal_setting.manage", "clients.client.confirm_age", "rentals.booking.override_minor",
 }  # fmt: skip
 _ENGAGEMENT = {
     "engagement.app_content.manage", "engagement.campaign.create", "engagement.campaign.edit",
