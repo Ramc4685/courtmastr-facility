@@ -98,19 +98,18 @@ def test_clear_renew_and_clear_expired(client, owner, f, tenant):
     assert again.status_code == 409 and again.json()["code"] == "lease-cleared"
     ok(lease(client, owner, f, f.locker2, term_kind="custom", starts_on="2020-03-01", ends_on="2020-03-02"))
     swept = ok(client.post(f"{API}/locker-leases/clear-expired", headers=owner, json={"location_id": f.location, "locker_room_id": f.room}), 200)  # fmt: skip
-    assert swept == {"cleared_count": 2}
+    assert swept == {"cleared_count": 1}  # the renewal runs from today, so only locker 2 has lapsed
     assert ok(client.post(f"{API}/locker-leases/clear-expired", headers=owner, json={"location_id": f.location}), 200) == {"cleared_count": 0}  # fmt: skip
-    assert board_state(client, owner, f, f.locker)["state"] == "available"
-    fresh = ok(lease(client, owner, f, term_kind="day"))
+    assert board_state(client, owner, f, f.locker2)["state"] == "available"
+    assert board_state(client, owner, f, f.locker)["state"] == "rented"
+    fresh = renewed
     cleared = ok(client.post(f"{API}/locker-leases/{fresh['id']}/clear", headers=owner), 200)
     assert cleared["state"] == "cleared" and cleared["clear_source"] == "staff"
     assert (
         ok(client.post(f"{API}/locker-leases/{fresh['id']}/clear", headers=owner), 200)["cleared_at"]
         == cleared["cleared_at"]
     )
-    history = ok(
-        client.get(f"{API}/locker-leases", headers=owner, params={"locker_id": f.locker, "is_open": "false"}), 200
-    )
+    history = ok(client.get(f"{API}/locker-leases", headers=owner, params={"is_open": "false"}), 200)
     assert {r["clear_source"] for r in history["data"]} == {"renewed", "bulk_expired", "staff"}
     assert ok(client.get(f"{API}/locker-leases", headers=owner, params={"is_open": "true"}), 200)["data"] == []
 
