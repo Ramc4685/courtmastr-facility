@@ -94,6 +94,7 @@ def _hold_credit(session: Db, seat: dict, row: Enrollment, client_package_id: UU
         packages.service.reserve_credit(
             session, client_package_id=client_package_id, client_id=row.client_id, **_credit(row),
             session_on=seat["starts_at"].astimezone(zone).date(), reservation_type_id=seat["reservation_type_id"],
+            defer_renewal=row.channel == "kiosk",  # nothing at the kiosk charges: the daily run renews
         )  # fmt: skip
     except NotFound:
         raise ValidationFailed("Unknown package.", pointer="/client_package_id") from None

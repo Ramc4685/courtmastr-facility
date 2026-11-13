@@ -464,3 +464,30 @@ def test_the_same_scan_on_two_kiosks_books_one_place_and_checks_in_twice(client,
         thread.join()
     assert [c for c, _ in codes] == [201, 201], codes
     assert _places(tenant, k, seat.id) == ["enrolled"]
+
+
+def test_a_kiosk_spend_at_the_renewal_threshold_defers_the_sale_to_the_daily_run(client, tenant, owner, k):
+    """Nothing at the kiosk charges: a credit spent there that reaches the auto-renew threshold leaves the sale to
+    the scheduled renewal run, which makes it by the normal path."""
+    from app.modules.billing.models import Invoice
+    from app.modules.packages import service as packages_service
+    from app.modules.packages.models import ClientPackage
+    from app.modules.memberships.tests.support import package_plan
+
+    paid = soon(client, owner, k.loc, 30, free=False)
+    plan = package_plan(client, owner, tenant, reservation_type_id=paid.type_id, session_count=2,
+                        renewal_threshold_count=1, is_auto_renew_on_threshold=True)  # fmt: skip
+    ok(client.post(f"{API}/client-packages", headers=owner,
+                   json={"client_id": k.person["id"], "location_id": k.loc, "package_plan_id": plan["id"]}), 201)  # fmt: skip
+    mine = select(func.count()).select_from(Invoice).where(Invoice.bill_to_client_id == UUID(k.person["id"]))
+    packs = select(func.count()).select_from(ClientPackage).where(ClientPackage.owner_client_id == UUID(k.person["id"]))
+    invoices = scalar(tenant, mine)
+    ok(book(client, enter(client, k.person, app_qr(tenant, k.person)), paid.id))
+    assert pricing(tenant, paid.id) == "entitlement"  # one credit spent: one left, at the threshold
+    assert (scalar(tenant, mine), scalar(tenant, packs)) == (invoices, 1)  # no successor sold, nothing invoiced
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert packages_service.run_daily(session)["renewed"] == 1
+    assert (scalar(tenant, mine), scalar(tenant, packs)) == (invoices + 1, 2)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert packages_service.run_daily(session)["renewed"] == 0  # once
+
