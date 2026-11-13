@@ -27,6 +27,12 @@ the living records are `docs/status/feature-ledger.md` (every feature and its st
   Hardware shortlist: `docs/discovery/building-control-hardware.md` (unverified vendor claims).
 - **A local demo runs from the main checkout** (API 8100, web 5183, background tasks of the lead session).
 - **Load average was about 19 with seven agents.** Start nothing new until some finish.
+- **12:05:** local `main` is at `3d66551` (CIRQT seed, scenario tests and fit report merged; CIRQT is seeded in the
+  demo at `cirqt.localhost:5183`), three commits ahead of origin. Integration gate: draft PR #6 from
+  `claude/overnight-integration`, Auto-fix on. Videos moved to their own Sonnet session (branch cut from
+  `agent-a000fcd1438a89870`). Owner-decisions branch: kiosk package purchase dropped after risk review, six fixes
+  in progress. New branch `claude/rentals-pilot` (member pricing and the minors rule on rentals, migrations
+  `1981`+). Load average reached 47: no new builders.
 
 ## Where things stood at 09:55
 
