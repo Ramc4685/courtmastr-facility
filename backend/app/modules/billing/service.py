@@ -1143,8 +1143,9 @@ def refund(
         amount_minor=amount_minor, idempotency_key=_refund_provider_key(session, row),
     )  # fmt: skip
     row.provider_refund_ref, row.failure_message = result.provider_refund_ref or None, result.failure_message
-    if result.outcome != "failed":  # a declined refund leaves the items paid, as they were
-        _release_for_refund(session, payment, release)
+    # a declined refund leaves the items paid; the row keeps only what was released, for a later failure
+    released = _release_for_refund(session, payment, release) if result.outcome != "failed" else []
+    row.release_allocation_ids = released or None
     _finish_refund(session, row, payment, result.outcome)
     return row
 
@@ -1164,15 +1165,18 @@ def _releasable(session: Session, payment: Payment, allocation_ids: Sequence[UUI
     return total
 
 
-def _release_for_refund(session: Session, payment: Payment, allocation_ids: Sequence[UUID], *, cover: int = 0) -> None:
+def _release_for_refund(
+    session: Session, payment: Payment, allocation_ids: Sequence[UUID], *, cover: int = 0
+) -> list[UUID]:
     """Release the named live allocations of the payment, then (sweep only) the newest others until `cover`
-    more is free. One reallocate audit row for the payment when anything moved."""
-    released = 0
+    more is free. One reallocate audit row for the payment when anything moved. Returns the ids released."""
+    released, ids = 0, []
     named = [session.get(PaymentAllocation, i) for i in dict.fromkeys(allocation_ids)]
     for allocation in named:
         if allocation is not None and allocation.payment_id == payment.id and allocation.status != "released":
             _release(session, allocation, "unapplied")
             released += allocation.amount_minor
+            ids.append(allocation.id)
     newest = (
         _live_allocations(PaymentAllocation.payment_id == payment.id)
         .order_by(None)
@@ -1181,11 +1185,13 @@ def _release_for_refund(session: Session, payment: Payment, allocation_ids: Sequ
     while cover > 0 and (allocation := session.scalars(newest).first()) is not None:
         _release(session, allocation, "unapplied")
         released, cover = released + allocation.amount_minor, cover - allocation.amount_minor
+        ids.append(allocation.id)
     if released:
         audit.record(
             session, "billing.payment.reallocate", payment, location_id=payment.location_id,
             changes={"released_minor": [None, released]},
         )  # fmt: skip
+    return ids
 
 
 def _remainder(session: Session, payment: Payment) -> int:
@@ -1308,7 +1314,9 @@ def resume_refund(session: Session, refund_id: UUID, *, abandon: bool = False) -
         if found.outcome != "failed":
             free = _remainder(session, payment) - _reserved(session, payment.id, excluding=row.id)
             needed = max(0, row.amount_minor - free - _releasable(session, payment, row.release_allocation_ids or ()))
-            _release_for_refund(session, payment, row.release_allocation_ids or (), cover=needed)
+            row.release_allocation_ids = (
+                _release_for_refund(session, payment, row.release_allocation_ids or (), cover=needed) or None
+            )
             if row.amount_minor > _remainder(session, payment) - _reserved(session, payment.id, excluding=row.id):
                 raise Conflict("The processor refunded more than this payment can cover.", code="refund-unreconcilable")
         _finish_refund(session, row, payment, found.outcome)
@@ -1336,41 +1344,49 @@ def confirm_refund(session: Session, refund_id: UUID) -> Refund:
     if state.outcome == "pending":
         return row
     row.status, row.failure_message = state.outcome, state.failure_message
+    changes: dict = {"status": ["pending", row.status]}
     if state.outcome == "succeeded":
         _post_refund(session, row, payment)
     else:
         payment.refunded_minor -= row.amount_minor
         session.flush()
-        _reapply_released(session, payment, row.release_allocation_ids or ())
+        if left := _reapply_released(session, payment, row.release_allocation_ids or ()):
+            changes["not_reapplied_minor"] = [None, left]
     audit.record(
         session, "billing.refund.confirm", row, location_id=row.location_id,
-        changes={"status": ["pending", row.status]},
+        changes=changes,
     )  # fmt: skip
     _settle_projections(session, payment, ())
     return row
 
 
-def _reapply_released(session: Session, payment: Payment, allocation_ids: Sequence[UUID]) -> None:
-    """A failed refund puts back what its release took off items: each named allocation's amount goes to the same
+def _reapply_released(session: Session, payment: Payment, allocation_ids: Sequence[UUID]) -> int:
+    """A failed refund puts back what its release took off items: each allocation it released goes to the same
     item again, capped at what the item still owes and at the payment's free money. The release cannot wait for
-    success instead: a pending refund already counts in refunded_minor, so the money must leave the items."""
+    success instead: a pending refund already counts in refunded_minor, so the money must leave the items.
+    Recording the failure never fails: whatever cannot go back (the payment is disputed, the item was paid
+    another way) stays as unapplied credit on the payment. Returns that amount left as credit."""
     targets: dict[UUID, int] = {}
+    released = 0
     free = _remainder(session, payment) - _reserved(session, payment.id)
     for allocation_id in dict.fromkeys(allocation_ids):
         allocation = session.get(PaymentAllocation, allocation_id)
         if allocation is None or allocation.payment_id != payment.id or allocation.status != "released":
             continue
+        released += allocation.amount_minor
         charge = session.get(Charge, allocation.charge_id)
         owed = charge.total_minor - charge.applied_minor - targets.get(charge.id, 0) if charge.status == "active" else 0
         if (amount := min(allocation.amount_minor, owed, free)) > 0:
             targets[charge.id] = targets.get(charge.id, 0) + amount
             free -= amount
-    if targets:
+    if targets and payment.status in ("succeeded", "processing"):
         _allocate(session, payment, None, list(targets.items()))
         audit.record(
             session, "billing.payment.reallocate", payment, location_id=payment.location_id,
             changes={"reapplied_minor": [None, sum(targets.values())]},
         )  # fmt: skip
+        released -= sum(targets.values())
+    return released
 
 
 def _post_refund(session: Session, row: Refund, payment: Payment) -> None:

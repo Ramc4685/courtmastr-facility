@@ -509,7 +509,8 @@ class Refund(TenantOwned, Timestamps, Base):
     failure_message: Mapped[str | None]
     issued_by_staff_user_id: Mapped[UUID | None]
     idempotency_key: Mapped[str | None]  # a processed refund's row is found again by it (written before the call)
-    # The allocations a release-then-refund releases, kept so the sweep can re-apply the release (migration 1803).
+    # The allocations a release-then-refund names (migration 1803); once the processor answers, only those it
+    # actually released, so a later failure re-applies exactly them.
     release_allocation_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PgUUID(as_uuid=True)))
 
 

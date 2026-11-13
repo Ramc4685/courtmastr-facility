@@ -320,6 +320,76 @@ def test_a_pending_composite_refund_that_fails_pays_the_item_again(shop, monkeyp
         assert_books_agree(session)
 
 
+def _pending_composite(shop, monkeypatch):
+    item_id, payment_id, allocation_id = _applied(shop)
+    fake = payment_provider.get("fake")
+    monkeypatch.setattr(fake, "refund", lambda **_: RefundState("fake_ref_slow", "pending"))
+    with work(shop.tenant) as session:
+        row = svc.refund(
+            session, payment_id, amount_minor=600, reason="Closed", idempotency_key=uuid4().hex,
+            release_allocation_ids=[allocation_id],
+        )  # fmt: skip
+        assert row.status == "pending"
+    monkeypatch.undo()
+    return item_id, payment_id, row.id
+
+
+def _fail_twice(shop, monkeypatch, refund_id) -> None:
+    """The failure webhook arrives twice; the refund must end `failed` whatever happened to the payment."""
+    monkeypatch.setattr(
+        payment_provider.get("fake"), "get_refund", lambda **_: RefundState("fake_ref_slow", "failed", "Declined")
+    )
+    for _ in range(2):
+        with work(shop.tenant) as session:
+            webhooks.apply_event(session, "refund", "fake_ref_slow")
+    with work(shop.tenant) as session:
+        assert session.get(Refund, refund_id).status == "failed"
+        assert_books_agree(session)
+
+
+def test_a_pending_refund_that_fails_after_a_dispute_leaves_the_money_as_credit(shop, monkeypatch):
+    ready(shop)
+    item_id, payment_id, refund_id = _pending_composite(shop, monkeypatch)
+    fake = payment_provider.get("fake")
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, payment_id)
+        account = session.get(svc.ProviderAccount, payment.provider_account_id)
+        svc.sync_dispute(session, account, fake.open_dispute(payment.provider_payment_ref))
+        assert payment.status == "disputed"
+    fake.outbox.clear()
+    _fail_twice(shop, monkeypatch, refund_id)
+    with work(shop.tenant) as session:
+        assert session.get(svc.Payment, payment_id).refunded_minor == 0
+        assert session.get(svc.Charge, item_id).applied_minor == 0  # a disputed payment takes no allocation
+
+
+def test_a_pending_refund_that_fails_after_the_item_was_paid_otherwise_leaves_credit(shop, monkeypatch):
+    ready(shop)
+    item_id, payment_id, refund_id = _pending_composite(shop, monkeypatch)
+    with work(shop.tenant) as session:
+        card(session, shop, 1083, allocations=[(item_id, 1083)])
+    _fail_twice(shop, monkeypatch, refund_id)
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, payment_id)
+        assert (payment.refunded_minor, payment.unapplied_minor) == (0, 1083)  # all of it is credit now
+        assert session.get(svc.Charge, item_id).applied_minor == 1083  # paid once, not twice
+
+
+def test_a_pending_refund_that_fails_after_a_second_refund_reapplies_only_what_is_free(shop, monkeypatch):
+    ready(shop)
+    item_id, payment_id, refund_id = _pending_composite(shop, monkeypatch)
+    with work(shop.tenant) as session:
+        assert (
+            svc.refund(session, payment_id, amount_minor=483, reason="Rest", idempotency_key=uuid4().hex).status
+            == "succeeded"
+        )
+    _fail_twice(shop, monkeypatch, refund_id)
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, payment_id)
+        assert (payment.refunded_minor, payment.unapplied_minor) == (483, 0)
+        assert session.get(svc.Charge, item_id).applied_minor == 600
+
+
 def test_a_caller_holding_the_payment_lock_still_gets_a_committed_refund_row(shop):
     """Cross-context refunds (membership cancel, POS return) lock the payment first; the pre-provider row must
     still commit on its own so a crash after the processor call is recoverable."""
