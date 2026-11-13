@@ -304,6 +304,15 @@ def test_every_idempotency_key_header_has_the_key_pattern():
         ("verify-full", "rediss://cache.internal:6380/0?ssl_cert_reqs=none", "verif"),
         ("verify-full", "rediss://cache.internal:6380/0?SSL_CERT_REQS=optional", "verif"),
         ("verify-full", "rediss://cache.internal:6380/0?ssl_check_hostname=false", "verif"),
+        # encoded, fragment-trailed and short spellings that redis-py still honours
+        ("verify-full", "rediss://cache.internal:6380/0?ssl_cert_reqs=%6eone", "verif"),
+        ("verify-full", "rediss://cache.internal:6380/0?ssl_cert_reqs=none#x", "verif"),
+        ("verify-full", "rediss://cache.internal:6380/0?ssl_check_hostname=n", "verif"),
+        ("verify-full", "rediss://cache.internal:6380/0?ssl_cert_reqs=CERT_NONE", "verif"),
+        ("verify-full", "REDIS://cache.internal:6379/0", "rediss://"),
+        # Postgres: only the exact mode reaches the URL
+        ("verify-full&sslmode=disable", "rediss://cache.internal:6380/0", "verify-full"),
+        ("Verify-Full", "rediss://cache.internal:6380/0", "verify-full"),
     ],
 )
 def test_production_refuses_plaintext_postgres_and_redis(

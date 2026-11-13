@@ -1,11 +1,10 @@
 """Typed settings: config/app.yaml (+ optional app.<env>.yaml overlay); secrets from the environment only."""
 
 import os
-import re
 from functools import cache
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import yaml
 from pydantic import BaseModel
@@ -248,11 +247,21 @@ def _refuse_example_secrets() -> None:
 
 
 _TLS_SSLMODES = ("require", "verify-ca", "verify-full")
-# redis-py URL options that switch certificate or host-name verification off.
-_UNVERIFIED_REDIS = re.compile(r"[?&](ssl_cert_reqs=(none|optional)|ssl_check_hostname=(false|0|no))(&|$)", re.I)
 # The local container stack (infra/docker/compose.stack.yml): every production guard, but its Postgres and Redis
 # certificates are self-signed, so encryption without verification is accepted there and nowhere else.
 STACK_ENV = "stack"
+
+
+def _redis_unverified(url: str) -> bool:
+    """True when the URL's query weakens verification, read the way redis-py reads it (decoded, fragment dropped)
+    and case-folded: ssl_cert_reqs may only say required, ssl_check_hostname only a true value (both default safe)."""
+    for key, values in parse_qs(urlsplit(url).query, keep_blank_values=True).items():
+        key = key.casefold()
+        if key == "ssl_cert_reqs" and any(v.casefold() != "required" for v in values):
+            return True
+        if key == "ssl_check_hostname" and any(v.casefold() not in ("true", "t", "yes", "y", "1") for v in values):
+            return True
+    return False
 
 
 def _refuse_plaintext_backends(settings: "Settings") -> None:
@@ -263,9 +272,9 @@ def _refuse_plaintext_backends(settings: "Settings") -> None:
             raise RuntimeError("in the stack, db.sslmode (or FH_DB_SSLMODE) must be require or stricter")
     elif settings.db.sslmode != "verify-full":
         raise RuntimeError("outside dev and test, db.sslmode (or FH_DB_SSLMODE) must be verify-full (PGSSLROOTCERT)")
-    if not settings.redis.url.startswith("rediss://"):
+    if urlsplit(settings.redis.url).scheme.casefold() != "rediss":
         raise RuntimeError("outside dev and test, the Redis URL (FH_REDIS_URL) must use TLS: rediss://")
-    if settings.env != STACK_ENV and _UNVERIFIED_REDIS.search(settings.redis.url):
+    if settings.env != STACK_ENV and _redis_unverified(settings.redis.url):
         raise RuntimeError("outside dev and test, the Redis URL must verify the server's certificate and host name")
 
 
