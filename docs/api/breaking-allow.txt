@@ -22,3 +22,14 @@ PUT /api/v1/locations/{location_id}/portal-settings removed the required propert
 GET /api/v1/public/portal-config removed the required property `locations/items/allows_online_rentals` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_text` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_version` from the response with the `200` status
+
+# Owner decision "Staff confirm once" (claude/rentals-pilot): a self-typed birth date is required with a declaration
+# that it is true at public sign-up, guest checkout and for a portal dependant, so every self-service adult has a
+# date the booking rule can read; staff then confirm it once. Web and mobile send both. Remove after merge.
+POST /api/v1/portal/dependents added the new required request property `birth_on_declared`
+POST /api/v1/portal/dependents the request property `birth_on` became required
+POST /api/v1/portal/dependents request property `birth_on` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/public/guest-checkouts added the new required request property `birth_on_declared`
+POST /api/v1/public/portal-signups added the new required request property `birth_on_declared`
+POST /api/v1/public/portal-signups the request property `birth_on` became required
+POST /api/v1/public/portal-signups request property `birth_on` list-of-types was narrowed by removing types `null` from media type `application/json`

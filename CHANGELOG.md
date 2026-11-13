@@ -7,6 +7,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Age checks: online sign-up, guest checkout and portal dependants ask for a date of birth declared true; staff confirm it once from the client record or the new Age checks queue, with a count on the dashboard.
+- A self-declared adult books and pays online at once and is told the entry code follows once staff have confirmed their age.
 - Calendar feeds: subscribe to your bookings and shifts, or a team's games, from any calendar app; the address is shown once.
 - An embeddable public schedule per location showing published sessions and free seats, never names.
 - QuickBooks Online connection with account mappings and a sync over a date range (simulated until a QuickBooks app is registered).

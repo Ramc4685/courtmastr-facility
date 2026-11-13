@@ -244,5 +244,11 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
 - **Seam (claude/building-control).** That branch emails the door entry code to the rental holder and, for
   sessions, to every participant, children included. Rentals now never have a child holder, but a child player of a
   session gets the code; the owner should confirm that is wanted before both land.
+- **Age confirmation (owner decision "Staff confirm once").** A self-declared adult (a date typed at sign-up with
+  the declaration) may hold and pay for a rental online; a minor or a person with no date may not (the minors rule
+  above, unchanged). The portal checkout carries `entry_code_notice` before payment. Building-control issues the
+  held entry code on `clients.client.age_confirmed` and treats an unverified date as "hold", through
+  `clients.service.is_age_confirmed` (clients README). `rentals.booking.override_minor` and
+  `clients.client.confirm_age` are withheld from API keys (integrations `KEY_WITHHELD`).
 - **Out of scope** (seen, not built): online recurring bookings by members, club contracts, no-show and overstay
   handling, independent-coach payouts, the utilisation report, leagues.

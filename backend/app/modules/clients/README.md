@@ -23,6 +23,26 @@ majority as an argument; households reads the tenant setting, default 18), `emai
 `households.can_act_for(session, identity_id, client_id, capability)`, `households.actable_client_ids`,
 `households.guardian_ids`, `activity.active_alerts(session, client_id, "check_in" | "booking" | "profile", on)`.
 
+## Age confirmation (owner decision "Staff confirm once", claude/rentals-pilot)
+
+- **Only the confirm action confirms.** `POST /clients/{id}/age-confirmation` (key `clients.client.confirm_age`,
+  front desk and up, location scoped; never on an API key) clears `is_birth_on_unverified`, records
+  `age_confirmed_at` and `age_confirmed_by_staff_user_id`, may correct the date, and audits flag-only. A client
+  update confirms only when it sends `confirm_age: true` and the caller holds the key. Every other write of
+  `birth_on` (sign-up, guest checkout, a dependant, a desk edit, the till, an import, a merge backfill, an API key)
+  leaves the date unconfirmed; changing a confirmed date resets it and the response says `age_confirmation_reset`.
+- **Self-service needs a declared date.** Sign-up, guest checkout and portal dependants require `birth_on` and
+  `birth_on_declared: true`; a person may not change a recorded date (`field-locked`).
+- **Seam for building-control.** Event `clients.client.age_confirmed` (fired once, on the transition) and
+  `service.is_age_confirmed(session, client_id)` (internal). Building-control issues a held entry code on the event
+  and treats an unverified or missing date as "hold". No reverse event fires when a changed date unconfirms a client;
+  building-control re-reads `is_age_confirmed` when it issues a code.
+- **Queue and notice.** `GET /client-age-reviews` lists unconfirmed clients, people with an online booking first
+  (`earliest_booking_at`, kept by `note_unconfirmed_booking`); `include=total` is the dashboard count. A newcomer's
+  first booking emails the location's alert address (else its email) once, without the birth date. The portal
+  identity carries `age_confirmed` and `entry_code_notice` (the notice plus the location phone from
+  `platform.service.location_contact`).
+
 ## Integrator notes
 
 - **Every table with a foreign key to `client` needs a merge handler and an erase handler.** The meta-test
