@@ -884,6 +884,10 @@ class PublicFormSubmissionCreate(_Contact):
 
 
 class PortalFormSubmissionCreate(_Contact):
+    """contact_name and contact_email are ignored when signed in: the registrant's name and the identity's email."""
+
+    contact_name: Name | None = None  # type: ignore[assignment]
+    contact_email: Email | None = None  # type: ignore[assignment]
     form_id: UUID
     registrant_client_id: UUID
     method_token: Annotated[str, StringConstraints(max_length=255)] | None = None

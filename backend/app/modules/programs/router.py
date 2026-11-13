@@ -13,7 +13,7 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import hit, rate_limit
 from app.modules.programs import checkout, forms, groups, selfservice, service, tools
 from app.modules.programs import schemas as s
 
@@ -635,7 +635,7 @@ def get_form_summary(form_id: UUID, summary_key: str, ctx: Ctx = Depends(require
 
 @downloads.post("/forms/{form_id}/exports", response_class=Response)
 def export_form_submissions(form_id: UUID, ctx: Ctx = Depends(require(forms.EXPORT))):
-    """Every registration as CSV, one column per question (REG-21)."""
+    """Every registration as CSV, one column per question (REG-21). Errors: export-too-large (over 10,000)."""
     return _csv(*forms.export_submissions(ctx.session, ctx.principal, form_id))
 
 
@@ -693,7 +693,11 @@ def get_public_form_header_image(form_id: UUID, session: Public):
 
 
 @public.post("/public/forms/{form_id}/submissions", response_model=s.PublicFormReceipt, status_code=201,
-             dependencies=PublicForms)  # fmt: skip
-def create_public_form_submission(form_id: UUID, body: s.PublicFormSubmissionCreate, session: Public):
-    """Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out."""
+             dependencies=[Depends(rate_limit("public-form-submit"))])  # fmt: skip
+def create_public_form_submission(
+    form_id: UUID, body: s.PublicFormSubmissionCreate, session: Public, response: Response
+):
+    """Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out,
+    already-registered (a live registration for this address), rate-limited."""
+    hit("public-form-email", body.contact_email, response, tenant=session.info["tenant_id"])  # per address too
     return forms.public_submit(session, form_id, body.model_dump())

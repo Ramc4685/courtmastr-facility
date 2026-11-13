@@ -27,6 +27,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Event form registrations: look up, edit, cancel (with refunds of live charges), promote from the wait list, export to CSV and see summaries by registration, revenue, demographics and answers.
 - Programs can be filed under seasons, sports and age divisions, filtered by them, and saved as personal views with your own choice of columns.
 - Program tools: copy a program, create a repeating series from it, export its members to CSV, and move registrations to another program in one step.
+- Event forms accept one live sign-up per email address without an account, limit how often anyone can sign up, and remove the contact details of anonymous sign-ups a year after the event.
 - Registration defaults per location that new programs start with.
 
 ### Changed

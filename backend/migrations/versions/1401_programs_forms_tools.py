@@ -382,6 +382,13 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_form_submission_form_version_id"), "form_submission", ["tenant_id", "form_version_id"], unique=False
     )
+    op.create_index(
+        "uq_form_submission_public_email",
+        "form_submission",
+        ["tenant_id", "form_id", sa.text("lower(contact_email)")],
+        unique=True,
+        postgresql_where=sa.text("status <> 'cancelled' AND channel = 'public_link'"),
+    )
     op.create_index(op.f("ix_form_submission_invoice_id"), "form_submission", ["tenant_id", "invoice_id"], unique=False)
     op.create_index(
         op.f("ix_form_submission_last_edited_by_staff_user_id"),
@@ -412,6 +419,7 @@ def upgrade() -> None:
         sa.Column("unit_price_minor", sa.BigInteger(), nullable=True),
         sa.Column("amount_minor", sa.BigInteger(), server_default=sa.text("0"), nullable=False),
         sa.Column("charge_id", sa.Uuid(), nullable=True),
+        sa.Column("stock_taken", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint("amount_minor >= 0", name=op.f("ck_form_answer_amount")),
@@ -522,6 +530,7 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_form_submission_invoice_id"), table_name="form_submission")
     op.drop_index(op.f("ix_form_submission_form_version_id"), table_name="form_submission")
     op.drop_index("ix_form_submission_form", table_name="form_submission")
+    op.drop_index("uq_form_submission_public_email", table_name="form_submission")
     op.drop_index(op.f("ix_form_submission_account_client_id"), table_name="form_submission")
     op.drop_table("form_submission")
     op.drop_index("uq_program_saved_view_name", table_name="program_saved_view")
