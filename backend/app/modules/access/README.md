@@ -211,7 +211,8 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   another period), through the hourly platform purge; `building_event` stays append-only for `fh_app` and is purged
   by the owner's `app.purge_building_event` (it floors any cutoff at 365 days by the database clock and refuses a batch outside 1..50000, so the app role cannot erase recent entries), events first, then codes no event names. Merge moves codes to the
   survivor; export lists each code's window and status (never the code; entries are the person's door check-ins);
-  erasure revokes live codes and unlinks every code from the person (audited flag-only, `client_unlinked`), and the
+  erasure revokes live codes, unlinks every code from the person (audited flag-only, `client_unlinked`) and deletes
+  their `entry_code_hold` rows (merge moves them, export lists them, retention purges them after 365 days), and the
   owner's `app.scrub_building_event_client` (1979) replaces their id with `erased` in event details, so the log no
   longer leads to them.
 - **Code storage (decision).** A keyed HMAC (`crypto.mac`, per location) for lookup, plus the code sealed with the
@@ -233,9 +234,11 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   is not consulted (programs does not expose it); guardianship links decide.
 - **Age check (owner decision 2026-11-13, "staff confirm once").** Anyone may sign up and book on a self-declared
   birth date, but a known adult is an adult by birth date whose age staff have confirmed once. A holder (or, on a
-  session, a guardian) who is an adult by date but unconfirmed gets no code: one `code_withheld` row with detail
-  `age-not-confirmed:booking:<booking id>:client:<client id>` (the staff activity view), one email per booking and a
-  held line on the portal Door codes list (`code: null`, `held_reason`, `message`), both saying "Your entry code will
+  session, a guardian) who is an adult by date but unconfirmed gets no code. The record is an `entry_code_hold` row
+  (migration 1980: booking, client, reason, under RLS with composite FKs; one per booking and person), which the
+  portal notice, the staff "Codes waiting on an age check" card (`held_codes` on the building status) and
+  `issue_held_codes` read. The `code_withheld` building event (`age-not-confirmed:booking:<number>`) is display
+  text only and is never parsed. The person gets one email per booking and a held line on the portal Door codes list (`code: null`, `held_reason`, `message`), both saying "Your entry code will
   be sent once our staff have confirmed your age. This is a one-time check." with the location phone. The booking
   itself is never refused. On `clients.client.age_confirmed`, `issue_held_codes` issues and sends every held code at
   once; later bookings are self-service. Minors and people with no birth date: never, as before. Seam: the event and

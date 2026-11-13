@@ -7637,6 +7637,13 @@
             "title": "Doors",
             "type": "array"
           },
+          "held_codes": {
+            "items": {
+              "$ref": "#/components/schemas/HeldCodeOut"
+            },
+            "title": "Held Codes",
+            "type": "array"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -7655,7 +7662,8 @@
           "as_of",
           "adapter",
           "zones",
-          "doors"
+          "doors",
+          "held_codes"
         ],
         "title": "BuildingStatusOut",
         "type": "object"
@@ -28986,6 +28994,39 @@
           "status"
         ],
         "title": "HealthStatus",
+        "type": "object"
+      },
+      "HeldCodeOut": {
+        "description": "A code held back for one person and booking until staff act (an age check).",
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "held_at": {
+            "format": "date-time",
+            "title": "Held At",
+            "type": "string"
+          },
+          "reason": {
+            "const": "age-not-confirmed",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "client_id",
+          "reason",
+          "held_at"
+        ],
+        "title": "HeldCodeOut",
         "type": "object"
       },
       "HistoryOut": {

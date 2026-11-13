@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api, ApiError, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -51,7 +52,7 @@ function Building({ locationId, timeZone }: { locationId: string; timeZone?: str
   })
   if (status.isPending) return <LoadingState />
   if (status.isError) return <ErrorState error={status.error} />
-  const { zones, doors, adapter } = status.data
+  const { zones, doors, adapter, held_codes: held } = status.data
   return (
     <div className="space-y-6">
       {adapter !== 'simulated' && adapter !== 'none' ? null : (
@@ -63,6 +64,7 @@ function Building({ locationId, timeZone }: { locationId: string; timeZone?: str
         <LightsCard locationId={locationId} zones={zones} timeZone={timeZone} canHold={can('access.lighting.override')} canManage={can('access.device.manage')} />
         <DoorsCard locationId={locationId} doors={doors} timeZone={timeZone} canUnlock={can('access.door.unlock')} canManage={can('access.device.manage')} />
       </div>
+      {held.length > 0 && <HeldCodesCard held={held} timeZone={timeZone} />}
       <ActivityCard locationId={locationId} timeZone={timeZone} zones={zones} doors={doors} />
     </div>
   )
@@ -296,6 +298,31 @@ function UnlockDialog({ door, onClose, onDone }: { door: Door; onClose: () => vo
       footer={<Button onClick={() => unlock.mutate()} loading={unlock.isPending} disabled={!reason.trim()}>Unlock now</Button>}>
       <Input label="Reason" required value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="Code not working, member on the phone" />
     </Dialog>
+  )
+}
+
+/** Codes held back until staff act: today only the one-time age check (confirm the age on the client's record). */
+function HeldCodesCard({ held, timeZone }: { held: Schemas['HeldCodeOut'][]; timeZone?: string }) {
+  return (
+    <Card title="Codes waiting on an age check">
+      <table className="w-full text-sm">
+        <caption className="sr-only">Entry codes held until staff confirm the person's age once</caption>
+        <thead>
+          <tr className="text-left text-muted">
+            <th scope="col" className="py-1">Client</th>
+            <th scope="col">Since</th>
+          </tr>
+        </thead>
+        <tbody>
+          {held.map((h) => (
+            <tr key={`${h.booking_id}:${h.client_id}`} className="border-t border-border">
+              <td className="py-1"><Link className="underline" to={`/clients/${h.client_id}`}>Confirm the age of the client held since {formatDateTime(h.held_at, timeZone)}</Link></td>
+              <td>{formatDateTime(h.held_at, timeZone)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   )
 }
 

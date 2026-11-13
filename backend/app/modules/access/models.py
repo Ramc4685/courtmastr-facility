@@ -563,6 +563,32 @@ class EntryCode(TenantOwned, Timestamps, Base):
     notified_at: Mapped[datetime | None]
 
 
+class EntryCodeHoldReason(StrEnum):
+    AGE_NOT_CONFIRMED = "age-not-confirmed"
+
+
+class EntryCodeHold(TenantOwned, Timestamps, Base):
+    """A code held back for one person and booking until staff act (owner decision 2026-11-13: an adult by
+    self-declared birth date waits for staff to confirm their age once). The record the portal notice, the staff view
+    and `issue_held_codes` read; the matching `code_withheld` building event is display text only. Deleted once the
+    code is issued, or with the person on erasure; moved on a merge."""
+
+    __tablename__ = "entry_code_hold"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("booking_id", "booking"),
+        *tfk("client_id", "client"),
+        enum_check("reason", EntryCodeHoldReason),
+        UniqueConstraint("tenant_id", "booking_id", "client_id", name="uq_entry_code_hold"),
+        Index("ix_entry_code_hold_location", "tenant_id", "location_id"),
+    )
+
+    location_id: Mapped[UUID]
+    booking_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    reason: Mapped[str] = enum_column()
+
+
 class BuildingEvent(TenantOwned, Timestamps, Base):
     """Activity log of the building: entries and denials at the door, unlocks, light switches, overrides, code
     issue and revoke, failed commands. Append-only; never holds a code."""

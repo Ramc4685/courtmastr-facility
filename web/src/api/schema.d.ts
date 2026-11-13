@@ -19833,6 +19833,8 @@ export interface components {
             as_of: string;
             /** Doors */
             doors: components["schemas"]["DoorStatus"][];
+            /** Held Codes */
+            held_codes: components["schemas"]["HeldCodeOut"][];
             /**
              * Location Id
              * Format: uuid
@@ -26383,6 +26385,32 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "degraded" | "unavailable";
+        };
+        /**
+         * HeldCodeOut
+         * @description A code held back for one person and booking until staff act (an age check).
+         */
+        HeldCodeOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Held At
+             * Format: date-time
+             */
+            held_at: string;
+            /**
+             * Reason
+             * @constant
+             */
+            reason: "age-not-confirmed";
         };
         /** HistoryOut */
         HistoryOut: {

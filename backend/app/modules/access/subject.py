@@ -2,8 +2,8 @@
 check-ins and credentials to the survivor and keeps the stricter of the two access modes (a ban survives); open
 kiosk match tokens of the merged client are dropped. Erasure keeps the check-in log (visit history, counted
 visits), revokes every credential, which wipes app-card secrets, and drops the access mode and match tokens. Entry
-codes follow the merge; erasure revokes live ones and unlinks every code from the person (building events name the
-code, not the client, so the log no longer leads to them)."""
+codes and held codes (`entry_code_hold`) follow the merge; erasure revokes live codes, unlinks every code and deletes
+the person's holds, and scrubs their id from building event text, so the log no longer leads to them."""
 
 from uuid import UUID
 
@@ -12,13 +12,16 @@ from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
 from app.modules.access import building, service
-from app.modules.access.models import CheckIn, ClientAccess, Credential, EntryCode, KioskMatch
+from app.modules.access.models import CheckIn, ClientAccess, Credential, EntryCode, EntryCodeHold, KioskMatch
 
 _STRICT = ("always_deny", "normal", "always_admit")
 
 
 def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
-    for model in (CheckIn, Credential, EntryCode):
+    # a hold the survivor already has for the same booking wins (one hold per booking and person)
+    session.execute(delete(EntryCodeHold).where(EntryCodeHold.client_id == loser_id, EntryCodeHold.booking_id.in_(
+        select(EntryCodeHold.booking_id).where(EntryCodeHold.client_id == survivor_id))))  # fmt: skip
+    for model in (CheckIn, Credential, EntryCode, EntryCodeHold):
         session.execute(update(model).where(model.client_id == loser_id).values(client_id=survivor_id))
     session.execute(delete(KioskMatch).where(KioskMatch.client_id == loser_id))
     loser_id, survivor_id = UUID(str(loser_id)), UUID(str(survivor_id))
@@ -50,6 +53,7 @@ def _export(session: Session, client_id: UUID) -> dict:
         "credentials": [{"kind": r.kind, "status": r.status, "issued_at": r.issued_at.isoformat()} for r in cards],
         "access_mode": service.access_mode(session, client_id),
         "entry_codes": building.export_client_codes(session, client_id),
+        "entry_code_holds": building.export_client_holds(session, client_id),
     }  # fmt: skip
 
 
@@ -66,9 +70,10 @@ def _erase(session: Session, client_id: UUID) -> dict:
     return {"retained_check_ins": kept, "revoked_credentials": revoked, "revoked_entry_codes": codes}
 
 
-_TABLES = ("check_in", "credential", "client_access", "kiosk_match", "entry_code")
+_TABLES = ("check_in", "credential", "client_access", "kiosk_match", "entry_code", "entry_code_hold")
 clients.merge.register_merge_handler("access", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("access", tables=_TABLES, export=_export, erase=_erase)
 # events first: a spent code goes only once no building event names it
 platform.retention.register_purge("building_event", building.purge_building_events)
 platform.retention.register_purge("entry_code", building.purge_spent_codes)
+platform.retention.register_purge("entry_code_hold", building.purge_old_holds)

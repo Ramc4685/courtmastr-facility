@@ -618,12 +618,22 @@ class DoorStatus(DoorDeviceOut):
     sync_state: Literal["in_sync", "codes_pending", "adapter_not_configured"]  # codes pending: a push or revoke due
 
 
+class HeldCodeOut(Out):
+    """A code held back for one person and booking until staff act (an age check)."""
+
+    booking_id: UUID
+    client_id: UUID
+    reason: Literal["age-not-confirmed"]
+    held_at: datetime
+
+
 class BuildingStatusOut(Out):
     location_id: UUID
     as_of: datetime
     adapter: str
     zones: list[LightingZoneStatus]
     doors: list[DoorStatus]
+    held_codes: list[HeldCodeOut]
 
 
 class DoorVerifyRequest(In):

@@ -19,7 +19,7 @@ from app.core.db import tenant_session
 from app.core.settings import get_settings
 from app.modules import clients, scheduling
 from app.modules.access import building, handlers, jobs
-from app.modules.access.models import BuildingEvent, CheckIn, EntryCode
+from app.modules.access.models import BuildingEvent, CheckIn, EntryCode, EntryCodeHold
 from app.modules.platform.models import Identity, Location
 from app.modules.scheduling.models import Session
 from app.modules.scheduling.tests.helpers import API, DAY, facility, ok
@@ -345,6 +345,47 @@ def test_portal_and_delivery_follow_one_rule_for_a_childs_code(client, tenant, o
                 assert listed == [] and unlock.status_code == 404, name
 
 
+def test_holds_are_rows_so_erasure_merge_and_bad_detail_text_never_break_them(client, tenant, owner, b, monkeypatch):
+    """A held code is an `entry_code_hold` row, never parsed out of event text: erasing one held person leaves
+    everyone else's holds, the portal and issue_held_codes working; a merge moves the hold; any detail text is safe."""
+    from sqlalchemy import update
+
+    from app.modules.access import subject
+    from app.modules.scheduling.models import Booking
+
+    monkeypatch.setattr(clients.service, "is_age_confirmed", lambda s, cid: False, raising=False)
+    gone, kept, dup = (adult(client, owner, b.location) for _ in range(3))
+    with clock.freeze(at(9)):
+        mine, theirs, extra = book(b, 10, 11, holder=gone["id"]), book(b, 12, 13, holder=kept["id"]), \
+            book(b, 14, 15, holder=dup["id"])  # fmt: skip
+        tick(b)
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            building._event(session, UUID(b.location), "code_withheld", detail="age-not-confirmed:booking:x:client:")
+            building._event(session, UUID(b.location), "code_withheld", detail="age-not-confirmed:" + "::" * 9)
+            subject._repoint(session, dup["id"], kept["id"])  # a merge moves the hold (and scheduling, the booking)
+            session.execute(
+                update(Booking).where(Booking.client_id == UUID(dup["id"])).values(client_id=UUID(kept["id"]))
+            )
+        assert sorted(holds(b)) == sorted([(mine, gone["id"], "age-not-confirmed"),
+                                           (theirs, kept["id"], "age-not-confirmed"),
+                                           (extra, kept["id"], "age-not-confirmed")])  # fmt: skip
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            exported = subject._export(session, UUID(gone["id"]))
+            assert [h["booking_id"] for h in exported["entry_code_holds"]] == [mine]
+            subject._erase(session, UUID(gone["id"]))
+        assert [h[1] for h in holds(b)] == [kept["id"], kept["id"]]
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            assert sorted(str(bk["id"]) for bk, _ in building._held(session)) == sorted([theirs, extra])
+            building.issue_held_codes(session, UUID(kept["id"]))  # still unconfirmed: nothing issued, nothing raised
+        member = portal(client, tenant, kept)
+        listed = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
+        assert sorted(c["booking_id"] for c in listed) == sorted([theirs, extra])
+        assert not any(gone["id"] in d for d in details_of(b, "code_withheld"))
+    staff_view = ok(client.get(f"{API}/building-status?location_id={b.location}", headers=owner), 200)["held_codes"]
+    assert sorted((h["booking_id"], h["client_id"], h["reason"]) for h in staff_view) == sorted(
+        [(theirs, kept["id"], "age-not-confirmed"), (extra, kept["id"], "age-not-confirmed")])  # fmt: skip
+
+
 def test_a_holder_who_stops_being_a_known_adult_loses_the_active_code(client, b):
     with clock.freeze(at(9)):
         booking = book(b, 10, 11)
@@ -366,6 +407,11 @@ def test_until_clients_ships_is_age_confirmed_the_shim_reads_the_unverified_flag
     assert building._age_confirmed(None, uuid4()) is False
 
 
+def holds(f) -> list[tuple[str, str, str]]:
+    with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
+        return [(str(h.booking_id), str(h.client_id), h.reason) for h in session.scalars(select(EntryCodeHold))]
+
+
 HELD = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
 
 
@@ -383,8 +429,9 @@ def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(cl
         tick(b)
         tick(b)
         assert codes(b, first) == [] and codes(b, second) == []
-        assert sorted(details_of(b, "code_withheld")) == sorted(
-            f"age-not-confirmed:booking:{x}:client:{me}" for x in (first, second))  # fmt: skip
+        shown = details_of(b, "code_withheld")  # display text for staff: the booking number, never the person
+        assert len(shown) == 2 and all(d.startswith("age-not-confirmed:booking:") and me not in d for d in shown)
+        assert sorted(holds(b)) == sorted((x, me, "age-not-confirmed") for x in (first, second))  # the record
         assert len(mailbox) == 2 and all(HELD in m.body and "+1 309 555 0100" in m.body for m in mailbox)
         member = portal(client, tenant, b.person)
         held = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
@@ -402,7 +449,8 @@ def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(cl
         third = book(b, 14, 15)
         sync(b, third)  # self-service from now on
         assert [c.status for c in codes(b, third)] == ["active"]
-    assert details_of(b, "code_withheld").count(f"age-not-confirmed:booking:{third}:client:{me}") == 0
+    assert len(details_of(b, "code_withheld")) == 2  # the third was never held
+    assert holds(b) == []  # issued holds are gone
     activity = ok(client.get(f"{API}/building-events?kind=code_withheld", headers=owner), 200)["data"]  # staff view
     assert {e["detail"].split(":")[0] for e in activity} == {"age-not-confirmed"} and len(activity) == 2
 

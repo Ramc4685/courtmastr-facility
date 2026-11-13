@@ -1305,7 +1305,7 @@ def _populate_building(post, tenant, location_id, space) -> dict:
     from sqlalchemy import select
 
     from app.core import crypto
-    from app.modules.access.models import EntryCode
+    from app.modules.access.models import EntryCode, EntryCodeHold
     from app.modules.clients.models import Client
 
     door = post("/door-devices", {"location_id": location_id, "name": "Main door", "device_ref": "door-1"})
@@ -1318,6 +1318,8 @@ def _populate_building(post, tenant, location_id, space) -> dict:
             location_id=location_id, booking_id=space["booking_id"], client_id=person, code_hash=f"pop-{uuid4().hex}",
             code_ciphertext=crypto.encrypt("12345678", tenant.id), valid_from_at=now, valid_until_at=now + timedelta(hours=1),
         ))  # fmt: skip
+        session.add(EntryCodeHold(location_id=location_id, booking_id=space["booking_id"], client_id=person,
+                                  reason="age-not-confirmed"))  # fmt: skip
     return {"door_device_id": door["id"], "lighting_zone_id": zone["id"]}
 
 

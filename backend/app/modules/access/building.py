@@ -30,19 +30,28 @@ import redis
 import redis.asyncio as aioredis
 from sqlalchemy import delete, exists, select, text
 from sqlalchemy.dialects.postgresql import Range
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, crypto, events, ratelimit
 from app.core.auth import Principal, authorize, scope_query, system_principal, tokens
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
+from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import clients, platform, programs, scheduling
 from app.modules.access import events as ev
 from app.modules.access import service
 from app.modules.access.domain.evaluate import evaluate
-from app.modules.access.models import BuildingEvent, DoorDevice, EntryCode, LightingZone, LightingZoneResource
+from app.modules.access.models import (
+    BuildingEvent,
+    DoorDevice,
+    EntryCode,
+    EntryCodeHold,
+    LightingZone,
+    LightingZoneResource,
+)
 from app.ports import building_control, notifications
 from app.ports.building_control import BuildingControlError, TimedCode
 from app.ports.email import EmailMessage, send_after_commit, send_after_commit_then
@@ -477,6 +486,8 @@ def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datet
         session, ev.EntryCodeIssued(entry_code_id=row.id, booking_id=row.booking_id, location_id=location_id), row.id
     )
     _event(session, location_id, "code_issued", entry_code_id=row.id)
+    session.execute(delete(EntryCodeHold).where(EntryCodeHold.booking_id == booking["id"],
+                                                EntryCodeHold.client_id == client_id))  # fmt: skip
     _push(session, row, code)
     deliver_code_to(session, row, client_id)  # notified_at is set once the email adapter accepts it
     return row
@@ -557,21 +568,30 @@ def recheck_client_codes(session: Session, client_id: UUID) -> None:
 
 
 def _withhold(session: Session, booking: dict, client_id: UUID, pending: list[UUID]) -> None:
-    """A person failing the known-adult rule gets no code; logged once per booking and person for staff (the
-    activity view). Held for an age check (`pending`): the reason is `age-not-confirmed`, the row names the booking
-    by id (the portal and `issue_held_codes` read it back), and each pending person is told once, with the phone."""
-    if pending:
-        detail = f"age-not-confirmed:booking:{booking['id']}:client:{client_id}"
-    else:
+    """A person failing the known-adult rule gets no code, logged once per booking and person for staff (a
+    `code_withheld` event: display text only, never read back). Held for an age check (`pending`): an
+    `entry_code_hold` row is the record (portal notice, staff view, `issue_held_codes`), created once, and each
+    pending person is told once, with the location phone."""
+    location_id = booking["location_id"]
+    if not pending:
         detail = f"not_known_adult:booking:{booking['booking_number']}:client:{client_id}"
-    seen = session.scalar(select(BuildingEvent.id).where(
-        BuildingEvent.location_id == booking["location_id"], BuildingEvent.kind == "code_withheld",
-        BuildingEvent.detail == detail))  # fmt: skip
-    if seen is not None:
+        seen = session.scalar(select(BuildingEvent.id).where(
+            BuildingEvent.location_id == location_id, BuildingEvent.kind == "code_withheld",
+            BuildingEvent.detail == detail))  # fmt: skip
+        if seen is None:
+            _event(session, location_id, "code_withheld", detail=detail)
         return
-    _event(session, booking["location_id"], "code_withheld", detail=detail)
+    hold = session.execute(pg_insert(EntryCodeHold).values(
+        id=new_id(), tenant_id=session.info["tenant_id"], location_id=location_id, booking_id=booking["id"],
+        client_id=client_id, reason="age-not-confirmed",
+    ).on_conflict_do_nothing(constraint="uq_entry_code_hold").returning(EntryCodeHold.id)).scalar()  # fmt: skip
+    if hold is None:  # already held (this tick, a handler, or a racing one): told once
+        return
+    audit.record(session, "access.entry_code_hold.create", session.get(EntryCodeHold, hold), location_id=location_id,
+                 changes={"reason": "age-not-confirmed", "booking_id": [None, str(booking["id"])]})  # fmt: skip
+    _event(session, location_id, "code_withheld", detail=f"age-not-confirmed:booking:{booking['booking_number']}")
     for person in pending:
-        _email_held(session, booking["location_id"], clients.service.get(session, person))
+        _email_held(session, location_id, clients.service.get(session, person))
 
 
 def _held_message(session: Session, location_id: UUID) -> str:
@@ -590,17 +610,16 @@ def _email_held(session: Session, location_id: UUID, client) -> None:
 
 
 def _held(session: Session, client_ids: set[UUID] | None = None) -> list[tuple[dict, UUID]]:
-    """(booking, person) for each code still held for an age check: logged in the last CODE_HORIZON, the booking
-    live with its window open, the person still entitled and pending, and no active code yet."""
+    """(booking, person) for each `entry_code_hold` still in force: the booking live with its window open, the
+    person still entitled, and no active code yet."""
     now = clock.now()
-    rows = session.scalars(select(BuildingEvent.detail).where(
-        BuildingEvent.kind == "code_withheld", BuildingEvent.detail.like("age-not-confirmed:booking:%"),
-        BuildingEvent.occurred_at > now - CODE_HORIZON - timedelta(days=1)))  # fmt: skip
-    pairs = {(UUID(d.split(":")[2]), UUID(d.split(":")[4])) for d in rows if d.count(":") == 4}
-    pairs = {(b, c) for b, c in pairs if client_ids is None or c in client_ids}
+    stmt = select(EntryCodeHold.booking_id, EntryCodeHold.client_id).order_by(EntryCodeHold.id)
+    if client_ids is not None:
+        stmt = stmt.where(EntryCodeHold.client_id.in_(client_ids))
+    pairs = session.execute(stmt).all()
     views = scheduling.service.booking_views(session, {b for b, _ in pairs})
     out = []
-    for booking_id, person in sorted(pairs):
+    for booking_id, person in pairs:
         booking = views.get(booking_id)
         if booking is None or person not in _entitled(session, booking):
             continue
@@ -616,8 +635,8 @@ def _held(session: Session, client_ids: set[UUID] | None = None) -> list[tuple[d
 def issue_held_codes(session: Session, client_id: UUID) -> None:
     """Internal (`clients.age_confirmed`): every code held for an age check that this confirmation unblocks (the
     person's own, or a child's they are guardian of) is issued and sent now, not at the next tick."""
-    for booking, _ in _held(session):
-        sync_booking_code(session, booking["id"], booking)
+    for booking_id in dict.fromkeys(booking["id"] for booking, _ in _held(session)):
+        sync_booking_code(session, booking_id)
 
 
 # --- the door ------------------------------------------------------------------------------------------------
@@ -1254,6 +1273,21 @@ def export_client_codes(session: Session, client_id: UUID) -> list[dict]:
             for r in rows]  # fmt: skip
 
 
+def export_client_holds(session: Session, client_id: UUID) -> list[dict]:
+    """Data subject export: codes held back for the person, with the reason."""
+    rows = session.scalars(select(EntryCodeHold).where(EntryCodeHold.client_id == client_id).order_by(EntryCodeHold.id))
+    return [{"location_id": str(r.location_id), "booking_id": str(r.booking_id), "reason": r.reason,
+             "held_at": r.created_at.isoformat()} for r in rows]  # fmt: skip
+
+
+def purge_old_holds(session: Session) -> int:
+    """Retention hook: holds older than RETENTION (their booking is long past)."""
+    batch = select(EntryCodeHold.id).where(EntryCodeHold.created_at < clock.now() - RETENTION).limit(
+        get_settings().retention.batch_rows)  # fmt: skip
+    gone = session.scalars(delete(EntryCodeHold).where(EntryCodeHold.id.in_(batch)).returning(EntryCodeHold.id))
+    return len(gone.all())
+
+
 def erase_client_codes(session: Session, client_id: UUID) -> int:
     """Data subject erasure: live codes are revoked (and taken off controllers); every code is unlinked from the
     person (audited flag-only) and their id is scrubbed from building event details, so the building log no longer
@@ -1268,6 +1302,7 @@ def erase_client_codes(session: Session, client_id: UUID) -> int:
         else:
             audit.record(session, "access.entry_code.erase", row, location_id=row.location_id,
                          changes=_code_changes(row))  # fmt: skip
+    session.execute(delete(EntryCodeHold).where(EntryCodeHold.client_id == client_id))
     session.flush()
     # code_withheld rows name the person in `detail`; append-only, so through the owner's function
     session.execute(text("SELECT app.scrub_building_event_client(:c)"), {"c": client_id})
@@ -1323,6 +1358,11 @@ def building_status(session: Session, principal: Principal, location_id: UUID) -
     ).limit(1)) is not None  # fmt: skip
     door_state = "adapter_not_configured" if controller is None else "codes_pending" if pending else "in_sync"
     doors = session.scalars(select(DoorDevice).where(DoorDevice.location_id == location_id).order_by(DoorDevice.name))
-    return {"location_id": location_id, "as_of": now, "zones": rows,
+    holds = session.scalars(select(EntryCodeHold).where(EntryCodeHold.location_id == location_id)
+                            .order_by(EntryCodeHold.id))  # fmt: skip
+    live = {(str(bk["id"]), str(person)) for bk, person in _held(session)}
+    held = [{"booking_id": h.booking_id, "client_id": h.client_id, "reason": h.reason, "held_at": h.created_at}
+            for h in holds if (str(h.booking_id), str(h.client_id)) in live]  # fmt: skip
+    return {"location_id": location_id, "as_of": now, "zones": rows, "held_codes": held,
             "doors": [door_view(d) | {"sync_state": door_state} for d in doors],
             "adapter": getattr(controller, "name", "none")}  # fmt: skip

@@ -11,7 +11,7 @@ const zone = (id: string, name: string, extra: Record<string, unknown> = {}) => 
 })
 const door = { id: 'd1', location_id: 'l1', name: 'Front door', device_ref: 'door-front', unlock_seconds: 5, is_entrance: true, is_active: true, has_credential: true, sync_state: 'in_sync' as const, last_seen_at: null, created_at: '2031-05-01T00:00:00Z' }
 const status = {
-  location_id: 'l1', as_of: '2031-05-05T15:00:00Z', adapter: 'simulated', doors: [door],
+  location_id: 'l1', as_of: '2031-05-05T15:00:00Z', adapter: 'simulated', doors: [door], held_codes: [],
   zones: [zone('z1', 'Court 1 lights'), zone('z2', 'Court 2 lights', { should_be_on: false, reason: 'idle', commanded_is_on: true, is_in_sync: false, sync_state: 'out_of_sync', failure_count: 3 })],
 }
 const event = { id: 'e1', location_id: 'l1', occurred_at: '2031-05-05T15:00:00Z', local_on: '2031-05-05', kind: 'command_failed', door_device_id: null, lighting_zone_id: 'z2', entry_code_id: null, check_in_id: null, staff_user_id: null, detail: 'set_zone:off', created_at: '2031-05-05T15:00:00Z' }
