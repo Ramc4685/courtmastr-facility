@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.core import clock, inbound_webhooks
 from app.core.audit import AuditEvent
@@ -15,7 +15,7 @@ from app.core.auth import passwords
 from app.core.db.platform import platform_engine
 from app.modules import clients
 from app.modules.billing import documents, methods
-from app.modules.billing.models import InvoicePayLink, LedgerTransaction, Payment
+from app.modules.billing.models import BillingSettings, InvoicePayLink, LedgerTransaction, Payment
 from app.modules.billing.tests.test_autopay import drain
 from app.modules.billing.tests.test_billing import API, assert_books_agree, cash, charge, svc, work
 from app.modules.billing.tests.test_money import NOON, TODAY
@@ -110,6 +110,18 @@ def test_revenue_categories_form_a_tree_without_loops(api, shop):
     builtin = api("GET", "/revenue-categories?q=UNCATEGORISED")["data"][0]
     api("PATCH", f"/revenue-categories/{builtin['id']}", {"is_active": False}, 409, "system-row")
     assert api("GET", f"/revenue-categories/{child['id']}")["is_active"] is False
+
+
+def test_a_stored_card_shaped_footer_is_still_readable(api, shop):
+    """The card scan guards writes; a value stored before it (or by an import) must never make a read fail."""
+    api("PUT", "/billing-settings", {"invoice_footer": "Thank you"})
+    with work(shop.tenant) as session:
+        session.execute(
+            update(BillingSettings)
+            .where(BillingSettings.location_id.is_(None))
+            .values(invoice_footer="4111 1111 1111 1111")
+        )
+    assert api("GET", "/billing-settings")["invoice_footer"] == "4111 1111 1111 1111"
 
 
 def test_billing_settings_have_location_overrides_and_tenders_can_be_relabelled(api, shop, desk):

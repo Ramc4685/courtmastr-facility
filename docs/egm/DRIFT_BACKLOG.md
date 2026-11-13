@@ -59,7 +59,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] **History filters are documented on both reads, but the list has fewer (README lines 15-16).** "Filters: field ids, category, time window" follows both `listAssessmentResults` and `getAssessmentSeries`. Only the series takes field ids and category (`assessments/service.py:255-266`). `list_results` allows only `client_id` and `recorded_at` filters (`service.py:192`). Docs batch.
 - [x] **Web screens are not mentioned.** `web/src/features/assessments/AssessmentSetupPage.tsx`, `ClientAssessmentsTab.tsx` and `PortalProgress.tsx` implement setup, the client history tab and the portal view. The README has no screens section or pointer to them. Docs batch.
 
-### billing (14 open, 14 closed) — [evidence](drift/billing.md)
+### billing (15 open, 14 closed) — [evidence](drift/billing.md)
 
 - [ ] [contract] L116-117 says `/catalog-items` "(list, create, get, update) behind `billing.item.manage`". Only create and update are gated by that key (router.py:330, router.py:340). List and get use `Staff` = `require()`, which lets any signed-in staff user in (router.py:166, router.py:324, router.py:335), limited by location scope (catalog.py:85-87, catalog.py:97-100).
 - [x] [stale-not-built] L232-233 says to "Swap to `files.download_url` (Phase 8) for a direct signed link once it lands". It has landed: `platform/files.py:178` `download_url(session, file_id)`, already used by `platform/tenant_export.py:136`. Billing emails still carry portal links (documents.py, autopay.py:65 `portal_link`). Docs batch.
@@ -92,6 +92,7 @@ Re-check 2026-11-13 (claude/hardening-pass, new items only):
 - [ ] [wording] L198-199 says the lock refuses "buying or booking"; it also blocks the quote routes (collections.py:217-218), while L338 calls `/portal/coupon-quotes` "only previews".
 - [ ] [undocumented] L271-273 bulk invoicing: one invoice per client and location in its own savepoint, `is_dry_run`, `only_mine` (schemas.py:589-592; documents.py:685-737). The closed wording item fixed only the cap.
 - [ ] [undocumented] L226-229: `RETRY_ATTEMPTS` now comes from `inbound_webhooks` (webhooks.py:26), and an empty-payload event is recorded failed ("payload missing") instead of applied (webhooks.py:79-87, 96, 112). Working tree, uncommitted.
+- [ ] [undocumented] `BillingSettingsIn` / `BillingSettingsOut` share `_BillingSettingsFields`; only the request runs the card scan, the response is `extra = "ignore"` (schemas.py:322-355). README names neither.
 
 ### clients (10) — [evidence](drift/clients.md)
 

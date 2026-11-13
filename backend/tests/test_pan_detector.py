@@ -213,6 +213,38 @@ def _request_string_fields() -> set[str]:
     return found
 
 
+def test_no_response_model_runs_the_request_card_scan():
+    """A stored value must always be readable: no Out model (or any model a route answers with, at any depth)
+    may inherit the In validator, so an `Out(In)` class cannot turn a stored footer into a 500."""
+    from fastapi.routing import APIRoute
+    from pydantic import BaseModel
+
+    from app.core.schemas import Out
+    from app.main import app
+
+    def subclasses(cls):
+        for sub in cls.__subclasses__():
+            yield sub
+            yield from subclasses(sub)
+
+    def models(tp, seen):
+        if isinstance(tp, type) and issubclass(tp, BaseModel):
+            if tp not in seen:
+                seen.add(tp)
+                for field in tp.model_fields.values():
+                    models(field.annotation, seen)
+        for arg in getattr(tp, "__args__", ()) or ():
+            models(arg, seen)
+        return seen
+
+    answered: set = set(c for c in subclasses(Out) if c.__module__.startswith("app."))
+    for route in app.routes:
+        if isinstance(route, APIRoute) and route.response_model is not None:
+            models(route.response_model, answered)
+    scanning = sorted(m.__qualname__ for m in answered if issubclass(m, In))
+    assert scanning == []
+
+
 def test_every_request_string_field_is_classified():
     """A new string field on a request body must be put in FREE_TEXT_FIELDS (scanned) or NOT_FREE_TEXT (with the
     reason, grouped as there). Until then the runtime scans it anyway."""
