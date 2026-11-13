@@ -31106,7 +31106,7 @@ export interface components {
         };
         /**
          * PortalRentalConfirm
-         * @description A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.
+         * @description A PaymentProvider client token; never raw card data. This route takes a one-off token, not a stored method.
          */
         PortalRentalConfirm: {
             /** Provider Payment Token */

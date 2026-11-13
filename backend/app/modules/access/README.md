@@ -2,16 +2,18 @@
 
 Who came through the door, how they proved who they were, and what the front desk had to know. One check-in
 command serves the staff window (CHK-01), the client profile (CHK-03), the self check-in kiosk (CHK-05) and an
-app-card QR (CHK-13); every path writes one `check_in` row with the result, the reasons and the alerts shown.
+app-card QR (CHK-13); every path writes one `check_in` row with the result, the reasons and the alerts shown. The
+staff API accepts the `staff_window`, `client_profile`, `pos` and `api` channels; `door` is reserved for hardware and
+nothing writes it yet.
 
 ## Tables (migration `0612_access_checkin`)
 
 | Table | Holds |
 |---|---|
-| `check_in` | client, location, channel, credential used, result (`admitted` / `denied` / `see_staff`), deny reasons, alert codes, override and its reason, staff user or kiosk device |
+| `check_in` | client, location, channel, how the client was identified (`credential`, `name_search`, `client_record`), credential used, result (`granted` / `denied` / `granted_override`), deny reasons, alert codes, override and its reason, staff user or kiosk device |
 | `check_in_attendance` | each programme session place marked attended by a check-in (the link back for history) |
-| `credential` | barcode, RFID, PIN-free card numbers and app cards; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
-| `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes) and its revocation |
+| `credential` | membership number, barcode, app card, wallet pass, RFID and biometric reference; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
+| `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022) |
 | `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021) |
 
 Migration `1021_access_rules` (phase 10 chip B) adds:
@@ -42,7 +44,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   and used-up visits deny, a second visit the same day admits with an alert); then the membership type's admitting
   locations (`wrong_location`) and its schedule in the location's IANA zone (`outside_schedule`). Balance due,
   unsigned waiver, staff notes and membership warnings are alerts. Staff override a denial with a reason
-  (`access.checkin.override_denial`; a blank reason is 422 at `/override_reason`); the override is audited.
+  (`access.checkin.override_denial`; a blank reason is 422 at `/override_reason`); the override is audited. Each
+  check-in publishes `access.check_in.granted` or `access.check_in.denied`.
 - **Visits (MEM-20).** An admitted check-in covered by a contract calls `memberships.service.record_visit`, keyed
   on the check-in id (idempotent). A used-up visit-limited membership denies with `depleted`; the kiosk answers
   "see staff". An override past the cap is recorded but not counted (one-line guard in `record_visit`).
@@ -54,9 +57,12 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   covers them (`memberships.service._covering`).
 - **Access mode (CHK-08).** `PUT /clients/{id}/access-mode` needs its own key `access.client.set_access_mode`
   and a reason; it is audited and publishes `access.client_access.changed`.
-- **Attendance.** A check-in marks the client's programme session places in the window
-  (`programs.service.mark_attended_by_check_in`): by default 3 hours early to 5 hours late at the staff window (the
-  location's access settings may change it), the location's kiosk settings at the kiosk. Confirmed rentals and court
+- **Attendance.** A check-in marks the client's programme session places whose start falls between `early` before
+  and `late` after the check-in (`programs.service.mark_attended_by_check_in`). At the staff window `early` and `late`
+  are the location's `staff_early_minutes` and `staff_late_minutes` (defaults 180 and 300), so a check-in from 5 hours
+  before a session to 3 hours after its start counts it. At the kiosk the two settings are passed in reverse
+  (`access/service.py`), so `early_window_minutes` (default 60) is how long before a session a client may check in,
+  and `late_window_minutes` (default 30) how long after its start. Confirmed rentals and court
   bookings starting in the same window (`scheduling.service.client_bookings_starting`) are marked arrived as a
   `check_in_attendance` row with `target_type = 'booking'`, once per booking.
 - **Credentials (CHK-11).** The member number from `clients` is listed as the primary credential; extra
@@ -93,7 +99,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - **Stations, check-out and occupancy (CHK-07).** Stations are managed under `access.settings.manage`; a staff
   check-in may name an active station of its location (422 otherwise); kiosk check-ins have none.
   `POST /check-ins/{id}/check-out` (`access.checkin.check_out`) closes every open entry of the client at that
-  location today (a repeat scan is the same visit), audited and published per row. `GET /occupancy` lists the
+  location today (a repeat scan is the same visit), audited and published per row as `access.check_in.checked_out`.
+  `GET /occupancy` lists the
   latest open entry per client today, the count and the count per station; the screen polls every 30 seconds.
 - **Member card (CHK-12, MEM-19).** `GET /clients/{id}/id-card` (`access.credential.assign`) returns the
   template (the named one, else the location's default, the tenant's, then a built-in name and number card), only
@@ -103,8 +110,10 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   check-in marks only the session just booked, and refuses a checked-out visit (409 `already-checked-out`). The
   browser draws a Code 128 barcode as SVG (`web/src/features/access/code128.ts`) and prints only the card.
 - **Merge and erasure.** A client merge repoints check-ins and credentials and keeps the stricter access mode
-  (always deny, then normal, then always admit); erasure revokes credentials and keeps the check-in rows (they are
-  the facility's attendance record). Both drop the client's open kiosk match tokens.
+  (always deny, then normal, then always admit); erasure revokes credentials, drops the access mode and keeps the
+  check-in rows (they are the facility's attendance record). Both drop the client's open kiosk match tokens. The
+  data subject export returns the client's check-ins (location, time, result, channel), credentials (kind, status,
+  issue date) and access mode.
 
 ## Assumptions and shortcuts
 
@@ -122,8 +131,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - Access mode names follow the brief (normal / always admit / always deny). There is no tenant default mode.
 - A membership type's existence is read from the memberships table under RLS when its access is set (shortcut;
   move to a memberships service read if that table changes).
-- Access configuration changes (settings, rules, schedules, type access) are audited without events; only the
-  access-mode change publishes one.
+- Access configuration changes (settings, rules, schedules, type access) are audited without events. The access-mode
+  change, credential assignments, station changes and card-layout changes publish their own events.
 - CSV export is built in the browser from the list API and capped at 2000 rows.
 - The app-card HMAC secret is stored raw (under RLS, never audited); envelope encryption is a follow-up. A QR code is replayable within its 60-second acceptance window.
 - The clash check between member numbers and credentials runs only when a credential is assigned, not when
@@ -133,15 +142,16 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - Marking a booking arrived does not change the booking's status or settle package credits.
 - **A visit never checked out ends at local midnight.** It is open only while its `local_on` is the location's
   today, derived at read time: no job and no write. Checking out yesterday's visit is 409 `visit-ended`.
-- "Who is in" is `GET /occupancy` only (it knows the location's today); `GET /check-ins` has no open filter. The
-  list shows the newest 500 people in (`is_capped`), while `count` and `by_station` stay exact.
+- "Who is in" is `GET /occupancy` only (it knows the location's today). `GET /check-ins` has no open filter; its
+  filters are `location_id`, `client_id`, `result`, `channel`, `local_on`, `checked_in_at` and `check_in_station_id`.
+  The occupancy list shows the newest 500 people in (`is_capped`), while `count` and `by_station` stay exact.
 - Check-out takes an optional time between the check-in and now (staff correcting a forgotten one).
 - The printed card has a Code 128 barcode only, no QR: a hand-written encoder of a few lines instead of a new
   web dependency, and every scanner at the desk reads Code 128. Only printable ASCII values print.
 - Card layout is the field list, its fixed order and the photo slot; there is no tenant CSS or HTML.
-- The photo slot shows a placeholder: `photo_url` is always null until chip F adds `client.photo_file_id`. To
-  wire it, set `photo_url` in `desk.client_id_card` to F's permission-checked photo route for the client when
-  `client.photo_file_id` is set (the web already renders `photo_url` as an image).
+- The photo slot shows the client's photo when the template has a photo slot and the client has one: `photo_url`
+  points at the clients photo route, which does its own permission check when the browser loads it. Otherwise the
+  slot shows a placeholder.
 - Station and card-layout changes publish `access.check_in_station.changed` and `access.id_card_template.changed`.
 - A tenant-wide card layout needs `access.settings.manage` at every location; a location-limited manager sees it
   and its own locations' layouts only.
@@ -151,3 +161,6 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 CHK-20 summary analytics. CHK-21 "renew membership" and "update payment method" have no button at the window yet (staff open the
 client profile from the name on the status card); a QR on the printed card is not built. CHK-15 and CHK-16 (RFID, biometric,
 door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is deferred.
+The permissions `access.door.unlock` and `access.device.manage` are registered for the door hardware and have no
+route yet. Kiosk attendance, the eligible-sessions list for a check-in and kiosk package purchase are in the contract
+but not built, and have no phase yet.

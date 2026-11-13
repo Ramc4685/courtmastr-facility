@@ -1,28 +1,55 @@
 ## backend/app/modules/reporting/README.md
 
-- [stale] Line 25 says "any family key (`reporting.<family>.run`) opens the centre". The router gate is `require(*service.RUN_KEYS)` (`backend/app/modules/reporting/router.py:21`), and `RUN_KEYS` (`service.py:30`) is now derived from the 62 registered reports: ten family keys, every `reporting.*.run` key. The earlier gap (holders of client, program, payroll, league or marketing keys refused) is closed, but the README does not say the set is registry-derived.
-- [undocumented] README "Deviations from the contract" (lines 138-148) omits that `router.py:94-123` serves six operations the contract does not have (see the contract section below); the schedule behaviour appears only in the assumptions (README line 60).
-- [wording] Lines 12-13 and `views.py:1` tie the `rpt_*` views to migration `0953_reporting_core`. `views.py` now defines 29 views, added by `1621_reporting_money_memberships_views.py`, `1641_reporting_clients_desk_programs_pos.py` and `1661_reporting_staff_fitness_operations.py` (the other reporting migrations are `1211_reporting_export_chunks.py` and `1601_reporting_schedules.py`).
-- [wording] Line 44 and `service.py:32` (`RETENTION = timedelta(days=7)`) give runs and exports 7 days. The contract says the run snapshot expires after 24 h (`docs/api/openapi-programs.yaml:6131`), so this is a contract difference, but the "Deviations from the contract" list (README lines 138-148) does not record it.
-- [undocumented] README names no events and does not list `events.py`: `reporting.export.completed` with `requested_by_staff_user_id` (`backend/app/modules/reporting/events.py:9-13`).
-- [undocumented] README has no list of the 62 registered reports and the family keys they sit under (`reporting.attendance.run` 13, `client` 12, `financial` 10, `membership` 8, `pos` 7, `league` 5, `time_clock`, `program` and `marketing` 2 each, `payroll` 1). `reporting.dashboard.read` is described only in the Dashboard assumption (line 69).
-- [undocumented] `service.py:419` and `schedules.py:184` use `notify_on_complete` on `export_job` (`models.py:128`); `ExportJobCreate` (`schemas.py:94-100`) has no such field, so only the schedule job sets it. The README's deviations list names `progress` and `partial` but not this column.
+State reported: the docs branch after merging Phase 12 (`main` 48250db, migration head `1661`). The registry holds 62 reports across ten family tuples in `catalogue.py:7-19`; `views.py` defines 49 views. The README's view-migration attribution, the `reporting.export.completed` event and the registry-derived router gate are fixed in the README and not repeated here.
+
+- [stale] The "Registry, not a table" bullet says `registry.py` holds every `ReportSpec`. It holds only the module-15 specs (`registry.py:648`); the 62-report catalogue is ten family tuples in `catalogue.py:7-19`, with builders in `reports/*.py`.
+- [undocumented] The Gates section omits that the schedule and recipients routes use the export key (`router.py:113-141`) and the dashboard uses `reporting.dashboard.read` (`router.py:23`). The dashboard rejects API keys (`dashboard.py:78`); the definition routes never call `_staff` and accept them (`service.py:86-97`).
+- [undocumented] The 13 keys in `permissions.py:15-39` are not listed, nor the dashboard key's admin and manager-only default. Only `report_schedule.manage` is described.
+- [wording] The 7-day result retention (`service.py:32`) is not recorded under "Deviations from the contract"; the contract says 24 h (`openapi-programs.yaml:6131`).
+- [undocumented] The deviations list omits `export_job.notify_on_complete` (`models.py:128`, set only at `schedules.py:201`, read at `service.py:419`, `:594`). `ExportJobCreate` has no such field, so the API cannot set it.
+- [undocumented] The `report_schedule` table (`models.py:131-161`, migration 1601) is not in `docs/architecture/data-model-programs.md`, and the README does not say so.
+- [undocumented] There is no list of the 62 reports by family key (attendance 13, client 12, financial 10, membership 8, pos 7, league 5, time_clock 2, program 2, marketing 2, payroll 1) or of the report categories (financial, clients, membership, packages, pos, programs, leagues, operations, time_clock, lockers, marketing, fitness, payroll).
+- [undocumented] The deviations list does not say that six served operations are absent from the contract (`router.py:113-141`; see the contract section).
+
+## Code comments in backend/app/modules/reporting
+
+- [stale] `service.py:87` says "fourteen reports"; there are 62.
+- [stale] `service.py:1` says the P0 reports live in `registry.py`; they are spread across `registry.py` and `reports/*.py`.
+- [stale] `registry.py:1-5` and `__init__.py:1-3` describe only the module-15 report set.
+- [wording] `views.py:1` and `models.py:2` credit migration 0953 with the views; 0953 creates 13 of the 49 (the rest: `1461_lockers.py:330`, 1621, 1641, 1661).
+- [wording] `router.py:1-2` says every route needs a family key. Export, schedule and recipients routes need the export key (`router.py:22`, `:113-141`); the dashboard needs `reporting.dashboard.read` (`router.py:23`).
 
 ## docs/api/openapi-programs.yaml (tag `reporting`, 16 operations)
 
-- [contract-extra] The router serves 22 routes; six are not in the contract: `GET /report-definitions/{report_key}/recipients` (`router.py:94-96`), `GET` and `POST /report-schedules` (`router.py:99-106`), `GET`, `PATCH` and `DELETE /report-schedules/{report_schedule_id}` (`router.py:109-123`), with schemas `ReportScheduleCreate/Update/Out` and `ReportRecipientOut` (`schemas.py:122-167`). No `listReportSchedules` and similar operation id appears anywhere under `docs/api/`.
-- [contract-diverges] `GET /export-jobs/{id}/download` (`getExportJobFile`, contract line 6329) is documented as a 302 redirect; `router.py:80-91` returns the file (200, attachment). Recorded in README line 141 and `router.py:3-4`.
-- [contract-diverges] `POST /report-runs` (contract lines 6075-6099): the contract has a 202/queued path, `x-problem-codes: [entitlement-required, report-not-implemented]` and in-flight dedupe. `service.py:200-240` runs inline, always returns succeeded, and neither code is raised anywhere in `backend/app/modules/reporting/`. README line 140 records only the first and third.
-- [contract-diverges] `ReportDefinition.category` enum (contract line 8870) lists financial, marketing, membership, training, programs, pos, check_in, time_clock, leagues, lockers, app. The registry emits `clients`, `packages`, `operations`, `fitness` and `payroll` as well, and never `training`, `check_in` or `app`. `date_basis` enum (revenue_date, payment_date, invoice_date, due_date, as_of, none) is also exceeded: the specs use 18 more values, for example `session_date`, `game_date`, `check_in_date`, `sale_date`, `sold_date`, `work_date`.
-- [contract-diverges] `ReportDefinitionOut` (`schemas.py:19-34`) has `total_columns` and `detail_columns`, which `ReportDefinition` (contract line 8862) does not list; `required_entitlement` is always `None` (`service.py:77`) and `is_stub` always false (`service.py:81`).
-- [contract-diverges] `ExportJobCreate` (contract line 8972) has `source_key`; the request model (`schemas.py:94-100`) does not. `ExportJobOut` adds `page_size` and `orientation` and makes `expires_at` non-null (`schemas.py:111-117`), where the contract allows null. `list` and `document_batch` sources answer 422 `not-supported` (`service.py:407-408`); the contract describes them as supported sources (README line 143 records this).
-- [contract-diverges] `GET /report-runs` and `/saved-reports` list parameters `status[in]`, `report_key`, `is_shared` (contract lines 6054-6058, 6160-6162): the code only filters on `report_key` and `status` (`service.py:253`) and `report_key` and `is_shared` (`service.py:345`); whether `status[in]` is parsed as an `in` filter was not checked. `GET /report-definitions` takes `category` and `q` but ignores `limit`, `cursor` and `sort` (single page, README line 148).
-- [contract-diverges] `GET /dashboards/management` (contract line 6350) is served (`router.py:142-146`, `dashboard.py:71-93`) and the tiles are caller-reach composed with a 60 s cache. The response tiles are typed `object` in the contract; the code returns `key`, `name`, `period` and `totals[]` (`schemas.py:170-187`), which the contract does not describe. The operation carries no `security` block while all other reporting operations require `staffSession` or `apiKey`; the code rejects API keys (README line 33).
+- [contract] Six served routes are not in the contract: `GET .../recipients` (`router.py:113-115`) and the five `/report-schedules*` routes (`router.py:118-141`; schemas `schemas.py:122-167`).
+- [contract] `getExportJobFile` documents a 302 to a signed URL (contract 6329-6345); `router.py:102-110` streams the file with a 200.
+- [contract] `createReportRun` (contract 6075-6099) promises a 202 queued path, dedupe, and `entitlement-required` / `report-not-implemented`. The code always runs inline (`service.py:203-239`) and raises neither code.
+- [contract] `updateSavedReport` lists `version-conflict` (contract 6244) and `createExportJob` lists `entitlement-required` (6307); neither is raised, and `update_saved` has no version check (`service.py:350`).
+- [contract] `listReportRunRows` says 404 after 24 h (contract 6131); the code keeps 7 days (`service.py:32`, `:233`, `:263`).
+- [contract] The `ReportDefinition.category` enum (contract 8971) lacks `clients`, `packages`, `operations`, `fitness` and `payroll`, which the registry emits; the registry never emits `training`, `check_in` or `app`.
+- [contract] The `date_basis` enum has 6 values; the specs use 18 more (for example `session_date`, `game_date`, `work_date`).
+- [contract] `ReportDefinitionOut` adds `total_columns` and `detail_columns` (`schemas.py:29-30`). `required_entitlement` is always `None` (`service.py:77`) and `is_stub` always false (`service.py:81`), so the contract's entitlement filter is not implemented.
+- [contract] `listReportDefinitions` declares `Limit`, `Cursor` and `Sort` (contract 6012-6014); the route takes only `category` and `q` (`router.py:27`) and returns one page.
+- [contract] `ExportJobCreate` has `source_key` and `params` (contract 9075-9076) and requires `source_kind` and `format`; the request model has neither field, forbids extras (`core/schemas.py:11`), and defaults the two required fields (`schemas.py:94-100`).
+- [contract] `ExportJobOut.expires_at` is non-null (`schemas.py:117`) where the contract allows null; `ExportJobOut` adds `page_size` and `orientation` (`schemas.py:111-112`).
+- [contract] `list` and `document_batch` export sources are accepted by the model (`schemas.py:95`) but answer 422 `not-supported` (`service.py:408`); the contract describes them as supported.
+- [contract] `SavedReport` and `SavedReportInput` `columns` are `object|null` (contract 9036, 9050); the code types them as a list of strings (`schemas.py:70`, `:77`, `:86`).
+- [contract] `PATCH /saved-reports` is documented with `SavedReportInput` (requires `report_key` and `name`); `SavedReportUpdate` has no `report_key` and no required fields (`schemas.py:74-78`).
+- [contract] The dashboard response types tiles as a bare `object` (contract 6350-6366); the code returns `key`, `name`, `period`, `available`, `totals[]` (`schemas.py:170-188`). The contract has no `security` block; the code rejects API keys with 403 (`dashboard.py:78`).
+- [contract] `listSavedReports` declares no `Q` parameter; the code serves a name search (`service.py:346`).
 
 ## docs/status/15-reporting.md
 
-- [stale] Line 15 (RPT-02) says `GET /dashboard`; the route is `GET /dashboards/management`, `getManagementDashboard` (`router.py:142`). Test names `test_dashboard_*` were not re-verified.
-- [stale] Lines 3-4 give migration `0953_reporting_core` and "thirteen `rpt_*` read-model views"; `views.py` defines 29 (see the wording item above) and five further migrations exist. The branch name on line 3 (`claude/reporting-57d4aa`) is not the phase 12 branch.
-- [stale] Line 5 counts 33 tests in `tests/test_reporting.py`, and web tests (5). The module has six test files; the backend tests now number 46 `test_` functions (`test_reporting.py` 18, `test_exports_schedules.py` 11, `test_money_memberships.py` 8, `test_chip_d.py` 5, `test_chip_c.py` 3, `test_export_chunks.py` 1).
-- [stale] Line 9 totals ("P0 13 done; P1 36 done, 3 partial") were not recomputed against the 62 registered reports; the table has more rows than that sum suggests (a blank line at line 56 splits the table, so the chip D rows STF-08 to RPT-41 render outside it).
-- [missing] RPT-01 (line 13) lists the schedule routes but there is no row for the schedule feature in the contract, and no row or note says the `/report-schedules` and `recipients` routes are outside the contract.
+- [stale] Line 3 names branch `claude/reporting-57d4aa`. Line 4 says "29 views" (there are 49) and omits the `report_schedule` table.
+- [stale] Line 5 counts 33 tests in `test_reporting.py`; it has 18. The module has 59 `test_` functions across seven files. Line 6 counts 5 web tests; `reporting.test.tsx` has 8.
+- [stale] The RPT-01 row (line 13) lists the schedule and recipients routes without saying they are outside the contract; no row covers scheduled delivery.
+- [wording] The RPT-02 row omits the `available: false` tile state (`dashboard.py:62-69`).
+
+## docs/status/README.md
+
+- [stale] Lines 203 and 220 mark MEM-21 and PKG-15 "not built", and line 318 says BIL-19 has "No export"; `15-reporting.md` marks all three done.
+- [stale] Line 124 says RNT-12 has no report screen or export; `rental_plan_sales` (RPT-39 = RNT-12) is done.
+- [stale] Line 377 (POS-22) says the `rpt_*` read models are not built; `views.py` has `rpt_pos_sale`, `rpt_pos_sale_line`, `rpt_pos_return`, `rpt_drawer_session`, `rpt_product_stock` and others.
+- [stale] Lines 544-546 say a report is added in `reporting/registry.py` and that MEM-21, PKG-15 and BIL-19 are "still per-module endpoints"; reports register through `catalogue.py:7-18`, and those three are registry reports.
+
+Not checked: each report builder's SQL against the README's per-report assumptions.

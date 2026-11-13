@@ -1099,7 +1099,7 @@ paths:
       tags: [programs]
       summary: Create or replace a reservation-type override
       x-priority: P0
-      x-permission: scheduling.reservation_type.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-03]
       security: [{staffSession: []}, {apiKey: []}]
       parameters: [{$ref: '#/components/parameters/LocationId'}]
@@ -1120,7 +1120,7 @@ paths:
       tags: [programs]
       summary: Remove an override (fall back to the location default)
       x-priority: P0
-      x-permission: scheduling.reservation_type.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-03]
       security: [{staffSession: []}, {apiKey: []}]
       parameters: [{$ref: '#/components/parameters/LocationId'}]

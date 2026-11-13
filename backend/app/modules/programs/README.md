@@ -14,6 +14,8 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 | `selfservice.py` | session booking policy (location default plus per-type override) and the portal session and waitlist routes |
 | `jobs.py` | `expire_registration_holds` (every minute: expired baskets, lapsed offers), `auto_archive_programs` (hourly) |
 | `subject.py` | merge, export and erasure across enrolments, waitlist entries and baskets |
+| `handlers.py` | `scheduling.session.capacity_changed` (promotes the waitlist when capacity rises) and `scheduling.session.cancelled` (cancels the enrolments) |
+| `events.py` | `programs.enrollment.created`, `.cancelled`, `.attended` and `.moved`, `programs.waitlist.promoted`, `programs.group.completed` and `programs.form.submitted`; thin payloads |
 
 ## Rules
 
@@ -24,6 +26,10 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 - **Money goes where its owner points it.** The payer is the participant or a relative (`payer-not-related`).
   A portal basket always bills the signed-in identity's own client. Charges are posted through
   `billing.service`, with one invoice per registration or basket.
+- **Package credits (PKG-12).** A place paid from a client package holds one credit of that package, which
+  `packages` refuses with `package-exhausted`, `package-wrong-type` or `package-out-of-range` when it cannot.
+  Cancelling settles the credit as early or late, and an attendance mark does too: attended consumes it, a
+  no-show consumes or returns it per the package settings, and excused returns it.
 - **Portal payment follows the strictest program in the basket:**
   - `immediate_card_payment`: pay now, and `pay_later` is `422 pay-now-required`.
   - `card_required_charge_optional`: pay now, or keep a card on file.
@@ -48,7 +54,9 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
   holding the old key keep them without the rest of the portal settings. The roster message stays on
   `scheduling.enrollment.create` on the session (`own` reach and the type's staff grants apply), so no role or
   custom grant loses it; moving it to `engagement.message.send_direct` needs the owner's sign-off and a grant
-  migration. Programs may not import engagement, so `selfservice.POLICY` is a plain key string.
+  migration. Programs may not import engagement, so `selfservice.POLICY` is a plain key string. Every policy change is audited
+  under `engagement.portal_settings.manage`, even when the actor held only the programs key (`selfservice.py`, `_put`
+  and `delete_override`); the audit row's actor shows who made it.
 - **The roster message is plain text** through the notification port, sent in the request. It returns the
   `202` job shape with `status: succeeded`, and has no consent gate because it is transactional.
 - **No booking-policy row means `selfservice.BUILT_IN`:** bookable, 30 days visible, no cut-off,
@@ -66,6 +74,8 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
   `full_waitlist`, with an online fee and the login's own client as payer. Auto-promotion would skip the
   portal's pay-now and document steps, so staff promote it by hand. The upgrade is an offer that the client
   completes through a basket.
+- **No promotion close to the start:** within 60 minutes of the start (`PROMOTION_CUTOFF`) the waitlist pass
+  returns early, so no entry is auto-promoted and no open offer is made.
 - A portal session waitlist entry that is auto-promoted is not re-checked against the booking policy at
   promotion time. Joining and claiming check it.
 
@@ -141,6 +151,11 @@ Assumptions (chip A):
 Virtual meeting links (CLS-08) and captain rosters (REG-26). From chip A: bulk resend of confirmations,
 a portal list of open forms (members reach a form by its link), and saved cards at form checkout (a new card
 only).
+
+Publishing a program group as a league competition (REG-14, `publishProgramGroupAsCompetition`) has no route
+here. Leagues serves `POST /competitions/from-program-group` instead, which the contract does not name. The
+`roster_link.send` key is registered for captain rosters but no route uses it, and the `video_join` attendance
+source exists with no producer until CLS-08 is built.
 
 **Known gap:** an anonymous public-form registration is not confirmed by the address owner. Anyone can
 register someone else's email (squatting a one-per-email place), and the duplicate-email reply tells a visitor

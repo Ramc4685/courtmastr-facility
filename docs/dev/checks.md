@@ -42,6 +42,9 @@ to `docs/api/breaking-allow.txt` with a reason comment, and have it reviewed.
 contract change (one `__Host-fh_session` cookie, the `__Host-fh_pre` login-CSRF cookie, `X-CSRF-Token` on browser
 writes) shows up in the diff only as added endpoints, so it needs no allow line; it is recorded in
 `docs/status/phase8-s1-signin.md`.
+The diff also rates a removed request property as a warning, not an error. Our request schemas reject unknown
+fields, so a client that still sends the property gets a 422: treat that warning as a breaking change and say so in
+`CHANGELOG.md` (the `currency` removal from `PATCH /tenant` is the example).
 
 ## Schemathesis
 
