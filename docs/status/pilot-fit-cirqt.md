@@ -51,7 +51,8 @@ These are the values the seed uses. Marked items are assumptions.
 | h | No-show rule for rentals. | **gap** |
 | i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
 | i | Utilisation measured from opening hours. | **gap** |
-| j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. The seed turns self sign-up on; the court asks for a birth date first. |
+| j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. The seed turns self sign-up on. Sign-up asks for a birth date and a declaration that it is true; a self-declared adult books and pays at once and sees "Your entry code will be sent once our staff have confirmed your age. This is a one-time check." with the CIRQT phone. The person cannot change the date. |
+| j | Staff confirm a newcomer's age once (owner decision "Staff confirm once"). | pass. The newcomer is in the age-check queue; the desk confirms with `clients.client.confirm_age`, `clients.client.age_confirmed` fires once and the notice goes. Seeded adults were confirmed by the owner through the same action. Building-control (not built) issues the held entry code on that event. |
 | k | Staff book several courts for several weeks in one go, on one invoice. | pass |
 | k | A club holds a weekly prime slot for 8 weeks at 15% off ($25.50 a week). | pass |
 | k | A member bulk-books online. | **gap**: one court and one occurrence per checkout |

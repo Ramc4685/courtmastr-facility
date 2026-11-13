@@ -33,7 +33,7 @@ from app.modules.leagues.models import Competition, Sport, Venue
 from app.modules.memberships.models import MembershipContract, MembershipPlan, MembershipType
 from app.modules.platform import service as platform_service
 from app.modules.platform import staff
-from app.modules.platform.models import Identity, Location, StaffUser, SubscriptionPlan, Tenant, UserLocationAccess
+from app.modules.platform.models import Identity, Location, Role, StaffUser, SubscriptionPlan, Tenant, UserLocationAccess
 from app.modules.rentals.models import RentalType
 from app.modules.resources.models import Resource, ResourceGroup
 
@@ -291,6 +291,13 @@ def _people(session, actor, location, mail: str) -> dict:
             children += kids
     for row in session.scalars(select(ClientEmail).where(ClientEmail.verified_at.is_(None))):
         row.verified_at = clock.now()  # synthetic addresses count as confirmed
+    # The owner has seen every adult's ID: only the confirm action confirms an age (clients README), so the seed
+    # calls it as the owner. Children stay unconfirmed, as a self-typed date would.
+    owner_id = session.scalar(select(StaffUser.id).join(Role).where(Role.system_key == "owner").limit(1))
+    as_owner = staff.principal_for(session, owner_id)
+    for adult in adults:
+        if adult.is_birth_on_unverified:
+            clients.service.confirm_age(session, as_owner, adult.id, {})
     for local in ("member", "parent"):
         identity = session.scalar(
             select(Identity).where(Identity.kind == "client", Identity.email == f"{local}@{mail}")

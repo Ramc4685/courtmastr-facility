@@ -7,7 +7,7 @@ the reason, so it turns red the day the gap closes. Product code is not changed 
 
 from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core import clock
 from app.core.db.session import tenant_session
+from app.core.events import OutboxEvent
 from app.modules.clients.models import Client
 from app.modules.memberships.models import MembershipPlan
 from app.modules.platform.models import Location
@@ -553,13 +554,11 @@ def data(response) -> list:
 # --- j. unmanned: a newcomer signs up, pays the membership fee and books a court with no staff ---------------
 
 
-def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(client_module, w, mailbox):
-    c, day = client_module, MON + timedelta(days=8)
-    assert w.location in {x["id"] for x in data(c.get(f"{API}/public/locations", headers=w.public))}
-    assert "Adult monthly" in {p["name"] for p in data(c.get(f"{API}/public/membership-plans", headers=w.public))}
-    offered = {t["name"] for t in data(c.get(f"{API}/public/rental-types", headers=w.public))}
-    assert {"Badminton court", "Pickleball court", "Volleyball court"} <= offered
-    # No staff step: the seed switches self sign-up on, as an unmanned facility needs.
+NOTICE = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
+
+
+def newcomer(c, w, mailbox) -> tuple[dict, dict]:
+    """Self sign-up with a declared birth date (no staff step: the seed switches self sign-up on)."""
     body = {
         "location_id": w.location,
         "email": f"new-{uuid4().hex[:6]}@{w.mail}",
@@ -574,6 +573,19 @@ def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(clie
                        json={"token": link_token(mailbox[-1]), "client_kind": "mobile"}), 200)  # fmt: skip
     me = {"Authorization": f"Bearer {signed['access_token']}"}
     [mine] = data(c.get(f"{API}/portal/clients", headers=me))
+    return me, mine
+
+
+def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(client_module, w, mailbox):
+    c, day = client_module, MON + timedelta(days=8)
+    assert w.location in {x["id"] for x in data(c.get(f"{API}/public/locations", headers=w.public))}
+    assert "Adult monthly" in {p["name"] for p in data(c.get(f"{API}/public/membership-plans", headers=w.public))}
+    offered = {t["name"] for t in data(c.get(f"{API}/public/rental-types", headers=w.public))}
+    assert {"Badminton court", "Pickleball court", "Volleyball court"} <= offered
+    me, mine = newcomer(c, w, mailbox)
+    # The declared date lets an adult book and pay at once; the entry code waits for staff's one-time check.
+    assert mine["age_confirmed"] is False
+    assert mine["entry_code_notice"] == f"{NOTICE} Questions? Call {cirqt.PHONE}."
     member = ok(c.post(f"{API}/portal/membership-contracts", headers=me | key(), json={
         "client_id": mine["id"], "location_id": w.location, "membership_plan_id": w.plans["Adult monthly"],
         "method_token": "tok_card_ok",
@@ -586,14 +598,32 @@ def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(clie
         "starts_at": at(day, "08:00"),
         "ends_at": at(day, "09:00"),
     }
-    # Courts are booked online by an adult: sign-up asks no birth date, so the court asks for one first.
-    first = c.post(f"{API}/portal/rentals", headers=me, json=court)
-    assert (first.status_code, first.json()["code"]) == (422, "birth-date-required"), first.text
-    ok(c.patch(f"{API}/portal/clients/{mine['id']}", headers=me, json={"birth_on": "1992-08-09"}), 200)
     checkout = ok(c.post(f"{API}/portal/rentals", headers=me, json=court))
+    assert checkout["entry_code_notice"].startswith(NOTICE)  # shown before payment
     paid = ok(c.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm", headers=me | key(),
                      json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
     assert paid["rental"]["status"] == "confirmed" and paid["payment_status"] == "succeeded"
+    # The person cannot confirm or change their own date.
+    locked = c.patch(f"{API}/portal/clients/{mine['id']}", headers=me, json={"birth_on": "1992-08-09"})
+    assert (locked.status_code, locked.json()["code"]) == (422, "field-locked"), locked.text
+
+
+def test_j_staff_confirm_a_newcomers_age_once_and_the_confirmed_event_fires(client_module, w, mailbox):
+    c = client_module
+    me, mine = newcomer(c, w, mailbox)
+    queue = data(c.get(f"{API}/client-age-reviews", headers=w.desk))
+    assert mine["id"] in {r["id"] for r in queue}
+    confirmed = ok(c.post(f"{API}/clients/{mine['id']}/age-confirmation", headers=w.desk, json={}), 200)
+    assert confirmed["age_confirmed"] is True and confirmed["age_confirmed_at"]
+    with tenant_session(w.tenant.id) as session:
+        fired = session.scalars(select(OutboxEvent).where(OutboxEvent.event_type == "clients.client.age_confirmed",
+                                                          OutboxEvent.aggregate_id == UUID(mine["id"]))).all()  # fmt: skip
+    assert len(fired) == 1
+    [after] = data(c.get(f"{API}/portal/clients", headers=me))
+    assert after["age_confirmed"] is True and after["entry_code_notice"] is None
+    assert mine["id"] not in {r["id"] for r in data(c.get(f"{API}/client-age-reviews", headers=w.desk))}
+    # Seeded adults were confirmed by the owner through the same action.
+    assert ok(c.get(f"{API}/clients/{w.member}", headers=w.desk), 200)["age_confirmed"] is True
 
 
 # --- k. bulk booking -----------------------------------------------------------------------------------------
