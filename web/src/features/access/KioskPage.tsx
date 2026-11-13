@@ -95,9 +95,11 @@ function Kiosk({ config }: { config: Config }) {
     setProblem(
       e instanceof ApiError && e.status === 401
         ? 'This kiosk was signed out. Ask staff to pair it again.'
-        : e instanceof ApiError && e.code === 'card-invalid'
-          ? 'We could not find you. Please see the front desk.'
-          : 'Something went wrong. Please see the front desk.',
+        : e instanceof ApiError && e.code === 'card-code-expired'
+          ? 'That code has expired. Refresh it in the app and scan again.'
+          : e instanceof ApiError && e.code === 'card-invalid'
+            ? 'We could not find you. Please see the front desk.'
+            : 'Something went wrong. Please see the front desk.',
     )
   const lookup = useMutation({
     mutationFn: (body: { last_name_prefix: string }) => api.post('/api/v1/kiosk/lookups', { body }),

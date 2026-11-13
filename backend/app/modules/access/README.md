@@ -100,7 +100,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   booking is in flight. It expires after the confirmation plus the
   reservation timeout (plus 5 seconds), and every token a device holds ends at `POST /kiosk/visits/end` (the screen
   going back to start), at its next lookup and at its next check-in. A missing, spent, expired or other device's
-  token, or a denied or checked-out check-in, is 404. Responses carrying a token are `@secret_response`: a replayed
+  token, or a denied or checked-out check-in, is 404. `visits/end` names the visit (`check_in_id`) and ends only its
+  tokens, so a late call from the old screen cannot end the next visitor's visit. Responses carrying a token are `@secret_response`: a replayed
   Idempotency-Key is 409 `response-not-stored`. Booking attempts have their own per-device limit (10 a minute).
 - **What a name-search check-in may do (owner decisions 2026-11-13).** Spending anything at the kiosk (a package
   credit, and in future a membership visit, an account charge or a payment) needs identification by possession:
@@ -120,14 +121,16 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   package credit pays for; auto-book never spends a credit for anyone. A booking is audited on the check-in as
   `scheduling.enrollment.create` (as the desk audits one), never as a second `access.checkin.create`.
 - **Unknown-value lockout.** Five values within five minutes on one device that resolve to no live credential or
-  member (unknown, or an expired or revoked card or pass), scanned or typed, lock value reads there for five minutes
+  member (unknown, a forged app-card code, or a revoked card or pass), scanned or typed, lock value reads there for five minutes
   (429 `kiosk-locked-out` on lookups and check-ins alike, lock end in `kiosk-locked:<device>`, logged); a known value in between does not reset the count,
   and name search still works. The lock is checked before the value is resolved. The count is a sliding window in
   Redis (`kiosk-unknown:<device>`, one MULTI per unknown value, so concurrent requests never lose a count) and sits
   outside the request transaction, so a refused scan still counts. Unlike the rate limits (which fail open), it
   fails closed: when Redis is unreachable every value read, an unknown one included, answers the same 429 (logged
   once per window per worker process) while name search keeps working. The staff window has no such lock (staff
-  are signed in).
+  are signed in). A stale app-card QR that carries the card's own signature (a screenshot, an old code) is 404
+  `card-code-expired` ("refresh the code") and does not count: it is that member trying again, not a guess. A
+  forged code (wrong signature) still counts.
 - **Kiosk package purchase: not built (review 2026-11-13).** A first version was dropped before merge: a routine
   check-in scan authorised a one-tap charge that could repeat (each purchase handed back a fresh visit token), a
   wallet pass is a static bearer barcode, and an app QR could be replayed at a second kiosk inside its step. A future
@@ -191,6 +194,12 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - Access configuration changes (settings, rules, schedules, type access) are audited without events. The access-mode
   change, credential assignments, station changes and card-layout changes publish their own events.
 - CSV export is built in the browser from the list API and capped at 2000 rows.
+- **Known kiosk limits.** A name-search visit reveals that a household is past due when every session on its page
+  shows unbookable (the page says nothing more, but the pattern is visible). A wallet pass is a copyable bearer
+  token: whoever holds the pass file (or its barcode) has possession at the kiosk until the pass is revoked.
+- A kiosk booking of a place the client already holds (or holds pending checkout, or just took on another kiosk)
+  is a check-in to that place, not a refusal; nothing new is booked or spent. A credit spent from the kiosk that
+  reaches a package's auto-renew threshold only flags it; the daily package run makes the renewal sale.
 - The app-card HMAC secret is stored raw (under RLS, never audited); envelope encryption is a follow-up. A QR code is replayable within its 60-second acceptance window.
 - The clash check between member numbers and credentials runs only when a credential is assigned, not when
   `clients` sets a member number.

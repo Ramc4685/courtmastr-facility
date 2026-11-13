@@ -93,7 +93,9 @@ def _app_card(session: Session, text: str) -> Credential | None:
     if row is None or row.kind != "app_card" or row.status != "active":
         raise NotFound("This card is not valid.", code="card-invalid")
     if not cards.verify(row.secret_ciphertext, row.id, step, mac, clock.now()):
-        raise NotFound("This card code has expired; refresh it in the app.", code="card-invalid")
+        if step < cards.step_of(clock.now()) and cards.is_authentic(row.secret_ciphertext, row.id, step, mac):
+            raise NotFound("This card code has expired; refresh it in the app.", code="card-code-expired")
+        raise NotFound("This card is not valid.", code="card-invalid")
     return row
 
 
@@ -799,7 +801,9 @@ def _kiosk_value(session: Session, device: KioskDevice, value: str):
         raise locked
     try:
         return resolve(session, value)
-    except NotFound:
+    except NotFound as exc:
+        if exc.code == "card-code-expired":
+            raise  # a known member's stale code (a screenshot): try again with a fresh one, not a guess
         try:
             _count_unknown(device.id)
         except redis.RedisError:

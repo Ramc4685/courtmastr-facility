@@ -4353,7 +4353,7 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskCheckInCreate'}}}
       x-problem-codes: [validation-failed, request-in-progress, idempotency-key-reused, rate-limited, match-token-expired,
-        second-factor-failed, card-invalid, response-not-stored, kiosk-locked-out,
+        second-factor-failed, card-invalid, card-code-expired, response-not-stored, kiosk-locked-out,
         lookup-method-disabled]
       responses:
         '201':

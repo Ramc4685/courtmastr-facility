@@ -499,3 +499,23 @@ def test_ending_an_old_visit_never_ends_a_newer_one(client, tenant, owner, k):
     assert client.post(f"{API}/kiosk/visits/end").status_code == 422  # the visit must be named
     assert client.post(f"{API}/kiosk/visits/end", json={"check_in_id": old["check_in_id"]}).status_code == 204
     ok(book(client, new, seat.id))  # the newer visit's token still works
+
+
+def test_a_stale_app_qr_is_try_again_not_an_unknown_value(client, tenant, owner, k):
+    """A screenshot of a member's rotating QR verifies as their card but has expired: it tells them to refresh the
+    code and does not count toward the unknown-value lockout. A forged code (bad signature) still counts."""
+    from app.modules.access import service
+
+    secret = secrets.token_bytes(32)
+    card_id = _digital(tenant, k.person, "app_card", f"APP{secrets.token_hex(8).upper()}", secret)
+    stale = cards.qr_text(cards.seed(card_id, secret), clock.now() - timedelta(minutes=5))
+    for _ in range(service.KIOSK_UNKNOWN_VALUES + 2):
+        refused = client.post(f"{API}/kiosk/check-ins", json={"card_payload": stale})
+        assert refused.status_code == 404 and refused.json()["code"] == "card-code-expired", refused.text
+        assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": stale}))["matches"] == []
+    assert service.unknown_value_count(_device_id(tenant)) == 0
+    assert enter(client, k.person, cards.qr_text(cards.seed(card_id, secret), clock.now()))["status"] == "admitted"
+
+    forged = stale.rsplit(".", 1)[0] + ".AAAAAAAAAAAAAAAAAAAAAA"
+    assert client.post(f"{API}/kiosk/check-ins", json={"card_payload": forged}).json()["code"] == "card-invalid"
+    assert service.unknown_value_count(_device_id(tenant)) == 1
