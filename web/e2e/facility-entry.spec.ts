@@ -71,6 +71,11 @@ test('guest checkout for a program passes the scan, with and without field error
         headers: staff(),
         data: { is_enabled: true, payment_requirement: 'immediate_card_payment', allows_guest_checkout: true },
       }),
+      // The seed's program-default waiver blocks guests (409 guest-documents-required); this camp's own rules are desk-only.
+      page.request.put('/api/v1/document-bindings', {
+        headers: staff(),
+        data: { scope_type: 'program_group', scope_id: camp.id, custom_text: 'Camp rules', is_enforced_online: false },
+      }),
     ]
     for (const step of await Promise.all(steps)) expect(step.ok(), await step.text()).toBe(true)
     const published = await page.request.post(`/api/v1/program-groups/${camp.id}/publish`, { headers: staff() })
