@@ -6,34 +6,42 @@ the time clock, shifts, instructor assignment and payroll runs (build module 12;
 
 | File | What it holds |
 |---|---|
-| `models.py` | The twelve tables of section 4 plus `bonus_rule` (deviations in its docstring) |
+| `models.py` | The twelve tables of section 4, `bonus_rule` among them (deviations in its docstring) |
 | `domain/pay.py` | Pure pay arithmetic: anchored session rates, comp, floor and flat pay, rate precedence, bonuses, commission, effective-dated rates, shift variance |
 | `service.py` | Staff commands and the synchronous payroll calculation |
 | `router.py` | Staff routes; no portal routes |
 
-**What stays elsewhere.** Staff users, roles, location access and RBAC are `platform`'s. A trainer's
-calendar column is a `resources.resource` row (`kind = 'trainer'`) linked to the staff user through
+**What stays elsewhere.** Staff users, roles, location access and RBAC are `platform`'s. A trainer's calendar
+column is a `resources.resource` row (`kind = 'trainer'`) linked to the staff user through
 `staff_user.linked_resource_id`. Sessions are `scheduling` bookings. This context reads them only through
 those contexts' service functions, and reads sale facts through `packages.sales_by_seller`,
 `memberships.seller_periods`, `programs.attended_enrollments`, `packages.session_credit_facts` and
-`billing.source_totals`. Each was added for
-payroll and has no permission check (ADR 0009 section 9).
+`billing.source_totals`. Each was added for payroll and has no permission check (ADR 0009 section 9). It also
+reads `memberships.eligibility` for membership-type pay, and when it creates a trainer payee it writes through
+`platform.service.set_linked_resource` and calls `resources.service.trainer_group` and `create_resource`.
 
 **Instructor assignment.** `PUT /sessions/{schedule_session_id}/instructor` swaps the trainer columns on the
 session's booking and calls `scheduling.reschedule_booking` with the same times. Holds are re-derived in the
-same transaction, so a busy trainer is a `booking-conflict`. The gate is `scheduling.session.manage` through
+same transaction, so a busy trainer is a `booking-conflict`, and taking the last trainer off a session that
+has no other resource is `409 session-needs-resource`. The gate is `scheduling.session.manage` through
 `scheduling.authorize_reach`, so a coach with `own` reach changes only sessions on their own column.
 `GET /staff-payees/{id}/sessions?from&to` lists a trainer's sessions.
 
 **Time clock.** Clock-in and clock-out re-check the caller's password (`platform.auth.reauthenticate`).
-Failures count toward the sign-in lockout and are recorded before anything else is written. One open entry
-per user is enforced twice: by a check in the service and by the exclusion constraint
-`ex_time_entry_overlap`, which also refuses overlapping manager entries (409 `time-entry-overlap`). With
-`is_time_clock_network_restricted`, a punch needs the request IP inside one of `time_clock_networks`.
+Failures count toward the sign-in lockout and are recorded before anything else is written. One open entry per
+user is enforced twice: by a check in the service and by the exclusion constraint `ex_time_entry_overlap`,
+which also refuses overlapping manager entries (409 `time-entry-overlap`). With
+`is_time_clock_network_restricted`, a punch needs the request IP inside one of `time_clock_networks`. Clock-in
+needs an hourly rate in force today for the chosen job (else `422` on `job_classification_id`). A punch from
+outside the allowed networks is `403 network-not-allowed`, a second clock-in is `409 already-clocked-in`, and
+clocking out while not clocked in is `409 not-clocked-in`. `GET /time-entries/current` returns the caller's
+clock state under the punch key, and `GET /my-shifts` lists the caller's own published shifts to any signed-in
+staff user (no permission key; the implicit self rule).
 
 **Payroll.** A run is calculated synchronously on create and on recalculate, then stays `calculated` until it
-is finalized (frozen) or voided. A run without `location_id` covers every location and needs reach to all of
-them (`authorize_tenant_wide`). The run has three sections:
+is finalized (frozen) or voided, and a finalized run can still be voided. A run without `location_id` covers
+every location and needs reach to all of them (`authorize_tenant_wide`). The run has four parts. The code
+computes three `includes` groups (`sessions`, `commissions`, `hourly`), and bonuses ride on `sessions`:
 
 - **Sessions.** Confirmed, ended bookings on the trainer's column whose start falls in the period (local
   dates, per location zone). The pay-rate row is the booking's reservation-type row, else the row for the
@@ -50,7 +58,8 @@ them (`authorize_tenant_wide`). The run has three sections:
 - **Bonuses.** `bonus_rule` rows, one statement line each, rounded once: `trained_hours` pays a flat amount once
   the period's trained time (session, comp and flat-activity lines) reaches the threshold, a threshold met
   exactly pays; `off_hours` pays an hourly extra over the trained minutes that fall inside a local window on
-  chosen weekdays. They are added when "sessions" is in the run's `includes`.
+  chosen weekdays. They are added when "sessions" is in the run's `includes`. A payee with neither a pay-rate row nor a
+  session-completion rule gets none, because the session pass returns first.
 - **Hourly.** Closed, unvoided time entries by local start date, at the rate in force that day.
 
 A sale already on a finalized run is flagged `was_paid_before` but still counted, so the manager decides.
@@ -58,6 +67,8 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
 ## Assumptions (written down, not guessed)
 
 - A trainer payee is created by `resources.resource.manage` (it creates or adopts a calendar column).
+  `resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`, or in the
+  location's first active group, or in a new "Trainers" group.
 - Setting a payee's linked staff login, on create or on update, also needs `staff.pay_rate.manage`: the login
   is who is paid (W2-03). A staff user already linked to another trainer calendar is refused with
   `409 already-linked` rather than silently moved.
@@ -65,8 +76,6 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
   the payee's linked login (`own-time-entry`, the same rule as their own hours; W2-05).
 - With `own` reach on `scheduling.session.manage`, a coach may only put themselves on a session; handing it
   to another trainer or taking themselves off is `403 own-sessions-only`.
-  `resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`, or in
-  the location's first active group, or in a new "Trainers" group.
 - A manager never creates or edits their own time entries; Owner and Admin may (STF-08 "no self-approval").
 - With `own` reach on `staff.pay_statement.read`, a user sees only their own statement, and only on a
   finalized run.
@@ -83,6 +92,8 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
   in the last 10 minutes, else `403 step-up-required` (`core/auth/permissions.py::check_step_up`). Clock in and
   out do re-check the password (`reauthenticate`), and a wrong password leaves an audit row.
 - Payroll runs are calculated in the request, not in a worker: a location's two-week run is small.
+- Events: besides `staff.shift.published`, the context publishes `staff.trainer.created` when a payee gets a calendar
+  column, `staff.time_entry.closed` on clock-out and `staff.payroll_run.finalized` on finalize.
 
 ## Phase 10 assumptions (chip D)
 

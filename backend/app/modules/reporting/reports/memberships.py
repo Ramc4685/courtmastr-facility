@@ -243,8 +243,8 @@ def _expiring(session: Session, p: ExpiringParams, scope: Scope) -> dict:
         later = [newer.client_id == t.client_id, newer.end_on > t.end_on, newer.status != "cancelled"]
         if p.membership_type_ids:
             later.append(newer.membership_type_id.in_(p.membership_type_ids))
-        if scope.location_ids is not None:  # a contract the caller cannot see must not hide one they can
-            later.append(newer.location_id.in_(scope.location_ids))
+        if scope.permitted_location_ids is not None:  # one the caller cannot see must not hide one they can
+            later.append(newer.location_id.in_(scope.permitted_location_ids))
         where.append(~exists().where(*later))
     rows = [dict(r._mapping) for r in session.execute(_loc(
         select(t.client_name, t.client_email, t.client_phone, t.contract_name, t.membership_type_name, t.status,
@@ -279,7 +279,7 @@ SPECS = (
     ReportSpec(
         "membership_revenue_by_month", "Membership revenue by month",
         "Membership revenue per month on the revenue date: dues already billed plus those still scheduled, so "
-        "future months forecast recurring income. Choose dates ahead of today to look forward.",
+        "future months forecast recurring income. Choose dates ahead of today to look forward. Amounts are before tax.",
         "membership", MEMBERSHIP, "revenue_date", TypeRangeParams,
         (Col("month", "Month"), Col("period_count", "Items", "count"), Col("posted_minor", "Billed", "money"),
          Col("scheduled_minor", "Scheduled", "money"), Col("total_minor", "Total", "money")),
@@ -293,7 +293,8 @@ SPECS = (
     ReportSpec(
         "deferred_membership_revenue", "Deferred membership revenue",
         "Per contract: what was billed and paid, how much of the payments is earned (applied to items whose "
-        "revenue date is on or before the cut-off) and how much is still unearned.",
+        "revenue date is on or before the cut-off) and how much is still unearned. Amounts include tax, as "
+        "billed and paid; Membership revenue by month is before tax.",
         "membership", MEMBERSHIP, "as_of", DeferredParams,
         (Col("client_name", "Member"), Col("contract_name", "Membership"), Col("membership_type", "Type"),
          Col("start_on", "Starts", "date"), Col("end_on", "Ends", "date"), Col("billed_minor", "Billed", "money"),

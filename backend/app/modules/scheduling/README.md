@@ -12,7 +12,10 @@ The calendar engine of ADR 0004: bookings, resource holds under a Postgres exclu
 | `service.py` | everything else; the only writer of `resource_hold` |
 | `offers.py` | type grants (SCH-05) and slot offers (SCH-07, SCH-18); writes holds only through `service` |
 | `jobs.py` | `generate_series` (one chunk per message), `expire_checkout_holds` |
-| `router.py` | 31 operations of `openapi-core.yaml` tag `scheduling`, plus 8 from phase 10 (grants, rule change, slot offers) |
+| `router.py` | 40 operations of `openapi-core.yaml` tag `scheduling`, the phase 10 grants, rule change and slot offers included; the contract has eight more, listed under Not built |
+| `subject.py` | merge and data-subject handlers, registered from `__init__.py` |
+| `events.py` | emits `booking.created`, `booking.rescheduled`, `booking.cancelled`, `hold.expired`, `session.created`, `session.cancelled`, `session.capacity_changed`, `series.generated`, `slot_offer.saved` and `reservation_type.grants_replaced` (all prefixed `scheduling.`); rentals, leagues, engagement, programs and packages subscribe to the booking and session events |
+| `permissions.py` | the `scheduling.*` keys of `rbac-matrix.md` section 6.3 |
 
 ## Interface for other contexts (internal: no principal, no permission check)
 
@@ -27,6 +30,13 @@ reserve_seat(session, session_id, n=1);  release_seat(...);  set_capacity(sessio
 get_session(session, session_id) -> dict;  authorize_reach(session, principal, key, booking_id)
 settings_for(session, location_id);  blackouts_between(session, location_id, start, end, scope=None)
 offers.materialise_slot(session, offer, starts_at, *, created_via, staff_user_id) -> Booking  # SCH-07
+booking_views(session, booking_ids) -> dict[UUID, dict];  booking_ids(*, client_id=None, status=None, ...)
+sessions_with_resource(resource_id, session_ids);  series_sessions(session, series_id, starts_from) -> list[UUID]
+session_window(session, starts_from, starts_before, *, location_id=None, ..., limit=500) -> list[dict]
+type_location(session, type_id) -> UUID;  template_for(session, location_id, data, staff_user_id) -> dict
+book(session, template, data, staff_user_id, *, preview=False, ...) -> dict;  add_rule(session, series_id, data, ...)
+series_scope(session, series_id, scope) -> list[Booking];  free_ranges(session, location_id, start, end, ...) -> dict
+client_bookings_starting(session, *, client_id, location_id, start, end) -> list[UUID]
 ```
 
 - `resource_ids[0]` is the primary resource; the rest are linked. Holds = each of them plus all of its
@@ -35,6 +45,11 @@ offers.materialise_slot(session, offer, starts_at, *, created_via, staff_user_id
   naming the resource and the booking (id, number, title, times). `resource-blacked-out` for a closure.
 - `hold_minutes` makes a tentative checkout hold; `confirm_booking` or expiry ends it. Expired holds are
   reaped inline by the next insert that meets them, so availability never waits for the reaper.
+- `booking_ids` returns a SELECT of ids, not a list: callers run it with `session.scalars`. `add_rule` gates
+  only when a `principal` is passed.
+- `__init__.py` registers `service.check_location_archive` with `platform.service.register_location_archive_check`.
+  Archiving a location with a confirmed booking or a live (unexpired) checkout hold still to start is refused with
+  409 `location-has-future-bookings`; closure blocks never count.
 
 ## How conflicts are decided
 
@@ -59,7 +74,8 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 7. Checkout holds: the caller passes `hold_minutes`; the per-client limit of 3 tentative bookings and the
    automatic use of `scheduling_settings.checkout_hold_min` belong to the rentals portal flow (module 3).
    The reaper actor `expire_checkout_holds` runs every minute from `app/scheduler.py`.
-8. Buffers are 0 to 240 in 5-minute steps (the data model's range; the ADR text says 120).
+8. Buffers are 0 to 240 minutes (the data model's range; the ADR text says 120). The 5-minute step is enforced
+   by the API schema only; the database accepts any whole number in that range.
 9. Owner question 19: a staff booking outside the location's opening hours succeeds and carries
    `warnings: [{code: "outside-opening-hours", detail, count}]` (create, preview, reschedule, rule change).
    A closed day counts as outside. A booking across midnight is inside when one day's hours run to 24:00
@@ -68,13 +84,14 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
     the type's location must still be visible to the caller.
 11. `own` reach (coach): reads the whole calendar; writes only bookings whose resources include the user's
     linked trainer resource.
-15. **Type grants (SCH-05).** A reservation type with no `reservation_type_grant` rows is open to everyone
+12. **Type grants (SCH-05).** A reservation type with no `reservation_type_grant` rows is open to everyone
     who may book; with rows, only those staff may create, move, edit or cancel its bookings (including every
     occurrence a series command touches, and changing a booking to that type). Owners, system jobs and API
     keys are exempt. Grants are checked in the shared inner `_authorize`, so staff enrolment and attendance
     (programs) and instructor assignment (staff) on a restricted type need the grant too, through
     `authorize_reach`. Reads and portal (member) booking are not affected. The calendar's `can_edit` is false for a denied type.
-16. **Slot offers (SCH-07, SCH-18).** An offer splits one availability window into `slot_min` slots over the
+    Listing and replacing the grants need `scheduling.reservation_type.grant`, a tenant-scoped key.
+13. **Slot offers (SCH-07, SCH-18).** An offer splits one availability window into `slot_min` slots over the
     window's resource plus optional extra resources. Slots are derived on read (`free`, `booked`, `full`,
     `unavailable` when a hold or a closure, padded by the type's buffers, overlaps). Taking a slot
     materialises one session (`session.slot_offer_id`, `slot_starts_at`, unique per offer and start). Takers
@@ -84,26 +101,28 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
     `materialise_slot` and then `reserve_seat`. Releasing the last seat cancels the session, returning the
     time to the window. A window whose offer has live slot sessions cannot be deleted (FK `RESTRICT`,
     409 `slot-offer-in-use`); pause the offer instead.
-17. **Changing a pattern (SCH-09).** `PATCH /booking-series/{id}/rules/{rule_id}` cancels the rule's live
+14. **Changing a pattern (SCH-09).** `PATCH /booking-series/{id}/rules/{rule_id}` cancels the rule's live
     occurrences from `start_on` (today or later, location time) and books the new pattern from there, in one
     transaction; `preview` rolls both halves back. Cancellations publish the usual events, so programs
     drops their enrolments. Because it cancels, it also needs `scheduling.booking.delete_series`. The new
     pass must fit in one transaction (at most `SYNC_LIMIT`, 50, occurrences, else 422). A longer pattern is
     changed by ending this one and adding a further pass, because a background pass could fail after the
     cancellations had committed.
-18. **Drag and drop (RES-01).** The calendar returns the location's `drag_drop_default`: `reschedule` moves
+15. **Drag and drop (RES-01).** The calendar returns the location's `drag_drop_default`: `reschedule` moves
     at once, `ask` confirms first, `move_enrollment` turns calendar drag off (the drawer still moves).
-12. The path parameter of `/sessions/{...}` is `schedule_session_id`, because the generated isolation test
+16. The path parameter of `/sessions/{...}` is `schedule_session_id`, because the generated isolation test
     maps parameter names to fixture ids and `session_id` is already the auth session.
-13. Calendar entries carry `client_id` but not `client_name` or `is_unpaid`; `include_cancelled` is absent
+17. Calendar entries carry `client_id` but not `client_name` or `is_unpaid`; `include_cancelled` is absent
     (cancelled bookings have no holds, and the calendar reads holds).
-14. `series.occurrence_count` is moved by an atomic SQL update: two passes of one series may run at once.
+18. `series.occurrence_count` is moved by an atomic SQL update: two passes of one series may run at once.
 
 ## Not built
 
-Portal slot booking (programs calls `materialise_slot`), direct links for slot offers, public schedule
-(SCH-20), calendar feeds (SCH-19), the `rpt_booking` and `rpt_session_fill` views, `enrollment_action` on
-reschedule, a portal view of shared bookings. (Merge and erasure are handled since integration: `subject.py`.)
+Portal slot booking (programs calls `materialise_slot`), direct links for slot offers
+(`createSlotOfferDirectLink`), public schedule (SCH-20; `getPublicSchedule`, `getPublicScheduleSettings` and
+`updatePublicScheduleSettings`, and the `scheduling.public_schedule.manage` key, which no route uses yet), calendar
+feeds (SCH-19), the `rpt_booking` and `rpt_session_fill` views, `enrollment_action` on reschedule, a portal view
+of shared bookings. (Merge and erasure are handled since integration: `subject.py`.)
 
 ## Direct links, shared bookings and series merge (Phase 14 C2, `sharing.py`)
 

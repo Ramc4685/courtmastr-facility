@@ -1,14 +1,17 @@
 # packages
 
 Package plans, sold packages, the session-credit ledger, expiry, renewal, recurring series and sharing (build
-module 5; data-model-people section 4). Backend only. Feature status: `docs/status/05-memberships-packages.md`.
+module 5; data-model-people section 4). Feature status: `docs/status/05-memberships-packages.md`.
 
 | File | What it holds |
 |---|---|
 | `models.py` | The six tables of section 4 (deviations listed in its docstring) |
 | `service.py` | Staff commands, the internal credit interface, the daily job `run_daily`, merge and erasure handlers |
-| `handlers.py` | The scheduling event interface and the memberships add-on events |
-| `router.py` | Staff, portal and public routes |
+| `handlers.py` | The scheduling event handlers, and the memberships add-on handlers: `memberships.contract.activated` grants the contract's add-ons; `.cancelled` removes them only when `cancel_packages` is set |
+| `router.py` | Staff, portal and public routes, including the portal opt-outs from auto-renew for a package and for a series |
+| `events.py` | The events it emits: `packages.package.sold`, `.exhausted`, `.expired`, `.renewed`, `packages.credit.consumed`, `.restored` and `.reservation_failed` |
+| `permissions.py` | The `packages.` keys: `package.read`, `package.sell`, `package.grant_complimentary`, `package.update`, `package.share`, `package.remove`, `package.remove_override`, `credit.adjust`, `period.close` and `plan.manage` |
+| `schemas.py` | Request and response shapes for the routes |
 
 **The ledger.** `credit_ledger_entry` is append-only (`fh_app` holds SELECT and INSERT only) and is the truth;
 the four counters on `client_package` cache it and move in the same transaction under the package row lock.
@@ -24,6 +27,8 @@ settle_credit(session, *, source_type, source_id, outcome)   # attended | no_sho
 restore_credit(session, *, source_type, source_id)            # an attendance mark corrected
 spendable_packages(session, client_id, reservation_type_id=None, on=None)
 sell(session, *, client_id, location_id, package_plan_id, ...)  # POS, portal, add-ons
+session_credit_facts(session, source_type, source_ids)          # staff session pay and completion commission
+sales_by_seller(session, staff_user_id, starts_at, ends_at, location_ids=None)  # package-sale commission
 ```
 
 `source_type` is `booking` or `enrollment`. Late cancel and no-show consume or return the credit per
@@ -47,6 +52,8 @@ its own savepoint; idempotent through `uq_client_package_previous` and the serie
   sale (PKG-08) were wired at integration (`docs/status/README.md`). Reports (PKG-15), API keys (PKG-16), the expiry
   notice (`expiry_notice_days` is stored), ad-hoc packages built at sale without a plan, coupons.
 - `setClientPackageRenewal` as its own route: renewal settings are part of `updateClientPackage`.
+- The online package preview, `portalQuoteClientPackage` (`POST /portal/client-packages/quote`). The spec has it,
+  but only the staff quote is served (`POST /client-packages/quote`); planned for the Phase 11 self-service work.
 
 Web screens exist since the integration (staff and portal; `docs/status/README.md` module 5).
 
@@ -83,8 +90,8 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
 
 ## Assumptions and deviations
 
-- **Schema.** `reservation_type_id` has no foreign key yet (scheduling owns `reservation_type`); add the
-  composite FK when the lanes merge. `coupon_id` is not created.
+- **Schema.** `reservation_type_id` is a composite foreign key to scheduling's `reservation_type` (see Changed at
+  integration). `coupon_id` is not created.
 - A plan bound to a document refuses the sale (409 `document-required` with the pending document's id) until
   the client has accepted it; the pending document is committed with the refusal.
 - Removal with `billing_reversed` is refused once sessions were used (the matrix has no override key);
@@ -110,6 +117,7 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
   `reservation_type` (revision `0401`); an unknown id is a 422.
 - New internal functions: `offer` (what a POS line shows), `require_documents` (the plan's document gate, for
   a caller that sells inside a larger transaction) and `package_for` (the package a source last drew on).
+  `session_credit_facts` and `sales_by_seller` serve staff payroll and commissions.
 - Sold at the till through a POS cart line (PKG-08), and spent on session places through
   `programs` (PKG-12, staff only).
 - An invoice created at sale carries the package's `is_autopay`, so billing's autopay run collects it.

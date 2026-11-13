@@ -1268,9 +1268,8 @@ def run_sweeps(session: Session) -> dict:
 
 @tenant_actor
 def sweep_documents(session: Session) -> dict:
-    """The queued form of run_sweeps, one message per tenant. Nothing schedules it yet (no scheduler in the
-    kernel): run it daily per tenant once one exists. Until then expiry is still exact, because every read applies
-    the date test; only the stored status lags."""
+    """The queued form of run_sweeps, one message per tenant, enqueued hourly by app/scheduler.py. Between runs
+    expiry is still exact, because every read applies the date test; only the stored status lags."""
     return run_sweeps(session)
 
 

@@ -37,6 +37,9 @@ class Scope:
     # A relative period over locations whose "today" differs, resolved at each location (service.resolve);
     # None when one range fits every location.
     day_ranges: dict[UUID, tuple[date, date]] | None = None
+    # Every location the caller may see (None: all), whatever the run selects; for checks such as "has a newer
+    # contract" that must neither leak another location nor ignore one the caller could have picked.
+    permitted_location_ids: tuple[UUID, ...] | None = None
 
 
 class Params(BaseModel):

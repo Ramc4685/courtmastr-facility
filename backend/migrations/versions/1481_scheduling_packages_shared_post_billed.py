@@ -4,7 +4,7 @@
 Generated from the models, then completed by hand: enable_rls() per table and the client_package checks.
 
 Revision ID: 1481
-Revises: 1441
+Revises: 1661
 """
 
 import sqlalchemy as sa
@@ -15,7 +15,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = "1481"
-down_revision = "1441"
+down_revision = "1661"
 
 TABLES = ("booking_participant", "post_billed_rate", "post_billed_close", "post_billed_line", "post_billed_usage")
 

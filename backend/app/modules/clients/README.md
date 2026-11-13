@@ -1,11 +1,12 @@
 # clients
 
 People: client profiles, households, notes and tasks, merge, and the GDPR subject handlers for this context.
-Build module 4. Feature status: `docs/status/04-clients-households.md`. Migration `0201_clients_households`.
+Build module 4. Feature status: `docs/status/04-clients-households.md`. Migrations `0002_kernel_clients_billing`,
+`0201_clients_households` and `1091_clients_photo_and_note_attachments`.
 
 | File | What it holds |
 |---|---|
-| `models.py` | Every table of data-model-people section 1 except photo storage: `client`, `client_email`, settings, field policy, custom fields, categories, tags, emergency contacts, relationship types and relationships, portal access, notes, subjects, tasks, alerts, `client_merge` (append-only), recent views |
+| `models.py` | Every table of data-model-people section 1 except the photo bytes (kept in `platform.files`): `client`, `client_email`, settings, `client_location_settings`, field policy, custom fields, categories, referral categories, tags, emergency contacts, relationship types and relationships, portal access, notes, `client_note_attachment`, subjects, tasks, alerts, `client_merge` (append-only), recent views |
 | `service.py` | Profile queries and commands, field policy (`check_capture`), member numbers, owners and `own` reach, and the internal interface |
 | `households.py` | Relationships, `can_act_for`, portal invitation and revocation, and every `/portal` function |
 | `activity.py` | Notes, subjects, tasks (`send_task_reminders`), alerts (`active_alerts`), timeline |
@@ -15,22 +16,25 @@ Build module 4. Feature status: `docs/status/04-clients-households.md`. Migratio
 
 ## Internal interface (no permission check; ADR 0009 section 9)
 
-`get`, `require_active`, `resolve` (follows `merged_into_id`), `display_name`, `is_minor` (age of majority
-from `tenant.settings`, default 18), `email_is_verified`, `client_addresses`, `ensure_member_number`,
-`import_client`, `link_identity`, `client_ids_for_identity`, `households.can_act_for(session, identity_id,
-client_id, capability)`, `households.actable_client_ids`, `activity.active_alerts(session, client_id,
-"check_in" | "booking", on)`.
+`get`, `require_active`, `resolve` (follows `merged_into_id`), `display_name`, `is_minor` (takes the age of
+majority as an argument; households reads the tenant setting, default 18), `email_is_verified`, `client_addresses`,
+`ensure_member_number`, `import_client`, `link_identity`, `client_ids_for_identity`, `audience`,
+`client_ids_for_address`, `find_by_member_number`, `find_by_last_name_prefix`, `display_names`, `reach_filter`,
+`households.can_act_for(session, identity_id, client_id, capability)`, `households.actable_client_ids`,
+`households.guardian_ids`, `activity.active_alerts(session, client_id, "check_in" | "booking" | "profile", on)`.
 
 ## Integrator notes
 
 - **Every table with a foreign key to `client` needs a merge handler and an erase handler.** The meta-test
   `test_every_table_with_a_client_fk_has_merge_and_erase_handlers` fails otherwise. Billing tables
-  (`invoice`, `charge`, `payment`, `refund`, `ledger_entry`) are allow-listed there until the money lane
-  registers `clients.merge.register_merge_handler(...)` and `platform.privacy.register_subject_handler(...)`;
-  remove them from `MONEY` when it does. A merge precheck can return blockers (for example an open balance).
+  (`invoice`, `charge`, `payment`, `refund`, `ledger_entry`) are covered: billing registers its merge and subject
+  handlers in `billing/subject.py`, so none is exempted in the meta-test. A merge precheck can return blockers (for
+  example an open balance).
 - Portal routes must check `can_act_for` per request. Delegates may book, buy and view the schedule only.
 - `PrincipalOut.client_ids` is filled by the resolver this package registers with platform.
 - Opt-in to marketing lives in the `engagement` slice; ask `engagement.service.is_subscribed` before sending.
+- Events (`events.py`): `clients.client.created`, `clients.client.updated`, `clients.client.disabled`,
+  `clients.client.merged` and `clients.relationship.changed`. The note-attachment event is in `files.py`.
 
 Imports (Phase 8 I1): `service.import_client` refuses a new record that the duplicate rule pairs with an existing
 client (409 `possible-duplicate`; the importer reports the row as skipped, never merged), and matches by member
@@ -42,8 +46,8 @@ client's `clients.client.created` event carries `source: "import"` and `import_j
 ## Not built
 
 Webcam capture and portal photo edit for CLI-12, CSV export (`createClientExport`),
-the portal member card, a scheduler for task reminders, derived system alerts, and the booking clause of the
-`own` reach predicate (waits for scheduling).
+a web portal page for the member card (the API and the mobile app have one, in `access`), and the booking clause
+of the `own` reach predicate (waits for scheduling).
 
 ## Assumptions
 
