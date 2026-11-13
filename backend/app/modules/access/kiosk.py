@@ -83,9 +83,11 @@ def _may_book(session: Session, row: CheckIn, config: dict) -> bool:
     return not billing.collections.is_portal_locked(session, clients.households.household_ids(session, row.client_id))
 
 
-def _sessions(session: Session, row: CheckIn, config: dict) -> list[dict]:
+def _sessions(session: Session, row: CheckIn, config: dict, *, free_only: bool | None = None) -> list[dict]:
+    """The reservation page; `free_only` defaults to the visit's rule (not identified by possession)."""
+    free_only = not _by_possession(row) if free_only is None else free_only
     listed = programs.selfservice.kiosk_sessions(
-        session, row.client_id, row.location_id, _until(config), free_only=not _by_possession(row)
+        session, row.client_id, row.location_id, _until(config), free_only=free_only
     )
     if not _may_book(session, row, config):
         for seat in listed:
@@ -93,15 +95,16 @@ def _sessions(session: Session, row: CheckIn, config: dict) -> list[dict]:
     return listed
 
 
-def _book(session: Session, row: CheckIn, session_id: UUID, config: dict) -> None:
+def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, free_only: bool | None = None) -> None:
     """Enrol through programs' kiosk rules, then mark the place attended when it starts inside the kiosk's
     check-in window (the same window the check-in itself marks). Found by name: free sessions only, and any
     refusal is see-staff, so a name alone learns nothing about the client."""
     if not _may_book(session, row, config):
         raise see_staff()
+    free_only = not _by_possession(row) if free_only is None else free_only
     try:
         enrollment = programs.selfservice.kiosk_enroll(
-            session, row.client_id, row.location_id, session_id, _until(config), free_only=not _by_possession(row)
+            session, row.client_id, row.location_id, session_id, _until(config), free_only=free_only
         )
     except DomainError as exc:
         if _by_possession(row) or exc.status >= 500:
@@ -149,8 +152,9 @@ def result(session: Session, row: CheckIn, config: dict, sessions: list[dict], t
 
 def check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     """Self check-in, then the reservation page. With auto-book on and no place already held in the window, the
-    earliest bookable session is booked (free only when found by name); auto-book is best effort and never undoes
-    the check-in. Any visit the kiosk still held ends here."""
+    earliest bookable session that consumes nothing (free booking) is booked, whatever the identification: a
+    package credit or a charge is spent only when the person picks the session on screen. Auto-book is best effort
+    and never undoes the check-in. Any visit the kiosk still held ends here."""
     end_visits(session, device)
     row = session.get_one(CheckIn, service.kiosk_check_in(session, device, data)["check_in_id"])
     config = service.settings_view(session, device.location_id)
@@ -159,11 +163,12 @@ def check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     listed = _sessions(session, row, config)
     marked = service.check_in_view(session, row)["attended"]
     held = any(a["target_type"] == "enrollment" for a in marked) or any(s["is_booked"] for s in listed)
-    pick = next((s for s in listed if s["is_bookable"]), None)
-    if config["is_auto_book"] and pick and not held:
+    free = _sessions(session, row, config, free_only=True) if config["is_auto_book"] and not held else []
+    pick = next((s for s in free if s["is_bookable"]), None)
+    if pick:
         try:
             with session.begin_nested():
-                _book(session, row, pick["target_id"], config)
+                _book(session, row, pick["target_id"], config, free_only=True)
         except DomainError:
             pass  # a refusal leaves the client checked in with the page to choose from
         else:

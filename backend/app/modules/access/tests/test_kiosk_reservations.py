@@ -232,6 +232,18 @@ def test_auto_book_on_a_name_search_skips_a_session_that_would_spend_a_package(c
     assert pricing(tenant, paid.id) is None
 
 
+def test_auto_book_on_a_card_scan_never_spends_a_package(client, tenant, owner, k):
+    """Auto-book books only what consumes nothing: a credit is spent only when the person picks the session."""
+    paid = soon(client, owner, k.loc, 10, free=False)  # earliest, and the package would cover it
+    free = soon(client, owner, k.loc, 25)
+    give_package(client, owner, tenant, k, paid.type_id)
+    ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner, json={"is_auto_book": True}))
+    entered = enter(client, k.person, card_of(client, owner, k.person))  # a plain fob scan
+    assert [a["session_id"] for a in entered["attended"]] == [free.id]
+    assert pricing(tenant, paid.id) is None  # nothing booked against the package
+    assert {s["target_id"]: s["is_bookable"] for s in entered["sessions"]}[paid.id]  # still the person's choice
+
+
 def test_a_visit_token_cannot_be_spent_twice_concurrently(client, tenant, owner, k):
     """Two taps at once with different Idempotency-Keys: the token is spent by exactly one of them."""
     one, two = soon(client, owner, k.loc, 30), soon(client, owner, k.loc, 60)

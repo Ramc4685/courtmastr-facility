@@ -89,7 +89,9 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   `clients.households.household_ids`, so a child billed to a past-due parent is locked too): every session shows not
   bookable and booking is 409 `see-staff`. A place starting inside the kiosk check-in window is marked attended
   (`was_auto_booked`). With `is_auto_book` on, a check-in that holds no place in the window books the earliest
-  bookable session, inside a savepoint: a refusal leaves the client checked in. `reservation_timeout_seconds`
+  bookable session that consumes nothing (free booking), whatever the identification, inside a savepoint: a refusal
+  leaves the client checked in. A session that would spend a package credit or charge is booked only when the person
+  picks it on screen (review 2026-11-13). `reservation_timeout_seconds`
   (default 30) sends the list screen back to the start.
 - **Kiosk visit token (migration 1962).** An admitted check-in returns a `visit_token` (random, stored hashed in
   `kiosk_visit`, bound to the device and the check-in). Each booking spends it and returns a fresh one; a refused
