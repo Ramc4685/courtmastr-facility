@@ -25,6 +25,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Leagues: publish a program as a league or tournament; captains manage their roster in the portal ("My teams"); split a team fee across players.
 - Lockers: set up locker rooms (create lockers in bulk), priced locker terms and padlocks, then rent, renew and clear lockers from the Lockers board. Padlock combinations are stored encrypted and shown only to staff allowed to reveal them; every reveal is logged.
 - Rental plans can renew automatically and charge the saved card, be sold to members only, and be shared with related clients; members can buy a rental plan and stop its renewal in the portal.
+- Reports: export to Excel or PDF as well as CSV, print the results, filter by category, type, trainer or staff, chart revenue against the goal, and email saved reports on a schedule; the home page shows at-a-glance tiles.
+- Reports: receivables by instalment due date, unapplied payments, income and balances, underpaid items, accrued and unused session value, package pipeline and sales, and membership revenue, deferred revenue, actions, attrition, expiry and referrals.
+- Reports: low-usage check-ins, check-in summary, client activity items, contacts and demographics with export, referral sources, trial conversions, retention, non-training clients, group rosters and waitlists, campaign history, POS returns, inventory and re-order, equipment, rental plan sales, and POS sales by coupon with buying price and margin.
+- Reports: time entries, payroll and commission statements, trainer performance, assessment history (with a trend chart on the client's assessments) and summary, league venues, officials and demographics, app installs, resource utilization, peak times, class popularity, check-in details and new memberships.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.
@@ -63,6 +67,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sending a campaign to every client needs its own permission.
 
 ### Fixed
+- Reports: receivables and open invoices no longer fail as "too large" on a tenant with many settled invoices; expiring memberships at one location are no longer hidden by a renewal at another; package session value no longer loses a cent to rounding (100.00 over three sessions reports 100.00).
+- Reports: a dashboard tile with too much data shows as unavailable instead of disappearing; a failing report schedule no longer stops the others, a schedule whose owner lost access is switched off, and an admin can see and delete anyone's schedule.
+- Erasing a client's data also clears stored report results and export files.
+- Reports with a relative period over locations in different time zones use each location's own days; a late-evening run no longer drops the start of the day at an eastern location.
 - Signing in no longer flashes the sign-in page again before opening the page you asked for.
 - Accessibility: form errors are announced to screen readers, date and time fields show a focus ring on every Tab stop, the member portal's skip link moves focus, checkboxes have larger targets, and the calendar and portal no longer scroll sideways on narrow screens.
 - POS sales and payments make fewer database round trips.

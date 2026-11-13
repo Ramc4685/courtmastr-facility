@@ -16,18 +16,23 @@ Running report from the lead session for the owner. Updated at each merge. Times
 |---|---|---|---|---|
 | 00:20 | CI: skip the uv cache prune in the e2e job (a green run was failing in cleanup) | `293de6f` | lead | on PR #5 |
 | 00:20 | Drift backlog triage (`docs/egm/TRIAGE.md`) | `aa20e1b` | Fable triage agent | docs |
-| 02:20 | Phase 14 B2, public league site: 12 features, migration `1441` | `56bfe6b`, merge `e71b51f` | Opus review, Fable risk review, Fable verification of fixes | green on PR #1 at `56bfe6b` |
+| 02:20 | Phase 14 B2, public league site: 12 features, migration `1441` | `56bfe6b`, merge `e71b51f` | Opus review, Fable risk review, Fable verification of fixes | green on PR #1 at `56bfe6b`; integrated gate green on PR #5 at `e71b51f` |
+| 03:02 | EGM drift fixes: tenant currency, location-archive guard, members-only rentals, permission keys, bulk-invoice cap, contract sync | `1a84864`, merge `4cd7ded` | Opus review, Fable risk review, Fable verification | green on PR #2 at `1a84864` |
+| 03:10 | Phase 14 B2 follow-ups (embed caveat, per-tenant lock, withdrawn teams, photo cap) | `65094f4`, merge `b3f0d60` | lead read the diff | green on PR #1 at `65094f4` |
+| 03:33 | Phase 12, reports and exports: 46 features, migrations `1601` to `1661` | `bda116b`, merge `48250db` | Opus review, Fable risk review, Fable verification | green on PR #3 at `bda116b` |
+
+Migration head on local main: `1661`. Cleaned up: B2 worktree and lane databases; stale lane databases
+`facilityhub_p12a`, `p12b`, `p12c`.
 
 ## In progress
 
-| Work | Where | State at last update |
+| Work | Where | State at 03:35 |
 |---|---|---|
-| EGM code and contract fixes | PR #2 | two review rounds applied; waiting for CI on the new head |
-| EGM README batch | PR #4 | waiting for CI; light review to do |
-| Phase 12 reports and exports (46) | PR #3 | reviews done, no blocker; fixing 3 wrong-number reports and 7 risk findings |
-| Phase 14 C2 shared bookings, post-billed (7) | local branch `claude/phase14-c2-shared-bookings-af70cf` | built; 3 blocking review findings being fixed; risk review running |
-| Phase 11 portal and member app (36) | local branch `claude/phase11-portal-member-app-d22713` | chips A, B, C1 recovered; C2 building |
-| Phase 15 public API and integrations (22 in scope) | worktree `Facility Software.agent-*`, branch `claude/phase15-public-api-integrations` | building; migrations from `1701` |
+| EGM README batch | PR #4 | reviewed, safe to merge; chip resolving 4 conflicts with Phase 12 |
+| Phase 12 review follow-ups (erasure race, schedule owner checks, tax basis) | PR #3, new head to come | committed locally by the chip; being pushed |
+| Phase 14 C2 shared bookings, post-billed (7) | local branch `claude/phase14-c2-shared-bookings-af70cf` | 4 original blockers closed; 1 new blocker from the credit-back fix being fixed; never through CI (push blocked) |
+| Phase 11 portal and member app (36) | local branch `claude/phase11-portal-member-app-d22713` | built; three reviews done: 6 blocking and about 27 smaller findings being fixed; never through CI (push blocked) |
+| Phase 15 public API and integrations (22 in scope) | worktree `Facility Software.agent-*`, branch `claude/phase15-public-api-integrations` | building; 7 commits; migrations from `1701`; not reviewed yet |
 
 Parked, not started: Phase 13 (needs email and push accounts), Phase 16 (needs hosting and a first facility),
 Phase 15's 20 v2 partner and hardware rows.
@@ -37,8 +42,11 @@ Phase 15's 20 v2 partner and hardware rows.
 - **Embedding the public league pages does not work yet.** The app has a frame guard (when framed it renders only
   the public league pages and the TV board), but the proxy still sends `X-Frame-Options: DENY` and
   `frame-ancestors 'none'`. Lifting that for the league paths is a security setting left for the owner.
-- B2 follow-ups sent to the chip, not yet merged: README wording on embedding, a per-tenant lock key, withdrawn
-  teams in public player stats, the 100-photo cap, the unused `shows_roster_publicly` flag.
+- **Rental-plan waivers are still not enforced** (import rules forbid `rentals` calling `documents`).
+- Removing `currency` from the tenant update is a breaking change for any older client that still sends it.
+- Reports: XLSX and PDF exports render in one pass, capped at 50,000 rows; exports assume a two-decimal currency;
+  PDF summary rows are uncapped; erasing a client purges every staff member's stored report snapshots.
+- Public gallery shows at most 100 published photos.
 
 ## Decisions taken for the owner
 
@@ -60,5 +68,9 @@ Phase 15's 20 v2 partner and hardware rows.
 - Five keys in the matrix but in no phase: impersonate, transfer ownership, tenant close,
   `leagues.discipline.manage`, `billing.dispute.manage`.
 - Framing policy for the public league pages (see above).
+- Guest checkout sits outside the past-due lockout, so a locked-out payer can still buy as a guest. Matching a
+  guest to an existing client would reveal whether an email is a client, so it was left open.
+- Members-only rentals: a location with more than 1,000 uninvoiced items can no longer use bulk invoicing's
+  location mode.
 - Keep or drop the "What's New" work in `brave-heisenberg-bef4b6`.
 - Whether the discovery notes that name the reference product should stay in a public repository.

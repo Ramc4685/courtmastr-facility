@@ -264,6 +264,21 @@ Redis for 60 s keyed by tenant, scope hash and params. With several locations se
 and a per-location breakdown, which settles the unknown about multi-location behaviour. It is a parameterised
 period summary, not a live feed; the reference's "real-time" claim has no documented behaviour behind it.
 
+### Amendment, Phase 12 (2026-11-12)
+
+- **Section 5, PDF engine.** PDF uses the shared `core.pdf` engine (fpdf2, ADR from Phase 9) instead of
+  WeasyPrint: one PDF dependency, no Pango in the image. The engine gained additive `page_size` (Letter, A4)
+  and `orientation` arguments. Not yet built from section 5: the logo band and "page X of Y". "Print" in the
+  UI is the browser's print of the results page; the PDF export is the server copy.
+- **Section 5, XLSX.** `core.xlsx` is the one spreadsheet writer (openpyxl write-only). XLSX and PDF render in
+  one job message from the frozen snapshot (bounded by the 50,000-row cap) rather than in chunks.
+- **Section 7 and open question 7, scheduled delivery is in v1.** A `report_schedule` row on a saved report
+  (daily, weekly, monthly; send time in the location's zone; 1 to 20 staff recipients). The hourly job gives
+  each recipient their own run and export, so a schedule never widens anyone's reach, and emails a sign-in
+  link to the export, never the file and never a token in the URL.
+- **Section 7, dashboard.** Six fixed tiles, each one spec's totals for a fixed period, cached 60 s per tenant,
+  staff user, location and permission set. The per-location breakdown is not built.
+
 ## Consequences
 
 - Every report has typed parameters, a declared date basis, a scope rule and a test; a new report is one spec
