@@ -99,6 +99,7 @@ test('member views invoices, buys a package, books and cancels a rental, and act
   await nav(page, 'Packages')
   await page.getByRole('button', { name: 'Buy Ten private lessons' }).click()
   const buy = page.getByRole('dialog', { name: 'Buy Ten private lessons' })
+  await buy.getByRole('radio', { name: 'New card' }).check() // the seeded saved card is offered first
   await buy.getByRole('combobox', { name: 'Card' }).selectOption('tok_card_ok')
   await buy.getByRole('button', { name: /^Pay / }).click()
   await expect(buy.getByRole('status')).toContainText('Ten private lessons is ready: 10 left')
@@ -116,6 +117,7 @@ test('member views invoices, buys a package, books and cancels a rental, and act
   await expect(slot).toBeVisible()
   await slot.click()
   await expect(book.getByText(/Due now/)).toBeVisible()
+  await book.getByRole('radio', { name: 'New card' }).check()
   await book.getByRole('combobox', { name: 'Card' }).selectOption('tok_card_ok')
   await book.getByRole('button', { name: /^Pay / }).click()
   await expect(book.getByRole('status')).toContainText('Booked: Court rental')
