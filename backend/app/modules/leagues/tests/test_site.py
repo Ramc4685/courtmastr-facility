@@ -97,6 +97,9 @@ def test_links_news_photos_and_sponsors(client, owner, tenant, f):
     assert shown.status_code == 200 and shown.headers["content-type"] == "image/png"
     assert client.get(f"{API}/public/league-site/photos/{hidden_photo['id']}/image", headers=public).status_code == 404
     assert client.post(f"{API}/league-photos", headers=image, content=b"hello").status_code == 422
+    _enable(client, owner, shows_gallery=False)  # a section switched off hides its files by id too
+    assert client.get(f"{API}/public/league-site/photos/{photo['id']}/image", headers=public).status_code == 404
+    _enable(client, owner)
     ok(client.delete(f"{API}/league-photos/{photo['id']}", headers=owner), 204)
     assert client.get(f"{API}/public/league-site/photos/{photo['id']}/image", headers=public).status_code == 404
 
@@ -106,6 +109,9 @@ def test_links_news_photos_and_sponsors(client, owner, tenant, f):
     listed = get(client, public, "/public/league-site/sponsors")
     assert [s["name"] for s in listed] == ["Corner Cafe"] and listed[0]["has_logo"]
     assert client.get(f"{API}/public/league-site/sponsors/{sponsor['id']}/logo", headers=public).status_code == 200
+    _enable(client, owner, shows_sponsors=False)
+    assert client.get(f"{API}/public/league-site/sponsors/{sponsor['id']}/logo", headers=public).status_code == 404
+    _enable(client, owner)
     backwards = client.patch(f"{API}/league-sponsors/{sponsor['id']}", headers=owner,
                              json={"starts_on": "2031-02-01", "ends_on": "2031-01-01"})  # fmt: skip
     assert backwards.status_code == 422

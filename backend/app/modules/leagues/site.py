@@ -230,6 +230,7 @@ def public_photos(session: Db) -> list[LeagueSitePhoto]:
 
 
 def public_photo_image(session: Db, photo_id: UUID):
+    _live(session, "gallery")
     row = session.get(LeagueSitePhoto, photo_id)
     if row is None or not row.is_published:
         raise NotFound()
@@ -297,6 +298,7 @@ def public_sponsors(session: Db) -> list[dict]:
 
 
 def public_sponsor_logo(session: Db, sponsor_id: UUID):
+    _live(session, "sponsors")
     row = session.scalar(_running(clock.now().date()).where(LeagueSponsor.id == sponsor_id))
     if row is None or row.logo_file_id is None:
         raise NotFound()
