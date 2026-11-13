@@ -35,7 +35,7 @@ These are the values the seed uses. Marked items are assumptions.
 
 | # | Scenario | Result |
 |---|---|---|
-| a | A member books and pays for Court 1 online. Overlaps are refused, and the database exclusion constraint is the final arbiter. | pass |
+| a | A member books and pays for Court 1 online. Overlaps are refused, and the database exclusion constraint is the final arbiter. The open times cover the whole day by court (an 8 pm prime slot is picked and paid). | pass |
 | b | Volleyball on Court 2 or 3 blocks badminton and pickleball on that court, including the 10-minute changeover. The neighbouring court stays free. | pass |
 | c | A committed league night refuses public rentals on its courts. | pass |
 | c | A night blocked first by staff is used by the league scheduler. | **gap**: the block counts as a clash, so those games go unscheduled |
@@ -51,7 +51,7 @@ These are the values the seed uses. Marked items are assumptions.
 | h | No-show rule for rentals. | **gap** |
 | i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
 | i | Utilisation measured from opening hours. | **gap** |
-| j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. One set-up step is needed first: turn on self sign-up. |
+| j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. The seed turns self sign-up on; the court asks for a birth date first. |
 | k | Staff book several courts for several weeks in one go, on one invoice. | pass |
 | k | A club holds a weekly prime slot for 8 weeks at 15% off ($25.50 a week). | pass |
 | k | A member bulk-books online. | **gap**: one court and one occurrence per checkout |
@@ -92,7 +92,7 @@ The seed does all of this through service functions. A real owner can do most of
 
 Steps that are API-only or easy to miss:
 
-- **Self sign-up** is off by default (`PUT /locations/{id}/portal-settings` with `allows_self_signup`). Without it a newcomer is refused with `signup-disabled`.
+- **Self sign-up** is off by default for a new location (`PUT /locations/{id}/portal-settings` with `allows_self_signup`); the CIRQT seed turns it on. Without it a newcomer is refused with `signup-disabled`.
 - **The coach's calendar column**, `linked_resource_id` on the staff user. The seed sets it directly.
 - **Utilisation** needs per-court availability windows that copy the opening hours.
 - **The portal shows sessions only 30 days ahead** by default (`visible_range_days`).

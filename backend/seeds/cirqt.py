@@ -121,7 +121,17 @@ def build(slug: str = SLUG, name: str = NAME) -> dict:
         _contracts(session, actor, location, people)
         _leagues(session, actor, location, courts, categories["LEAGUES"], people)
         _coaching(session, actor, location, categories["RENTALS"], mail)
+        _portal(session, actor, location)
     return {"tenant_id": tenant_id, "slug": slug, "domain": mail}
+
+
+def _portal(session, actor, location) -> None:
+    """Unmanned: a newcomer signs up, buys and books online with no staff step, so self sign-up is on."""
+    from app.modules.engagement import service as engagement
+
+    engagement.put_portal_settings(session, actor, location.id, {
+        "is_enabled": True, "is_public": True, "allows_self_signup": True, "allows_online_purchases": True,
+    })  # fmt: skip
 
 
 def _staff(session, location, mail: str) -> None:

@@ -558,17 +558,13 @@ def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(clie
     assert "Adult monthly" in {p["name"] for p in data(c.get(f"{API}/public/membership-plans", headers=w.public))}
     offered = {t["name"] for t in data(c.get(f"{API}/public/rental-types", headers=w.public))}
     assert {"Badminton court", "Pickleball court", "Volleyball court"} <= offered
-    # The one staff step: online sign-up is off by default, so the owner turns it on once at set-up.
+    # No staff step: the seed switches self sign-up on, as an unmanned facility needs.
     body = {
         "location_id": w.location,
         "email": f"new-{uuid4().hex[:6]}@{w.mail}",
         "first_name": "Nova",
         "last_name": "Newcomer",
     }
-    refused = c.post(f"{API}/public/portal-signups", headers=w.public, json=body)
-    assert refused.status_code == 409 and refused.json()["code"] == "signup-disabled"
-    ok(c.put(f"{API}/locations/{w.location}/portal-settings", headers=w.owner,
-             json={"is_enabled": True, "is_public": True, "allows_self_signup": True}), 200)  # fmt: skip
     mailbox.clear()
     assert c.post(f"{API}/public/portal-signups", headers=w.public, json=body).status_code == 202
     signed = ok(c.post(f"{API}/public/portal-signups/confirm", headers=w.public,
@@ -786,3 +782,4 @@ def test_n_staff_coach_and_independent_coach(client_module, w):
         )
     }
     assert list(seen.values()) == [200, 200, 200, 200, 403, 403, 403], seen
+
