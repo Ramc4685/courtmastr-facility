@@ -1,6 +1,7 @@
 """Typed settings: config/app.yaml (+ optional app.<env>.yaml overlay); secrets from the environment only."""
 
 import os
+import re
 from functools import cache
 from pathlib import Path
 from typing import Literal
@@ -247,16 +248,25 @@ def _refuse_example_secrets() -> None:
 
 
 _TLS_SSLMODES = ("require", "verify-ca", "verify-full")
+# redis-py URL options that switch certificate or host-name verification off.
+_UNVERIFIED_REDIS = re.compile(r"[?&](ssl_cert_reqs=(none|optional)|ssl_check_hostname=(false|0|no))(&|$)", re.I)
+# The local container stack (infra/docker/compose.stack.yml): every production guard, but its Postgres and Redis
+# certificates are self-signed, so encryption without verification is accepted there and nowhere else.
+STACK_ENV = "stack"
 
 
 def _refuse_plaintext_backends(settings: "Settings") -> None:
-    """security-baseline V9: names, emails and session data cross the network to Postgres and Redis."""
-    if settings.db.sslmode not in _TLS_SSLMODES:
-        raise RuntimeError(
-            "outside dev and test, db.sslmode (or FH_DB_SSLMODE) must be require, verify-ca or verify-full"
-        )
+    """security-baseline V9: names, emails and session data cross the network to Postgres and Redis, encrypted
+    and to a verified server (Postgres verify-full with PGSSLROOTCERT; Redis with its CA in ssl_ca_certs)."""
+    if settings.env == STACK_ENV:
+        if settings.db.sslmode not in _TLS_SSLMODES:
+            raise RuntimeError("in the stack, db.sslmode (or FH_DB_SSLMODE) must be require or stricter")
+    elif settings.db.sslmode != "verify-full":
+        raise RuntimeError("outside dev and test, db.sslmode (or FH_DB_SSLMODE) must be verify-full (PGSSLROOTCERT)")
     if not settings.redis.url.startswith("rediss://"):
         raise RuntimeError("outside dev and test, the Redis URL (FH_REDIS_URL) must use TLS: rediss://")
+    if settings.env != STACK_ENV and _UNVERIFIED_REDIS.search(settings.redis.url):
+        raise RuntimeError("outside dev and test, the Redis URL must verify the server's certificate and host name")
 
 
 def _merge(base: dict, over: dict) -> dict:

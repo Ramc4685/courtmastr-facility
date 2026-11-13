@@ -32,7 +32,7 @@ them is AWS-specific.
    `api.exposed_directly: true`.
 2. The migrate and deploy steps in the workflow are placeholders: fill them for ECS (OIDC role, `register-task-definition`,
    `update-service`, `run-task`).
-3. Overlay values: `app.web_base_url`, `db.host`, `email` relay (SES is the natural one), bucket name. TLS to both backends is required (security-baseline V9): set `FH_DB_SSLMODE=verify-full` with
+3. Overlay values: `app.web_base_url`, `db.host`, `email` relay (SES is the natural one), bucket name. TLS to both backends is required (security-baseline V9): set `FH_DB_SSLMODE=verify-full` (required) with
    `PGSSLROOTCERT` pointing at the RDS CA bundle, and `FH_REDIS_URL` to the ElastiCache `rediss://` endpoint (in-transit
    encryption on); startup refuses anything weaker.
 4. Backups: a scheduled task runs `infra/backup/backup.sh` and copies the archive to a separate bucket; RDS automated

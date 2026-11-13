@@ -299,6 +299,11 @@ def test_every_idempotency_key_header_has_the_key_pattern():
         ("disable", "rediss://cache.internal:6380/0", "sslmode"),
         ("prefer", "rediss://cache.internal:6380/0", "sslmode"),
         ("verify-full", "redis://cache.internal:6379/0", "rediss://"),
+        ("require", "rediss://cache.internal:6380/0", "verify-full"),  # encrypted but unverified
+        ("verify-ca", "rediss://cache.internal:6380/0", "verify-full"),
+        ("verify-full", "rediss://cache.internal:6380/0?ssl_cert_reqs=none", "verif"),
+        ("verify-full", "rediss://cache.internal:6380/0?SSL_CERT_REQS=optional", "verif"),
+        ("verify-full", "rediss://cache.internal:6380/0?ssl_check_hostname=false", "verif"),
     ],
 )
 def test_production_refuses_plaintext_postgres_and_redis(
@@ -324,6 +329,33 @@ def test_production_refuses_plaintext_postgres_and_redis(
 def test_dev_and_test_keep_plain_local_postgres_and_redis():
     settings = get_settings()
     assert settings.db.sslmode is None and "sslmode" not in settings.db_url("app")
+
+
+def test_the_local_container_stack_may_use_its_self_signed_certificates(monkeypatch, tmp_path, deploy_secrets):
+    """FH_ENV=stack is the local container stack, explicitly not production: every production guard applies
+    except certificate verification, since its Postgres and Redis certificates are self-signed."""
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    overlay = "email: {log_links: false}\npayments: {provider: none}\nstorage: {scanner: clamd}\n"
+    (tmp_path / "app.stack.yaml").write_text(overlay + "api: {exposed_directly: true}\n")
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "stack")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")
+    monkeypatch.setenv("FH_DB_SSLMODE", "require")
+    monkeypatch.setenv("FH_REDIS_URL", "rediss://redis:6379/0?ssl_cert_reqs=none&ssl_check_hostname=false")
+    assert get_settings.__wrapped__().env == "stack"
+    monkeypatch.setenv("FH_REDIS_URL", "redis://redis:6379/0")
+    with pytest.raises(RuntimeError, match="rediss://"):  # still TLS
+        get_settings.__wrapped__()
+
+
+def test_the_shipped_production_overlay_verifies_certificates():
+    import yaml
+
+    prod = yaml.safe_load((REPO_ROOT / "infra" / "docker" / "config" / "app.production.yaml").read_text())
+    assert prod["db"]["sslmode"] == "verify-full"
+    assert prod["redis"]["url"].startswith("rediss://") and "ssl_cert_reqs" not in prod["redis"]["url"]
+
 
 def test_signed_in_slug_naming_another_tenant_is_not_found(client, tenant, owner):
     """SSP-01: /f/:slug sends X-Tenant-Slug; a slug that is not the session's tenant reads as unknown, the same
