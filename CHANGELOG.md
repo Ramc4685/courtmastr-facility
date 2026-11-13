@@ -6,7 +6,25 @@ under `Unreleased` in the same change that makes the behaviour visible.
 
 ## [Unreleased]
 
+### Added
+- Calendar feeds: subscribe to your bookings and shifts, or a team's games, from any calendar app; the address is shown once.
+- An embeddable public schedule per location showing published sessions and free seats, never names.
+- QuickBooks Online connection with account mappings and a sync over a date range (simulated until a QuickBooks app is registered).
+- Online sessions: attach a meeting link or a Zoom meeting through your own Zoom app; members join from 10 minutes before the start and are marked attended.
+- The Integrations screen gains Connections and Calendar feeds tabs.
+- The API reference lists the key scopes each operation needs.
+- Connections: edit an accounting connection's account and class mappings, and queue a QuickBooks sync.
+- Staff can add, replace or remove a session's online meeting (a pasted link or a Zoom meeting) from the session panel.
+- Portal: a Join online button on bookings from 10 minutes before the start, and a calendar card to get or stop your calendar feed.
+- An API reference tab on Integrations lists every operation a key may call and its scopes, with a filter.
+- A Public schedule tab to publish a location's schedule and copy an embed snippet (other sites cannot load it until the proxy allows it).
+
 ### Security
+- The public schedule leaves out hidden, unlisted and out-of-range sessions, and busy times show only that location's.
+- Members can revoke their calendar feed, and making a new one stops the old address; feeds of a suspended account stop.
+- QuickBooks sync posts each finished day of the location once, even when a run is retried.
+- API keys can hold only the documented API resources' permissions.
+- Online sessions: moving a session moves its Zoom meeting, and cancelling it deletes the meeting.
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 
@@ -68,6 +86,9 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sending a campaign to every client needs its own permission.
 
 ### Fixed
+- Portal: Join online now shows on every booking with an online meeting until the session ends, including sessions that have started or are not listed.
+- Member calendar feeds mark each session with its last-changed time, so calendar apps pick up edits.
+- Portal: Stop my calendar feed shows only when you have a feed.
 - Reports: receivables and open invoices no longer fail as "too large" on a tenant with many settled invoices; expiring memberships at one location are no longer hidden by a renewal at another; package session value no longer loses a cent to rounding (100.00 over three sessions reports 100.00).
 - Reports: a dashboard tile with too much data shows as unavailable instead of disappearing; a failing report schedule no longer stops the others, a schedule whose owner lost access is switched off, and an admin can see and delete anyone's schedule.
 - Erasing a client's data also clears stored report results and export files, including any report being built at that moment; report schedules that already sent that day send again with working links.

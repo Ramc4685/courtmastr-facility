@@ -749,7 +749,8 @@ def list_my_shifts(session: Session, principal: Principal, query: ListQuery) -> 
         raise PermissionDenied("Staff users only.")
     stmt = select(Shift).where(Shift.staff_user_id == principal.staff_user_id, Shift.status == "published")
     return paginate(session, stmt, query, id_column=Shift.id, sort_fields={"starts_at": Shift.starts_at},
-                    default_sort="starts_at", filter_fields={"location_id": Shift.location_id})  # fmt: skip
+                    default_sort="starts_at",
+                    filter_fields={"location_id": Shift.location_id, "starts_at": Shift.starts_at})  # fmt: skip
 
 
 def _check_shift(session: Session, shift: Shift) -> None:

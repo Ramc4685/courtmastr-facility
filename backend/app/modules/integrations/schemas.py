@@ -106,12 +106,24 @@ class WebhookDeliveryDetail(WebhookDeliveryOut):
     payload_preview: dict = Field(description="Ids, amounts and dates only; free text is redacted")
 
 
+class ZoomAppIn(In):
+    """The tenant's own Zoom Server-to-Server OAuth app. Sealed at rest and never returned."""
+
+    account_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+    client_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
+    client_secret: Annotated[str, StringConstraints(min_length=1, max_length=256)]
+
+
 class ExternalConnectionCreate(In):
-    provider: Literal["accounting_file", "quickbooks_online"]
+    provider: Literal["accounting_file", "quickbooks_online", "zoom", "google_analytics"]
+    zoom: ZoomAppIn | None = Field(None, description="Zoom: the Server-to-Server OAuth app to connect")
     location_id: UUID | None = Field(None, description="Omit for every location")
     settings: dict[str, str | dict[str, str]] | None = Field(
-        None, description="`account_map` (posting key -> account) and `default_income_account`"
+        None,
+        description="Accounting: `account_map` (posting key -> account) and `default_income_account`. "
+        "Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)",
     )
+    return_url: Url | None = Field(None, description="QuickBooks: where the browser lands after authorising")
 
 
 class ExternalConnectionOut(Out):
@@ -119,11 +131,83 @@ class ExternalConnectionOut(Out):
     location_id: UUID | None
     provider: str
     status: Literal["pending", "active", "error", "disconnected"]
+    external_account_id: str | None
     external_account_name: str | None
     connected_at: datetime | None
     last_sync_at: datetime | None
     last_error: str | None
     created_at: datetime
+
+
+class ExternalConnectionCreated(ExternalConnectionOut):
+    authorize_url: str | None = Field(None, description="QuickBooks: send the browser here to authorise")
+
+
+class ExternalConnectionUpdate(In):
+    settings: dict[str, str | bool | None] = Field(
+        description="Merge-patch: default_income_account, sync_from, auto_sync; null removes a key"
+    )
+
+
+class SyncMappingIn(In):
+    kind: Literal["ledger_account", "tender_account", "tax_account", "revenue_account", "revenue_class"]
+    local_key: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    external_id: Annotated[str, StringConstraints(min_length=1, max_length=50)]
+    external_name: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+
+class SyncMappingsIn(In):
+    mappings: list[SyncMappingIn] = Field(max_length=500)
+
+
+class SyncMappingsOut(Out):
+    mappings: list[SyncMappingIn]
+    unmapped: list[dict]
+    external_options: dict
+    options_unavailable: bool = False
+
+
+class SyncRun(In):
+    from_: date | None = Field(None, alias="from")
+    to: date | None = None
+    location_id: UUID | None = Field(None, description="Required when the connection serves every location")
+    retries_failed: bool = False
+
+
+class OAuthCallbackIn(In):
+    state: Annotated[str, StringConstraints(min_length=1, max_length=2000)]
+    code: Annotated[str, StringConstraints(max_length=1000)] | None = None
+    realm_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,20}$")] | None = Field(
+        None, description="The provider's company id: digits only, and verified against the token"
+    )
+    error: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+
+class OAuthCallbackOut(Out):
+    external_connection_id: UUID
+    status: Literal["connected", "error"]
+    return_url: str
+
+
+class InboundAck(Out):
+    stored: int
+
+
+class SyncRunOut(Out):
+    status: str
+    counts: dict[str, int]
+    status_url: str
+
+
+class SyncStatusOut(Out):
+    status: Literal["idle", "running", "completed", "failed"]
+    counts: dict[str, int]
+    location_id: UUID | None
+    next_on: date | None
+    last_on: date | None
+    retries_failed: bool
+    beat_at: datetime | None
+    is_stale: bool
 
 
 class AccountingExportRun(In):
@@ -146,6 +230,15 @@ class AccountingExportOut(Out):
     posted_at: datetime | None
 
 
+class ApiOperationOut(Out):
+    method: str
+    path: str
+    operation_id: str
+    summary: str
+    tag: str
+    scopes: list[str] = Field(description="Any one of these on the key opens the operation")
+
+
 class AdapterOut(Out):
     port: str
     label: str
@@ -163,3 +256,141 @@ class AdapterCommandOut(Out):
     arguments: dict
     outcome: str
     occurred_at: datetime
+
+
+# --- virtual sessions ---------------------------------------------------------------------------------------
+
+
+class VideoMeetingIn(In):
+    provider: Literal["manual", "zoom"]
+    join_url: Annotated[str, StringConstraints(pattern=r"^https://\S+$", max_length=2000)] | None = Field(
+        None, description="manual: the pasted https link"
+    )
+    passcode: Annotated[str, StringConstraints(max_length=50)] | None = None
+    # it goes into the Zoom API path: a user id (letters, digits, _ and -) or an email, never `.` or `..` alone
+    host_external_user_id: (
+        Annotated[
+            str,
+            StringConstraints(
+                pattern=r"^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)$",
+                max_length=128,
+            ),  # fmt: skip
+        ]
+        | None
+    ) = Field(None, description="zoom: the host user (id or email); default the app's own user")
+
+
+class VideoMeetingOut(Out):
+    id: UUID
+    session_id: UUID
+    provider: Literal["manual", "zoom"]
+    status: Literal["scheduled", "failed"]
+    external_connection_id: UUID | None
+    join_url: str | None = Field(description="Staff only; members use the join command")
+    has_passcode: bool
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class JoinOut(Out):
+    join_url: str
+    passcode: str | None
+
+
+class AnalyticsConfigOut(Out):
+    measurement_id: str
+    linked_domains: list[str]
+
+
+# --- calendar feeds and the public schedule ----------------------------------------------------------------
+
+
+class CalendarFeedCreate(In):
+    kind: Literal["staff_schedule", "team_schedule"]
+    name: Name
+    location_id: UUID | None = Field(None, description="Staff feeds: only this location's bookings")
+    competition_team_id: UUID | None = Field(None, description="Team feeds: the team")
+    include_shifts: bool = Field(False, description="Staff feeds: add your published shifts")
+
+
+class PortalCalendarFeedCreate(In):
+    name: Name | None = None
+
+
+class CalendarFeedUpdate(In):
+    name: Name | None = None
+    include_shifts: bool | None = None
+    status: Literal["active", "disabled"] | None = Field(None, description="Re-enabling mints a new URL")
+
+
+class CalendarFeedOut(Out):
+    id: UUID
+    kind: Literal["staff_schedule", "team_schedule", "member_schedule"]
+    name: str
+    status: Literal["active", "disabled"]
+    owner_staff_user_id: UUID | None
+    location_id: UUID | None
+    competition_team_id: UUID | None
+    include_shifts: bool
+    last_fetched_at: datetime | None
+    created_at: datetime
+
+
+class CalendarFeedCreated(CalendarFeedOut):
+    url_token: str | None = Field(description="Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}")
+
+
+class PortalCalendarFeedOut(Out):
+    """A member's own feed, without the address: that is shown once, when the feed is made."""
+
+    id: UUID
+    name: str
+    last_fetched_at: datetime | None
+    created_at: datetime
+
+
+class PortalEnrollmentMeetingOut(Out):
+    """One of my booked places whose session has an online meeting. The link comes only from the join command."""
+
+    enrollment_id: UUID
+    session_id: UUID
+
+
+class PublicScheduleSettingsOut(Out):
+    location_id: UUID
+    is_enabled: bool
+    days_ahead: int
+    show_sessions: bool
+    show_busy: bool
+
+
+class PublicScheduleSettingsUpdate(In):
+    location_id: UUID
+    is_enabled: bool | None = None
+    days_ahead: int | None = Field(None, ge=1, le=31)
+    show_sessions: bool | None = None
+    show_busy: bool | None = None
+
+
+class PublicSessionOut(Out):
+    starts_at: datetime
+    ends_at: datetime
+    title: str
+    seats_left: int
+    is_full: bool
+
+
+class PublicBusyOut(Out):
+    resource_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+
+
+class PublicScheduleOut(Out):
+    location_id: UUID
+    from_on: date
+    to_on: date
+    time_zone: str
+    sessions: list[PublicSessionOut]
+    busy: list[PublicBusyOut]

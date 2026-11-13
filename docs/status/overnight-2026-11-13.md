@@ -20,19 +20,22 @@ Running report from the lead session for the owner. Updated at each merge. Times
 | 03:02 | EGM drift fixes: tenant currency, location-archive guard, members-only rentals, permission keys, bulk-invoice cap, contract sync | `1a84864`, merge `4cd7ded` | Opus review, Fable risk review, Fable verification | green on PR #2 at `1a84864` |
 | 03:10 | Phase 14 B2 follow-ups (embed caveat, per-tenant lock, withdrawn teams, photo cap) | `65094f4`, merge `b3f0d60` | lead read the diff | green on PR #1 at `65094f4` |
 | 03:33 | Phase 12, reports and exports: 46 features, migrations `1601` to `1661` | `bda116b`, merge `48250db` | Opus review, Fable risk review, Fable verification | green on PR #3 at `bda116b` |
+| 04:33 | EGM README batch (142 rows, comment-only code changes) | `0c4ddc9`, merge `0f83d29` | Opus review (24 statements sampled) | green on PR #4 |
+| 04:35 | Phase 12 review follow-ups (erasure lock, schedule owner checks, bad-zone handling) | `33aecc2`, merge `857c9cf` | Fable verification; lead read the regression fix | green on PR #3; integrated gate green on PR #5 at `857c9cf` |
+| 06:12 | Phase 14 C2: direct links, shared bookings, series merge, post-billed packages, agreement binding (7 features), migration `1481` | `1c1e105`, merge `d4b95fd` | Opus review, Fable risk review, five Fable verification rounds; lead ran 39 tests | no own CI (push blocked); first run is PR #5 |
+| 06:45 | Phase 15: public API, calendar feeds, QuickBooks and Zoom behind ports, analytics setting (22 in scope), migrations `1701` to `1705` | `fa422b7`, merge `7a14681` | Opus review, Fable risk review, Fable verification; lead ran the security, isolation and integrations suites | no own CI; first run is PR #5 at `7a14681` |
 
-Migration head on local main: `1661`. Cleaned up: B2 worktree and lane databases; stale lane databases
-`facilityhub_p12a`, `p12b`, `p12c`.
+Migration head on local main: `1705` (chain 1401, 1441, 1601 to 1661, 1481, 1701 to 1705). Cleaned up: worktrees and
+lane databases for B2, Phase 12, the EGM work and Phase 15; stale lane databases `facilityhub_p12a`, `p12b`,
+`p12c`; five old Phase 12 branches (all contained in main).
 
 ## In progress
 
-| Work | Where | State at 03:35 |
+| Work | Where | State at 06:50 |
 |---|---|---|
-| EGM README batch | PR #4 | reviewed, safe to merge; chip resolving 4 conflicts with Phase 12 |
-| Phase 12 review follow-ups (erasure race, schedule owner checks, tax basis) | PR #3, new head to come | committed locally by the chip; being pushed |
-| Phase 14 C2 shared bookings, post-billed (7) | local branch `claude/phase14-c2-shared-bookings-af70cf` | 4 original blockers closed; 1 new blocker from the credit-back fix being fixed; never through CI (push blocked) |
-| Phase 11 portal and member app (36) | local branch `claude/phase11-portal-member-app-d22713` | built; three reviews done: 6 blocking and about 27 smaller findings being fixed; never through CI (push blocked) |
-| Phase 15 public API and integrations (22 in scope) | worktree `Facility Software.agent-*`, branch `claude/phase15-public-api-integrations` | building; 7 commits; migrations from `1701`; not reviewed yet |
+| Phase 11 portal and member app (36) | local branch `claude/phase11-portal-member-app-d22713` | built; two verification rounds: no money or tenant defect left; hardening and the final merge of main (re-point `1501` onto `1705`) in progress; never through CI (push blocked) |
+| Phase 14 C2 follow-ups | same C2 branch | fractional quantity on credit-back, no-show reversal permission (see below), lock order |
+| Final acceptance against `docs/BRIEF.md` | not started | after Phase 11 lands |
 
 Parked, not started: Phase 13 (needs email and push accounts), Phase 16 (needs hosting and a first facility),
 Phase 15's 20 v2 partner and hardware rows.
@@ -42,6 +45,19 @@ Phase 15's 20 v2 partner and hardware rows.
 - **Embedding the public league pages does not work yet.** The app has a frame guard (when framed it renders only
   the public league pages and the TV board), but the proxy still sends `X-Frame-Options: DENY` and
   `frame-ancestors 'none'`. Lifting that for the league paths is a security setting left for the owner.
+- **Open defect on main until the C2 follow-up lands:** in shared bookings, reverting a participant from no-show
+  does not require the exception permission (`scheduling/sharing.py`). Needs a signed-in staff account.
+- **QuickBooks and Zoom have never been called against the live services.** Both run behind ports with simulated
+  adapters, which are refused outside dev and test. After a stale sync is taken over, a slow old job can overlap
+  the new one.
+- **Analytics tag (INT-13) does not load.** The setting and config endpoint exist; the security baseline forbids
+  third-party analytics (the portal serves minors) while ADR 0012 expects the tag after consent.
+- Post-billed packages: on a credit-back the discount stays flat, not pro-rata; a fractional staff-set quantity is
+  truncated.
+- Mobile app: in-app card purchase and 3-D Secure work only with the fake processor; with a real one the app
+  sends the member to the web portal.
+- 46 commits carry `Co-Authored-By: Claude` trailers against the owner's rule: 44 already on `origin/main`, 2 on
+  local main, plus 20 on the Phase 11 branch. Not rewritten.
 - **Rental-plan waivers are still not enforced** (import rules forbid `rentals` calling `documents`).
 - Removing `currency` from the tenant update is a breaking change for any older client that still sends it.
 - Reports: XLSX and PDF exports render in one pass, capped at 50,000 rows; exports assume a two-decimal currency;

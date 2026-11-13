@@ -108,6 +108,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/accounting-exports/{accounting_export_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Accounting Export
+         * @description Retry one failed day with the same provider request id. Errors: invalid-state-transition.
+         */
+        post: operations["retryAccountingExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/adapter-commands": {
         parameters: {
             query?: never;
@@ -227,6 +247,26 @@ export interface paths {
          * @description New secret now; the old one keeps working for `grace_minutes` (default 24 hours).
          */
         post: operations["rotateApiKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Api Operations
+         * @description Every operation an API key may call and the scopes that open it, generated from the routes (INT-01).
+         */
+        get: operations["listApiOperations"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1562,6 +1602,54 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Calendar Feeds
+         * @description Your feeds; with integrations.calendar_feed.revoke_any, every staff feed in your locations.
+         *     Filters: kind, status, owner_staff_user_id. Sort: created_at, name. URLs are never listed.
+         */
+        get: operations["listCalendarFeeds"];
+        put?: never;
+        /**
+         * Create Calendar Feed
+         * @description A staff schedule (bookings you can read, optionally your shifts) or one team's games. The URL token is in
+         *     this response only. Errors: staff-session-required, permission-denied.
+         */
+        post: operations["createCalendarFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar-feeds/{calendar_feed_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Calendar Feed */
+        delete: operations["deleteCalendarFeed"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Calendar Feed
+         * @description Rename, change shifts, disable, or re-enable with a new URL (`url_token` is set only then). Someone
+         *     else's feed may only be disabled, under revoke_any.
+         */
+        patch: operations["updateCalendarFeed"];
         trace?: never;
     };
     "/api/v1/campaigns": {
@@ -4983,13 +5071,57 @@ export interface paths {
         put?: never;
         /**
          * Create External Connection
-         * @description Connect the accounting export. Errors: provider-not-configured (QuickBooks needs an Intuit app).
+         * @description Connect the accounting export, or start connecting QuickBooks (pending, with `authorize_url`).
+         *     Errors: provider-not-configured (QuickBooks is switched off), staff-session-required.
          */
         post: operations["createExternalConnection"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/oauth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete External Connection O Auth
+         * @description Posted by the web app's callback page, in the signed-in session of the staff user who started the
+         *     connection; the sealed state (tenant, connection, that user, ten-minute expiry) must match them and works
+         *     once. Errors: state-invalid, account-in-use.
+         */
+        post: operations["completeExternalConnectionOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Connection */
+        get: operations["getExternalConnection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update External Connection
+         * @description Merge-patch the provider settings. Errors: validation-failed (unknown setting).
+         */
+        patch: operations["updateExternalConnection"];
         trace?: never;
     };
     "/api/v1/external-connections/{external_connection_id}/disconnect": {
@@ -5003,6 +5135,78 @@ export interface paths {
         put?: never;
         /** Disconnect External Connection */
         post: operations["disconnectExternalConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sync Status
+         * @description The connection's latest sync: status (idle, running, completed, failed), cursor, counts, last chunk time,
+         *     and whether a running one has gone stale (no chunk for ten minutes).
+         */
+        get: operations["getSyncStatus"];
+        put?: never;
+        /**
+         * Run Sync
+         * @description Queue the export of each finished day in the range (the location's own dates; default its yesterday, at
+         *     most 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.
+         *     Errors: invalid-state-transition, sync-in-progress, validation-failed.
+         */
+        post: operations["runSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}/sync-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sync Mappings
+         * @description The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts
+         *     and classes fetched live; `options_unavailable` when the provider did not answer.
+         */
+        get: operations["getSyncMappings"];
+        /**
+         * Put Sync Mappings
+         * @description Replace every mapping; the daily export reads them from the next run.
+         */
+        put: operations["putSyncMappings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}/sync/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Sync
+         * @description Mark a stale sync failed so a new one can start. Errors: sync-in-progress, invalid-state-transition.
+         */
+        post: operations["resetSync"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8848,6 +9052,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/calendar-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Calendar Feeds
+         * @description My schedule feed, if I have one (never its address). Members only.
+         */
+        get: operations["listPortalCalendarFeeds"];
+        put?: never;
+        /**
+         * Create Portal Calendar Feed
+         * @description My schedule: the sessions I and my household are enrolled in. The URL token is in this response only.
+         */
+        post: operations["createPortalCalendarFeed"];
+        /**
+         * Revoke Portal Calendar Feeds
+         * @description Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old.
+         */
+        delete: operations["revokePortalCalendarFeeds"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/client-documents": {
         parameters: {
             query?: never;
@@ -9174,6 +9406,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/enrollment-meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Enrollment Meetings
+         * @description My booked session places whose session has a scheduled online meeting, so the portal can offer Join
+         *     online until the session ends. Never the link: that comes only from the join command.
+         */
+        get: operations["listPortalEnrollmentMeetings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/enrollments": {
         parameters: {
             query?: never;
@@ -9212,6 +9465,28 @@ export interface paths {
          * @description Early or late per the policy notice period. Errors: policy-violation.
          */
         post: operations["cancelPortalEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/enrollments/{enrollment_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join Portal Virtual Session
+         * @description The meeting link of one's own booked place, from 10 minutes before the start, at click time only; joining
+         *     marks the place attended. A POST, not a redirecting GET, because it marks attendance. Errors:
+         *     invalid-state-transition, policy-violation.
+         */
+        post: operations["joinPortalVirtualSession"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11434,6 +11709,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public-schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Schedule Settings
+         * @description What the location's public schedule shows. A location never configured is unpublished.
+         */
+        get: operations["getPublicScheduleSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Public Schedule Settings
+         * @description Publish or hide a location's schedule and choose what it shows; omitted fields keep their value.
+         */
+        patch: operations["updatePublicScheduleSettings"];
+        trace?: never;
+    };
+    "/api/v1/public/analytics-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Analytics Config
+         * @description The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
+         *     X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent.
+         */
+        get: operations["getPublicAnalyticsConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/branding": {
         parameters: {
             query?: never;
@@ -11446,6 +11766,26 @@ export interface paths {
          * @description Logo URLs of the tenant resolved from the host: the staff shell and the member portal header.
          */
         get: operations["getPublicBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/calendar-feeds/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Calendar Feed
+         * @description iCalendar text, recomputed from the owner's current access on each fetch. 404 for any unusable URL.
+         */
+        get: operations["getPublicCalendarFeed"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12247,6 +12587,27 @@ export interface paths {
         };
         /** List Public Rental Types */
         get: operations["listPublicRentalTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Schedule
+         * @description Embeddable: a published location's sessions with seats left and, if shown, busy times with no names.
+         *     Tenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule.
+         */
+        get: operations["getPublicSchedule"];
         put?: never;
         post?: never;
         delete?: never;
@@ -14077,6 +14438,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{schedule_session_id}/video-meeting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session Video Meeting */
+        get: operations["getSessionVideoMeeting"];
+        /**
+         * Put Session Video Meeting
+         * @description Attach or replace the session's online meeting: a pasted link, or a Zoom meeting created through the
+         *     location's Zoom connection. Errors: provider-unavailable.
+         */
+        put: operations["putSessionVideoMeeting"];
+        post?: never;
+        /** Delete Session Video Meeting */
+        delete: operations["deleteSessionVideoMeeting"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shifts": {
         parameters: {
             query?: never;
@@ -15791,6 +16175,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/quickbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Quick Books Events
+         * @description Signed QuickBooks notifications, verified (`intuit-signature`) and stored once. Errors: invalid-signature.
+         */
+        post: operations["receiveQuickBooksEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/{provider}": {
         parameters: {
             query?: never;
@@ -16339,6 +16743,13 @@ export interface components {
             /** Invoice Id */
             invoice_id?: string | null;
         };
+        /** AnalyticsConfigOut */
+        AnalyticsConfigOut: {
+            /** Linked Domains */
+            linked_domains: string[];
+            /** Measurement Id */
+            measurement_id: string;
+        };
         /** ApiKeyCreate */
         ApiKeyCreate: {
             /**
@@ -16454,6 +16865,24 @@ export interface components {
              * @default 1440
              */
             grace_minutes: number;
+        };
+        /** ApiOperationOut */
+        ApiOperationOut: {
+            /** Method */
+            method: string;
+            /** Operation Id */
+            operation_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Scopes
+             * @description Any one of these on the key opens the operation
+             */
+            scopes: string[];
+            /** Summary */
+            summary: string;
+            /** Tag */
+            tag: string;
         };
         /** AssessmentFieldCreate */
         AssessmentFieldCreate: {
@@ -18166,6 +18595,119 @@ export interface components {
             title: string;
             /** Version */
             version: number;
+        };
+        /** CalendarFeedCreate */
+        CalendarFeedCreate: {
+            /**
+             * Competition Team Id
+             * @description Team feeds: the team
+             */
+            competition_team_id?: string | null;
+            /**
+             * Include Shifts
+             * @description Staff feeds: add your published shifts
+             * @default false
+             */
+            include_shifts: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "staff_schedule" | "team_schedule";
+            /**
+             * Location Id
+             * @description Staff feeds: only this location's bookings
+             */
+            location_id?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** CalendarFeedCreated */
+        CalendarFeedCreated: {
+            /** Competition Team Id */
+            competition_team_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Include Shifts */
+            include_shifts: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "staff_schedule" | "team_schedule" | "member_schedule";
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Name */
+            name: string;
+            /** Owner Staff User Id */
+            owner_staff_user_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+            /**
+             * Url Token
+             * @description Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}
+             */
+            url_token: string | null;
+        };
+        /** CalendarFeedOut */
+        CalendarFeedOut: {
+            /** Competition Team Id */
+            competition_team_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Include Shifts */
+            include_shifts: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "staff_schedule" | "team_schedule" | "member_schedule";
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Name */
+            name: string;
+            /** Owner Staff User Id */
+            owner_staff_user_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+        };
+        /** CalendarFeedUpdate */
+        CalendarFeedUpdate: {
+            /** Include Shifts */
+            include_shifts?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * Status
+             * @description Re-enabling mints a new URL
+             */
+            status?: ("active" | "disabled") | null;
         };
         /** CalendarView */
         CalendarView: {
@@ -23291,19 +23833,31 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "accounting_file" | "quickbooks_online";
+            provider: "accounting_file" | "quickbooks_online" | "zoom" | "google_analytics";
+            /**
+             * Return Url
+             * @description QuickBooks: where the browser lands after authorising
+             */
+            return_url?: string | null;
             /**
              * Settings
-             * @description `account_map` (posting key -> account) and `default_income_account`
+             * @description Accounting: `account_map` (posting key -> account) and `default_income_account`. Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)
              */
             settings?: {
                 [key: string]: string | {
                     [key: string]: string;
                 };
             } | null;
+            /** @description Zoom: the Server-to-Server OAuth app to connect */
+            zoom?: components["schemas"]["ZoomAppIn"] | null;
         };
-        /** ExternalConnectionOut */
-        ExternalConnectionOut: {
+        /** ExternalConnectionCreated */
+        ExternalConnectionCreated: {
+            /**
+             * Authorize Url
+             * @description QuickBooks: send the browser here to authorise
+             */
+            authorize_url?: string | null;
             /** Connected At */
             connected_at: string | null;
             /**
@@ -23311,6 +23865,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** External Account Id */
+            external_account_id: string | null;
             /** External Account Name */
             external_account_name: string | null;
             /**
@@ -23331,6 +23887,48 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "active" | "error" | "disconnected";
+        };
+        /** ExternalConnectionOut */
+        ExternalConnectionOut: {
+            /** Connected At */
+            connected_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Account Id */
+            external_account_id: string | null;
+            /** External Account Name */
+            external_account_name: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Sync At */
+            last_sync_at: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Provider */
+            provider: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "active" | "error" | "disconnected";
+        };
+        /** ExternalConnectionUpdate */
+        ExternalConnectionUpdate: {
+            /**
+             * Settings
+             * @description Merge-patch: default_income_account, sync_from, auto_sync; null removes a key
+             */
+            settings: {
+                [key: string]: string | boolean | null;
+            };
         };
         /** FacilityHoursDay */
         FacilityHoursDay: {
@@ -24453,6 +25051,11 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** InboundAck */
+        InboundAck: {
+            /** Stored */
+            stored: number;
+        };
         /** InstalmentIn */
         InstalmentIn: {
             /** Amount Minor */
@@ -24789,6 +25392,13 @@ export interface components {
             is_active?: boolean | null;
             /** Name */
             name?: string | null;
+        };
+        /** JoinOut */
+        JoinOut: {
+            /** Join Url */
+            join_url: string;
+            /** Passcode */
+            passcode: string | null;
         };
         /** KioskAttendedOut */
         KioskAttendedOut: {
@@ -27107,6 +27717,35 @@ export interface components {
             /** Staff User Ids */
             staff_user_ids?: string[] | null;
         };
+        /** OAuthCallbackIn */
+        OAuthCallbackIn: {
+            /** Code */
+            code?: string | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Realm Id
+             * @description The provider's company id: digits only, and verified against the token
+             */
+            realm_id?: string | null;
+            /** State */
+            state: string;
+        };
+        /** OAuthCallbackOut */
+        OAuthCallbackOut: {
+            /**
+             * External Connection Id
+             * Format: uuid
+             */
+            external_connection_id: string;
+            /** Return Url */
+            return_url: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "connected" | "error";
+        };
         /** OccupancyOut */
         OccupancyOut: {
             /** By Station */
@@ -28346,6 +28985,12 @@ export interface components {
         Page_BrandOut_: {
             /** Data */
             data: components["schemas"]["BrandOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CalendarFeedOut] */
+        Page_CalendarFeedOut_: {
+            /** Data */
+            data: components["schemas"]["CalendarFeedOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[CampaignOut] */
@@ -30182,6 +30827,31 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** PortalCalendarFeedCreate */
+        PortalCalendarFeedCreate: {
+            /** Name */
+            name?: string | null;
+        };
+        /**
+         * PortalCalendarFeedOut
+         * @description A member's own feed, without the address: that is shown once, when the feed is made.
+         */
+        PortalCalendarFeedOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Name */
+            name: string;
+        };
         /** PortalCheckoutConfirm */
         PortalCheckoutConfirm: {
             /** Coupon Code */
@@ -30759,6 +31429,22 @@ export interface components {
              */
             session_id: string;
         };
+        /**
+         * PortalEnrollmentMeetingOut
+         * @description One of my booked places whose session has an online meeting. The link comes only from the join command.
+         */
+        PortalEnrollmentMeetingOut: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
         /** PortalEnrollmentOut */
         PortalEnrollmentOut: {
             /** Cancel Kind */
@@ -30770,6 +31456,8 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
+            /** Ends At */
+            ends_at?: string | null;
             /** Enrolled At */
             enrolled_at: string | null;
             /**
@@ -30781,6 +31469,11 @@ export interface components {
             program_group_id: string | null;
             /** Session Id */
             session_id: string | null;
+            /**
+             * Starts At
+             * @description The session's start; none for a program registration
+             */
+            starts_at?: string | null;
             /** Status */
             status: string;
             /** Target Kind */
@@ -33844,6 +34537,24 @@ export interface components {
             /** Tenant Logo Url */
             tenant_logo_url: string | null;
         };
+        /** PublicBusyOut */
+        PublicBusyOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
         /** PublicClassOut */
         PublicClassOut: {
             /** Description */
@@ -34530,6 +35241,81 @@ export interface components {
         PublicSchedule: {
             /** Is On Public Schedule */
             is_on_public_schedule: boolean;
+        };
+        /** PublicScheduleOut */
+        PublicScheduleOut: {
+            /** Busy */
+            busy: components["schemas"]["PublicBusyOut"][];
+            /**
+             * From On
+             * Format: date
+             */
+            from_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Sessions */
+            sessions: components["schemas"]["PublicSessionOut"][];
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * To On
+             * Format: date
+             */
+            to_on: string;
+        };
+        /** PublicScheduleSettingsOut */
+        PublicScheduleSettingsOut: {
+            /** Days Ahead */
+            days_ahead: number;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Show Busy */
+            show_busy: boolean;
+            /** Show Sessions */
+            show_sessions: boolean;
+        };
+        /** PublicScheduleSettingsUpdate */
+        PublicScheduleSettingsUpdate: {
+            /** Days Ahead */
+            days_ahead?: number | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Show Busy */
+            show_busy?: boolean | null;
+            /** Show Sessions */
+            show_sessions?: boolean | null;
+        };
+        /** PublicSessionOut */
+        PublicSessionOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Full */
+            is_full: boolean;
+            /** Seats Left */
+            seats_left: number;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string;
         };
         /** PublicStandingOut */
         PublicStandingOut: {
@@ -39274,6 +40060,95 @@ export interface components {
              */
             start_on: string;
         };
+        /** SyncMappingIn */
+        SyncMappingIn: {
+            /** External Id */
+            external_id: string;
+            /** External Name */
+            external_name?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ledger_account" | "tender_account" | "tax_account" | "revenue_account" | "revenue_class";
+            /** Local Key */
+            local_key: string;
+        };
+        /** SyncMappingsIn */
+        SyncMappingsIn: {
+            /** Mappings */
+            mappings: components["schemas"]["SyncMappingIn"][];
+        };
+        /** SyncMappingsOut */
+        SyncMappingsOut: {
+            /** External Options */
+            external_options: {
+                [key: string]: unknown;
+            };
+            /** Mappings */
+            mappings: components["schemas"]["SyncMappingIn"][];
+            /**
+             * Options Unavailable
+             * @default false
+             */
+            options_unavailable: boolean;
+            /** Unmapped */
+            unmapped: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** SyncRun */
+        SyncRun: {
+            /** From */
+            from?: string | null;
+            /**
+             * Location Id
+             * @description Required when the connection serves every location
+             */
+            location_id?: string | null;
+            /**
+             * Retries Failed
+             * @default false
+             */
+            retries_failed: boolean;
+            /** To */
+            to?: string | null;
+        };
+        /** SyncRunOut */
+        SyncRunOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Status */
+            status: string;
+            /** Status Url */
+            status_url: string;
+        };
+        /** SyncStatusOut */
+        SyncStatusOut: {
+            /** Beat At */
+            beat_at: string | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Is Stale */
+            is_stale: boolean;
+            /** Last On */
+            last_on: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Next On */
+            next_on: string | null;
+            /** Retries Failed */
+            retries_failed: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "idle" | "running" | "completed" | "failed";
+        };
         /** SystemAlertOut */
         SystemAlertOut: {
             /** Amount Minor */
@@ -40371,6 +41246,70 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** VideoMeetingIn */
+        VideoMeetingIn: {
+            /**
+             * Host External User Id
+             * @description zoom: the host user (id or email); default the app's own user
+             */
+            host_external_user_id?: string | null;
+            /**
+             * Join Url
+             * @description manual: the pasted https link
+             */
+            join_url?: string | null;
+            /** Passcode */
+            passcode?: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "manual" | "zoom";
+        };
+        /** VideoMeetingOut */
+        VideoMeetingOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Connection Id */
+            external_connection_id: string | null;
+            /** Has Passcode */
+            has_passcode: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Join Url
+             * @description Staff only; members use the join command
+             */
+            join_url: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "manual" | "zoom";
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "failed";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** VideoOut */
         VideoOut: {
             /** Description */
@@ -40828,6 +41767,18 @@ export interface components {
             /** Weekdays */
             weekdays?: number[] | null;
         };
+        /**
+         * ZoomAppIn
+         * @description The tenant's own Zoom Server-to-Server OAuth app. Sealed at rest and never returned.
+         */
+        ZoomAppIn: {
+            /** Account Id */
+            account_id: string;
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -41159,6 +42110,40 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingExportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retryAccountingExport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                accounting_export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -41539,6 +42524,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listApiOperations: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiOperationOut"][];
                 };
             };
             /** @description Validation Error */
@@ -44593,6 +45610,155 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCalendarFeeds: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CalendarFeedOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarFeedCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                calendar_feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                calendar_feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarFeedUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedCreated"];
                 };
             };
             /** @description Validation Error */
@@ -53583,6 +54749,114 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["ExternalConnectionCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeExternalConnectionOAuth: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthCallbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthCallbackOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getExternalConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateExternalConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalConnectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ExternalConnectionOut"];
                 };
             };
@@ -53618,6 +54892,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExternalConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSyncStatus: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    runSync: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncRun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSyncMappings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncMappingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putSyncMappings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncMappingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncMappingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resetSync: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -63429,6 +64881,104 @@ export interface operations {
             };
         };
     };
+    listPortalCalendarFeeds: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCalendarFeedOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCalendarFeedCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokePortalCalendarFeeds: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalClientDocuments: {
         parameters: {
             query?: {
@@ -64198,6 +65748,38 @@ export interface operations {
             };
         };
     };
+    listPortalEnrollmentMeetings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalEnrollmentMeetingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalEnrollments: {
         parameters: {
             query?: {
@@ -64298,6 +65880,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalEnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    joinPortalVirtualSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                enrollment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinOut"];
                 };
             };
             /** @description Validation Error */
@@ -69737,6 +71353,96 @@ export interface operations {
             };
         };
     };
+    getPublicScheduleSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicScheduleSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePublicScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicScheduleSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicScheduleSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicAnalyticsConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsConfigOut"];
+                };
+            };
+        };
+    };
     getPublicBranding: {
         parameters: {
             query?: never;
@@ -69753,6 +71459,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicBranding"];
+                };
+            };
+        };
+    };
+    getPublicCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -71032,6 +72769,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicRentalType"][];
+                };
+            };
+        };
+    };
+    getPublicSchedule: {
+        parameters: {
+            query: {
+                location_id: string;
+                from_on?: string | null;
+                days?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -76332,6 +78102,110 @@ export interface operations {
             };
         };
     };
+    getSessionVideoMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoMeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putSessionVideoMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoMeetingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoMeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSessionVideoMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listShifts: {
         parameters: {
             query?: {
@@ -80967,6 +82841,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receiveQuickBooksEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundAck"];
                 };
             };
         };
