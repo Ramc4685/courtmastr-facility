@@ -15,6 +15,7 @@ date; one with auto-renew stays open. Each package bills in its own savepoint, s
 rest of the close goes ahead; the failed package is billed at a later close.
 """
 
+import logging
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from functools import partial
@@ -43,6 +44,7 @@ from app.modules.packages.models import (
     PostBilledUsage,
 )
 
+log = logging.getLogger(__name__)
 CLOSE = "packages.period.close"
 CONSTRAINT_CODES["uq_post_billed_rate_tier"] = "rate-tier-exists"
 
@@ -319,6 +321,9 @@ def _run(session: Session, close: PostBilledClose, lines: list[dict]) -> tuple[l
                     step()
             except (DomainError, IntegrityError) as exc:
                 failed.setdefault(line["client_package_id"], exc.code if isinstance(exc, DomainError) else "conflict")
+            except Exception:  # a bug in one package rolls back its savepoint; the close and the rest go on
+                log.exception("post-billed close step %s failed for package %s", name, line["client_package_id"])
+                failed.setdefault(line["client_package_id"], "unexpected-error")
             else:
                 if name == "bill":
                     billed.append(line)
@@ -326,14 +331,18 @@ def _run(session: Session, close: PostBilledClose, lines: list[dict]) -> tuple[l
 
 
 def _clear_stale_failures(session: Session, close: PostBilledClose, lines: list[dict]) -> None:
-    """A package this run handled without failing no longer needs a retry at an earlier close of the location."""
+    """A package this run handled without failing no longer needs a retry at a close of the location for the
+    same or an earlier period (a later period may still hold usage this run did not bill)."""
     still = {UUID(f["client_package_id"]) for f in close.failures}
     done = {line["client_package_id"] for line in lines if line["credits"] or line["rate"]} - still  # a step ran
     if not done:
         return
     c = PostBilledClose
     stmt = select(c).where(
-        c.location_id == close.location_id, c.id != close.id, func.jsonb_array_length(c.failures) > 0
+        c.location_id == close.location_id,
+        c.id != close.id,
+        c.closing_on <= close.closing_on,
+        func.jsonb_array_length(c.failures) > 0,
     )
     for other in session.scalars(stmt.with_for_update()):
         kept = [f for f in other.failures if UUID(f["client_package_id"]) not in done]
@@ -344,15 +353,19 @@ def _clear_stale_failures(session: Session, close: PostBilledClose, lines: list[
 
 
 def retry_close(session: Session, principal: Principal, close_id: UUID) -> dict:
-    """Re-run only the packages that failed at this close, for its period; the rest are not billed again."""
-    close = session.get(PostBilledClose, close_id, with_for_update=True)
+    """Re-run only the packages that failed at this close, for its period; the rest are not billed again.
+    Locks packages before closes, as a close does, so a retry and a close never wait on each other in a circle."""
+    close = session.get(PostBilledClose, close_id)
     if close is None or not (principal.location_ids is None or close.location_id in principal.location_ids):
         raise NotFound()
     authorize(principal, CLOSE, location_id=close.location_id)
-    ids = {UUID(f["client_package_id"]) for f in close.failures}
-    if not ids:
+    if not close.failures:
         return _close_view(session, close)
-    lines = _plan(session, close.location_id, close.closing_on, lock=True, only=ids)
+    lines = _plan(session, close.location_id, close.closing_on, lock=True,
+                  only={UUID(f["client_package_id"]) for f in close.failures})  # fmt: skip
+    session.refresh(close, with_for_update=True)  # failures as they stand once the packages are ours
+    ids = {UUID(f["client_package_id"]) for f in close.failures}
+    lines = [line for line in lines if line["client_package_id"] in ids]
     done = set(session.scalars(select(PostBilledLine.client_package_id).where(
         PostBilledLine.post_billed_close_id == close.id, PostBilledLine.client_package_id.in_(ids))))  # fmt: skip
     for line in lines:
@@ -394,18 +407,27 @@ def _credit_back(session: Session, line: dict) -> None:
     for line_id, rows in by_line.items():
         billed = session.get_one(PostBilledLine, line_id)
         charge = _live_charge(session, billed.id)
+        to_credit = 0
         if charge is not None:
-            left, reason = charge.quantity - len(rows), "Post-billed sessions credited back"
-            if left > 0:
-                discount = min(charge.discount_minor, left * charge.unit_price_minor)
+            quantity = int(charge.quantity)  # Numeric in billing; sessions are whole, and money must leave as int
+            u = PostBilledUsage
+            still_billed = (
+                session.scalar(select(func.count()).where(u.post_billed_line_id == billed.id, u.credited_at.is_(None)))
+                or 0
+            )
+            to_credit = max(0, len(rows) - max(0, still_billed - quantity))  # sessions staff took off already count
+            left, reason = quantity - to_credit, "Post-billed sessions credited back"
+            if to_credit and left > 0:  # flat discount kept, capped at the new gross
+                discount = int(min(charge.discount_minor, left * charge.unit_price_minor))
                 billed.charge_id = billing.service.adjust_charge(
                     session, charge.id, reason=reason, quantity=left, discount_minor=discount
                 ).id
-            else:
+            elif to_credit:
                 billing.service.reverse(session, charge.id, reason=reason)
         for usage in rows:
             usage.credited_at = now
-        changes = {"credited_sessions": len(rows)} | ({"charge_changed_by_hand": True} if charge is None else {})
+        by_hand = to_credit < len(rows)  # reversed, or lowered, by staff before this credit came back
+        changes = {"credited_sessions": len(rows)} | ({"charge_changed_by_hand": True} if by_hand else {})
         audit.record(session, CLOSE, billed, changes=changes)
     session.flush()
 

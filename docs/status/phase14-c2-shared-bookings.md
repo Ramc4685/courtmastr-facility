@@ -41,6 +41,8 @@ run in CI only).
   following staff edits to their replacement (counted as handled only when staff reversed it and nothing live is
   left); one failing package does not stop a close, its failure is kept on the close and can be retried alone, and
   a later close that bills the package clears it. Its reservation type must belong to its location.
+- Decision taken for the owner: a credit-back keeps a staff discount flat (not pro rata), capped at the line's
+  new gross, and does not credit again sessions staff already took off the charge by hand.
 - One bound agreement per contract, signed and of the agreement kind; a signed binding is not replaced.
 
 ## Not built

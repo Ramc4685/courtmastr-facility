@@ -383,3 +383,86 @@ def test_a_close_reads_only_packages_with_something_owed(client, w):
     with tx(w.tenant) as session:
         lines = postbilled._plan(session, UUID(w.location_id), DAY, lock=True)
     assert {str(line["client_package_id"]) for line in lines} == {live["id"], owed["id"]}  # the idle one is skipped
+
+
+def billed_line(client, w, sessions: int) -> tuple[dict, dict]:
+    """A package with `sessions` used at 10.00 and closed on DAY, plus the source of the last use."""
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    sources = [use(w, package, DAY) for _ in range(sessions)]
+    [line] = ok(close(client, w, DAY), 201)["lines"]
+    return line, sources[-1]
+
+
+def test_a_credit_back_caps_a_large_discount_at_the_new_gross(client, w):
+    line, restored = billed_line(client, w, 2)
+    with at(DAY), tx(w.tenant) as session:  # 15.00 off 20.00, then one session given back
+        billing.service.adjust_charge(session, UUID(line["charge_id"]), reason="Goodwill", discount_minor=1500)
+        service.restore_credit(session, **restored)
+    assert ok(close(client, w, DAY + timedelta(days=1)), 201)["failed"] == []
+    after = live_line_charge(w, line["id"])
+    assert (after.quantity, after.discount_minor, after.total_minor) == (1, 1000, 0)
+    assert all(isinstance(v, int) for v in (after.discount_minor, after.total_minor))
+
+
+def test_a_credit_back_follows_a_chain_of_adjustments(client, w):
+    line, restored = billed_line(client, w, 3)
+    with at(DAY), tx(w.tenant) as session:  # a discount, then a new price on the replacement
+        first = billing.service.adjust_charge(session, UUID(line["charge_id"]), reason="Goodwill", discount_minor=500)
+        billing.service.adjust_charge(session, first.id, reason="Price", unit_price_minor=900)
+        service.restore_credit(session, **restored)
+    ok(close(client, w, DAY + timedelta(days=1)), 201)
+    after = live_line_charge(w, line["id"])
+    assert (after.quantity, after.discount_minor, after.total_minor) == (2, 500, 1300)  # flat discount kept
+
+
+def test_a_quantity_staff_already_lowered_is_not_credited_again(client, w):
+    line, restored = billed_line(client, w, 3)
+    with at(DAY), tx(w.tenant) as session:  # staff take the session off by hand, then the credit comes back
+        billing.service.adjust_charge(session, UUID(line["charge_id"]), reason="Missed", quantity=2)
+        service.restore_credit(session, **restored)
+    ok(close(client, w, DAY + timedelta(days=1)), 201)
+    assert live_line_charge(w, line["id"]).quantity == 2
+    with tx(w.tenant) as session:
+        stmt = select(AuditEvent.changes).where(AuditEvent.entity_type == "post_billed_line")
+        assert {"credited_sessions": 1, "charge_changed_by_hand": True} in list(session.scalars(stmt))
+
+
+def test_an_unexpected_error_in_one_package_is_reported_not_a_500(client, w, monkeypatch):
+    rate(client, w, 1, 1000)
+    good, bad = open_package(client, w), open_package(client, w, name="Second")
+    use(w, good, DAY)
+    use(w, bad, DAY)
+    real = billing.service.post_charge
+
+    def crash(session, **kwargs):
+        if kwargs["description"].startswith("Second"):
+            raise TypeError("not serialisable")
+        return real(session, **kwargs)
+
+    monkeypatch.setattr(billing.service, "post_charge", crash)
+    done = ok(close(client, w, DAY), 201)
+    assert done["package_count"] == 1
+    assert done["failed"] == [{"client_package_id": bad["id"], "code": "unexpected-error"}]
+
+
+def test_retrying_an_older_close_keeps_a_later_close_failure(client, w, monkeypatch):
+    rate(client, w, 1, 1000)
+    bad = open_package(client, w, name="Second")
+    use(w, bad, DAY)
+    later = DAY + timedelta(days=1)
+    use(w, bad, later)
+    real = billing.service.post_charge
+
+    def flaky(session, **kwargs):
+        raise ValidationFailed("No.", pointer="/x")
+
+    monkeypatch.setattr(billing.service, "post_charge", flaky)
+    first = ok(close(client, w, DAY), 201)
+    second = ok(close(client, w, later), 201)
+    assert second["failed"] and first["failed"]
+    monkeypatch.setattr(billing.service, "post_charge", real)
+    with at(later):
+        assert ok(client.post(f"{API}/post-billed-closes/{first['id']}/retry", headers=w.owner), 200)["failed"] == []
+    kept = ok(client.get(f"{API}/post-billed-closes/{second['id']}", headers=w.owner), 200)["failed"]
+    assert [f["client_package_id"] for f in kept] == [bad["id"]]  # its later session is still unbilled
