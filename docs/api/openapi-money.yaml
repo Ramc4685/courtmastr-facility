@@ -4048,22 +4048,6 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-    delete:
-      operationId: deleteCheckIn
-      tags: [access]
-      summary: Delete a check-in and restore its visit
-      description: Serves MEM-20 (visit restore), which the memberships file owns. Soft delete with an audit event.
-      x-priority: P0
-      x-permission: access.checkin.delete
-      x-features: [CHK-19]
-      parameters:
-      - {name: check_in_id, in: path, required: true, schema: {type: string, format: uuid}}
-      x-problem-codes: [permission-denied, not-found]
-      responses:
-        '204': {description: No content.}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-        '404': {$ref: '#/components/responses/NotFound'}
   /credentials/resolve:
     post:
       operationId: resolveCredential
@@ -4655,6 +4639,16 @@ paths:
       x-features: [CHK-09]
       parameters:
       - {name: access_schedule_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /membership-type-access:
+    get:
+      operationId: listMembershipTypeAccess
+      tags: [access]
+      summary: Membership types limited to a schedule or admitting at further locations
+      x-priority: P1
+      x-permission: authenticated-staff
+      x-features: [CHK-09, CHK-10]
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
   /membership-types/{membership_type_id}/access:

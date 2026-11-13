@@ -1492,6 +1492,16 @@ paths:
       x-features: [PLT-17]
       responses:
         default: {$ref: '#/components/responses/Problem'}
+  /import-templates:
+    get:
+      operationId: listImportTemplates
+      tags: [platform]
+      summary: List the import kinds and their published templates
+      x-priority: P1
+      x-permission: platform.import_job.read
+      x-features: [IMP-01]
+      responses:
+        default: {$ref: '#/components/responses/Problem'}
   /import-templates/{kind}:
     get:
       operationId: getImportTemplate
@@ -1541,13 +1551,13 @@ paths:
         schema: {type: string, format: uuid}
       responses:
         default: {$ref: '#/components/responses/Problem'}
-  /import-jobs/{import_job_id}/rows:
-    get:
-      operationId: listImportJobRows
+  /import-jobs/{import_job_id}/source:
+    put:
+      operationId: uploadImportJobSource
       tags: [platform]
-      summary: Per-row outcome and error codes
+      summary: Upload the raw CSV (text/csv, up to 10 MB) for a draft import
       x-priority: P1
-      x-permission: platform.import_job.read
+      x-permission: platform.import_job.run
       x-features: [IMP-01]
       parameters:
       - name: import_job_id
@@ -1556,11 +1566,11 @@ paths:
         schema: {type: string, format: uuid}
       responses:
         default: {$ref: '#/components/responses/Problem'}
-  /import-jobs/{import_job_id}/commit:
+  /import-jobs/{import_job_id}/dry-runs:
     post:
-      operationId: commitImportJob
+      operationId: createImportJobDryRun
       tags: [platform]
-      summary: Commit a validated import (idempotent by row key)
+      summary: Check every row without importing anything (202; needs every location)
       x-priority: P1
       x-permission: platform.import_job.run
       x-features: [IMP-01, IMP-02]
@@ -1571,13 +1581,28 @@ paths:
         schema: {type: string, format: uuid}
       responses:
         default: {$ref: '#/components/responses/Problem'}
-  /import-jobs/{import_job_id}/cancel:
+  /import-jobs/{import_job_id}/commits:
     post:
-      operationId: cancelImportJob
+      operationId: createImportJobCommit
       tags: [platform]
-      summary: Cancel an import before commit
+      summary: Import the checked rows (202; needs every location; 409 check-stale)
       x-priority: P1
       x-permission: platform.import_job.run
+      x-features: [IMP-01, IMP-02]
+      parameters:
+      - name: import_job_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        default: {$ref: '#/components/responses/Problem'}
+  /import-jobs/{import_job_id}/error-report:
+    get:
+      operationId: getImportJobErrorReport
+      tags: [platform]
+      summary: Download the CSV of rows that failed, with their error codes
+      x-priority: P1
+      x-permission: platform.import_job.read
       x-features: [IMP-01]
       parameters:
       - name: import_job_id
@@ -2760,6 +2785,46 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
+    patch:
+      operationId: updateBookingSeriesRule
+      tags: [scheduling]
+      summary: Change a pass's pattern from start_on; later occurrences are cancelled and the new pattern booked
+      description: '`preview: true` returns the dry run (new occurrences and the cancel count) only.'
+      x-priority: P0
+      x-permission: scheduling.booking.update_series
+      x-features: [SCH-09, SCH-10]
+      parameters:
+      - name: booking_series_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      - name: rule_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_on, start_time, end_time, rule]
+              properties:
+                start_on: {type: string, format: date}
+                start_time: {type: string, description: Local wall time HH:MM}
+                end_time: {type: string, description: Local wall time HH:MM}
+                end_day_offset: {type: integer, minimum: 0, maximum: 6}
+                rule: {type: object, additionalProperties: true}
+                on_conflict: {type: string}
+                preview: {type: boolean}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        default: {$ref: '#/components/responses/Problem'}
   /booking-series/{booking_series_id}/rules:
     post:
       operationId: addBookingSeriesRule
@@ -3225,6 +3290,62 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/PermissionDenied'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        default: {$ref: '#/components/responses/Problem'}
+  /slot-offers/{slot_offer_id}/slots:
+    get:
+      operationId: listSlotOfferSlots
+      tags: [scheduling]
+      summary: Derived slots over at most 42 days (default the next 7) - free, booked, full or unavailable
+      x-priority: P0
+      x-permission: scheduling.booking.read
+      x-features: [SCH-07, SCH-18]
+      parameters:
+      - name: slot_offer_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      - {name: from, in: query, schema: {type: string, format: date-time}}
+      - {name: to, in: query, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        default: {$ref: '#/components/responses/Problem'}
+    post:
+      operationId: bookSlotOfferSlot
+      tags: [scheduling]
+      summary: Take one slot; its session is created (or the existing one returned)
+      x-priority: P0
+      x-permission: scheduling.booking.create
+      x-features: [SCH-07, SCH-18]
+      parameters:
+      - name: slot_offer_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [starts_at]
+              additionalProperties: false
+              properties:
+                starts_at: {type: string, format: date-time}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Booking'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
   /reservation-categories:
