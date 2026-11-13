@@ -1296,11 +1296,13 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     invoiced; payment confirms it. Pay-later types, free and plan-covered rentals are confirmed at once."""
     client_id = _portal_client(session, principal, data["client_id"])
     rtype = _online_type(session, data["rental_type_id"])
-    if rtype.eligibility != "everyone":
+    # active_members and paid_up_members read the same: non-payment suspends a contract, so it is no longer active.
+    if rtype.eligibility != "everyone" and not _is_member(
+        session, client_id, platform.service.location_today(session, rtype.location_id)
+    ):
         raise ValidationFailed(
-            "Online booking of this rental is for members; memberships arrive with build module 5.",
-            pointer="/rental_type_id", code="membership-required",
-        )  # fmt: skip
+            "Online booking of this rental is for members.", pointer="/rental_type_id", code="membership-required"
+        )
     if data["resource_id"] not in _type_resources(session, rtype.id):
         raise ValidationFailed("This resource is not offered for this rental type.", pointer="/resource_id")
     _check_online_slot(session, rtype, data["starts_at"], data["ends_at"])

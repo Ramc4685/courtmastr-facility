@@ -14,7 +14,7 @@ from app.core.db.session import tenant_session
 from app.core.events import OutboxEvent
 from app.modules import billing, clients, scheduling
 from app.modules.platform.models import Identity
-from app.modules.rentals import handlers
+from app.modules.rentals import handlers, service
 from app.modules.rentals.models import RentalBookingCharge, RentalPlanLedgerEntry
 from app.modules.scheduling.tests.helpers import API, DAY, at, drain, facility, ok
 from conftest import PASSWORD, add_staff, login, new_client
@@ -284,7 +284,7 @@ def portal_client(client, owner, tenant, f) -> tuple[str, dict]:
     return person["id"], login(client, tenant, person["primary_email"], audience="client")
 
 
-def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenant):
+def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenant, monkeypatch):
     ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={
         "access": "self_service", "online_rental_rate_id": f.rate, "deposit_pct": "25", "slot_granularity_min": 30,
     }), 200)  # fmt: skip
@@ -353,6 +353,10 @@ def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenan
     ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={"eligibility": "active_members"}), 200)
     members = client.post(f"{API}/portal/rentals", headers=portal, json=body | {"starts_at": at(21), "ends_at": at(22)})
     assert members.status_code == 422 and members.json()["code"] == "membership-required"
+    assert members.json()["detail"] == "Online booking of this rental is for members."
+    monkeypatch.setattr(service, "_is_member", lambda *a: True)  # a member books it online
+    member = client.post(f"{API}/portal/rentals", headers=portal, json=body | {"starts_at": at(21), "ends_at": at(22)})
+    assert member.status_code == 201, member.text
 
 
 def test_rental_plans_full_coverage_credit_and_removal(client, owner, f, tenant):
