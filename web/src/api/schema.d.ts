@@ -20892,6 +20892,8 @@ export interface components {
              * @default 0
              */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /**
              * Exclude Tax Ids
              * @default []

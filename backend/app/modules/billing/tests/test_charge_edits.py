@@ -78,7 +78,19 @@ def test_a_percentage_discount_is_kept_and_recomputed_on_the_line(client, shop, 
     )
     assert edited.status_code == 200, edited.text
     assert (edited.json()["discount_minor"], edited.json()["net_minor"]) == (150, 850)
+    # what the edit dialog sends: price and percentage together, never an amount beside it
+    dialog = client.patch(
+        f"{API}/charges/{edited.json()['id']}", headers=owner,
+        json={"quantity": "1", "unit_price_minor": 1010, "discount_pct": "15", "reason": "Dialog edit"},
+    )  # fmt: skip
+    assert dialog.status_code == 200, dialog.text
+    assert (dialog.json()["discount_minor"], dialog.json()["net_minor"]) == (152, 858)  # 151.5 half-up, once
+    preview = client.post(
+        f"{API}/charges/preview", headers=owner,
+        json={"location_id": str(shop.location_id), "unit_price_minor": 1010, "discount_pct": "15"},
+    )  # fmt: skip
+    assert preview.status_code == 200 and preview.json()["net_minor"] == 858
     cleared = client.patch(
-        f"{API}/charges/{edited.json()['id']}", headers=owner, json={"discount_minor": 0, "reason": "No discount"}
+        f"{API}/charges/{dialog.json()['id']}", headers=owner, json={"discount_minor": 0, "reason": "No discount"}
     )
     assert (cleared.json()["discount_minor"], cleared.json()["discount_pct"]) == (0, None)

@@ -247,6 +247,9 @@ handlers re-read the object from the provider.
 - **`discount_pct` (BIL-01)** is set on `POST /charges`, `PATCH /charges/{id}` and `post_charge`, never with an
   amount: it becomes `discount_minor` half-up once on the gross, and a quantity or price edit recomputes it.
   An amount discount clears it. With a coupon at `POST /charges` the percentage is turned into an amount first.
+  `POST /charges/preview` takes `discount_pct` too. The add and edit item dialogs offer a percentage or a fixed
+  amount and send one of them, never both; an edit keeps a percentage item's percentage, so a new price
+  recomputes its discount.
 - **Item edits replace, they do not add a delta.** ADR 0003 section 3 describes an adjustment row "for the
   delta". A negative delta row cannot hold allocations, so the original would look open again. Instead the
   original is negated (status `reversed`) and an `adjustment` row with the full new values takes its place;

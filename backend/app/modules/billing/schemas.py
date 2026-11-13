@@ -430,6 +430,7 @@ class ChargePreviewRequest(In):
     unit_price_minor: Minor
     quantity: Quantity = Decimal(1)
     discount_minor: Minor = 0
+    discount_pct: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None = None
     revenue_category_id: UUID | None = None
     revenue_on: date | None = None
     exclude_tax_ids: Annotated[list[UUID], Field(max_length=20)] = []

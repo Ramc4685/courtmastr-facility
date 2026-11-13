@@ -71,7 +71,8 @@ def preview_charge(session: Session, principal: Principal, data: dict) -> dict:
     authorize(principal, "billing.charge.create", location_id=data["location_id"])
     service._location_in_scope(session, principal, data["location_id"])
     quantity = Decimal(data.get("quantity", 1))
-    net = net_amount(quantity, data["unit_price_minor"], data.get("discount_minor", 0))
+    gross = net_amount(quantity, data["unit_price_minor"])
+    net = gross - service._pct_discount(gross, data.get("discount_pct"), data.get("discount_minor", 0))
     if net < 0:
         raise ValidationFailed("The discount cannot exceed the line amount.", pointer="/discount_minor")
     category = (

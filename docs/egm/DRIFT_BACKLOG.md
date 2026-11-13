@@ -58,7 +58,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] **History filters are documented on both reads, but the list has fewer (README lines 15-16).** "Filters: field ids, category, time window" follows both `listAssessmentResults` and `getAssessmentSeries`. Only the series takes field ids and category (`assessments/service.py:255-266`). `list_results` allows only `client_id` and `recorded_at` filters (`service.py:192`). Docs batch.
 - [x] **Web screens are not mentioned.** `web/src/features/assessments/AssessmentSetupPage.tsx`, `ClientAssessmentsTab.tsx` and `PortalProgress.tsx` implement setup, the client history tab and the portal view. The README has no screens section or pointer to them. Docs batch.
 
-### billing (13) — [evidence](drift/billing.md)
+### billing (14) — [evidence](drift/billing.md)
 
 - [ ] [missing] These contract operations have no route in `router.py`: `issueAccountCredit` (`docs/api/openapi-money.yaml:1688`; only account-credit apply and refund exist, `router.py:623`, `:631`; key `billing.credit.issue` registered, `permissions.py:41`), `setCollectionsStatus` (:2592), `listProcessorPayouts` (:2624), `listProcessorPayoutLines` (:2634), `createLedgerExport` (:2646), `verifyPortalBankAccount` (:2483; only the staff verify route exists, `router.py:752`). README L5 names none.
 - [ ] [contract] README L69-70 and L262 have `refund(method=None)` resolve to `original` or `external` (`service.py:1077`; `schemas.py:159`). The contract's `RefundCreate` requires `method` and has `refund_on` (`openapi-money.yaml:6429`, `:6435`); the code has no `refund_on` input (`schemas.py:156-161`).
@@ -73,6 +73,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] README L269-270 says a plain refund mistake leaves no row; the early amount check is skipped when `release_allocation_ids` is given (`service.py:1088`), so an over-large refund with releases writes an `initiated` row first.
 - [ ] [undocumented] `documents.browser_processor` (`documents.py:288`) returns provider and Stripe.js keys for anonymous pages; called from `documents.py:285`, `portal.py:239` and `programs/checkout.py:643`. README L109-115 does not mention it.
 - [ ] [undocumented] `secure_online_checkout(amount_minor=)`: the part is capped at the balance (`checkout.py:94`) and a replay counts as covered only when the payment landed at least that part, invoice possibly `partially_paid` (`checkout.py:105`, `:116`, `:150-157`). README L111-113 omits both.
+- [ ] [wording] README L247-249 lists `POST /charges`, `PATCH /charges/{id}` and `post_charge` as the places `discount_pct` is set; the charge preview request takes it too (`schemas.py:433`, `desk.py:74-75`, uncommitted on `claude/phase9-orphans-2`).
 
 ### clients (11) — [evidence](drift/clients.md)
 

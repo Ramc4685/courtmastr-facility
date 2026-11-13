@@ -11629,6 +11629,22 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "exclude_tax_ids": {
             "default": [],
             "items": {

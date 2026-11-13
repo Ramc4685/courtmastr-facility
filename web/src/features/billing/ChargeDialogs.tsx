@@ -87,7 +87,12 @@ export function VoidChargeDialog({ charge, onClose }: { charge: Charge; onClose:
   )
 }
 
-type ItemForm = { description: string; additional: string; quantity: string; price: string; discount: string; remarks: string; reason: string; excluded: string[] }
+type ItemForm = { description: string; additional: string; quantity: string; price: string; discountMode: 'amount' | 'pct'; discount: string; pct: string; remarks: string; reason: string; excluded: string[] }
+
+/** The item's discount as the API takes it: a percentage or an amount, never both. */
+export function discountBody(f: ItemForm): { discount_pct: string } | { discount_minor: number } {
+  return f.discountMode === 'pct' ? { discount_pct: f.pct.trim() || '0' } : { discount_minor: parseMoney(f.discount) ?? 0 }
+}
 
 function ItemFields({ form, set, errors, taxIds }: { form: ItemForm; set: (p: Partial<ItemForm>) => void; errors: Record<string, string>; taxIds: string[] }) {
   const taxes = useTaxes()
@@ -98,7 +103,14 @@ function ItemFields({ form, set, errors, taxIds }: { form: ItemForm; set: (p: Pa
       <div className="grid gap-3 sm:grid-cols-3">
         <Input label="Quantity" inputMode="decimal" value={form.quantity} error={errors.quantity} onChange={(e) => set({ quantity: e.target.value })} />
         <MoneyInput label="Unit price" value={form.price} error={errors.unit_price_minor} onChange={(e) => set({ price: e.target.value })} />
-        <MoneyInput label="Discount" value={form.discount} error={errors.discount_minor} onChange={(e) => set({ discount: e.target.value })} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Select label="Discount type" value={form.discountMode} onChange={(e) => set({ discountMode: e.target.value as ItemForm['discountMode'] })} options={[{ value: 'amount', label: 'Fixed amount' }, { value: 'pct', label: 'Percentage' }]} />
+        {form.discountMode === 'pct' ? (
+          <Input label="Percent off" inputMode="decimal" value={form.pct} error={errors.discount_pct} onChange={(e) => set({ pct: e.target.value })} hint="Recomputed on the line when the price or quantity changes." />
+        ) : (
+          <MoneyInput label="Discount" value={form.discount} error={errors.discount_minor} onChange={(e) => set({ discount: e.target.value })} />
+        )}
       </div>
       {taxIds.length > 0 && (
         <fieldset className="space-y-2">
@@ -138,7 +150,9 @@ export function EditChargeDialog({ charge, onClose }: { charge: Schemas['ChargeO
           additional: loaded.additional_description ?? '',
           quantity: loaded.quantity,
           price: toMoneyInput(loaded.unit_price_minor),
+          discountMode: loaded.discount_pct != null ? 'pct' : 'amount',
           discount: toMoneyInput(loaded.discount_minor),
+          pct: loaded.discount_pct ?? '',
           remarks: loaded.internal_remarks ?? '',
           reason: '',
           excluded: loaded.taxes.filter((t) => t.is_excluded).map((t) => t.tax_id),
@@ -148,14 +162,16 @@ export function EditChargeDialog({ charge, onClose }: { charge: Schemas['ChargeO
     mutationFn: () => {
       if (!current || !loaded) throw new Error('The item is still loading.')
       const f = current
-      const money = parseMoney(f.price) !== loaded.unit_price_minor || parseMoney(f.discount) !== loaded.discount_minor || Number(f.quantity) !== Number(loaded.quantity)
+      const discountChanged =
+        f.discountMode === 'pct' ? loaded.discount_pct == null || Number(f.pct) !== Number(loaded.discount_pct) : loaded.discount_pct != null || parseMoney(f.discount) !== loaded.discount_minor
+      const money = parseMoney(f.price) !== loaded.unit_price_minor || discountChanged || Number(f.quantity) !== Number(loaded.quantity)
       return api.patch('/api/v1/charges/{charge_id}', {
         path: { charge_id: charge.id },
         body: {
           description: f.description.trim(),
           additional_description: f.additional.trim() || null,
           internal_remarks: f.remarks.trim() || null,
-          ...(money ? { quantity: f.quantity, unit_price_minor: parseMoney(f.price), discount_minor: parseMoney(f.discount) ?? 0 } : {}),
+          ...(money ? { quantity: f.quantity, unit_price_minor: parseMoney(f.price), ...discountBody(f) } : {}),
           exclude_tax_ids: f.excluded,
           ...(revenueOn && revenueOn !== loaded.revenue_on ? { revenue_on: revenueOn } : {}),
           ...(categoryId && categoryId !== loaded.revenue_category_id ? { revenue_category_id: categoryId } : {}),
@@ -196,8 +212,8 @@ export function AddChargeDialog({ clientId, defaultLocationId, onClose }: { clie
   const [categoryId, setCategoryId] = useState('')
   const [coupon, setCoupon] = useState('')
   const [revenueOn, setRevenueOn] = useState(today())
-  const [form, setForm] = useState<ItemForm>({ description: '', additional: '', quantity: '1', price: '', discount: '0.00', remarks: '', reason: '', excluded: [] })
-  const priceInput = { location_id: locationId, quantity: form.quantity || '1', unit_price_minor: parseMoney(form.price) ?? 0, discount_minor: parseMoney(form.discount) ?? 0, revenue_category_id: categoryId || null, exclude_tax_ids: form.excluded }
+  const [form, setForm] = useState<ItemForm>({ description: '', additional: '', quantity: '1', price: '', discountMode: 'amount', discount: '0.00', pct: '', remarks: '', reason: '', excluded: [] })
+  const priceInput = { location_id: locationId, quantity: form.quantity || '1', unit_price_minor: parseMoney(form.price) ?? 0, discount_minor: 0, ...discountBody(form), revenue_category_id: categoryId || null, exclude_tax_ids: form.excluded }
   const debounced = useDebounced(JSON.stringify(priceInput), 300)
   const preview = useQuery({
     queryKey: ['billing', 'charge-preview', debounced],
