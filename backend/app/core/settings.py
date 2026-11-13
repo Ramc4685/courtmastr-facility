@@ -34,10 +34,13 @@ class Db(BaseModel):
     port: int
     name: str
     pool_size: int = 10
+    # libpq sslmode; FH_DB_SSLMODE overrides. Outside dev and test it must be require, verify-ca or verify-full
+    # (security-baseline V9 wants verify-full; the CA file comes from libpq's own PGSSLROOTCERT).
+    sslmode: str | None = None
 
 
 class Redis(BaseModel):
-    url: str
+    url: str  # FH_REDIS_URL overrides (it may carry a password); outside dev and test it must be rediss://
 
 
 class Email(BaseModel):
@@ -209,7 +212,8 @@ class Settings(BaseModel):
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
         password = os.environ[f"FH_DB_{role.upper()}_PASSWORD"]
-        return f"postgresql+psycopg://fh_{role}:{password}@{self.db.host}:{self.db.port}/{self.db.name}"
+        query = f"?sslmode={self.db.sslmode}" if self.db.sslmode else ""
+        return f"postgresql+psycopg://fh_{role}:{password}@{self.db.host}:{self.db.port}/{self.db.name}{query}"
 
     @property
     def operator_token(self) -> str:
@@ -238,6 +242,19 @@ def _refuse_example_secrets() -> None:
         )
 
 
+_TLS_SSLMODES = ("require", "verify-ca", "verify-full")
+
+
+def _refuse_plaintext_backends(settings: "Settings") -> None:
+    """security-baseline V9: names, emails and session data cross the network to Postgres and Redis."""
+    if settings.db.sslmode not in _TLS_SSLMODES:
+        raise RuntimeError(
+            "outside dev and test, db.sslmode (or FH_DB_SSLMODE) must be require, verify-ca or verify-full"
+        )
+    if not settings.redis.url.startswith("rediss://"):
+        raise RuntimeError("outside dev and test, the Redis URL (FH_REDIS_URL) must use TLS: rediss://")
+
+
 def _merge(base: dict, over: dict) -> dict:
     for key, value in over.items():
         base[key] = _merge(base[key], value) if isinstance(value, dict) and key in base else value
@@ -254,9 +271,14 @@ def _load_dotenv(path: Path) -> None:
 
 def _lane_overrides(data: dict, env: str) -> None:
     """Parallel checkouts (lanes) share one Postgres and one machine: each gets its own databases and ports
-    through FH_DB_NAME, FH_TEST_DB_NAME, FH_API_PORT and FH_WEB_PORT. Unset means the config file value."""
+    through FH_DB_NAME, FH_TEST_DB_NAME, FH_API_PORT and FH_WEB_PORT. FH_DB_SSLMODE and FH_REDIS_URL (backend TLS,
+    the URL may carry a password) ride the same path. Unset means the config file value."""
     if name := os.environ.get("FH_TEST_DB_NAME" if env == "test" else "FH_DB_NAME"):
         data["db"]["name"] = name
+    if sslmode := os.environ.get("FH_DB_SSLMODE"):
+        data["db"]["sslmode"] = sslmode
+    if redis_url := os.environ.get("FH_REDIS_URL"):
+        data["redis"]["url"] = redis_url
     if port := os.environ.get("FH_API_PORT"):
         data["api"]["port"] = int(port)
     if port := os.environ.get("FH_WEB_PORT"):
@@ -298,6 +320,7 @@ def get_settings() -> Settings:
                            "api.exposed_directly: true if no proxy stands in front of the API")  # fmt: skip
     if env not in ("dev", "test"):
         _refuse_example_secrets()
+        _refuse_plaintext_backends(settings)
     if env not in ("dev", "test") and settings.storage.scanner == "noop":
         raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings

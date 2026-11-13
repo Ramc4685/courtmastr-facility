@@ -290,3 +290,37 @@ def test_every_idempotency_key_header_has_the_key_pattern():
         and KEY_PATTERN not in {s.get("pattern") for s in [param["schema"], *param["schema"].get("anyOf", [])]}
     ]
     assert loose == []
+
+
+@pytest.mark.parametrize(
+    ("sslmode", "redis_url", "message"),
+    [
+        ("", "rediss://cache.internal:6380/0", "sslmode"),
+        ("disable", "rediss://cache.internal:6380/0", "sslmode"),
+        ("prefer", "rediss://cache.internal:6380/0", "sslmode"),
+        ("verify-full", "redis://cache.internal:6379/0", "rediss://"),
+    ],
+)
+def test_production_refuses_plaintext_postgres_and_redis(
+    monkeypatch, tmp_path, deploy_secrets, sslmode, redis_url, message
+):
+    """security-baseline V9: TLS from the app to Postgres and Redis outside dev and test."""
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    overlay = "email: {log_links: false}\npayments: {provider: none}\nstorage: {scanner: clamd}\n"
+    (tmp_path / "app.prod.yaml").write_text(overlay + "api: {exposed_directly: true}\n")
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")
+    monkeypatch.setenv("FH_DB_APP_PASSWORD", "x")
+    settings = get_settings.__wrapped__()  # deploy_secrets sets verify-full and a rediss:// URL
+    assert settings.db_url("app").endswith("?sslmode=verify-full") and settings.redis.url.startswith("rediss://")
+    monkeypatch.setenv("FH_DB_SSLMODE", sslmode)
+    monkeypatch.setenv("FH_REDIS_URL", redis_url)
+    with pytest.raises(RuntimeError, match=message):
+        get_settings.__wrapped__()
+
+
+def test_dev_and_test_keep_plain_local_postgres_and_redis():
+    settings = get_settings()
+    assert settings.db.sslmode is None and "sslmode" not in settings.db_url("app")

@@ -23,3 +23,4 @@ playwright-report/
 backend/var/
 var/
 perf/results/
+infra/docker/.stack-tls/

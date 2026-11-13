@@ -20,7 +20,13 @@ Hosting is the owner's call (Fly.io or AWS, chosen on cost, possibly switched la
   network, volumes and ports, so it cannot collide with the dev Compose. `make stack-up`, `make stack-smoke`,
   `make stack-down`. The first `make stack-up` writes `infra/docker/.env.stack` from `stack.env.example`, generating
   `FH_DATA_KEY` and `FH_OPERATOR_TOKEN` (the stack runs as `FH_ENV=production`, which refuses dev or example values);
-  delete an older `.env.stack` that still holds the committed example key.
+  delete an older `.env.stack` that still holds the committed example key. It also writes a throwaway self-signed
+  certificate to `infra/docker/.stack-tls/` (git-ignored) for the stack's Redis, which serves TLS only; the stack's
+  Postgres serves TLS with the image's snakeoil pair. Production refuses a database without `sslmode` of
+  `require` or stricter and a Redis URL that is not `rediss://` (security-baseline V9), so the stack uses
+  `sslmode=require` and `ssl_cert_reqs=none` (`config/app.production.yaml`). A real deployment sets
+  `FH_DB_SSLMODE=verify-full` with `PGSSLROOTCERT` pointing at the provider's CA, and `FH_REDIS_URL` to a verified
+  `rediss://` URL (it may carry the Redis password, so it is a secret).
 - **Proxy.** `infra/proxy/Caddyfile`. Caddy rather than nginx: automatic TLS with renewal and one small file.
   Sets HSTS, a strict CSP for the SPA (the API sends its own deny-all CSP), `nosniff`, referrer, frame and
   permissions headers; caps API bodies at 1 MiB with the one upload route allowed 21 MiB (mirrors

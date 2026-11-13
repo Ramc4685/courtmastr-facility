@@ -119,7 +119,15 @@ infra/docker/.env.stack:
 	sed -e "s|^FH_DATA_KEY=.*|FH_DATA_KEY=$$(openssl rand -base64 32)|" \
 	    -e "s|^FH_OPERATOR_TOKEN=.*|FH_OPERATOR_TOKEN=$$(openssl rand -hex 32)|" infra/docker/stack.env.example > $@
 
-stack-up: infra/docker/.env.stack   ## build and start the whole stack on its own project (fhstack) and ports; https://localhost:18443
+# Throwaway self-signed certificate for the stack's Redis (TLS is required outside dev and test). World-readable
+# on purpose: the redis user in the container must read it, and it protects nothing but this local stack.
+infra/docker/.stack-tls/redis.crt:
+	mkdir -p infra/docker/.stack-tls
+	openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj "/CN=redis" \
+	    -keyout infra/docker/.stack-tls/redis.key -out $@ 2>/dev/null
+	chmod 644 infra/docker/.stack-tls/redis.key
+
+stack-up: infra/docker/.env.stack infra/docker/.stack-tls/redis.crt   ## build and start the whole stack on its own project (fhstack) and ports; https://localhost:18443
 	$(STACK) up -d --build --wait --wait-timeout 900
 
 stack-smoke:        ## header, sign-in, upload/download and readiness checks through the proxy

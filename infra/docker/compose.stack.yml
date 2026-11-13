@@ -99,6 +99,9 @@ services:
       FH_DB_APP_PASSWORD: ${FH_DB_APP_PASSWORD}
       FH_DB_PLATFORM_PASSWORD: ${FH_DB_PLATFORM_PASSWORD}
       TZ: UTC
+    # TLS on (the app refuses a database without sslmode=require); the image ships a self-signed snakeoil pair.
+    command: [postgres, -c, ssl=on, -c, ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem,
+              -c, ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../postgres/init:/docker-entrypoint-initdb.d:ro
@@ -107,9 +110,11 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     networks: [stack]
-    command: [redis-server, --appendonly, "yes"]   # the job queue survives a restart
-    volumes: [redisdata:/data]
-    healthcheck: {test: [CMD, redis-cli, ping], interval: 2s, timeout: 3s, retries: 30}
+    # TLS only (the app refuses a non-rediss URL); the certificate is the self-signed pair `make stack-up` writes.
+    command: [redis-server, --appendonly, "yes", --port, "0", --tls-port, "6379", --tls-auth-clients, "no",
+              --tls-cert-file, /tls/redis.crt, --tls-key-file, /tls/redis.key]   # appendonly: the job queue survives a restart
+    volumes: [redisdata:/data, ./.stack-tls:/tls:ro]
+    healthcheck: {test: [CMD, redis-cli, --tls, --insecure, ping], interval: 2s, timeout: 3s, retries: 30}
   s3:
     image: rustfs/rustfs@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74   # pinned (was latest); S3-compatible stand-in; a cloud deployment uses the provider's bucket instead
     restart: unless-stopped
