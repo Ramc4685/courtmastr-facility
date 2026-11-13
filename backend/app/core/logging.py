@@ -22,25 +22,38 @@ _DENY = {
     "phone", "mobile", "dob", "birth", "name", "address", "signature", "card", "pan", "cvc", "cvv", "iban",
     "ssn", "credential", "body", "medical",
 }  # fmt: skip
-_WORDS = re.compile(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-_DIGITS = re.compile(r"\d{9,}")  # phone numbers, account and card numbers typed without separators
-REDACTED = "[redacted]"
+_WORDS = re.compile(r"[A-Z]?[a-z0-9]{1,64}|[A-Z]{1,64}(?![a-z])")
+# Bounded, no nested quantifiers: a hostile log string cannot make a record slow (each scrub is linear in MAX_CHARS).
+_EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
+_DIGITS = re.compile(r"\d{9,64}")  # phone, account and card numbers typed without separators
+_STATIC = {"method", "status", "duration_ms"}  # written by our own code from fixed values: kept as they are
+REDACTED, TRUNCATED = "[redacted]", "...[truncated]"
+MAX_CHARS, MAX_DEPTH, MAX_ITEMS = 2048, 6, 100
+MAX_EXC_CHARS = 16_384  # a traceback is our own text and needs its frames; still capped
 
 
 def _denied(key: str) -> bool:
-    return any(word.lower() in _DENY for word in _WORDS.findall(str(key)))
+    return any(word.lower() in _DENY for word in _WORDS.findall(str(key)[:MAX_CHARS]))
 
 
-def scrub(value: str) -> str:
-    return _DIGITS.sub("[digits]", mask_card_numbers(_EMAIL.sub("[email]", value)))
+def scrub(value: str, limit: int = MAX_CHARS) -> str:
+    if len(value) > limit:
+        value = value[:limit] + TRUNCATED
+    if "@" in value:
+        value = _EMAIL.sub("[email]", value)
+    return _DIGITS.sub("[digits]", mask_card_numbers(value))
 
 
-def redact(value: Any) -> Any:
+def redact(value: Any, depth: int = 0) -> Any:
+    if isinstance(value, (dict, list, tuple, set)) and depth >= MAX_DEPTH:
+        return TRUNCATED
     if isinstance(value, dict):
-        return {k: REDACTED if _denied(k) else redact(v) for k, v in value.items()}
+        items = list(value.items())
+        out = {k: REDACTED if _denied(k) else redact(v, depth + 1) for k, v in items[:MAX_ITEMS]}
+        return out | ({TRUNCATED: len(items) - MAX_ITEMS} if len(items) > MAX_ITEMS else {})
     if isinstance(value, (list, tuple, set)):
-        return [redact(v) for v in value]
+        items = list(value)
+        return [redact(v, depth + 1) for v in items[:MAX_ITEMS]] + ([TRUNCATED] if len(items) > MAX_ITEMS else [])
     if isinstance(value, str):
         return scrub(value)
     if value is None or isinstance(value, (bool, int, float)):
@@ -59,9 +72,11 @@ class JsonFormatter(logging.Formatter):
             "msg": scrub(record.getMessage()),
             "trace_id": context.request_id.get(),
         }
-        entry.update(redact({k: v for k, v in record.__dict__.items() if k not in _STANDARD}))
+        extra = {k: v for k, v in record.__dict__.items() if k not in _STANDARD}
+        entry.update(redact({k: v for k, v in extra.items() if k not in _STATIC}))
+        entry.update({k: extra[k] for k in _STATIC.intersection(extra)})
         if record.exc_info:
-            entry["exc"] = scrub(self.formatException(record.exc_info))
+            entry["exc"] = scrub(self.formatException(record.exc_info), MAX_EXC_CHARS)
         return json.dumps(entry, default=str)
 
 

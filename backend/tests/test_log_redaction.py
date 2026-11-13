@@ -3,7 +3,9 @@
 import io
 import json
 import logging
+import time
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -11,7 +13,7 @@ from sqlalchemy import text
 from app.core import api
 from app.core.db.platform import platform_engine
 from app.core.db.session import app_engine
-from app.core.logging import JsonFormatter
+from app.core.logging import TRUNCATED, JsonFormatter
 
 EMAIL, PHONE, PAN, DOB = "jane.doe@example.com", "2175550123", "4111 1111 1111 1111", "2014-03-09"
 CORPUS = {
@@ -65,6 +67,33 @@ def test_exception_text_is_scrubbed():
         logger.exception("failed")
     _assert_clean(stream.getvalue())
     assert "ValueError" in stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    ["a." * 100_000, "a" * 200_000 + "@", "a@" + "b-" * 100_000, "1 " * 100_000, "4" * 200_000, "1-" * 100_000],
+)
+def test_redacting_a_200kb_adversarial_string_is_fast_and_cut(hostile):
+    logger, stream = _capture("test.redaction.hostile")
+    started = time.perf_counter()
+    logger.info(hostile, extra={"detail": hostile, "nested": [hostile]})
+    assert time.perf_counter() - started < 0.5
+    entry = json.loads(stream.getvalue())
+    assert len(stream.getvalue()) < 20_000 and entry["msg"].endswith(TRUNCATED)
+
+
+def test_deep_or_wide_extra_does_not_blow_up():
+    deep: dict = {"leaf": EMAIL}
+    for _ in range(5_000):
+        deep = {"child": deep}
+    wide = {f"k{i}": EMAIL for i in range(100_000)}
+    logger, stream = _capture("test.redaction.shape")
+    started = time.perf_counter()
+    logger.info("shape", extra={"deep": deep, "wide": wide, "method": "GET", "status": 200})
+    assert time.perf_counter() - started < 0.5
+    entry = json.loads(stream.getvalue())
+    assert len(entry["wide"]) <= 101 and EMAIL not in stream.getvalue()
+    assert entry["method"] == "GET" and entry["status"] == 200
 
 
 def test_engines_hide_bound_parameters():
