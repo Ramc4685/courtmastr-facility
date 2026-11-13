@@ -471,6 +471,35 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     assert response.json()["code"] == "not-found"
 
 
+def test_a_real_visit_token_from_another_tenant_is_404_at_this_kiosk(client, two_tenants):
+    """B's live visit token and B's check-in, sent from A's paired kiosk: 404. Back on B's kiosk the same token
+    still works, so the 404 came from the tenant boundary, not from a dead token."""
+    from app.modules.access.tests.test_checkin import _pair
+    from conftest import new_client
+
+    a, b = two_tenants
+    person = new_client(client, b.headers, b.location_id, last_name=f"Iso{uuid4().hex[:6]}")
+    mode = {"access_mode": "always_admit", "reason": "Isolation"}
+    assert client.put(f"/api/v1/clients/{person['id']}/access-mode", headers=b.headers, json=mode).status_code == 200
+    _pair(client, b.tenant, b.headers, b.location_id)
+    b_kiosk = dict(client.cookies)
+    found = client.post("/api/v1/kiosk/lookups", json={"last_name_prefix": person["last_name"]}).json()["matches"]
+    visit = client.post("/api/v1/kiosk/check-ins", json={"match_token": found[0]["match_token"]}).json()
+    assert visit["visit_token"]
+    url = f"/api/v1/kiosk/check-ins/{visit['check_in_id']}/attendances"
+    body = {"target_type": "session", "target_id": str(uuid4()), "visit_token": visit["visit_token"]}
+
+    _pair(client, a.tenant, a.headers, a.location_id)
+    refused = client.post(url, json=body)
+    assert refused.status_code == 404 and refused.json()["code"] == "not-found"
+    lookup = client.post("/api/v1/kiosk/lookups", json={"last_name_prefix": person["last_name"]})
+    assert lookup.json()["matches"] == []
+
+    client.cookies.clear()
+    client.cookies.update(b_kiosk)
+    assert client.post(url, json=body).status_code == 409  # the token is live: B's kiosk spends it (see staff)
+
+
 def test_every_id_route_is_covered():
     assert len(_ID_ROUTES) >= 28
     assert {name for _, _, name in _ID_ROUTES if name.startswith(("update", "replace", "assign"))} <= set(_BODIES)

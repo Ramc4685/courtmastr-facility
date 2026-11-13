@@ -1,10 +1,10 @@
 ## backend/app/modules/access/README.md
 
-Compared with `backend/app/modules/access/*.py` (`router.py` has the staff `router` and the device `kiosk` router), `backend/migrations/versions/1962_access_kiosk_visit.py` and the access operations of `docs/api/openapi-money.yaml`. Paths are relative to `backend/app/modules/access/` unless they start with `docs/`, `backend/` or `web/`. The contract is `docs/api/openapi-money.yaml`, written `contract:<line>`. Everything was read in the working tree on `claude/owner-decisions-1`, uncommitted edits included. Refreshed 2026-11-13 (sixth pass), after the README tail was restored from HEAD and the lockout, exclusion and `resolve` docstring text was updated.
+Compared with `backend/app/modules/access/*.py` (`router.py` has the staff `router` and the device `kiosk` router), `backend/migrations/versions/1962_access_kiosk_visit.py` and the access operations of `docs/api/openapi-money.yaml`. Paths are relative to `backend/app/modules/access/` unless they start with `docs/`, `backend/` or `web/`. The contract is `docs/api/openapi-money.yaml`, written `contract:<line>`. Everything was read in the working tree on `claude/owner-decisions-1`, uncommitted edits included. Refreshed 2026-11-13 (seventh pass), after the kiosk booking audit key changed to `scheduling.enrollment.create`, `KioskAttendanceCreate.target_type` was narrowed to `session` in the contract, and the cross-tenant visit-token isolation test was added.
 
 ### [stale-not-built]
 
-- README 153 (Deferred section) and the "Wallet passes" section: the section now says the wallet pass is "built on a fake adapter only", which is true, but the Deferred paragraph still lists `KioskAttendanceCreate` as accepting only `session`. That is now also what the contract says (contract:7771), so it is no longer a difference. Nothing else is stale: the two changes under review match the code (README 111-115 and service.py:117-136; README 126-130 and service.py:787-808; `test_only_a_verified_digital_scan_is_possession`, tests/test_kiosk_reservations.py:368; `test_the_lockout_fails_closed_when_redis_is_down`, :397).
+- None found. The README now says a kiosk booking is audited as `scheduling.enrollment.create` (README 120-121), which matches `kiosk.py:72,128`. The Deferred paragraph says `KioskAttendanceCreate` accepts only `session` (README 235), which now matches the contract (contract:7771) and `schemas.py:453`. The earlier lockout and possession text still matches the code (README 111-115 and service.py:117-136; README 126-130 and service.py:787-808).
 
 ### [missing]
 
@@ -25,6 +25,7 @@ Compared with `backend/app/modules/access/*.py` (`router.py` has the staff `rout
 
 ### [undocumented]
 
+- `kiosk.ENROLL` (kiosk.py:72) repeats the string that `desk.ENROLL` already holds (desk.py:37). The two audit keys can drift apart; the README does not say they must match.
 - The README cites none of the tests for the kiosk rules: `test_a_visit_token_cannot_be_spent_twice_concurrently`, `test_a_static_card_value_is_never_possession`, `test_unknown_values_lock_the_kiosk_even_between_known_ones`, `test_concurrent_unknown_values_are_all_counted`, `test_only_a_verified_digital_scan_is_possession`, `test_the_lockout_fails_closed_when_redis_is_down` (all in tests/test_kiosk_reservations.py) and `test_a_real_visit_token_from_another_tenant_is_404_at_this_kiosk` (backend/tests/test_isolation.py:474). They drive Redis, so they need it in the test environment; no note says so.
 - `POSSESSION_KINDS` (service.py:64) now has two jobs, the plain-lookup exclusion (service.py:128) and the possession test (service.py:890). README 108 names it only for the second.
 - `POST /check-ins/evaluate` (router.py:55-59) is not in the README. `POST /credentials/resolve` is now mentioned only in the exclusion sentence (README 113), not as a route. `GET /clients/{id}/access-mode` (router.py:176-179, key `access.checkin.create`) is not in the README; README 59-60 covers `PUT` only.
@@ -46,4 +47,4 @@ Compared with `backend/app/modules/access/*.py` (`router.py` has the staff `rout
 - README 105-106 says "Spending anything at the kiosk (a package credit, and in future a membership visit, an account charge or a payment) needs identification by possession". The only spend built is a package credit through `programs.selfservice.kiosk_enroll`.
 - README 108-111 says the tablet sends scanner bursts as `card_payload`. `web/src/features/access/KioskPage.tsx:136` does so and sends a picked name match as `match_token` (:209). The README does not link that file.
 
-Post-report fix (2026-11-13): the README line break at the end of the lockout bullet was restored; the [wording] finding about README 129 is closed. New findings above are queued in DRIFT_BACKLOG.md under access (+11).
+Closed since the sixth pass: the contract's `KioskAttendanceCreate.target_type` list (was `enrollment`, `booking`, `session`; now `session`).

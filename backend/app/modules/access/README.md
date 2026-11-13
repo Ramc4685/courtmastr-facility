@@ -117,7 +117,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   nothing is spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal
   is 409 `see-staff`, `is_booked` is always false on its page, and it never learns the client's packages, balance or
   eligibility. Possession lets the person pick, on screen, a session the portal rules allow, including one a
-  package credit pays for; auto-book never spends a credit for anyone.
+  package credit pays for; auto-book never spends a credit for anyone. A booking is audited on the check-in as
+  `scheduling.enrollment.create` (as the desk audits one), never as a second `access.checkin.create`.
 - **Unknown-value lockout.** Five values within five minutes on one device that resolve to no live credential or
   member (unknown, or an expired or revoked card or pass), scanned or typed, lock value reads there for five minutes
   (429 `kiosk-locked-out` on lookups and check-ins alike, lock end in `kiosk-locked:<device>`, logged); a known value in between does not reset the count,

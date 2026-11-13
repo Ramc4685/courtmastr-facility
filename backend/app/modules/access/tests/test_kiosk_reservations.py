@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core import clock
+from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db import tenant_session
 from app.main import app as fastapi_app
@@ -130,6 +131,10 @@ def test_the_reservation_page_lists_and_books_by_the_portal_rules(client, tenant
     assert again.status_code == 409 and again.json()["code"] == "already-enrolled"
     channel = scalar(tenant, select(Enrollment.channel).where(Enrollment.session_id == UUID(now_free.id)))
     assert channel == "kiosk"
+    actions = scalar(tenant, select(func.array_agg(AuditEvent.action)).where(
+        AuditEvent.entity_id == UUID(entered["check_in_id"])
+    ))  # fmt: skip
+    assert sorted(actions) == ["access.checkin.create", "scheduling.enrollment.create"]  # a booking is not a check-in
 
     # A package covering the paid session's type makes it bookable; it books against the package, not marked yet.
     give_package(client, owner, tenant, k, paid.type_id)

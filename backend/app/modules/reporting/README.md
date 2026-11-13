@@ -164,7 +164,9 @@ Status per feature: `docs/status/15-reporting.md`.
   starts after it reads the erased client. The data-subject export
   hands over nothing here: the source contexts export the records themselves.
 - `/pos-reports/*` (pos) and the report centre's `pos` category reports both need `reporting.pos.run` (owner
-  decisions 2026-11-13, question 14); the POS family's financial report keeps `reporting.financial.run`.
+  decisions 2026-11-13, question 14); the POS family's financial report keeps `reporting.financial.run`. API keys cannot run POS reports: `reporting` keys are
+  never grantable to a key (`integrations.service.KEY_CONTEXTS`), so `/pos-reports/*` answer 403 and report-centre
+  runs answer 403 because a run belongs to a person.
 
 ## Deviations from the contract
 

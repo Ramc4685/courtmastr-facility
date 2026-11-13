@@ -409,7 +409,7 @@ INT-13 analytics on registration pages (new 2026-11-13):
 ## Added on this branch (drift refresh 2026-11-12)
 Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
 
-### access (+11) — [evidence](drift/access.md)
+### access (+12) — [evidence](drift/access.md)
 
 - [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
 - [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
@@ -422,6 +422,7 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [undocumented] (2026-11-13) kiosk name-search limits (3 letters, 5 results, disabled hidden, lookup-method-disabled, card-invalid) and 400-day kiosk cookie not in README
 - [ ] [undocumented] (2026-11-13) access.check_in.session_booked event absent from the current README although the earlier item is ticked
 - [ ] [undocumented] (2026-11-13) POST /credentials/resolve not listed as a route in the README
+- [ ] [undocumented] (2026-11-13) kiosk.ENROLL repeats desk.ENROLL's `scheduling.enrollment.create`; nothing keeps them equal
 
 ### platform (+3) — [evidence](drift/platform.md)
 
@@ -447,11 +448,18 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [contract] brand_primary_color / brand_accent_color missing from the yaml (TenantUpdate yaml:4699; no /public/branding path)
 - [ ] [contract] yaml lists entitlement-limit-reached (yaml:620, 1876, 1982); code raises plan-limit-reached (entitlements.py:146)
 
-### reporting (+3) — [evidence](drift/reporting.md)
+### reporting (+10) — [evidence](drift/reporting.md)
 
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
 - [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
 - [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
+- [ ] [stale] (2026-11-13) README says registry.py holds every ReportSpec; it holds 14 of 62, the rest are in reports/*.py
+- [ ] [undocumented] (2026-11-13) schedule and recipients routes use the export key (router.py:113-141); dashboard rejects API keys (dashboard.py:78)
+- [ ] [undocumented] (2026-11-13) the 13 reporting permission keys (permissions.py:15-39) are not listed in the README
+- [ ] [wording] (2026-11-13) 7-day result retention (service.py:32) conflicts with the contract's 24 h (openapi-programs.yaml:6131)
+- [ ] [undocumented] (2026-11-13) export_job.notify_on_complete cannot be set through ExportJobCreate; report_schedule missing from data-model-programs.md
+- [ ] [contract] (2026-11-13) recipients and five /report-schedules* routes not in the contract; about a dozen more shape mismatches (see report)
+- [ ] [stale] (2026-11-13) module docstrings and docs/status/15-reporting.md, docs/status/README.md counts out of date (see report)
 
 ## Added on claude/owner-decisions-1 (drift refresh 2026-11-13)
 Re-run for access, billing and programs after the kiosk reservation page. Items already listed above are not repeated.
@@ -491,7 +499,7 @@ Access, billing and programs re-run; programs found nothing new. New items only:
 
 - [x] [wording] access: README said a typed credential value is name_search; any value matching a credential row is possession. Fixed in the same commit.
 - [ ] [contract] access: kiosk settings in the contract carry fields not built (photo, default view, theme) and omit the exit PIN fields.
-- [ ] [contract] access: createKioskAttendance target_type allows enrollment and booking; code takes session only.
+- [x] [contract] access: createKioskAttendance target_type allows enrollment and booking; code takes session only.
 - [ ] [contract] access: createKioskCheckIn declares second_factor and scanned_at; code has neither.
 - [ ] [contract] access: wallet-pass routes are not in the contract; the old getWalletPass operation is not built.
 - [ ] [contract] access: listCheckIns declares an is_open filter the code lacks.

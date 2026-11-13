@@ -7768,7 +7768,7 @@ components:
         A visit found by name books free sessions only (owner decisions 2026-11-13).'
       required: [target_type, target_id, visit_token]
       properties:
-        target_type: {type: string, enum: [enrollment, booking, session]}
+        target_type: {type: string, enum: [session]}
         target_id: {type: string, format: uuid}
         visit_token: {type: string, maxLength: 64}
     KioskExitRequest:

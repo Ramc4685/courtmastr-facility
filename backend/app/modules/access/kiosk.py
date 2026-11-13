@@ -68,6 +68,10 @@ def visit(session: Session, device: KioskDevice, check_in_id: UUID, token: str) 
     return row
 
 
+# A booking from the page is an enrolment, audited as the desk audits one, never a second check-in.
+ENROLL = "scheduling.enrollment.create"
+
+
 def see_staff() -> Conflict:
     return Conflict("Please see the front desk.", code="see-staff")
 
@@ -121,7 +125,7 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, fre
         ))  # fmt: skip
     audit.record(
         session,
-        service.CREATE,
+        ENROLL,
         row,
         location_id=row.location_id,
         changes={"booked_session_id": [None, str(session_id)]},
