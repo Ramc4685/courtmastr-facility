@@ -49,10 +49,21 @@ def connector() -> AccountingConnect:
     return FakeQuickBooks()
 
 
+def _simulated_outside_dev(adapter: Any) -> bool:
+    """The simulated adapter's codes and signing secret are public, so it may never claim a company or verify a
+    webhook outside dev and test."""
+    return getattr(adapter, "simulated", False) and get_settings().env not in ("dev", "test")
+
+
 def _port(session: Session, location_id: UUID | None) -> Any:
     from app.modules.integrations import service
 
-    return service.adapter_for(session, connector(), "accounting", location_id)
+    adapter = connector()
+    if _simulated_outside_dev(adapter):
+        raise ValidationFailed(
+            "QuickBooks Online is not configured", pointer="/provider", code="provider-not-configured"
+        )
+    return service.adapter_for(session, adapter, "accounting", location_id)
 
 
 def redirect_uri() -> str:
@@ -326,9 +337,7 @@ def receive_webhook(body: bytes, signature: str) -> int:
     tenant by provider_account_lookup). The sync is one-way, so a stored change needs no further processing;
     an unknown realm is kept as `ignored`. Returns the number of new notifications."""
     adapter = connector()
-    simulated_outside_dev = type(adapter).__name__ == "FakeQuickBooks" and get_settings().env not in ("dev", "test")
-    if not get_settings().integrations.quickbooks_enabled or simulated_outside_dev:
-        # the simulated adapter's signing secret is public, so it never verifies anything outside dev and test
+    if not get_settings().integrations.quickbooks_enabled or _simulated_outside_dev(adapter):
         raise PermissionDenied("Invalid signature", code="invalid-signature", status=401)
     if not adapter.verify_webhook(body, signature):
         raise PermissionDenied("Invalid signature", code="invalid-signature", status=401)

@@ -198,6 +198,20 @@ def test_a_company_routed_to_another_tenant_is_refused(client, owner, enabled):
     taken = _callback(client, rival, started["authorize_url"], code=f"fake-code.{realm}", realm_id=realm)
     assert (taken.status_code, taken.json()["code"]) == (409, "account-in-use")
     assert client.get(f"{API}/external-connections/{started['id']}", headers=rival).json()["status"] == "pending"
+    # once the first tenant disconnects, its claim is released and the rival can connect the company
+    assert client.post(f"{API}/external-connections/{first['id']}/disconnect", headers=owner).status_code == 200
+    again = _callback(client, rival, started["authorize_url"], code=f"fake-code.{realm}", realm_id=realm)
+    assert again.status_code == 200 and again.json()["status"] == "connected", again.text
+
+
+def test_the_simulated_adapter_is_refused_outside_dev_and_test(client, owner, enabled, monkeypatch):
+    started = _connect(client, owner)  # started in test, then the environment is not dev or test any more
+    monkeypatch.setattr(get_settings(), "env", "production")
+    refused = _callback(client, owner, started["authorize_url"])
+    assert (refused.status_code, refused.json()["code"]) == (422, "provider-not-configured")
+    fresh = login(client, make_tenant())  # starting a new connection is refused as well
+    again = client.post(f"{API}/external-connections", headers=fresh, json={"provider": "quickbooks_online"})
+    assert (again.status_code, again.json()["code"]) == (422, "provider-not-configured")
 
 
 def test_return_url_must_be_on_this_app(client, owner, enabled):

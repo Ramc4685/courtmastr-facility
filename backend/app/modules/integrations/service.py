@@ -685,7 +685,23 @@ def disconnect_external_connection(session: Session, principal: Principal, conne
         session, "integrations.connection.disconnect", row, location_id=row.location_id, changes=audit.diff(row)
     )
     session.flush()
+    if row.external_account_id:
+        release_account(session, row.provider, row.external_account_id)
     return row
+
+
+def release_account(session: Session, provider: str, account_ref: str) -> None:
+    """Internal: give the provider account back to the platform routing table once no ACTIVE connection of this
+    tenant still holds it, so another tenant can connect it (app.release_provider_account only ever deletes the
+    current tenant's own row)."""
+    held = session.scalar(
+        select(ExternalConnection.id).where(
+            ExternalConnection.provider == provider, ExternalConnection.external_account_id == account_ref,
+            ExternalConnection.status == ConnectionStatus.ACTIVE,
+        ).limit(1)
+    )  # fmt: skip
+    if held is None:
+        session.execute(text("SELECT app.release_provider_account(:p, :r)"), {"p": provider, "r": account_ref})
 
 
 def _accounting_adapter(session: Session, connection: ExternalConnection) -> Any:
