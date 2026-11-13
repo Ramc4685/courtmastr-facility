@@ -498,12 +498,12 @@ def is_adult(session: Session, client: Client) -> bool:
 
 
 def portal_view(session: Session, client: Client, found: str, me_id: UUID | None = None) -> dict:
-    """Delegates see names only; self, manager and guardian see the profile they may edit. `is_adult` and
-    `is_my_ward` (the signed-in person `me_id` is a guardian) let the portal explain who may hold or join a booking."""
+    """Delegates see names only (`is_adult` null: no age signal); self, manager and guardian see the profile they
+    may edit. `is_adult` and `is_my_ward` (the signed-in person `me_id` is a guardian) let the portal explain who may hold or join a booking."""
     view = {
         "id": client.id, "first_name": client.first_name, "last_name": client.last_name,
         "preferred_name": client.preferred_name, "authority": found, "can_edit": found in EDIT,
-        "is_adult": is_adult(session, client), "is_my_ward": me_id is not None and me_id in guardian_ids(session, client.id),
+        "is_adult": is_adult(session, client) if found in EDIT else None, "is_my_ward": me_id is not None and me_id in guardian_ids(session, client.id),
     }  # fmt: skip
     if found in EDIT:
         view.update({f: getattr(client, f) for f in PORTAL_FIELDS})

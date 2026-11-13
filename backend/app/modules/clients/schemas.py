@@ -412,7 +412,7 @@ class PortalClientOut(Out):
     postal_code: str | None = None
     country_code: str | None = None
     custom_values: CustomValues = {}
-    is_adult: bool = False  # a birth date on file at or over the tenant's minor age (unknown: false)
+    is_adult: bool | None = None  # a birth date on file at or over the minor age (unknown: false; delegates: null)
     is_my_ward: bool = False  # the signed-in person is this client's guardian
 
 

@@ -71,7 +71,8 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 - A moved rental is not re-priced: its posted charges stay, even when the move crosses into another price band or
   a membership has lapsed since; staff cancel and rebook to re-price (decided for the pilot, tested).
 - Only recurring rentals can be extended (`not-a-series` otherwise); extension occurrences arrive unbilled.
-  Extending a series booked in a minor's name needs a fresh `minor_override_reason` (and the key); the original
+  Extending re-checks the minors rule for the holder and the series' players on the new dates. Extending a series
+  booked in a minor's name needs a fresh `minor_override_reason` (and the key); the original
   reason is never copied to the new occurrences (`add_rule(source_data=...)` replaces it in the copied template).
   Scheduling's generic `POST /booking-series/{id}/rules` and `PATCH .../rules/{rule_id}` refuse a series whose
   template carries a source (409 `series-owned-by-rental`, owners too), so the rental's extension route is the
@@ -81,7 +82,7 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
 - Public availability is anonymous and quotes guest prices; the portal's `GET /portal/rental-availability`
   quotes the signed-in client's member prices, reading membership once per date per request (not per slot), behind
-  the `portal-availability` rate-limit bucket (60 a minute per IP). Both cover the whole local day for the chosen
+  the `portal-availability` rate-limit bucket (60 a minute per IP; it fails closed, 503, while Redis is down). Both cover the whole local day for the chosen
   court (`resource_id`) and time-of-day band (`from_time` inclusive, `to_time` exclusive, by slot start; a band
   that ends at or before its start is 422 at `/to_time`; times are local wall clock, any offset is ignored),
   ordered by court then start, in keyset pages of up to 200 (`cursor` from `page.next_cursor`; a bad cursor is
@@ -212,7 +213,8 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   `birth_on`. A first birth date entered in the portal is kept, flagged `client.is_birth_on_unverified` for staff
   review (a staff save of the date clears it) and audited with the change; a recorded date stays locked
   (`field-locked`). The portal never keys the holder on acting authority (parents of portal-added children are
-  `manager`, like any managed profile): it reads `is_adult` and `is_my_ward` on the portal client view.
+  `manager`, like any managed profile): it reads `is_adult` and `is_my_ward` on the portal client view. A delegate
+  sees `is_adult` as null (names only, no age signal).
 - **Staff override.** `minor_override_reason` on create (and preview) needs `rentals.booking.override_minor`
   (admin, manager) and lifts both checks. The reason is kept on `rental_booking.minor_override_reason`; the audit
   record carries a flag only. The staff form asks for the reason only after the server refuses and only to holders

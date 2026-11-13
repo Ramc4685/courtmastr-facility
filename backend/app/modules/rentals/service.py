@@ -1019,8 +1019,10 @@ def extend_rental(session: Db, principal: Principal, rental_id: UUID, data: dict
     reason = data.pop("minor_override_reason", None)
     if reason:
         authorize(principal, OVERRIDE_MINOR, location_id=row.location_id)
-    else:
-        _check_minors(session, booking["client_id"], (), data["start_on"])
+    else:  # the new occurrences copy the series' players, so they are checked again too
+        players = session.scalars(select(RentalParty).where(RentalParty.rental_booking_id == row.id))
+        parties = [{"client_id": p.client_id, "is_charged": p.is_charged} for p in players]
+        _check_minors(session, booking["client_id"], parties, data["start_on"])
     result = scheduling.service.add_rule(
         session,
         booking["booking_series_id"],

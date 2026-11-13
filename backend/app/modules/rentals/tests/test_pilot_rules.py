@@ -196,6 +196,22 @@ def test_open_times_read_membership_once_per_request(client, owner, tenant, f, m
     assert len(slots) > 10 and len(calls) == 1  # every slot of the day, one membership read
 
 
+def test_member_open_times_fail_closed_when_the_limiter_is_down(client, owner, tenant, f, monkeypatch):
+    """Each call reads membership: without Redis to count them the portal refuses rather than serving unmetered.
+    (The past-due lockout deliberately leaves this GET open: billing's guard test records why.)"""
+    import redis
+
+    from app.core import ratelimit
+    from app.core.settings import get_settings
+
+    me, portal = portal_member(client, owner, tenant, f)
+    monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+    down = redis.Redis(host="127.0.0.1", port=1, socket_connect_timeout=0.2)
+    monkeypatch.setattr(ratelimit, "_redis", lambda: down)
+    url = f"{API}/portal/rental-availability?rental_type_id={f.rtype}&on=2031-05-05&length_min=60&client_id={me}"
+    refused(client.get(url, headers=portal), 503, "rate-limit-unavailable")
+
+
 def _local_hour(slot: dict) -> int:
     return datetime.fromisoformat(slot["starts_at"]).astimezone(ZoneInfo("America/Chicago")).hour
 
@@ -319,6 +335,17 @@ def test_extending_a_minors_series_needs_a_fresh_reason(client, owner, f):
     assert sorted(r["minor_override_reason"] for r in series["data"]) == [
         "Coach's own child", "Coach's own child", "Still the coach's child", "Still the coach's child",
     ]  # fmt: skip
+
+
+def test_extending_a_rental_checks_its_players_again(client, owner, f):
+    _, kid = family(client, owner, f)
+    weekly = {"pattern": "weekly", "range_type": "count", "occurrence_limit": 2}
+    created = ok(rent(client, owner, body(f, f.guest, 15, 16, recurrence=weekly, parties=[{"client_id": kid}],
+                                          minor_override_reason="Club helper")))  # fmt: skip
+    more = {"start_on": "2031-06-02", "start_time": "10:00", "end_time": "11:00", "rule": weekly}
+    url = f"{API}/rentals/{created['rental']['id']}/extensions"
+    refused(client.post(url, headers=owner, json=more), 422, "minor-needs-guardian")  # not the child's guardian
+    ok(client.post(url, headers=owner, json=more | {"minor_override_reason": "Club helper again"}))
 
 
 @pytest.mark.parametrize("who", ["front_desk", "owner"])
@@ -454,7 +481,7 @@ def test_only_a_guardian_brings_a_child_a_delegate_does_not(client, owner, tenan
     ok(client.post(f"{API}/clients/{grandparent}/relationships", headers=owner,
                    json={"other_client_id": kid, "relationship_type_id": minds["id"]}))  # fmt: skip
     seen = ok(client.get(f"{API}/portal/clients/{kid}", headers=theirs), 200)
-    assert (seen["authority"], seen["is_adult"], seen["is_my_ward"]) == ("delegate", False, False)
+    assert (seen["authority"], seen["is_adult"], seen["is_my_ward"]) == ("delegate", None, False)  # no age signal
     refused(client.post(f"{API}/portal/rentals", headers=theirs,
                         json=online(f, grandparent, 15, 16) | {"player_client_ids": [kid]}), 422,
             "minor-needs-guardian")  # fmt: skip
