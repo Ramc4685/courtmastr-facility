@@ -400,11 +400,21 @@ INT-13 analytics on registration pages (new 2026-11-13):
 ## Added on this branch (drift refresh 2026-11-12)
 Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
 
-### access (+3) — [evidence](drift/access.md)
+### access (+13) — [evidence](drift/access.md)
 
-- [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
-- [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
-- [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
+- [ ] [contract] /portal/wallet-passes (router.py:306-320) not in contract; getWalletPass (openapi-money.yaml:4875) still declared, no route, missing from README:247-248 unbuilt list
+- [ ] [contract] GET /clients/{id}/access-mode (router.py:176-178) not in contract; README:58 names only the PUT
+- [ ] [contract] setClientAccessMode x-permission access.rule.manage (:4771) vs access.client.set_access_mode (README:58, router.py:181)
+- [ ] [contract] checkOut x-permission access.checkin.create (:4535) vs access.checkin.check_out (README:101, router.py:218,238)
+- [ ] [contract] createCheckInAttendance x-permission access.checkin.create (:4523) vs scheduling.enrollment.create (README:94, router.py:219,245)
+- [ ] [contract] listKioskDevices x-permission access.kiosk.manage (:4205) vs access.kiosk.launch (router.py:121-123)
+- [ ] [undocumented] handlers.py:13-15 clients.client.disabled revokes wallet passes; not in README:159-169 or :174
+- [ ] [undocumented] access.check_in.session_booked (events.py:29-32, desk.py:224) not in README:93-98 or the README:134-135 event list
+- [ ] [undocumented] code email skips clients with no email or refused by evaluation (building.py:264-269); README:206-207 says every registered client gets it
+- [ ] [undocumented] audit actions access.door.verify (every keypad attempt), access.door.member_unlock, access.entry_code.issue/revoke (building.py:313,329,428,513) not in README:200-203; none registered in permissions.py
+- [ ] [undocumented] override cleared with is_on null, reason optional (schemas.py:579-582, building.py:609-610); README:226 silent
+- [ ] [undocumented] GET /building-status also returns door states and adapter name (building.py:707-709); README:228 zones only
+- [ ] [wording] README:183-184 "every command fails and is surfaced" with adapter none; push/revoke/retry silently skip via current() (building.py:286-288,333-334,632-634)
 
 ### platform (+3) — [evidence](drift/platform.md)
 
