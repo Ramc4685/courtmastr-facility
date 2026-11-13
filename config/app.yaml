@@ -69,6 +69,9 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     oidc:             {limit: 20, window_sec: 300,  closed: true}   # OIDC authorize and callback, per IP
     refresh:          {limit: 60, window_sec: 60}                   # mobile token rotation, per IP
     support-request:  {limit: 10, window_sec: 3600}                 # support requests and screenshots, per staff user
+    public-form:      {limit: 60, window_sec: 60}                   # public event form and header image, per IP
+    public-form-submit: {limit: 5, window_sec: 900, closed: true}   # anonymous form registrations, per IP
+    public-form-email:  {limit: 5, window_sec: 3600, closed: true}  # anonymous registrations, per contact address
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months

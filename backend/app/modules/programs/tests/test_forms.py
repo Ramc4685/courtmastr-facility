@@ -142,7 +142,11 @@ def test_anonymous_free_registration_with_stock_and_dependencies(client, owner, 
                                                {"item_key": "size_note", "text_value": "Kid"}])  # fmt: skip
     assert code(sold) == (409, "sold-out") and sold.json()["detail"] == "No small left"
     # the dependent question is skipped when its choice is not picked
-    ok(submit(client, tenant, form["id"], [{"item_key": "shirt", "choice_keys": ["m"]}]))
+    ok(
+        submit(
+            client, tenant, form["id"], [{"item_key": "shirt", "choice_keys": ["m"]}], contact_email="kim@example.com"
+        )
+    )
     public = ok(client.get(f"{API}/public/forms/{form['id']}", headers={"X-Tenant-Slug": tenant.slug}), 200)
     assert public["items"][1]["choices"][0]["sold_out"]
     limit = client.put(f"{API}/forms/{form['id']}/inventory", headers=owner,
@@ -152,13 +156,13 @@ def test_anonymous_free_registration_with_stock_and_dependencies(client, owner, 
                          json={"items": [{"item_key": "note", "limit_count": 3}]})  # fmt: skip
     assert code(unknown)[0] == 422
     kept = ok(client.put(f"{API}/forms/{form['id']}/inventory", headers=owner, json={"items": []}), 200)
-    assert kept[0]["is_enabled"] is False  # a cap that sold stays, switched off
+    assert kept[0]["is_enabled"] is True  # the published version still sells it, so the cap stays as it was
 
 
 def test_capacity_wait_list_promote_and_cancel(client, owner, tenant, f):
     form = new_form(client, owner, f, capacity=1, has_waitlist=True, items=[NOTE])
     one = ok(submit(client, tenant, form["id"], []))
-    two = ok(submit(client, tenant, form["id"], [], contact_name="Sam"))
+    two = ok(submit(client, tenant, form["id"], [], contact_name="Sam", contact_email="sam@example.com"))
     assert (one["status"], two["status"]) == ("confirmed", "waitlisted")
     assert ok(client.get(f"{API}/forms/{form['id']}", headers=owner), 200)["effective_state"] == "full_waitlist"
     subs = ok(client.get(f"{API}/form-submissions?form_id={form['id']}&sort=confirmation_no", headers=owner), 200)
@@ -213,6 +217,19 @@ def test_portal_paid_registration_pays_now_with_a_coupon(client, owner, tenant, 
     assert paid["status"] == "confirmed" and paid["total_minor"] == 2500
     invoices = ok(client.get(f"{API}/invoices?bill_to_client_id={person['id']}", headers=owner), 200)["data"]
     assert len(invoices) == 1 and invoices[0]["balance_minor"] == 0
+    mine = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"][0]
+    assert mine["contact_name"] == f"{person['first_name']} {person['last_name']}"  # the record, not "Pat"
+    assert mine["contact_email"] != "pat@example.com"  # the signed-in identity's own address
+    from uuid import UUID
+
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules.programs import subject
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        exported = subject._export(session, UUID(person["id"]))["form_submissions"][0]
+    assert {a["item_key"] for a in exported["answers"]} == {"tickets", "meal"}
+    assert all(a["label"] for a in exported["answers"])
     stranger = people(client, owner, f, 1)[0]
     assert client.post(url, headers=keyed(portal), json=body | {"registrant_client_id": stranger}).status_code == 404
     assert client.post(url, headers=keyed(owner), json=body).status_code == 404  # staff are not registrants
@@ -234,7 +251,16 @@ def test_staff_edit_export_and_summaries(client, owner, tenant, f):
     form = new_form(client, owner, f)
     ok(submit(client, tenant, form["id"], [{"item_key": "shirt", "choice_keys": ["s"]},
                                            {"item_key": "note", "text_value": "Hi"}], contact_name="=cmd()"))  # fmt: skip
-    ok(submit(client, tenant, form["id"], [{"item_key": "shirt", "choice_keys": ["m"]}], contact_name="Sam"))
+    ok(
+        submit(
+            client,
+            tenant,
+            form["id"],
+            [{"item_key": "shirt", "choice_keys": ["m"]}],
+            contact_name="Sam",
+            contact_email="sam@example.com",
+        )
+    )
     found = ok(client.get(f"{API}/form-submissions?q=sam", headers=owner), 200)["data"]
     assert [s["contact_name"] for s in found] == ["Sam"]
     sub = found[0]
@@ -295,3 +321,105 @@ def test_effective_state_rules():
     assert forms.is_free({"items": [SHIRT]}) and not forms.is_free(
         {"items": [SHIRT | {"choices": [{"key": "a", "text": "A", "price_minor": 1}]}]}
     )
+
+
+# --- review fixes: stale reads, stock drift, kept caps, publish, duplicates, rate limits, export, retention ----
+
+
+def test_promote_and_cancel_re_read_the_row_under_the_lock(client, owner, tenant, f):
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.core.errors import Conflict
+    from app.modules.programs.models import FormSubmission
+
+    form = new_form(client, owner, f, capacity=1, has_waitlist=True, items=[NOTE])
+    ok(submit(client, tenant, form["id"], []))
+    ok(submit(client, tenant, form["id"], [], contact_email="sam@example.com"))
+    ok(client.patch(f"{API}/forms/{form['id']}", headers=owner, json={"capacity": 5}), 200)
+    first, waiting = ok(client.get(f"{API}/form-submissions?form_id={form['id']}&sort=confirmation_no",
+                                   headers=owner), 200)["data"]  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        stale = [session.get(FormSubmission, row["id"]) for row in (first, waiting)]  # loaded before the race
+        assert [row.status for row in stale] == ["confirmed", "waitlisted"]
+        # Another request wins both races after this session read the rows.
+        ok(client.post(f"{API}/form-submissions/{waiting['id']}/promote", headers=owner), 200)
+        ok(client.post(f"{API}/form-submissions/{first['id']}/cancel", headers=owner, json={}), 200)
+        with pytest.raises(Conflict) as promoted:
+            forms.promote_submission(session, system_principal("tests"), waiting["id"])
+        with pytest.raises(Conflict) as cancelled:
+            forms.cancel_submission(session, system_principal("tests"), first["id"], {})
+        assert (promoted.value.code, cancelled.value.code) == ("not-waitlisted", "already-cancelled")
+    assert ok(client.get(f"{API}/forms/{form['id']}", headers=owner), 200)["submitted_count"] == 1
+
+
+def test_stock_returns_only_what_was_taken_and_caps_seed_from_sales(client, owner, tenant, f):
+    form = new_form(client, owner, f, items=[SHIRT])
+    inv = f"{API}/forms/{form['id']}/inventory"
+    small = [{"item_key": "shirt", "choice_keys": ["s"]}]
+
+    def sold() -> int:
+        return {r["item_key"]: r["sold_count"] for r in ok(client.get(inv, headers=owner), 200)}["shirt.s"]
+
+    ok(submit(client, tenant, form["id"], small, contact_email="a@example.com"))  # before any cap
+    ok(client.put(inv, headers=owner, json={"items": [{"item_key": "shirt.s", "limit_count": 5}]}), 200)
+    assert sold() == 1  # a new cap counts what is already sold
+    ok(submit(client, tenant, form["id"], small, contact_email="b@example.com"))
+    ok(client.put(inv, headers=owner, json={"items": [{"item_key": "shirt.s", "limit_count": 5, "is_enabled": False}]}),
+       200)  # fmt: skip
+    ok(submit(client, tenant, form["id"], small, contact_email="c@example.com"))  # not counted while off
+    ok(client.put(inv, headers=owner, json={"items": [{"item_key": "shirt.s", "limit_count": 5}]}), 200)
+    assert sold() == 3  # switched back on: recounted from the confirmed answers
+    low = client.put(inv, headers=owner, json={"items": [{"item_key": "shirt.s", "limit_count": 2}]})
+    assert code(low) == (409, "limit-below-sold")
+    subs = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"]
+    for row in subs:
+        ok(client.post(f"{API}/form-submissions/{row['id']}/cancel", headers=owner, json={}), 200)
+    assert sold() == 0
+
+
+def test_published_caps_stay_and_publish_keeps_a_closed_form_closed(client, owner, tenant, f):
+    form = new_form(client, owner, f, items=[SHIRT, NOTE])
+    inv = f"{API}/forms/{form['id']}/inventory"
+    ok(client.put(inv, headers=owner, json={"items": [{"item_key": "shirt.s", "limit_count": 5}]}), 200)
+    ok(client.put(f"{API}/forms/{form['id']}/draft", headers=owner, json={"items": [NOTE]}), 200)
+    kept = ok(client.put(inv, headers=owner, json={"items": []}), 200)
+    assert [r["item_key"] for r in kept] == ["shirt.s"]  # the live version still sells it
+    ok(client.post(f"{API}/forms/{form['id']}/close", headers=owner), 200)
+    again = ok(client.post(f"{API}/forms/{form['id']}/publish", headers=owner), 200)
+    assert again["status"] == "closed"
+
+
+def test_one_live_anonymous_registration_per_address_and_rate_limits(client, owner, tenant, f, monkeypatch):
+    from app.core.settings import get_settings
+
+    form = new_form(client, owner, f, items=[NOTE])
+    ok(submit(client, tenant, form["id"], [], contact_email="Pat@Example.com"))
+    assert code(submit(client, tenant, form["id"], [])) == (409, "already-registered")
+    first = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"][0]
+    ok(client.post(f"{API}/form-submissions/{first['id']}/cancel", headers=owner, json={}), 200)
+    ok(submit(client, tenant, form["id"], []))  # cancelled ones do not count
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    for bucket, limit in (("public-form-submit", 1000), ("public-form-email", 1)):
+        monkeypatch.setitem(cfg.buckets, bucket, cfg.buckets[bucket].model_copy(update={"limit": limit}))
+    other = new_form(client, owner, f, items=[NOTE])
+    ok(submit(client, tenant, other["id"], [], contact_email="lee@example.com"))
+    assert code(submit(client, tenant, form["id"], [], contact_email="LEE@example.com")) == (429, "rate-limited")
+    rows = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"]
+    assert len(rows) == 2  # the refused registration was rolled back with its mail
+
+
+def test_export_refuses_more_than_the_cap_and_anonymous_rows_age_out(client, owner, tenant, f, monkeypatch):
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+
+    form = new_form(client, owner, f, items=[NOTE], event_starts_on="2020-01-01")
+    ok(submit(client, tenant, form["id"], [{"item_key": "note", "text_value": "hi"}]))
+    monkeypatch.setattr(forms, "EXPORT_MAX_ROWS", 0)
+    assert code(client.post(f"{API}/forms/{form['id']}/exports", headers=keyed(owner))) == (409, "export-too-large")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert forms.purge_anonymous(session) == 1
+        assert forms.purge_anonymous(session) == 0  # idempotent
+    row = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"][0]
+    assert (row["contact_name"], row["contact_email"]) == ("Erased", forms.ERASED_EMAIL)

@@ -45615,6 +45615,7 @@
       },
       "PortalFormSubmissionCreate": {
         "additionalProperties": false,
+        "description": "contact_name and contact_email are ignored when signed in: the registrant's name and the identity's email.",
         "properties": {
           "answers": {
             "default": [],
@@ -45626,17 +45627,31 @@
             "type": "array"
           },
           "contact_email": {
-            "maxLength": 320,
-            "minLength": 3,
-            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
-            "title": "Contact Email",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "minLength": 3,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
           },
           "contact_name": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Contact Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
           },
           "contact_phone": {
             "anyOf": [
@@ -45698,8 +45713,6 @@
           }
         },
         "required": [
-          "contact_name",
-          "contact_email",
           "form_id",
           "registrant_client_id"
         ],
@@ -100900,7 +100913,7 @@
     },
     "/api/v1/forms/{form_id}/exports": {
       "post": {
-        "description": "Every registration as CSV, one column per question (REG-21).",
+        "description": "Every registration as CSV, one column per question (REG-21). Errors: export-too-large (over 10,000).",
         "operationId": "exportFormSubmissions",
         "parameters": [
           {
@@ -130858,7 +130871,7 @@
     },
     "/api/v1/public/forms/{form_id}/submissions": {
       "post": {
-        "description": "Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out.",
+        "description": "Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out,\nalready-registered (a live registration for this address), rate-limited.",
         "operationId": "createPublicFormSubmission",
         "parameters": [
           {

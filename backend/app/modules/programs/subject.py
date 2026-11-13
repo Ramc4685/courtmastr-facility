@@ -10,12 +10,13 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
-from app.modules.programs import groups, service
+from app.modules.programs import forms, groups, service
 from app.modules.programs.models import (
     Attendance,
     Enrollment,
     FormAnswer,
     FormSubmission,
+    FormVersion,
     RegistrationCheckout,
     WaitlistEntry,
 )
@@ -68,17 +69,24 @@ def _export(session: Session, client_id: UUID) -> dict:
             for r in rows
         ],
         "attendance": [{"session_id": str(r.session_id), "status": r.status} for r in marks],
-        "form_submissions": [
-            {"form_id": str(r.form_id), "confirmation_no": r.confirmation_no, "status": r.status,
-             "contact_name": r.contact_name, "contact_email": r.contact_email, "contact_phone": r.contact_phone,
-             "submitted_at": r.submitted_at.isoformat()}
-            for r in session.scalars(_submissions(client_id))
-        ],
+        "form_submissions": [_submission_export(session, r) for r in session.scalars(_submissions(client_id))],
         "waitlist": [
             {"session_id": r.session_id and str(r.session_id), "program_group_id": r.program_group_id and str(r.program_group_id),
              "status": r.status, "queued_at": r.queued_at.isoformat()}
             for r in queue
         ],
+    }  # fmt: skip
+
+
+def _submission_export(session: Session, r: FormSubmission) -> dict:
+    schema = session.get(FormVersion, r.form_version_id).schema
+    answers = session.scalars(select(FormAnswer).where(FormAnswer.form_submission_id == r.id).order_by(FormAnswer.id))
+    return {
+        "form_id": str(r.form_id), "confirmation_no": r.confirmation_no, "status": r.status,
+        "contact_name": r.contact_name, "contact_email": r.contact_email, "contact_phone": r.contact_phone,
+        "submitted_at": r.submitted_at.isoformat(),
+        "answers": [{"item_key": a.item_key, "label": forms._label(schema, a.item_key, a.choice_key),
+                     "text_value": a.text_value, "quantity": a.quantity} for a in answers],
     }  # fmt: skip
 
 
@@ -98,7 +106,7 @@ def _erase(session: Session, client_id: UUID) -> dict:
     if ids:
         session.execute(
             update(FormSubmission).where(FormSubmission.id.in_(ids))
-            .values(contact_name="Erased", contact_email="erased@invalid.example", contact_phone=None)
+            .values(contact_name="Erased", contact_email=forms.ERASED_EMAIL, contact_phone=None)
         )  # fmt: skip
         session.execute(update(FormAnswer).where(FormAnswer.form_submission_id.in_(ids)).values(text_value=None))
     return {"retained_enrollments": kept, "removed_waitlist_entries": left, "erased_form_submissions": len(ids)}
@@ -107,3 +115,5 @@ def _erase(session: Session, client_id: UUID) -> dict:
 _TABLES = ("enrollment", "attendance", "waitlist_entry", "registration_checkout", "form_submission")
 clients.merge.register_merge_handler("programs", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("programs", tables=_TABLES, export=_export, erase=_erase)
+# Anonymous public-link registrations have no client to request against: they age out instead (README).
+platform.retention.register_purge("programs_anonymous_form_submissions", forms.purge_anonymous)

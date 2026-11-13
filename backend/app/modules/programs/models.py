@@ -708,7 +708,10 @@ class FormSubmission(TenantOwned, Timestamps, Base):
         CheckConstraint("(status = 'cancelled') = (cancelled_at IS NOT NULL)", name="cancel"),
         CheckConstraint("total_minor >= 0", name="total"),
         Index("ix_form_submission_form", "tenant_id", "form_id", "status", "id"),
-    )
+        # One live anonymous registration per address per form: the public link cannot drain places in bulk.
+        Index("uq_form_submission_public_email", "tenant_id", "form_id", text("lower(contact_email)"), unique=True,
+              postgresql_where=text("status <> 'cancelled' AND channel = 'public_link'")),
+    )  # fmt: skip
 
     form_id: Mapped[UUID]
     form_version_id: Mapped[UUID]
@@ -754,3 +757,4 @@ class FormAnswer(TenantOwned, Timestamps, Base):
     unit_price_minor: Mapped[int | None] = mapped_column(BigInteger)
     amount_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     charge_id: Mapped[UUID | None]
+    stock_taken: Mapped[bool] = mapped_column(server_default=text("false"))  # returned on cancel only when taken

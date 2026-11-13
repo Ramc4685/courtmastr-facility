@@ -107,10 +107,40 @@ Assumptions (chip A):
   replayed CSV body cannot be stored as JSON. A cell that starts with `=`, `+`, `-` or `@` gets an apostrophe
   prefix against formula injection.
 - **Summaries (REG-22):** the form is loaded before the summary key is checked, so an unknown key on a form
-  you can see is 422, and a form you cannot see is 404.
+  you can see is 422, and a form you cannot see is 404. Counts and sums are grouped in SQL. The demographic
+  summary still reads each distinct registrant once, because clients has no batch reader.
+- **Anonymous abuse limits:** the submit POST has its own closed bucket, `public-form-submit` (5 per 15
+  minutes per IP), and a second bucket keyed on the lowercased contact address, `public-form-email` (5 per
+  hour). The form GET and header image use `public-form` (60 per minute). Each form holds one live anonymous
+  registration per address (`already-registered`), enforced by the partial unique index
+  `uq_form_submission_public_email`. Portal registrations are exempt, because a parent may register several
+  children.
+- **Confirmation mail:** an anonymous confirmation greets "there", never the typed name. A portal
+  registration takes the signed-in identity's email and the registrant's name from their record; the
+  submitted contact fields are ignored.
+- **Stock:** each answer records `stock_taken`, and cancelling returns only that stock. A cap that is added or
+  switched back on recounts the confirmed answers it covers. A cap the published version still sells is
+  never dropped by an inventory update, even while the draft no longer has the question.
+- **Publish:** only a draft form opens on publish. A closed form stays closed when a new version is
+  published.
+- **Data subject requests and retention:** a client's export lists each registration with its answers
+  (item, label and text). Anonymous `public_link` registrations have no client, so no request reaches them.
+  Instead they are anonymised (contact details and typed answers) 365 days after the event, or after the
+  submission when the form has no event date (`purge_anonymous`, registered with
+  `platform.retention.register_purge`). Matching them by email at erasure time is not possible, because the
+  clients handler wipes the email before programs runs. The 365 days is a module constant
+  (`ANONYMOUS_RETENTION_DAYS`) until the core settings get a key for it.
+- **Export:** a form with more than 10,000 registrations is refused with `export-too-large` rather than cut
+  short; use a report.
 
 ## Not built
 
 Virtual meeting links (CLS-08) and captain rosters (REG-26). From chip A: bulk resend of confirmations,
 a portal list of open forms (members reach a form by its link), and saved cards at form checkout (a new card
 only).
+
+**Known gap, owner decision pending:** an anonymous public-form registration is not confirmed by the address
+owner. Anyone can register someone else's email (squatting a one-per-email place), and the duplicate-email
+reply tells a visitor that an address is already registered. The fix is either double opt-in (the place is
+held until a link in the confirmation mail is clicked) or a generic reply that never says whether an address
+exists. Neither is built in phase 14; the owner picks one.

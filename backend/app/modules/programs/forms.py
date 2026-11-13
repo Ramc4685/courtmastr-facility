@@ -16,11 +16,11 @@ Rules:
 import csv
 import io
 from collections import Counter, defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import false, func, select
+from sqlalchemy import false, func, select, update
 from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, events
@@ -28,6 +28,7 @@ from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query, system_principal
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings
 from app.modules import billing, clients, platform
 from app.modules.platform import files
 from app.modules.programs import events as ev
@@ -40,6 +41,8 @@ SUMMARY, REVERSE = "reporting.program.run", "billing.charge.reverse"
 SUBMIT = "programs.form_submission.submit"
 HEADER, HEADER_MAX_BYTES = "form_header", 900_000  # inside the 1 MiB body cap, so no upload-path exception
 EXPORT_MAX_ROWS = 10_000
+ERASED_EMAIL = "erased@invalid.example"
+ANONYMOUS_RETENTION_DAYS = 365  # after the event: anonymous registrations lose their contact details
 CHOICE_TYPES = ("drop_down", "radio", "checkbox")
 SUMMARY_KEYS = ("registrant", "revenue", "demographic", "answer")
 _SETTINGS = (
@@ -47,7 +50,8 @@ _SETTINGS = (
     "is_template", "revenue_category_id", "allows_coupons", "has_waitlist", "capacity",
 )  # fmt: skip
 _NOT_NULL = ("name", "is_template", "allows_coupons", "has_waitlist")
-CONSTRAINT_CODES.update({"ck_form_capacity": "form-full", "ck_form_inventory_sold": "sold-out"})
+CONSTRAINT_CODES.update({"ck_form_capacity": "form-full", "ck_form_inventory_sold": "sold-out",
+                         "uq_form_submission_public_email": "already-registered"})  # fmt: skip
 notifications.register_template(
     "programs.form_confirmation",
     subject="Registration received: $event",
@@ -225,7 +229,7 @@ def list_forms(session: Db, principal: Principal, query: ListQuery) -> dict:
     stmt = select(f).where(false()) if _own_only(principal, MANAGE) else select(f)
     page = paginate(
         session, scope_query(stmt, principal, f.location_id), query, id_column=f.id,
-        sort_fields={"name": f.name, "created_at": f.created_at, "event_starts_on": f.event_starts_on},
+        sort_fields={"name": f.name, "created_at": f.created_at},  # event_starts_on is nullable: no keyset
         default_sort="-created_at",
         filter_fields={"location_id": f.location_id, "status": f.status, "is_template": f.is_template},
         search=(f.name, f.event_name),
@@ -315,10 +319,12 @@ def publish_form(session: Db, principal: Principal, form_id: UUID) -> dict:
         clock.now(),
         principal.staff_user_id,
     )
-    before, form.status = form.status, "open"
+    before = form.status
+    if before == "draft":  # a closed form stays closed: publishing new questions does not reopen it
+        form.status = "open"
     session.flush()
     audit.record(session, MANAGE, form, location_id=form.location_id,
-                 changes={"status": [before, "open"], "published_version": [None, draft.version_no]})  # fmt: skip
+                 changes={"status": [before, form.status], "published_version": [None, draft.version_no]})  # fmt: skip
     return form_detail(session, form)
 
 
@@ -399,7 +405,9 @@ def put_inventory(session: Db, principal: Principal, form_id: UUID, items: list[
     form = _form(session, principal, form_id, MANAGE, lock=True)
     latest = _latest(session, form)
     schema = latest.schema if latest is not None else {}
-    allowed = _stock_keys(schema)
+    published = _version(session, form.id, "published")
+    in_use = _stock_keys(published.schema) if published is not None else set()
+    allowed = _stock_keys(schema) | in_use
     given = {item["item_key"]: item for item in items}
     for index, key in enumerate(given):
         if key not in allowed:
@@ -407,14 +415,19 @@ def put_inventory(session: Db, principal: Principal, form_id: UUID, items: list[
     existing = {row.item_key: row for row in _caps(session, form.id)}
     for key, item in given.items():
         row = existing.pop(key, None)
+        counting = row is not None and row.is_enabled
         if row is None:
-            row = FormInventory(form_id=form.id, item_key=key)
+            row = FormInventory(form_id=form.id, item_key=key, sold_count=0)
             session.add(row)
-        elif item["limit_count"] < row.sold_count:
-            raise Conflict(f"{key} already sold {row.sold_count}.", code="limit-below-sold", item_key=key)
         for field in ("limit_count", "is_enabled", "sold_out_memo", "shows_count_publicly"):
             setattr(row, field, item.get(field))
-    for row in existing.values():
+        if row.is_enabled and not counting:  # a new or re-enabled cap starts from what is already sold
+            _seed_cap(session, form.id, row)
+        if row.limit_count < row.sold_count:
+            raise Conflict(f"{key} already sold {row.sold_count}.", code="limit-below-sold", item_key=key)
+    for key, row in existing.items():
+        if key in in_use:  # the live form still sells it: never drop it behind the registrants' backs
+            continue
         if row.sold_count:
             row.is_enabled = False
         else:
@@ -424,15 +437,35 @@ def put_inventory(session: Db, principal: Principal, form_id: UUID, items: list[
     return [_inventory_view(schema, row) for row in _caps(session, form.id)]
 
 
-def _take_stock(session: Db, form: EventForm, rows: list[dict]) -> None:
+def _stock_key(item_key: str, choice_key: str | None) -> str:
+    return f"{item_key}.{choice_key}" if choice_key else item_key
+
+
+def _seed_cap(session: Db, form_id: UUID, cap: FormInventory) -> None:
+    """Count the confirmed answers a new or re-enabled cap covers, and mark them as holding its stock."""
+    item_key, _, choice_key = cap.item_key.partition(".")
+    a = FormAnswer
+    stmt = (
+        select(a).join(FormSubmission, FormSubmission.id == a.form_submission_id)
+        .where(a.form_id == form_id, a.item_key == item_key, FormSubmission.status == "confirmed")
+        .where(a.choice_key == choice_key if choice_key else a.choice_key.is_(None))
+    )  # fmt: skip
+    answers = session.scalars(stmt).all()
+    for answer in answers:
+        answer.stock_taken = True
+    cap.sold_count = sum(1 if choice_key else (answer.quantity or 0) for answer in answers)
+
+
+def _take_stock(session: Db, form: EventForm, rows: list[dict]) -> set[str]:
+    """Take stock on every enabled cap the rows need; returns the stock keys taken (record them as stock_taken)."""
     needs: Counter[str] = Counter()
     for row in rows:
         if row.get("choice_key"):
-            needs[f"{row['item_key']}.{row['choice_key']}"] += 1
+            needs[_stock_key(row["item_key"], row["choice_key"])] += 1
         elif row.get("quantity"):
             needs[row["item_key"]] += row["quantity"]
     if not needs:
-        return
+        return set()
     caps = session.scalars(
         select(FormInventory)
         .where(FormInventory.form_id == form.id, FormInventory.item_key.in_(needs))
@@ -440,17 +473,24 @@ def _take_stock(session: Db, form: EventForm, rows: list[dict]) -> None:
         .with_for_update()
         .execution_options(populate_existing=True)
     ).all()
+    taken = set()
     for cap in caps:
         if cap.is_enabled and cap.sold_count + needs[cap.item_key] > cap.limit_count:
             raise Conflict(cap.sold_out_memo or "That option is sold out.", code="sold-out", item_key=cap.item_key)
         if cap.is_enabled:
             cap.sold_count += needs[cap.item_key]
+            taken.add(cap.item_key)
     session.flush()
+    return taken
 
 
 def _return_stock(session: Db, submission: FormSubmission) -> None:
-    for answer in session.scalars(select(FormAnswer).where(FormAnswer.form_submission_id == submission.id)):
-        key = f"{answer.item_key}.{answer.choice_key}" if answer.choice_key else answer.item_key
+    """Give back only the stock the answers took (a cap added or switched on later never counted them)."""
+    answers = session.scalars(
+        select(FormAnswer).where(FormAnswer.form_submission_id == submission.id, FormAnswer.stock_taken)
+    ).all()
+    for answer in answers:
+        key = _stock_key(answer.item_key, answer.choice_key)
         amount = 1 if answer.choice_key else (answer.quantity or 0)
         cap = session.scalar(
             select(FormInventory)
@@ -459,6 +499,7 @@ def _return_stock(session: Db, submission: FormSubmission) -> None:
         )
         if cap is not None and amount:
             cap.sold_count = max(cap.sold_count - amount, 0)
+        answer.stock_taken = False
     session.flush()
 
 
@@ -544,7 +585,9 @@ def _submit(
         session, form.location_id))  # fmt: skip
     status = "waitlisted" if state == "full_waitlist" else "confirmed"
     if status == "confirmed":
-        _take_stock(session, form, rows)
+        taken = _take_stock(session, form, rows)
+        for row in rows:
+            row["stock_taken"] = _stock_key(row["item_key"], row.get("choice_key")) in taken
         form.submitted_count += 1
     submission = FormSubmission(
         form_id=form.id, form_version_id=version.id, location_id=form.location_id,
@@ -626,6 +669,12 @@ def portal_submit(session: Db, principal: Principal, data: dict, idempotency_key
                                                  "buy") is None:  # fmt: skip
         raise NotFound()
     clients.service.require_active(session, data["registrant_client_id"], pointer="/registrant_client_id")
+    # The signed-in identity's own address and the registrant's record, not free text (REG-23).
+    data["contact_email"] = principal.email or data.get("contact_email")
+    data["contact_name"] = clients.service.display_names(session, [data["registrant_client_id"]])[
+        data["registrant_client_id"]]  # fmt: skip
+    if not data["contact_email"]:
+        raise ValidationFailed("Give an email address for the confirmation.", pointer="/contact_email")
     form, version = _public_form(session, data["form_id"], lock=True)
     if data.get("coupon_code") and not form.allows_coupons:
         raise ValidationFailed("This form takes no coupons.", pointer="/coupon_code", code="coupon-not-allowed")
@@ -818,11 +867,14 @@ def promote_submission(session: Db, principal: Principal, submission_id: UUID) -
     client on an invoice left open on account."""
     row = _submission(session, principal, submission_id, UPDATE)
     form = _lock_form(session, row.form_id)
+    session.refresh(row, with_for_update=True)  # re-read under the lock; a concurrent promote may have won
     if row.status != "waitlisted":
         raise Conflict("Only a wait-listed registration can be promoted.", code="not-waitlisted")
     answers = list(session.scalars(select(FormAnswer).where(FormAnswer.form_submission_id == row.id)))
-    _take_stock(session, form, [{"item_key": a.item_key, "choice_key": a.choice_key, "quantity": a.quantity}
-                                for a in answers])  # fmt: skip
+    taken = _take_stock(session, form, [{"item_key": a.item_key, "choice_key": a.choice_key, "quantity": a.quantity}
+                                        for a in answers])  # fmt: skip
+    for a in answers:
+        a.stock_taken = _stock_key(a.item_key, a.choice_key) in taken
     form.submitted_count += 1
     row.status = "confirmed"
     session.flush()  # ck_form_capacity
@@ -856,10 +908,13 @@ def export_submissions(session: Db, principal: Principal, form_id: UUID) -> tupl
     for version in versions:
         for q in questions(version.schema):
             columns[q["key"]] = q["text"]
+    found = session.scalar(select(func.count()).select_from(FormSubmission).where(FormSubmission.form_id == form.id))
+    if (found or 0) > EXPORT_MAX_ROWS:
+        raise Conflict(f"More than {EXPORT_MAX_ROWS} registrations; ask for a report instead.",
+                       code="export-too-large", rows=found)  # fmt: skip
     rows = session.scalars(
         select(FormSubmission).where(FormSubmission.form_id == form.id).order_by(FormSubmission.confirmation_no)
-        .limit(EXPORT_MAX_ROWS)
-    ).all()  # fmt: skip
+    ).all()
     values: dict[UUID, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     for a in session.scalars(select(FormAnswer).where(FormAnswer.form_submission_id.in_([r.id for r in rows]))):
         values[a.form_submission_id][a.item_key].append(
@@ -896,9 +951,8 @@ def summary(session: Db, principal: Principal, form_id: UUID, key: str) -> dict:
     form = _form(session, principal, form_id, SUMMARY)
     if key not in SUMMARY_KEYS:
         raise ValidationFailed(f"Choose one of {', '.join(SUMMARY_KEYS)}.", pointer="/summary_key")
-    subs = session.scalars(select(FormSubmission).where(FormSubmission.form_id == form.id)).all()
-    live = [s for s in subs if s.status != "cancelled"]
-    confirmed_ids = [s.id for s in subs if s.status == "confirmed"]
+    f, a = FormSubmission, FormAnswer
+    mine, live = f.form_id == form.id, f.status != "cancelled"
     rows: list[dict] = []
 
     def add(group: str, counts: Counter, amounts: dict | None = None) -> None:
@@ -906,32 +960,65 @@ def summary(session: Db, principal: Principal, form_id: UUID, key: str) -> dict:
             rows.append({"group": group, "label": label, "count": count,
                          "amount_minor": amounts.get(label) if amounts is not None else None})  # fmt: skip
 
+    def grouped(column, *where) -> Counter:
+        return Counter(dict(session.execute(select(column, func.count()).where(mine, *where).group_by(column)).all()))
+
     if key == "registrant":
-        zone = _zone(session, form)
-        add("status", Counter(s.status for s in subs))
-        add("channel", Counter(s.channel for s in live))
-        add("day", Counter(s.submitted_at.astimezone(zone).date().isoformat() for s in live))
+        day = func.date(func.timezone(_zone(session, form).key, f.submitted_at))
+        add("status", grouped(f.status))
+        add("channel", grouped(f.channel, live))
+        add("day", Counter({d.isoformat(): n for d, n in grouped(day, live).items()}))
     elif key == "demographic":
         today = platform.service.location_today(session, form.location_id)
-        people = [
-            clients.service.get(session, s.registrant_client_id) if s.registrant_client_id else None for s in live
-        ]
-        add("gender", Counter((p.gender or "unknown") if p else "unknown" for p in people))
-        add("age", Counter(_age_band(p.birth_on, today) if p else "unknown" for p in people))
+        gender: Counter = Counter()
+        age: Counter = Counter()
+        # shortcut: one clients read per distinct registrant (clients has no batch reader); add one if forms grow.
+        for client_id, n in grouped(f.registrant_client_id, live).items():
+            p = clients.service.get(session, client_id) if client_id else None
+            gender[(p.gender or "unknown") if p else "unknown"] += n
+            age[_age_band(p.birth_on, today) if p else "unknown"] += n
+        add("gender", gender)
+        add("age", age)
     else:
         latest = _latest(session, form)
         schema = latest.schema if latest is not None else {}
-        answers = session.scalars(select(FormAnswer).where(FormAnswer.form_submission_id.in_(confirmed_ids))).all()
+        weight = func.sum(func.coalesce(a.quantity, 1)) if key == "revenue" else func.count()
+        stmt = (
+            select(a.item_key, a.choice_key, weight, func.coalesce(func.sum(a.amount_minor), 0))
+            .join(f, f.id == a.form_submission_id).where(mine, f.status == "confirmed")
+            .group_by(a.item_key, a.choice_key)
+        )  # fmt: skip
+        if key == "revenue":
+            stmt = stmt.where(a.amount_minor > 0)
         counts: Counter = Counter()
         amounts: dict[str, int] = defaultdict(int)
-        for a in answers:
-            if key == "revenue" and a.amount_minor <= 0:
-                continue
-            label = _label(schema, a.item_key, a.choice_key)
-            counts[label] += a.quantity or 1 if key == "revenue" else 1
-            amounts[label] += a.amount_minor
+        for item_key, choice_key, count, amount in session.execute(stmt):
+            label = _label(schema, item_key, choice_key)
+            counts[label] += count
+            amounts[label] += amount
         add("item" if key == "revenue" else "answer", counts, dict(amounts) if key == "revenue" else None)
         if key == "revenue":
-            rows.append({"group": "total", "label": "Total", "count": len(confirmed_ids),
+            confirmed = session.scalar(select(func.count()).select_from(f).where(mine, f.status == "confirmed"))
+            rows.append({"group": "total", "label": "Total", "count": confirmed,
                          "amount_minor": sum(amounts.values())})  # fmt: skip
     return {"summary_key": key, "rows": rows}
+
+
+def purge_anonymous(session: Db) -> int:
+    """Retention hook (platform.retention.register_purge): anonymous registrations have no client, so no data
+    subject request reaches them; their contact details and typed answers go ANONYMOUS_RETENTION_DAYS after the
+    event (or after the submission when the form has no event date). Counts and money stay."""
+    f = FormSubmission
+    before = (clock.now() - timedelta(days=ANONYMOUS_RETENTION_DAYS)).date()
+    ended = func.coalesce(EventForm.event_ends_on, EventForm.event_starts_on, func.date(f.submitted_at))
+    ids = list(session.scalars(
+        select(f.id).join(EventForm, EventForm.id == f.form_id)
+        .where(f.account_client_id.is_(None), f.registrant_client_id.is_(None), f.contact_email != ERASED_EMAIL,
+               ended < before)
+        .limit(get_settings().retention.batch_rows)
+    ))  # fmt: skip
+    if ids:
+        session.execute(update(f).where(f.id.in_(ids)).values(
+            contact_name="Erased", contact_email=ERASED_EMAIL, contact_phone=None))  # fmt: skip
+        session.execute(update(FormAnswer).where(FormAnswer.form_submission_id.in_(ids)).values(text_value=None))
+    return len(ids)

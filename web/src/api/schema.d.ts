@@ -5100,7 +5100,7 @@ export interface paths {
         put?: never;
         /**
          * Export Form Submissions
-         * @description Every registration as CSV, one column per question (REG-21).
+         * @description Every registration as CSV, one column per question (REG-21). Errors: export-too-large (over 10,000).
          */
         post: operations["exportFormSubmissions"];
         delete?: never;
@@ -11111,7 +11111,8 @@ export interface paths {
         put?: never;
         /**
          * Create Public Form Submission
-         * @description Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out.
+         * @description Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out,
+         *     already-registered (a live registration for this address), rate-limited.
          */
         post: operations["createPublicFormSubmission"];
         delete?: never;
@@ -29265,7 +29266,10 @@ export interface components {
             /** Target Kind */
             target_kind: string;
         };
-        /** PortalFormSubmissionCreate */
+        /**
+         * PortalFormSubmissionCreate
+         * @description contact_name and contact_email are ignored when signed in: the registrant's name and the identity's email.
+         */
         PortalFormSubmissionCreate: {
             /**
              * Answers
@@ -29273,9 +29277,9 @@ export interface components {
              */
             answers: components["schemas"]["FormAnswerIn"][];
             /** Contact Email */
-            contact_email: string;
+            contact_email?: string | null;
             /** Contact Name */
-            contact_name: string;
+            contact_name?: string | null;
             /** Contact Phone */
             contact_phone?: string | null;
             /** Coupon Code */
