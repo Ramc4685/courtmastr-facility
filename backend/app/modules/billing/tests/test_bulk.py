@@ -4,6 +4,7 @@ chunked job, the internal-error path and a successful email are covered."""
 
 from uuid import UUID, uuid4
 
+from app.core import idempotency
 from app.modules.billing import bulk
 from app.modules.billing.tests.test_billing import API, work
 from app.modules.billing.tests.test_surface import _bulk, item
@@ -20,6 +21,16 @@ def test_the_idempotency_key_is_required(client, shop):
     body = {"action": "create_invoices", "location_id": str(shop.location_id), "is_dry_run": True}
     refused = client.post(f"{API}/billing-bulk-actions", headers=shop.owner, json=body)
     assert refused.status_code == 422
+
+
+def test_a_request_that_loses_the_key_race_is_told_to_retry(client, shop, monkeypatch):
+    body = {"action": "create_invoices", "location_id": str(shop.location_id), "is_dry_run": True}
+    headers = shop.owner | {"Idempotency-Key": f"race-{uuid4().hex}"}
+    assert client.post(f"{API}/billing-bulk-actions", headers=headers, json=body).status_code == 202
+    monkeypatch.setattr(idempotency, "begin", lambda *_: None)  # the HTTP claim expired (24 h) or was bypassed
+    monkeypatch.setattr(bulk, "_by_key", lambda *_: None)  # and the twin committed after our replay lookup
+    lost = client.post(f"{API}/billing-bulk-actions", headers=headers, json=body)
+    assert (lost.status_code, lost.json()["code"]) == (409, "request-in-progress")
 
 
 def test_a_run_is_refused_when_its_preview_is_stale(api, shop):

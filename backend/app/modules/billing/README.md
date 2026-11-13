@@ -289,6 +289,9 @@ handlers re-read the object from the provider.
   (`(tenant_id, payment_id, idempotency_key)`) and the processor key carries the payment id. Record-only
   (`external`) refunds are written in the request (no call to make) but keep the key, so they replay too.
   `release_allocation_ids` are not part of the stored request: a replay never releases, whatever it names.
+  Two requests with one key that both miss the replay lookup (the HTTP claim has expired) meet the unique index;
+  the loser is 409 `request-in-progress` (`uq_refund_idempotency_key`, and `uq_billing_bulk_action_key` for bulk
+  actions, in `CONSTRAINT_CODES`), so it retries and replays instead of seeing a 500 or "already exists".
 - **Release-then-refund (PAY-05).** `release_allocation_ids` on `refund()` and `POST /payments/{id}/refunds`
   releases those allocations of the same payment (to credit, posted) and refunds, in one transaction and
   one audit row for the payment; the staff route also needs `billing.payment.reallocate` at the payment's

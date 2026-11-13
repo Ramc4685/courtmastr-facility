@@ -92,6 +92,9 @@ Allocations = Sequence[tuple[UUID, int]]  # (charge_id, amount_minor)
 # Autopay dunning and decline notices register here; billing.service stays below them.
 PAYMENT_HOOKS: list[Callable[[Session, Payment, str], None]] = []
 CONSTRAINT_CODES["ct_payment_schedule_balanced"] = "schedule-not-balanced"
+# Two requests with one key racing past the replay lookup: the loser is told to retry, never 500 or "already exists".
+CONSTRAINT_CODES["uq_refund_idempotency_key"] = "request-in-progress"
+CONSTRAINT_CODES["uq_billing_bulk_action_key"] = "request-in-progress"
 
 
 # === staff commands and queries ============================================================================

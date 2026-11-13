@@ -40,6 +40,10 @@ KEYS = {
 }
 
 
+def _by_key(session: Session, key: str) -> BillingBulkAction | None:
+    return session.scalar(select(BillingBulkAction).where(BillingBulkAction.idempotency_key == key))
+
+
 def create_bulk_action(session: Session, principal: Principal, data: dict, idempotency_key: str) -> BillingBulkAction:
     action, location_id = data["action"], data["location_id"]
     authorize(principal, KEYS[action], location_id=location_id)
@@ -47,7 +51,7 @@ def create_bulk_action(session: Session, principal: Principal, data: dict, idemp
     request_hash = hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
     key = service._staff_key(principal, idempotency_key)
     if key:
-        existing = session.scalar(select(BillingBulkAction).where(BillingBulkAction.idempotency_key == key))
+        existing = _by_key(session, key)
         if existing is not None:
             if existing.request_hash != request_hash:  # a key is bound to the request that first used it
                 raise Conflict("This Idempotency-Key was used for another bulk action.", code="idempotency-key-reused")

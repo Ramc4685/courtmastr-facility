@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
-from app.core import clock
+from app.core import clock, idempotency
 from app.core.errors import Conflict, ValidationFailed
 from app.modules.billing import webhooks
 from app.modules.billing.models import PaymentAllocation, Refund
@@ -95,6 +95,19 @@ def test_release_then_refund_unpays_the_item_and_refunds_in_one_command(shop):
         )  # fmt: skip
         assert replay.id == row.id and payment.unapplied_minor == 483  # nothing released or refunded twice
         assert_books_agree(session)
+
+
+def test_a_refund_that_loses_the_key_race_is_told_to_retry(client, shop, owner, monkeypatch):
+    ready(shop)
+    payment_id = _paid(shop)
+    headers, body = owner | key(), {"amount_minor": 100, "reason": "Changed plans"}
+    assert client.post(f"{API}/payments/{payment_id}/refunds", headers=headers, json=body).status_code == 201
+    monkeypatch.setattr(idempotency, "begin", lambda *_: None)  # the HTTP claim expired (24 h) or was bypassed
+    monkeypatch.setattr(svc, "_refund_by_key", lambda *_: None)  # and the twin committed after our replay lookup
+    lost = client.post(f"{API}/payments/{payment_id}/refunds", headers=headers, json=body)
+    assert (lost.status_code, lost.json()["code"]) == (409, "request-in-progress")
+    with work(shop.tenant) as session:
+        assert _provider_refunded(session, payment_id) == 100  # the loser never reached the processor
 
 
 def test_release_then_refund_of_cash_and_its_gate(client, shop, owner):
