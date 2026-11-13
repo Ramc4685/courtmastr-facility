@@ -1,6 +1,8 @@
 """Kernel hardening and the ports that ship ahead of their modules: redirect guard, emailed-link tokens in
 the URL fragment, security headers, the body-size cap, lane overrides, notifications, the fake provider."""
 
+from uuid import uuid4
+
 import pytest
 
 from app.adapters.fake_payments import FakeProvider
@@ -303,3 +305,22 @@ def test_signed_in_slug_naming_another_tenant_is_not_found(client, tenant, owner
     assert foreign.status_code == unknown.status_code == 404
     strip = lambda r: {k: v for k, v in r.json().items() if k != "trace_id"}  # noqa: E731
     assert strip(foreign) == strip(unknown) and foreign.json()["code"] == "tenant-not-found"
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "pointer"),
+    [
+        ("/relationship-types", {"name": "Aunt\u0000"}, "/name"),
+        ("/products", {"name": "Grip", "notes": ["ok", "bad\u0000"]}, "/notes/1"),
+    ],
+)
+def test_a_nul_character_in_request_text_is_a_422(client, tenant, owner, path, body, pointer):
+    """Postgres text cannot hold NUL: the request is refused once, centrally, before any handler runs."""
+    refused = client.post(f"{API}{path}", headers=owner, json=body)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["errors"][0]["pointer"] == pointer
+
+
+def test_a_booking_number_above_int4_is_a_422(client, tenant, owner):
+    refused = client.post(f"{API}/bookings/{uuid4()}/merge", headers=owner, json={"booking_number": 2**31})
+    assert refused.status_code == 422, refused.text
