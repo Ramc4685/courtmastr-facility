@@ -402,8 +402,8 @@ def get_public_calendar_feed(token: str, request: Request, response: Response):
     return _calendar_feed(token, request, response)
 
 
-# Every other method is answered here, so none reaches the framework's 405, which logs the full path before any
-# handler runs (handover: redact in core.api). Listed in tests/test_security.py HIDDEN.
+# Calendar apps' other methods get a precise answer (HEAD feed, OPTIONS, Allow header). The access log no longer
+# depends on this list: core.api logs this path prefix without the token. Listed in tests/test_security.py HIDDEN.
 _FEED_METHODS = {"Allow": "GET, HEAD, OPTIONS"}
 # Every HTTP and WebDAV/CalDAV method a client or scanner sends (RFC 9110, 4918, 3253, 4791, 5789).
 _OTHER_METHODS = [

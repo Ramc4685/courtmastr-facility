@@ -26,6 +26,16 @@ from app.core.settings import get_settings
 
 log = logging.getLogger("app.request")
 _REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
+# Paths whose next segment is a credential (calendar feed tokens): logged up to the prefix whatever the method,
+# trailing slash or deeper path, so no route has to redact for the log.
+_SECRET_PATH_PREFIXES = ("/api/v1/public/calendar-feeds/",)
+
+
+def _loggable_path(path: str) -> str:
+    for prefix in _SECRET_PATH_PREFIXES:
+        if path.startswith(prefix):
+            return prefix + "[redacted]"
+    return path
 
 # Constraint name -> problem code, for constraints whose meaning is richer than "already exists".
 # Contexts register theirs (ex_resource_hold_overlap -> booking-conflict). Unmapped = 500 = a bug.
@@ -183,7 +193,7 @@ class RequestContextMiddleware:
                 "request",
                 extra={
                     "method": scope["method"],
-                    "path": scope["path"],
+                    "path": _loggable_path(scope["path"]),
                     "status": status,
                     "duration_ms": round((time.perf_counter() - started) * 1000, 1),
                     "tenant_id": state.get("tenant_id"),

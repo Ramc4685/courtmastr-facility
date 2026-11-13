@@ -151,7 +151,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] Error report is absent (404 "This import has no error report.", service.py:255-258) when no row has a problem or warning; README implies it always exists.
 - [ ] [undocumented] Routes carry the `idempotency` dependency, CSV downloads set `nosniff` and `no-store` (router.py:17, 35-40), dry-run and commit answer 202 (router.py:75, 85), and create refuses non-staff principals and unknown locations (service.py:148-155).
 
-### integrations (62 open, 25 closed) — [evidence](drift/integrations.md)
+### integrations (63 open, 25 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -274,6 +274,9 @@ Re-check 2026-11-13 pass 2 (`claude/hardening-pass`, new items only):
 - [ ] [wording] README:12 says `domain/webhooks.py` holds the SSRF address classes; they are in `backend/app/core/networks.py:64` (`blocked_reason`, used at `transport.py:49`).
 - [ ] [stale-not-built] `docs/status/README.md:98` says cross-site embedding is not enabled at the proxy (`infra/proxy/Caddyfile:56` now allows `/schedule/public/*`); `docs/status/02-resources-scheduling.md:47` says the settings screen is not built (`web/src/features/integrations/PublicSchedulePanel.tsx`); `backend/app/modules/scheduling/README.md:122-124` says `scheduling.public_schedule.manage` has no route (`router.py:432, 438`).
 
+Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
+
+- [ ] [wording] README:98-100 says no method may reach the framework's 405 because it logs the raw path ("handover: redact in `core.api`"); `core.api` now redacts the calendar-feed token prefix for every method, trailing slash and deeper path (`backend/app/core/api.py:29-38, 196`, uncommitted), so the method list is no longer the guard and the router's `_redact` (`backend/app/modules/integrations/router.py:373-375, 423`) is a redundant second layer.
 
 ### leagues (5) — [evidence](drift/leagues.md)
 

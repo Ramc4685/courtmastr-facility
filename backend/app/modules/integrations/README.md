@@ -94,10 +94,12 @@ through `service.adapter_for`.
   `QuickBooksConnect` on `httpx.MockTransport` shaped from Intuit's public documentation.
 - **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
   a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
-  secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
-  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and every other HTTP and
-  WebDAV/CalDAV method (`router._OTHER_METHODS`: PATCH, REPORT, MKCALENDAR, ...) our own 405 with `Allow`, so no known method reaches the framework's 405 (the one hidden route `tests/test_security.py`
-  allows), which logs the raw path (handover: redact in `core.api`).
+  secrets in URLs" (calendar clients can only GET); the request log writes any path under
+  `/api/v1/public/calendar-feeds/` as that prefix plus `[redacted]` (`core.api._loggable_path`), whatever the
+  method, trailing slash or deeper path, and the route also rewrites the request path for error handling. HEAD
+  answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and the other known HTTP and WebDAV/CalDAV
+  methods (`router._OTHER_METHODS`: PATCH, REPORT, MKCALENDAR, ...) our own 405 with `Allow` (the one hidden route
+  `tests/test_security.py` allows).
   A per-IP bucket (`calendar-feed-ip`, generous, because calendar services fetch every feed from a few
   addresses) runs first; the per-feed bucket (`calendar-feed`, 12 an hour) counts only once the token opens an
   active feed of an active tenant (`feeds.live_feed`), so unknown tokens never make buckets. Content is
