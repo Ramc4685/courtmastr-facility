@@ -4,7 +4,8 @@ two reservations into one series (SCH-21)."""
 from uuid import UUID
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select, update
+from sqlalchemy.engine import Engine
 
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
@@ -12,6 +13,7 @@ from app.core.auth.tokens import digest
 from app.core.db.session import tenant_session
 from app.modules.programs.tests.test_checkout import member
 from app.modules.programs.tests.test_selfservice import SOON, policy
+from app.modules.scheduling import service as scheduling_service
 from app.modules.scheduling import subject
 from app.modules.scheduling.models import Booking, BookingParticipant, BookingSeries, BookingSeriesRun, Session
 from app.modules.scheduling.tests.helpers import API, at, book, ok
@@ -238,6 +240,43 @@ def test_merge_waits_for_a_series_run_in_progress(client, owner, tenant, f):
                                      status="running", command={}))  # fmt: skip
     refused(client.post(f"{API}/bookings/{mine['booking']['id']}/merge", headers=owner,
                         json={"booking_number": other["booking"]["booking_number"]}), 409, "series-run-in-progress")  # fmt: skip
+
+
+def test_merge_takes_every_lock_before_any_check(client, owner, f):
+    mine, other = weekly(client, owner, f, 14, f.court), weekly(client, owner, f, 14, f.court2)
+    seen: list[str] = []
+
+    def spy(conn, cursor, statement, params, context, executemany):
+        seen.append(" ".join(statement.split()))
+
+    event.listen(Engine, "before_cursor_execute", spy)
+    try:
+        ok(client.post(f"{API}/bookings/{mine['booking']['id']}/merge", headers=owner,
+                       json={"booking_number": other["booking"]["booking_number"]}), 200)  # fmt: skip
+    finally:
+        event.remove(Engine, "before_cursor_execute", spy)
+    start = next(i for i, sql in enumerate(seen) if "booking.booking_number =" in sql)
+    merge = seen[start:]
+    locks = [sql for sql in merge if sql.endswith("FOR UPDATE")]
+    assert "FROM booking_series WHERE" in locks[0] and "ORDER BY booking_series.id" in locks[0]
+    assert "FROM booking WHERE" in locks[1] and "ORDER BY booking.id" in locks[1]
+    first_check = next(i for i, sql in enumerate(merge) if "FROM booking_series_run" in sql)
+    assert merge.index(locks[1]) < first_check  # series, then bookings, then the run check
+
+
+def test_merge_refuses_when_a_booking_changed_series_while_linking(client, owner, f, monkeypatch):
+    mine, other = weekly(client, owner, f, 16, f.court), weekly(client, owner, f, 16, f.court2)
+    third = weekly(client, owner, f, 18, f.court)
+    real = scheduling_service._own
+
+    def moved(session, *args, **kwargs):  # another request moves the other booking between the read and the locks
+        session.execute(update(Booking).where(Booking.id == UUID(other["booking"]["id"]))
+                        .values(booking_series_id=UUID(third["booking_series_id"])))  # fmt: skip
+        return real(session, *args, **kwargs)
+
+    monkeypatch.setattr(scheduling_service, "_own", moved)
+    refused(client.post(f"{API}/bookings/{mine['booking']['id']}/merge", headers=owner,
+                        json={"booking_number": other["booking"]["booking_number"]}), 409, "invalid-state-transition")  # fmt: skip
 
 
 def test_merge_links_a_single_reservation_and_refuses_mismatches(client, owner, tenant, f):

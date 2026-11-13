@@ -71,10 +71,12 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
 - **Usage** is the package's existing ledger: credits consumed whose consume falls on or before `closing_on`
   in the location's time zone. `post_billed_usage` records each billed source so it is never billed twice. Any
   package with usage still to bill is picked up, whatever its status (ended or removed). A credit restored after
-  it was billed is credited at the next close: the line's charge is adjusted down (`billing.service.adjust_charge`)
-  or reversed when nothing is left, and the usage row gets `credited_at` (used again later, it is billed again).
-  When staff already reversed or changed that charge by hand, the credit counts as handled (audited
-  `charge_changed_by_hand`) and nothing more is posted.
+  it was billed is credited at the next close: the line's live charge is adjusted down
+  (`billing.service.adjust_charge`) or reversed when nothing is left, and the usage row gets `credited_at` (used
+  again later, it is billed again). The live charge is found by the line's source, so a staff edit (a discount,
+  a new price) is followed to its replacement; its discount is kept, capped at the new gross. Only when staff
+  reversed the line and no live charge is left does the credit count as handled (audited
+  `charge_changed_by_hand`), with nothing more posted.
 - **The close** (`POST /post-billed-closes`, gate `packages.period.close`, location scoped) writes one
   `post_billed_close` per location and date, then per package a `post_billed_line`, one
   `billing.service.post_charge` and one `create_invoice_for_charges`. A close always covers every package of
@@ -83,7 +85,8 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
   a failed credit-back never stops new usage being billed. Failures are kept on the close (`failures`, returned
   as `failed`: `client_package_id`, `code`) and shown again on a repeat close; `POST
   /post-billed-closes/{id}/retry` re-runs only those packages for that period (nobody else is billed again);
-  otherwise they are picked up by a later close. Ended packages with nothing owed are neither read nor locked. A package without auto-renew ends
+  otherwise they are picked up by a later close, which clears the package from the earlier close's failures
+  once it handles it without failing. Ended packages with nothing owed are neither read nor locked. A package without auto-renew ends
   at a close only when nothing is held and nothing was used after the closing date. A renewal stays
   post-billed. `POST /post-billed-closes/preview` shows the same lines without writing.
 - `post_billed_line` is a financial record: merge repoints its client, erasure keeps it.

@@ -8,10 +8,11 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 
+from app.core.audit import AuditEvent
 from app.core.errors import ValidationFailed
 from app.modules import billing
 from app.modules.memberships.tests.support import API, at, category, charges, invoices, location, ok, refused, tx
-from app.modules.packages import service
+from app.modules.packages import postbilled, service
 from app.modules.packages.models import ClientPackage
 from conftest import add_staff, login, new_client
 
@@ -235,6 +236,8 @@ def test_one_failing_package_does_not_stop_the_close(client, w, monkeypatch):
     assert done["package_count"] == 1 and [f["client_package_id"] for f in done["failed"]] == [bad["id"]]
     monkeypatch.setattr(billing.service, "post_charge", real)
     assert ok(close(client, w, DAY + timedelta(days=1)), 201)["package_count"] == 1  # billed at the next close
+    first = ok(client.get(f"{API}/post-billed-closes/{done['id']}", headers=w.owner), 200)
+    assert first["failed"] == []  # billed later: the old close no longer reports it
 
 
 def test_rates_are_required_and_closes_cannot_run_ahead(client, w):
@@ -268,11 +271,17 @@ def test_a_hand_reversed_line_does_not_stop_later_usage_being_billed(client, w):
     with at(DAY), tx(w.tenant) as session:  # staff correct the attendance and also reverse the invoice line
         service.restore_credit(session, **restored)
         billing.service.reverse(session, UUID(line["charge_id"]), reason="Corrected by hand")
+    before = len(charges(w.tenant, w.person["id"]))
     later = DAY + timedelta(days=1)
     use(w, package, later)
     done = ok(close(client, w, later), 201)
     assert (done["session_count"], done["failed"]) == (1, [])  # the credit counts as handled; new usage bills
     assert billed_sessions(w) == 1
+    assert len(charges(w.tenant, w.person["id"])) == before + 1  # only the new usage was posted
+    with tx(w.tenant) as session:
+        [audited] = session.scalars(select(AuditEvent.changes).where(
+            AuditEvent.entity_type == "post_billed_line", AuditEvent.entity_id == UUID(line["id"])))  # fmt: skip
+    assert audited == {"credited_sessions": 1, "charge_changed_by_hand": True}
     assert ok(close(client, w, later + timedelta(days=1)), 201)["failed"] == []
 
 
@@ -309,3 +318,68 @@ def test_a_post_billed_package_needs_a_reservation_type_of_its_location(client, 
     body = {"client_id": w.person["id"], "location_id": elsewhere, "reservation_type_id": w.type_id}
     with at(DAY):
         refused(client.post(f"{API}/client-packages/post-billed", headers=w.owner, json=body), 422, "validation-failed")
+
+
+def live_line_charge(w, line_id: str):
+    """The line's charge that still bills (after staff edits and credit-backs)."""
+    with tx(w.tenant) as session:
+        ids = billing.service.charge_ids_for_source(session, "packages", "post_billed_line", UUID(line_id))
+        live = [c for c in map(lambda i: billing.service.get_charge(session, i), ids)
+                if c.status == "active" and c.kind != "reversal"]  # fmt: skip
+        assert len(live) == 1
+        return SimpleNamespace(quantity=live[0].quantity, discount_minor=live[0].discount_minor,
+                               total_minor=live[0].total_minor)  # fmt: skip
+
+
+def test_a_credit_back_follows_a_discounted_line_to_its_replacement(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    use(w, package, DAY)
+    use(w, package, DAY)
+    restored = use(w, package, DAY)
+    [line] = ok(close(client, w, DAY), 201)["lines"]
+    with at(DAY), tx(w.tenant) as session:  # staff give 5.00 off the line: the money moves to a replacement
+        billing.service.adjust_charge(session, UUID(line["charge_id"]), reason="Goodwill", discount_minor=500)
+        service.restore_credit(session, **restored)
+    assert ok(close(client, w, DAY + timedelta(days=1)), 201)["failed"] == []
+    after = live_line_charge(w, line["id"])
+    assert (after.quantity, after.discount_minor, after.total_minor) == (2, 500, 1500)  # discount kept
+
+
+def test_a_failing_credit_back_does_not_stop_new_usage_being_billed(client, w, monkeypatch):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    use(w, package, DAY)
+    restored = use(w, package, DAY)
+    ok(close(client, w, DAY), 201)
+    with at(DAY), tx(w.tenant) as session:
+        service.restore_credit(session, **restored)
+    later = DAY + timedelta(days=1)
+    use(w, package, later)
+    real = billing.service.adjust_charge
+
+    def broken(session, charge_id, **kwargs):
+        raise ValidationFailed("No.", pointer="/x")
+
+    monkeypatch.setattr(billing.service, "adjust_charge", broken)
+    done = ok(close(client, w, later), 201)
+    assert done["session_count"] == 1  # the new session billed in its own savepoint
+    assert [f["client_package_id"] for f in done["failed"]] == [package["id"]]
+    assert billed_sessions(w) == 3  # nothing credited yet
+    monkeypatch.setattr(billing.service, "adjust_charge", real)
+    with at(later):
+        retried = ok(client.post(f"{API}/post-billed-closes/{done['id']}/retry", headers=w.owner), 200)
+    assert (retried["failed"], retried["session_count"]) == ([], 1)  # credited; the new session not billed twice
+    assert billed_sessions(w) == 2
+
+
+def test_a_close_reads_only_packages_with_something_owed(client, w):
+    rate(client, w, 1, 1000)
+    live, idle, owed = open_package(client, w), open_package(client, w), open_package(client, w)
+    use(w, owed, DAY)
+    with tx(w.tenant) as session:
+        for package in (idle, owed):
+            session.get(ClientPackage, UUID(package["id"])).status = "expired"
+    with tx(w.tenant) as session:
+        lines = postbilled._plan(session, UUID(w.location_id), DAY, lock=True)
+    assert {str(line["client_package_id"]) for line in lines} == {live["id"], owed["id"]}  # the idle one is skipped

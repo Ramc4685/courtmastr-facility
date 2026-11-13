@@ -37,9 +37,10 @@ run in CI only).
 - Rate tiers are whole-count: every session of the period bills at the highest tier the count reaches; tier 1
   always exists.
 - A post-billed package ends at a close only once nothing is held or used after the closing date; a renewal
-  stays post-billed; a credit restored after billing is credited at the next close (or counted as handled when
-  staff already reversed the charge by hand); one failing package does not stop a close, its failure is kept on
-  the close and can be retried alone. Its reservation type must belong to its location.
+  stays post-billed; a credit restored after billing is credited at the next close against the line's live charge,
+  following staff edits to their replacement (counted as handled only when staff reversed it and nothing live is
+  left); one failing package does not stop a close, its failure is kept on the close and can be retried alone, and
+  a later close that bills the package clears it. Its reservation type must belong to its location.
 - One bound agreement per contract, signed and of the agreement kind; a signed binding is not replaced.
 
 ## Not built

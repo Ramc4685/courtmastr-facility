@@ -285,7 +285,9 @@ def close_period(session: Session, principal: Principal, data: dict) -> dict:
         won = _existing(session, location_id, closing_on)
         assert won is not None
         return _close_view(session, won)
-    billable, close.failures = _run(session, close, _plan(session, location_id, closing_on, lock=True))
+    lines = _plan(session, location_id, closing_on, lock=True)
+    billable, close.failures = _run(session, close, lines)
+    _clear_stale_failures(session, close, lines)
     close.package_count = len(billable)
     close.session_count = sum(line["session_count"] for line in billable)
     close.total_minor = sum(line["total_minor"] for line in billable)
@@ -323,6 +325,24 @@ def _run(session: Session, close: PostBilledClose, lines: list[dict]) -> tuple[l
     return billed, [{"client_package_id": str(pid), "code": code} for pid, code in failed.items()]
 
 
+def _clear_stale_failures(session: Session, close: PostBilledClose, lines: list[dict]) -> None:
+    """A package this run handled without failing no longer needs a retry at an earlier close of the location."""
+    still = {UUID(f["client_package_id"]) for f in close.failures}
+    done = {line["client_package_id"] for line in lines if line["credits"] or line["rate"]} - still  # a step ran
+    if not done:
+        return
+    c = PostBilledClose
+    stmt = select(c).where(
+        c.location_id == close.location_id, c.id != close.id, func.jsonb_array_length(c.failures) > 0
+    )
+    for other in session.scalars(stmt.with_for_update()):
+        kept = [f for f in other.failures if UUID(f["client_package_id"]) not in done]
+        if len(kept) != len(other.failures):
+            changes = {"cleared_failures": len(other.failures) - len(kept), "by_close": str(close.id)}
+            other.failures = kept
+            audit.record(session, CLOSE, other, location_id=other.location_id, changes=changes)
+
+
 def retry_close(session: Session, principal: Principal, close_id: UUID) -> dict:
     """Re-run only the packages that failed at this close, for its period; the rest are not billed again."""
     close = session.get(PostBilledClose, close_id, with_for_update=True)
@@ -339,6 +359,7 @@ def retry_close(session: Session, principal: Principal, close_id: UUID) -> dict:
         if line["client_package_id"] in done:  # billed here already; only its credit-back failed
             line["rate"] = None
     billable, close.failures = _run(session, close, lines)
+    _clear_stale_failures(session, close, lines)
     close.package_count += len(billable)
     close.session_count += sum(line["session_count"] for line in billable)
     close.total_minor += sum(line["total_minor"] for line in billable)
@@ -350,26 +371,41 @@ def retry_close(session: Session, principal: Principal, close_id: UUID) -> dict:
     return _close_view(session, close)
 
 
+def _live_charge(session: Session, line_id: UUID):  # noqa: ANN202 - returns billing's Charge, which packages may not import
+    """The line's charge as it stands now: staff edits (a discount, a price change) replace a charge with an
+    adjustment carrying the same source, so the newest live one is the line's. None once nothing live is left."""
+    ids = billing.service.charge_ids_for_source(session, "packages", "post_billed_line", line_id)
+    live = [
+        c
+        for c in (billing.service.get_charge(session, i) for i in ids)
+        if c.status == "active" and c.kind != "reversal"
+    ]
+    return max(live, key=lambda c: c.id, default=None)
+
+
 def _credit_back(session: Session, line: dict) -> None:
-    """Give back billed sessions whose credit was restored: adjust each line's charge down, or reverse it. A charge
-    staff already reversed or changed by hand is left alone: the credit counts as handled (audited)."""
+    """Give back billed sessions whose credit was restored: lower the line's live charge (following any staff edit
+    to its replacement, keeping its discount up to the new gross), or reverse it. When staff reversed it and nothing
+    live is left, the credit counts as handled (audited)."""
     by_line: dict[UUID, list[PostBilledUsage]] = {}
     for usage in line["credits"]:
         by_line.setdefault(usage.post_billed_line_id, []).append(usage)
     now = clock.now()
     for line_id, rows in by_line.items():
         billed = session.get_one(PostBilledLine, line_id)
-        charge = billing.service.get_charge(session, billed.charge_id) if billed.charge_id else None
-        by_hand = charge is not None and (charge.status != "active" or charge.kind == "reversal")
-        if charge is not None and not by_hand:
+        charge = _live_charge(session, billed.id)
+        if charge is not None:
             left, reason = charge.quantity - len(rows), "Post-billed sessions credited back"
             if left > 0:
-                billed.charge_id = billing.service.adjust_charge(session, charge.id, reason=reason, quantity=left).id
+                discount = min(charge.discount_minor, left * charge.unit_price_minor)
+                billed.charge_id = billing.service.adjust_charge(
+                    session, charge.id, reason=reason, quantity=left, discount_minor=discount
+                ).id
             else:
                 billing.service.reverse(session, charge.id, reason=reason)
         for usage in rows:
             usage.credited_at = now
-        changes = {"credited_sessions": len(rows)} | ({"charge_changed_by_hand": True} if by_hand else {})
+        changes = {"credited_sessions": len(rows)} | ({"charge_changed_by_hand": True} if charge is None else {})
         audit.record(session, CLOSE, billed, changes=changes)
     session.flush()
 
