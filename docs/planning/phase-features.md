@@ -330,6 +330,12 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 - DOC-10 Legacy membership agreement template
 - DOC-11 Membership agreement instance
 
+**Deferred** (follow-ups raised during the phase, not in the 62)
+
+| Priority | Item | Note |
+|---|---|---|
+| P1 | Double opt-in for anonymous public event form sign-ups | Owner decision 2026-11-12: double opt-in, planned as a follow-up (not the generic-reply workaround). The place is held until the address owner confirms from the mail; closes address squatting and the duplicate-email disclosure (programs README, "Not built"). |
+
 ## Phase 15: Integrations, public API and partner adapters
 
 **Status:** Not started

@@ -139,8 +139,7 @@ Virtual meeting links (CLS-08) and captain rosters (REG-26). From chip A: bulk r
 a portal list of open forms (members reach a form by its link), and saved cards at form checkout (a new card
 only).
 
-**Known gap, owner decision pending:** an anonymous public-form registration is not confirmed by the address
-owner. Anyone can register someone else's email (squatting a one-per-email place), and the duplicate-email
-reply tells a visitor that an address is already registered. The fix is either double opt-in (the place is
-held until a link in the confirmation mail is clicked) or a generic reply that never says whether an address
-exists. Neither is built in phase 14; the owner picks one.
+**Known gap:** an anonymous public-form registration is not confirmed by the address owner. Anyone can
+register someone else's email (squatting a one-per-email place), and the duplicate-email reply tells a visitor
+that an address is already registered. Owner decision 2026-11-12: double opt-in, planned as a follow-up (not
+the generic-reply workaround); tracked as a P1 deferred item under Phase 14 in `docs/planning/phase-features.md`.
