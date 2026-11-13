@@ -150,12 +150,13 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Receivables and open invoices** leave settled invoices out in SQL, so the row cap counts open invoices only.
 - **Schedules**: one that crashes keeps its day's claim (logged, audited `failed`) so the tenant's others still run;
   one whose owner is deactivated, lost the report or export key, or lost the schedule's location is switched off at its next due time (audited
-  `reporting.report_schedule.deactivate`). `reporting.report_schedule.manage` (Admin) lists, reads and deletes any
+  `reporting.report_schedule.deactivate`), as is one whose location's time zone cannot be read (once, unclaimed). `reporting.report_schedule.manage` (Admin) lists, reads and deletes any
   staff user's schedule in its locations; settings stay the owner's. With it, `GET /report-schedules` lists everyone's.
 - **Erasure** (`service.erase_client`, privacy handler `reporting`): snapshots carry no client id, so erasing one
   client purges every live run snapshot, export file and partial export in the tenant (runs and exports read
   `expired`; queued or running exports fail). They are derived data and rebuild on rerun. Schedules that ran in the
-  last day lose their claim and send again with fresh links. A tenant advisory lock closes the race: runs and export
+  last day lose their claim and send again with fresh links. Limit: an earlier delivery (a weekly report sent
+  Monday, erased Tuesday) is not re-sent; its link reads expired until the next scheduled send. A tenant advisory lock closes the race: runs and export
   chunks hold it shared until commit, the erasure exclusive, so it waits for snapshots in flight and nothing that
   starts after it reads the erased client. The data-subject export
   hands over nothing here: the source contexts export the records themselves.

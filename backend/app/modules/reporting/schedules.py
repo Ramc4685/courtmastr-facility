@@ -221,20 +221,32 @@ def _deliver(session: Session, schedule: ReportSchedule, today: date) -> int:
 
 def run_due_schedule(session: Session) -> bool:
     """Internal, for the hourly chunked job: deliver the next due schedule; True while others may be due. The
-    claim (`last_run_on`) is written under the row lock, so a repeated or concurrent tick sends nothing twice."""
+    claim (`last_run_on`) is written under the row lock, so a repeated or concurrent tick sends nothing twice.
+    A schedule whose location zone cannot be read is switched off (audited once) rather than claimed: a claim
+    would come back True for it on every chunk, and it needs a staff fix anyway."""
+    service._snapshot_lock(session)  # before the row locks, in the order erase_client takes them
     now = clock.now()
     stmt = (
         select(ReportSchedule).where(ReportSchedule.is_active).order_by(ReportSchedule.id)
         .with_for_update(skip_locked=True)
     )  # fmt: skip
     for schedule in session.scalars(stmt):
-        today = now.date()  # the claim's day if the location's zone cannot even be read
         try:
             with session.begin_nested():
-                local_now = now.astimezone(ZoneInfo(platform.service.location_time_zone(session, schedule.location_id)))
-                if not is_due(schedule, local_now):
-                    continue
-                today = local_now.date()
+                zone = ZoneInfo(platform.service.location_time_zone(session, schedule.location_id))
+        except Exception:
+            log.exception("report schedule %s switched off: its location's time zone cannot be read", schedule.id)
+            schedule.is_active = False
+            audit.record(session, "reporting.report_schedule.deactivate", schedule,
+                         changes={"is_active": [True, False], "cause": "time_zone_unreadable"})  # fmt: skip
+            session.flush()
+            continue
+        local_now = now.astimezone(zone)
+        if not is_due(schedule, local_now):
+            continue
+        today = local_now.date()
+        try:
+            with session.begin_nested():
                 _deliver(session, schedule, today)
         except Exception:  # a bug in one schedule must not starve the rest: it rolls back, its claim stays
             log.exception("report schedule %s failed; next try on its next due day", schedule.id)

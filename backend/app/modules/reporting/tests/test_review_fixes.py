@@ -7,6 +7,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.core.audit import AuditEvent
@@ -184,3 +185,47 @@ def test_an_erasure_waits_for_a_snapshot_in_flight(tenant):
             with pytest.raises(OperationalError):
                 service._snapshot_lock(eraser, exclusive=True)
             eraser.rollback()
+
+
+def test_a_schedule_whose_zone_cannot_be_read_fails_once_and_the_next_still_runs(
+    client, tenant, owner, world, monkeypatch
+):
+    bad = ok(client.post(f"{API}/report-schedules", headers=owner, json=_schedule_body(
+        _saved(client, owner, "revenue_summary"), world, [tenant.owner_id], location_id=world.north)), 201)  # fmt: skip
+    good = ok(client.post(f"{API}/report-schedules", headers=owner,
+                          json=_schedule_body(_saved(client, owner, "deposits"), world, [tenant.owner_id])), 201)  # fmt: skip
+    assert bad["id"] < good["id"]  # the unreadable one is met first
+    real = schedules.platform.service.location_time_zone
+
+    def zone(session, location_id):
+        if str(location_id) == world.north:
+            raise LookupError("no zone")
+        return real(session, location_id)
+
+    monkeypatch.setattr(schedules.platform.service, "location_time_zone", zone)
+    _ticks(tenant)  # fails the test if the job keeps re-sending itself
+    _ticks(tenant)  # a second hourly run records nothing more
+    drain()
+    with tenant_session(tenant.id) as session:
+        broken = session.get_one(ReportSchedule, bad["id"])
+        assert (broken.is_active, broken.last_run_on) == (False, None)  # needs a staff fix, never claimed
+        actions = session.scalars(select(AuditEvent.action).where(AuditEvent.entity_id == UUID(bad["id"]))).all()
+        assert actions.count("reporting.report_schedule.deactivate") == 1
+        assert "reporting.report_schedule.run" not in actions
+        assert session.get_one(ReportSchedule, good["id"]).last_run_on is not None
+
+
+def test_the_schedule_job_takes_the_erasure_lock_before_locking_schedule_rows(tenant, monkeypatch):
+    order: list[str] = []
+    monkeypatch.setattr(schedules.service, "_snapshot_lock", lambda session, *, exclusive=False: order.append("lock"))
+    real_scalars = Session.scalars
+
+    def scalars(self, stmt, *args, **kwargs):
+        if "report_schedule" in str(stmt) and "FOR UPDATE" in str(stmt).upper():
+            order.append("rows")
+        return real_scalars(self, stmt, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "scalars", scalars)
+    with tenant_session(tenant.id, actor=system_principal("test")) as session:
+        schedules.run_due_schedule(session)
+    assert order[:2] == ["lock", "rows"]
