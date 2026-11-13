@@ -6,7 +6,29 @@ the living records are `docs/status/feature-ledger.md` (every feature and its st
 `docs/status/overnight-2026-11-13.md` (what merged and why), `docs/status/production-readiness-2026-11-13.md`
 (gaps against standards) and `docs/status/owner-decisions-2026-11-13.md` (the owner's answers).
 
-## Where things stand
+## Update 2026-11-13 11:00
+
+- **`main` is pushed at `07f708d` and CI on it is green.** PR #5 is merged, so the next integration gate needs a
+  new branch and draft PR.
+- **Pilot is CIRQT, an unmanned four-court facility** (badminton or pickleball on courts 1 to 4, courts 2 and 3
+  each convertible to volleyball, every booking online, door code per booking, court lights follow bookings,
+  independent coaches, about 30 of 80 members are children). Prices and assumptions: the lead's memory note
+  `pilot-facility-cirqt` and, once it lands, `docs/status/pilot-fit-cirqt.md`.
+- **New branches in flight:** `claude/pilot-fit-cirqt` (seed, scenario tests, fit report; fixes nothing),
+  `claude/building-control` (door codes and court lights behind a port with a simulated adapter, migrations
+  `1971`+), `claude/demo-videos` (narrated screen recordings; `web/demo/`, output in git-ignored `demo-videos/`).
+- **Hardening is not merged:** Fable verification at `4870d6c` found one blocker (Stripe blocked after entering
+  through a public league page) and seven should-fix items; the builder is on them. Verify again before merging.
+- **Phase 9:** blocking money defects fixed; told to finish review items and contract gaps, then stop for review
+  before the five features.
+- **Owner decisions:** all interview questions are answered (`docs/status/owner-decisions-2026-11-13.md`). Not yet
+  routed: finish "What's New" (19), operator impersonation, ownership transfer and tenant close (16a, 16d, 16e),
+  the push-guard pattern fix (21), a card terminal (4-v2; question whether an unmanned facility needs one).
+  Hardware shortlist: `docs/discovery/building-control-hardware.md` (unverified vendor claims).
+- **A local demo runs from the main checkout** (API 8100, web 5183, background tasks of the lead session).
+- **Load average was about 19 with seven agents.** Start nothing new until some finish.
+
+## Where things stood at 09:55
 
 - **Local `main` is at `9e70852` plus docs commits, and is not pushed.** The owner pushes main; the guard blocks it
   for agents. The same commits are on `claude/overnight-integration` (draft PR #5).
