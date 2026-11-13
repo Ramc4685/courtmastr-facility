@@ -73,6 +73,11 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     public-form:      {limit: 60, window_sec: 60}                   # public event form and header image, per IP
     public-form-submit: {limit: 20, window_sec: 900, closed: true}  # anonymous form registrations, per IP (a family on venue Wi-Fi)
     public-form-email:  {limit: 5, window_sec: 3600, closed: true}  # anonymous registrations, per contact address
+    public-site:      {limit: 120, window_sec: 60}                  # public league site and TV board, per IP (a board polls)
+    public-site-media: {limit: 600, window_sec: 60}                 # league gallery images and sponsor logos, per IP
+    league-post:      {limit: 10, window_sec: 3600, closed: true}   # classifieds and pickup games posted, per IP
+    league-post-contact: {limit: 20, window_sec: 900, closed: true} # relay messages to posters, per IP
+    league-post-contact-sender: {limit: 10, window_sec: 3600, closed: true}  # relay messages, per signed-in identity
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months

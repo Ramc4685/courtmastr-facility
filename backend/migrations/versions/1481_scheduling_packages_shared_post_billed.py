@@ -4,7 +4,7 @@
 Generated from the models, then completed by hand: enable_rls() per table and the client_package checks.
 
 Revision ID: 1481
-Revises: 1401
+Revises: 1441
 """
 
 import sqlalchemy as sa
@@ -14,7 +14,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = "1481"
-down_revision = "1401"
+down_revision = "1441"
 
 TABLES = ("booking_participant", "post_billed_rate", "post_billed_close", "post_billed_line", "post_billed_usage")
 
@@ -28,7 +28,7 @@ def upgrade() -> None:
         sa.Column("tenant_id", sa.Uuid(), nullable=False),
         sa.Column("reservation_type_id", sa.Uuid(), nullable=False),
         sa.Column("min_sessions", sa.Integer(), server_default=sa.text("1"), nullable=False),
-        sa.Column("per_session_minor", sa.Integer(), nullable=False),
+        sa.Column("per_session_minor", sa.BigInteger(), nullable=False),
         sa.Column("revenue_category_id", sa.Uuid(), nullable=True),
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -75,7 +75,7 @@ def upgrade() -> None:
         sa.Column("closed_by_staff_user_id", sa.Uuid(), nullable=True),
         sa.Column("package_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("session_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("total_minor", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("total_minor", sa.BigInteger(), server_default=sa.text("0"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(
@@ -164,8 +164,8 @@ def upgrade() -> None:
         sa.Column("client_package_id", sa.Uuid(), nullable=False),
         sa.Column("client_id", sa.Uuid(), nullable=False),
         sa.Column("session_count", sa.Integer(), nullable=False),
-        sa.Column("per_session_minor", sa.Integer(), nullable=False),
-        sa.Column("total_minor", sa.Integer(), nullable=False),
+        sa.Column("per_session_minor", sa.BigInteger(), nullable=False),
+        sa.Column("total_minor", sa.BigInteger(), nullable=False),
         sa.Column("charge_id", sa.Uuid(), nullable=True),
         sa.Column("invoice_id", sa.Uuid(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),

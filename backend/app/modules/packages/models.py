@@ -11,7 +11,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint, text
+from sqlalchemy import BigInteger, CheckConstraint, Index, Numeric, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import DATERANGE, Range
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -515,7 +515,7 @@ class PostBilledRate(TenantOwned, Timestamps, Base):
 
     reservation_type_id: Mapped[UUID]
     min_sessions: Mapped[int] = mapped_column(server_default=text("1"))
-    per_session_minor: Mapped[int]
+    per_session_minor: Mapped[int] = mapped_column(BigInteger)
     revenue_category_id: Mapped[UUID | None]
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
 
@@ -535,7 +535,7 @@ class PostBilledClose(TenantOwned, Timestamps, Base):
     closed_by_staff_user_id: Mapped[UUID | None]
     package_count: Mapped[int] = mapped_column(server_default=text("0"))
     session_count: Mapped[int] = mapped_column(server_default=text("0"))
-    total_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    total_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
 
 
 class PostBilledLine(TenantOwned, Timestamps, Base):
@@ -556,8 +556,8 @@ class PostBilledLine(TenantOwned, Timestamps, Base):
     client_package_id: Mapped[UUID]
     client_id: Mapped[UUID]
     session_count: Mapped[int]
-    per_session_minor: Mapped[int]
-    total_minor: Mapped[int]
+    per_session_minor: Mapped[int] = mapped_column(BigInteger)
+    total_minor: Mapped[int] = mapped_column(BigInteger)
     charge_id: Mapped[UUID | None]
     invoice_id: Mapped[UUID | None]
 

@@ -397,6 +397,13 @@ _BODIES = {
     "mergeBookingSeries": {"booking_number": 1},
     "updatePostBilledRate": {"per_session_minor": 1},
     "bindMembershipContractAgreement": lambda ids: {"client_document_id": ids.document_id},
+    # public league site (Phase 14 chip B2)
+    "updateLeagueLink": {"title": "Renamed"},
+    "updateLeaguePhoto": {"caption": "Renamed"},
+    "updateLeagueSponsor": {"name": "Renamed"},
+    "updateLeagueNewsStory": {"title": "Renamed"},
+    "rejectLeaguePost": {},
+    "contactPortalLeaguePost": {"message": "Is there still room on the team?"},
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
