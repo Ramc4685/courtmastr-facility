@@ -281,6 +281,24 @@ def test_one_unreconcilable_refund_does_not_stop_the_sweep(shop):
         assert states["bad"][0] == "initiated" and "reconcile" in states["bad"][1]
 
 
+def test_an_unreconcilable_refund_records_a_code_and_a_fixed_sentence_only(shop, caplog):
+    """Error text can carry SQL and its parameters (names, emails): staff see a code and a fixed sentence, and
+    the log names the refund and the code, never the text."""
+    payment_id = _paid(shop, 500)
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc.refund(session, payment_id, amount_minor=200, reason="x", idempotency_key="leaky")
+        raise RuntimeError("died")
+    leak = "UPDATE client SET email='jane@example.com'"
+    with work(shop.tenant) as session:
+        refund_id = session.scalar(select(Refund.id).where(Refund.idempotency_key == "leaky"))
+        for error in (RuntimeError(leak), Conflict(leak, code="refund-unreconcilable")):
+            assert webhooks._isolated(session, refund_id, lambda e=error: (_ for _ in ()).throw(e)) is False
+            message = session.scalar(select(Refund.failure_message).where(Refund.id == refund_id))
+            code = getattr(error, "code", "internal-error")
+            assert code in message and "jane" not in message
+    assert caplog.records and not any("jane" in record.getMessage() for record in caplog.records)
+
+
 def test_a_declined_composite_refund_releases_nothing(shop, monkeypatch):
     ready(shop)
     item_id, payment_id, allocation_id = _applied(shop)

@@ -150,9 +150,13 @@ def _isolated(session: Session, refund_id: UUID, work) -> bool:
         with session.begin_nested():
             work()
     except Exception as error:  # noqa: BLE001  (recorded on the row; retried by the next sweep)
-        log.warning("refund %s could not be reconciled: %s", refund_id, error)
+        # Error text can carry SQL and its parameters: staff and the log get the code only, never the text.
+        code = error.code if isinstance(error, DomainError) else "internal-error"
+        log.warning("refund %s could not be reconciled: %s (%s)", refund_id, code, type(error).__name__)
         session.execute(
-            update(Refund).where(Refund.id == refund_id).values(failure_message=f"Could not reconcile: {error}"[:500])
+            update(Refund)
+            .where(Refund.id == refund_id)
+            .values(failure_message=f"Could not reconcile ({code}); the next sweep tries again.")
         )
         return False
     return True

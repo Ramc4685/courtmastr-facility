@@ -277,7 +277,9 @@ handlers re-read the object from the provider.
   remainder still falls short, releases the payment's newest live allocations until it is covered (whole
   allocations: any excess stays as account credit). If even that cannot cover it the item is
   `refund-unreconcilable`: each sweep item runs in its own savepoint, the error is written to the refund's
-  `failure_message` ("Could not reconcile: ...") for staff, and the rest of `billing_daily` (autopay first)
+  `failure_message` ("Could not reconcile (<code>); the next sweep tries again.": a
+  domain error's code or `internal-error`, never the error text, which can carry SQL and personal data; the log
+  names only the refund, the code and the error type) for staff, and the rest of `billing_daily` (autopay first)
   carries on; the next sweep tries again. Billing locks rows `FOR NO KEY UPDATE`, so a caller that already
   holds the payment (membership cancel, POS return) still gets the pre-provider row committed; only the
   reservation then happens in the caller's transaction. The early amount check (unapplied plus what the named
