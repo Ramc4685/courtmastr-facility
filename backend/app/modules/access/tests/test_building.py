@@ -986,7 +986,7 @@ def test_a_controller_that_lost_power_is_told_again(b, sim, monkeypatch):
     with clock.freeze(at(10) + timedelta(minutes=1)):
         tick(b)
         assert sim.zones["relay-1"] is True
-    monkeypatch.setattr(sim, "read_zone", lambda ref: None)  # one that cannot tell: re-asserted every five minutes
+    monkeypatch.setattr(sim, "read_zone", lambda *_: None)  # one that cannot tell: re-asserted every five minutes
     sim.zones.clear()
     with clock.freeze(at(10) + timedelta(minutes=3)):
         tick(b)
