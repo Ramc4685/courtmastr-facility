@@ -75,7 +75,9 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 - Portal payment is a one-off card token through the PaymentProvider port; confirm takes no stored method. A
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
 - Public availability is anonymous and quotes guest prices; the portal's `GET /portal/rental-availability`
-  quotes the signed-in client's member prices. Both return one page of at most 200 slots.
+  quotes the signed-in client's member prices, reading membership once per date per request (not per slot), behind
+  the `portal-availability` rate-limit bucket (60 a minute per IP). Both return one page of at most 200 slots. The
+  past-due lockout covers portal POSTs only: a locked-out payer still sees open times and is refused at checkout.
 - Reads of types, rates and plans are `authenticated` (location containment only), as the contract says.
 - Internal functions added to other contexts (additive): `scheduling.service.template_for`, `book`,
   `add_rule`, `free_ranges`, `booking_views`, `booking_ids`, `series_scope`, `HOOKS`;

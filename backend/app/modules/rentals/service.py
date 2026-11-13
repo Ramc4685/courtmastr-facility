@@ -450,12 +450,14 @@ def _price_for(
     occurrences: list[pricing.Occurrence],
     client_id: UUID | None,
     grouping: str | None = None,
+    status: dict[date, tuple[bool, frozenset]] | None = None,
 ) -> list[pricing.Line]:
     """The rental price for quote and charge alike: each occurrence at the payer's member status on its own
     local date (a recurring rental that outlives a membership pays the guest price after it). `flat` is one
-    charge for the whole request, priced on the first date."""
+    charge for the whole request, priced on the first date. `status` caches the payer's member status by date
+    across calls in one request (open times price every slot of a day)."""
     groups: dict[tuple, list[pricing.Occurrence]] = {}
-    status: dict[date, tuple[bool, frozenset]] = {}
+    status = {} if status is None else status
     first = min(occurrences, key=lambda o: o.index).starts_at.date()
     for occurrence in occurrences:
         on = first if rate.basis == "flat" else occurrence.starts_at.date()
@@ -1397,6 +1399,7 @@ def search_availability(
     )
     latest = clock.now() + timedelta(days=limits["horizon_days"]) if limits["horizon_days"] else None
     slots = []
+    member_status: dict[date, tuple[bool, frozenset]] = {}  # one membership read per date, not per slot
     for column in free["resources"]:
         for gap in column["free"]:
             cursor = start
@@ -1406,7 +1409,7 @@ def search_availability(
                 if cursor >= earliest and (latest is None or cursor < latest):
                     finish = cursor + timedelta(minutes=length)
                     occurrence = pricing.Occurrence(0, cursor, finish, (column["resource_id"],))
-                    lines = _price_for(session, rate, [occurrence], client_id)
+                    lines = _price_for(session, rate, [occurrence], client_id, status=member_status)
                     slots.append(
                         {
                             "starts_at": cursor, "ends_at": finish, "resource_id": column["resource_id"],

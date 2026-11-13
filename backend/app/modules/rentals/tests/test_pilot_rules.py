@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
-from app.modules import billing
+from app.modules import billing, memberships
 from app.modules.clients.models import Client
 from app.modules.memberships.models import MembershipContract
 from app.modules.memberships.tests.support import membership_plan
@@ -171,6 +171,16 @@ def test_portal_quotes_and_charges_the_member_price(client, owner, tenant, f):
     assert (
         client.get(f"{API}/portal/rental-availability?{query}&client_id={stranger}", headers=portal).status_code == 404
     )
+
+
+def test_open_times_read_membership_once_per_request(client, owner, tenant, f, monkeypatch):
+    me, portal = portal_member(client, owner, tenant, f)
+    calls = []
+    real = memberships.service.member_on
+    monkeypatch.setattr(memberships.service, "member_on", lambda *a: calls.append(a) or real(*a))
+    query = f"rental_type_id={f.rtype}&on=2031-05-05&length_min=60&client_id={me}"
+    slots = ok(client.get(f"{API}/portal/rental-availability?{query}", headers=portal), 200)["data"]
+    assert len(slots) > 10 and len(calls) == 1  # every slot of the day, one membership read
 
 
 def test_a_membership_that_lapses_after_the_quote_the_charge_wins(client, owner, tenant, f):

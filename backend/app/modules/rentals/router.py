@@ -12,6 +12,7 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
+from app.core.ratelimit import rate_limit
 from app.modules.rentals import schemas as s
 from app.modules.rentals import service
 
@@ -168,7 +169,8 @@ def put_rental_portal_settings(location_id: UUID, body: s.RentalPortalSettings, 
     return service.put_portal_settings(ctx.session, ctx.principal, location_id, body.model_dump())
 
 
-@staff.get("/portal/rental-availability", response_model=s.Page[s.PortalRentalSlot])
+@staff.get("/portal/rental-availability", response_model=s.Page[s.PortalRentalSlot],
+           dependencies=[Depends(rate_limit("portal-availability"))])  # fmt: skip
 def search_portal_rental_availability(
     ctx: Client, client_id: UUID, rental_type_id: UUID, on: Annotated[date, Query(alias="on")],
     length_min: int | None = None, resource_id: UUID | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 200,
