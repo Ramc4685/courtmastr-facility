@@ -64,9 +64,11 @@ Later modules must not assume these exist.
 - **Message bodies** (engagement registers `engagement_message_bodies` through `register_purge`): a message no longer queued has its
   `body_text` is nulled after `retention.message_body_days` (90, security-baseline 2.3); the row stays.
 - **Inbound provider events** (`core.inbound_webhooks.purge_payloads`, run by the hourly clock as `fh_platform`,
-  since the table is global and ignored events have no tenant): processed and ignored events have their payload
-  emptied after `retention.inbound_payload_days` (90, ADR 0007 section 9). Divergence from the ADR, which deletes
-  the row: the row is kept so a late redelivery is still deduplicated. Failed events awaiting a retry keep theirs.
+  since the table is global and ignored events have no tenant): processed, ignored, and failed-at-the-cap
+  (`RETRY_ATTEMPTS`, 5) events have their payload and error text emptied after `retention.inbound_payload_days` (90,
+  ADR 0007 section 9). Divergence from the ADR, which deletes the row: the row is kept so a late redelivery is
+  still deduplicated. Failed events the sweep would still retry keep theirs; an event found with no payload is
+  logged as an error and recorded as a failed attempt, never marked processed (`billing.webhooks`).
 - **Not purged yet:** webhook deliveries (ADR 0007 section 9 gives 30 days; integrations has no purge yet).
 - **Dead letters** (`failed_job`, ADR 0008 section 7): `core.jobs.FailedJobRecorder` writes one row per message
   that is finally rejected (retries exhausted, or none allowed), in the message's tenant: actor, queue, message

@@ -59,7 +59,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] **History filters are documented on both reads, but the list has fewer (README lines 15-16).** "Filters: field ids, category, time window" follows both `listAssessmentResults` and `getAssessmentSeries`. Only the series takes field ids and category (`assessments/service.py:255-266`). `list_results` allows only `client_id` and `recorded_at` filters (`service.py:192`). Docs batch.
 - [x] **Web screens are not mentioned.** `web/src/features/assessments/AssessmentSetupPage.tsx`, `ClientAssessmentsTab.tsx` and `PortalProgress.tsx` implement setup, the client history tab and the portal view. The README has no screens section or pointer to them. Docs batch.
 
-### billing (16) — [evidence](drift/billing.md)
+### billing (14 open, 14 closed) — [evidence](drift/billing.md)
 
 - [ ] [contract] L116-117 says `/catalog-items` "(list, create, get, update) behind `billing.item.manage`". Only create and update are gated by that key (router.py:330, router.py:340). List and get use `Staff` = `require()`, which lets any signed-in staff user in (router.py:166, router.py:324, router.py:335), limited by location scope (catalog.py:85-87, catalog.py:97-100).
 - [x] [stale-not-built] L232-233 says to "Swap to `files.download_url` (Phase 8) for a direct signed link once it lands". It has landed: `platform/files.py:178` `download_url(session, file_id)`, already used by `platform/tenant_export.py:136`. Billing emails still carry portal links (documents.py, autopay.py:65 `portal_link`). Docs batch.
@@ -77,6 +77,21 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [wording] L168-169 lists `tax_ids_by_code` under Imports (Phase 8 I1), but its docstring says "Internal (pos import)" (service.py:1294). Docs batch.
 - [x] [undocumented] L243-245 says statement-batch recipients "are the payers of non-void invoices at that location in the period". The code also applies `is_open_only` (only open invoices with a balance) and `client_filter.client_ids` (statements.py:44-47; models.py:921-922), and the period is read on `due_on` or `invoice_on` according to `date_basis` (statements.py:33). Docs batch.
 - [x] [undocumented] `billing.dispute.manage` is registered (permissions.py:52) but nothing checks it (no other reference in backend/app or web/src). L258-259 says disputes have no route but does not mention the key. Docs batch.
+
+Re-check 2026-11-13 (claude/hardening-pass, new items only):
+
+- [ ] [contract] L26, L310-311 say disputes have no staff route and `billing.dispute.manage` is unchecked (permissions.py:54); the contract defines `GET /disputes`, `GET /disputes/{id}`, `POST /disputes/{id}/evidence` (docs/api/openapi-money.yaml:2654, 2664, 2676) and the README does not say it is ahead.
+- [ ] [contract] Contract operations with no route and no README mention: `account-credit/issue` (openapi-money.yaml:1686), `PUT collections-status` (:2590), `processor-payouts` (:2622, 2632), `ledger-exports` (:2644), portal `payment-methods/{id}/verify` (:2481), `payments/surcharge-preview` (:2612).
+- [ ] [contract] `POST /billing-bulk-actions` (router.py:511-515) returns the synchronous `BulkInvoiceResult`; the contract (openapi-money.yaml:1217-1263) returns 202 with a stored `BillingBulkAction`, other actions, and `GET .../{id}` and `/items`. README L271-273 does not say so.
+- [ ] [contract] Routes in router.py outside the money contract: collections tags, profile and report (router.py:805-844), `/expiring-cards` (:850), statement batches (:655-679), `/receivables-ageing` (:537), period-lock (:273, 278), `/invoices/{id}/document` (:500), `/portal/coupon-quotes` (:926), `/portal/payment-methods/processor` (:947), pay-link confirm (:997), fake-processor authentications (:1008).
+- [ ] [undocumented] L9 "every billing table" omits `collections_tag` (models.py:1061) and `client_collections_profile` (models.py:1073).
+- [ ] [undocumented] `documents.browser_processor` (documents.py:288), called by `invoice_by_link` and programs guest checkout, is missing from the L106-112 block.
+- [ ] [undocumented] L108-110: `secure_online_checkout(amount_minor=)` caps at the balance (checkout.py:86), counts a part-payment replay as covered only if the payment is at least that part (checkout.py:96-109), and raises `payment-method-not-usable` only on the no-invoice path (checkout.py:119-123).
+- [ ] [wording] L108-110 and checkout.py:13-27 tie `payment_method_id` to "no invoice"; the invoice path passes it to `take_payment` too (checkout.py:105-108).
+- [ ] [undocumented] L197-201: the portal lockout is allow-by-omission; the open side lives only in `OPEN_PORTAL_POSTS` (tests/test_collections.py:20-38) and the test (:59-64) fails the build to force the choice (collections.py:216-222, 238-241).
+- [ ] [wording] L198-199 says the lock refuses "buying or booking"; it also blocks the quote routes (collections.py:217-218), while L338 calls `/portal/coupon-quotes` "only previews".
+- [ ] [undocumented] L271-273 bulk invoicing: one invoice per client and location in its own savepoint, `is_dry_run`, `only_mine` (schemas.py:589-592; documents.py:685-737). The closed wording item fixed only the cap.
+- [ ] [undocumented] L226-229: `RETRY_ATTEMPTS` now comes from `inbound_webhooks` (webhooks.py:26), and an empty-payload event is recorded failed ("payload missing") instead of applied (webhooks.py:79-87, 96, 112). Working tree, uncommitted.
 
 ### clients (10) — [evidence](drift/clients.md)
 

@@ -77,6 +77,11 @@ def record(provider: str, event_id: str, account_ref: str | None, event_type: st
     return None if row_id is None else (row_id, tenant_id)
 
 
+# A failed event is retried by billing's sweep until it has this many attempts, then left `failed` for an
+# operator. Kept here so the purge below never empties an event the sweep would still retry.
+RETRY_ATTEMPTS = 5
+
+
 def finish(row_id: UUID, error: str | None = None) -> None:
     with platform_engine().begin() as conn:
         conn.execute(
@@ -105,10 +110,10 @@ def stale(tenant_id: UUID, before: datetime, max_attempts: int) -> list[UUID]:
 
 
 def purge_payloads() -> int:
-    """Retention (security-baseline 2.3): empty the payload and error text of events processed, ignored or failed
-    more than `retention.inbound_payload_days` ago, at most `retention.batch_rows` per call. A failed event's
-    retries run minutes apart (billing.webhooks), so by then they are long exhausted. The row stays so a late
-    redelivery is still a duplicate; a recent failure keeps its payload for the retry sweep. Idempotent. Run
+    """Retention (security-baseline 2.3): empty the payload and error text of terminal events (processed,
+    ignored, or failed `RETRY_ATTEMPTS` times) last touched more than `retention.inbound_payload_days` ago, at
+    most `retention.batch_rows` per call. A failure the sweep would still retry keeps both, however old. The row
+    stays so a late redelivery is still a duplicate. Idempotent. Run
     hourly by the clock (app.scheduler.tick_hour) as fh_platform: the table is global, and ignored events have no
     tenant."""
     cfg = get_settings().retention
@@ -119,12 +124,13 @@ def purge_payloads() -> int:
         return conn.execute(
             text(
                 "UPDATE inbound_webhook_event SET payload = '{}'::jsonb, error = NULL WHERE id IN (SELECT id FROM "
-                "inbound_webhook_event WHERE status IN ('processed', 'ignored', 'failed') "
+                "inbound_webhook_event WHERE (status IN ('processed', 'ignored') OR (status = 'failed' AND "
+                "attempt_count >= :cap)) "
                 "AND (payload <> '{}'::jsonb OR error IS NOT NULL) AND "
                 "COALESCE(processed_at, received_at) < :before LIMIT :n "
                 "FOR UPDATE SKIP LOCKED)"
             ),
-            {"before": before, "n": cfg.batch_rows},
+            {"before": before, "n": cfg.batch_rows, "cap": RETRY_ATTEMPTS},
         ).rowcount
 
 
