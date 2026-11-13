@@ -241,14 +241,14 @@ function SignupConfirmPage({ config }: { config: Config }) {
   )
 }
 
-type GuestForm = { first_name: string; last_name: string; email: string; kid_first: string; kid_last: string; fee_id: string }
+type GuestForm = { first_name: string; last_name: string; email: string; birth_on: string; kid_first: string; kid_last: string; kid_birth_on: string; fee_id: string }
 
 /** Guest checkout (REG-12): no account, a new card only, and the place is held while the guest pays. */
 function GuestCheckoutPage({ config }: { config: Config }) {
   const { groupId = '' } = useParams()
   const group = useQuery({ queryKey: ['public', 'program-group', groupId], queryFn: () => api.get('/api/v1/public/program-groups/{program_group_id}', { path: { program_group_id: groupId } }) })
   const terms = useQuery({ queryKey: ['public', 'portal-terms'], queryFn: () => api.get('/api/v1/public/portal-terms'), retry: false })
-  const [form, setForm] = useState<GuestForm>({ first_name: '', last_name: '', email: '', kid_first: '', kid_last: '', fee_id: '' })
+  const [form, setForm] = useState<GuestForm>({ first_name: '', last_name: '', email: '', birth_on: '', kid_first: '', kid_last: '', kid_birth_on: '', fee_id: '' })
   const [checkout, setCheckout] = useState<Schemas['GuestCheckoutOut'] | null>(null)
   const [method, setMethod] = useState('')
   const [agreed, setAgreed] = useState(false)
@@ -259,8 +259,8 @@ function GuestCheckoutPage({ config }: { config: Config }) {
       return api.post('/api/v1/public/guest-checkouts', {
         body: {
           location_id: g.location_id,
-          payer: { first_name: form.first_name, last_name: form.last_name, email: form.email },
-          participants: forKid ? [{ first_name: form.kid_first, last_name: form.kid_last || form.last_name }] : [],
+          payer: { first_name: form.first_name, last_name: form.last_name, email: form.email, birth_on: form.birth_on },
+          participants: forKid ? [{ first_name: form.kid_first, last_name: form.kid_last || form.last_name, birth_on: form.kid_birth_on }] : [],
           items: [{ program_group_id: g.id, program_fee_id: form.fee_id || g.fees[0]?.id || null, participant: forKid ? 0 : null }],
         },
       })
@@ -313,11 +313,13 @@ function GuestCheckoutPage({ config }: { config: Config }) {
             <Input label="First name" autoComplete="given-name" required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
             <Input label="Last name" autoComplete="family-name" required value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
             <Input label="Email" type="email" autoComplete="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Input label="Date of birth" type="date" autoComplete="bday" required value={form.birth_on} onChange={(e) => setForm({ ...form, birth_on: e.target.value })} />
           </fieldset>
           <fieldset className="space-y-3">
             <legend className="font-semibold">Registering someone else? (optional)</legend>
             <Input label="Participant first name" value={form.kid_first} onChange={(e) => setForm({ ...form, kid_first: e.target.value })} />
             <Input label="Participant last name" value={form.kid_last} onChange={(e) => setForm({ ...form, kid_last: e.target.value })} />
+            <Input label="Participant date of birth" type="date" required={Boolean(form.kid_first.trim())} value={form.kid_birth_on} onChange={(e) => setForm({ ...form, kid_birth_on: e.target.value })} />
           </fieldset>
           {g.fees.length > 1 && (
             <Select label="Fee" value={form.fee_id} onChange={(e) => setForm({ ...form, fee_id: e.target.value })} placeholder="Choose a fee"

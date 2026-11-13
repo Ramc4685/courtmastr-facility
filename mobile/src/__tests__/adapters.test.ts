@@ -4,7 +4,6 @@ import * as SecureStore from 'expo-secure-store';
 import { portal } from '../adapters';
 import { apiAdapter } from '../adapters/api';
 import { demoAdapter, resetDemo } from '../adapters/demo';
-import { NotAvailable } from '../adapters/types';
 import { resetClients } from '../api/client';
 import { signInWithPassword } from '../lib/auth';
 import { loadSession } from '../lib/session';
@@ -176,11 +175,19 @@ describe('api adapter', () => {
     expect(calls[0]!.url).toBe('http://localhost:8150/api/v1/portal/assessment-bests?client_id=c1');
   });
 
-  it('reports what the portal has no endpoint for as not available, without calling the server', async () => {
-    const calls = mockFetch([]);
-    await expect(apiAdapter.searchDirectory('court')).rejects.toBeInstanceOf(NotAvailable);
-    await expect(apiAdapter.getAppConfig()).rejects.toBeInstanceOf(NotAvailable);
+  it('searches the shared directory anonymously and reads the public app config', async () => {
+    let calls = mockFetch([]);
+    expect(await apiAdapter.searchDirectory('c')).toEqual([]); // under two letters the server is not asked
     expect(calls).toHaveLength(0);
+    calls = mockFetch([() => json({ data: [{ tenant_id: 't1', slug: 'court', name: 'Court Club', host: 'court.example' }] })]);
+    expect(await apiAdapter.searchDirectory(' court ')).toEqual([
+      { tenant_id: 't1', slug: 'court', name: 'Court Club', host: 'court.example', city: null, icon_url: null },
+    ]);
+    expect(calls[0]!.url).toContain('/api/v1/public/app-directory?q=court&limit=20');
+    expect(calls[0]!.headers.authorization).toBeUndefined();
+    calls = mockFetch([() => json({ tenant_id: 't1', app_name: 'Court', theme: {}, features: {}, schedule: {}, portal: {} })]);
+    expect(await apiAdapter.getAppConfig()).toMatchObject({ app_name: 'Court', icon_url: null, home_screen: null });
+    expect(calls[0]!.url).toContain('/api/v1/public/app-config');
   });
 
   it('surfaces problem+json from a missing endpoint as an ApiError', async () => {

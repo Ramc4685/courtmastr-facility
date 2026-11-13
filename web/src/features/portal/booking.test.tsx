@@ -126,7 +126,7 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(await within(dialog).findByRole('radio', { name: /Saved card/ })).toBeChecked()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Pay $50.00' }))
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Booked: Court rental')
-    expect(confirms[0]?.body).toEqual({ provider_payment_token: null, payment_method_id: 'pm1', save_method: false })
+    expect(confirms[0]?.body).toEqual({ provider_payment_token: null, payment_method_id: 'pm1', save_method: false, terms_version_id: null })
     expect(confirms[0]?.headers['idempotency-key']).toBeTruthy()
   })
 
@@ -240,7 +240,7 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(screen.queryByRole('textbox', { name: 'Coupon code' })).not.toBeInTheDocument()
     await userEvent.click(await screen.findByRole('button', { name: 'Pay $100.00 and confirm' }))
     expect(await screen.findByText('You are registered')).toBeInTheDocument()
-    expect(confirms[0]?.body).toEqual({ pay_later: false, payment_method_id: 'pm1', method_token: null, coupon_code: null })
+    expect(confirms[0]?.body).toEqual({ pay_later: false, payment_method_id: 'pm1', method_token: null, coupon_code: null, terms_version_id: null })
   })
 
   it('says when the facility has progress sharing off', async () => {

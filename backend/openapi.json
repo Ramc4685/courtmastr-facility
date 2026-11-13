@@ -26596,6 +26596,368 @@
         "title": "GroupRoster",
         "type": "object"
       },
+      "GuestCheckoutConfirm": {
+        "additionalProperties": false,
+        "description": "A guest pays in full by a new card: no stored methods, no account credit, no instalments.",
+        "properties": {
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
+          "guest_token": {
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Guest Token",
+            "type": "string"
+          },
+          "method_token": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Method Token",
+            "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
+          }
+        },
+        "required": [
+          "guest_token",
+          "method_token"
+        ],
+        "title": "GuestCheckoutConfirm",
+        "type": "object"
+      },
+      "GuestCheckoutCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuestItem"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "participants": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GuestParticipant"
+            },
+            "maxItems": 6,
+            "title": "Participants",
+            "type": "array"
+          },
+          "payer": {
+            "$ref": "#/components/schemas/GuestPayer"
+          }
+        },
+        "required": [
+          "location_id",
+          "payer",
+          "items"
+        ],
+        "title": "GuestCheckoutCreate",
+        "type": "object"
+      },
+      "GuestCheckoutItem": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "program_group_id": {
+            "format": "uuid",
+            "title": "Program Group Id",
+            "type": "string"
+          },
+          "program_group_name": {
+            "title": "Program Group Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_name",
+          "program_group_id",
+          "program_group_name",
+          "amount_minor",
+          "status"
+        ],
+        "title": "GuestCheckoutItem",
+        "type": "object"
+      },
+      "GuestCheckoutOut": {
+        "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "guest_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Token"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuestCheckoutItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "status",
+          "total_minor",
+          "expires_at",
+          "completed_at",
+          "items"
+        ],
+        "title": "GuestCheckoutOut",
+        "type": "object"
+      },
+      "GuestCheckoutToken": {
+        "additionalProperties": false,
+        "properties": {
+          "guest_token": {
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Guest Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "guest_token"
+        ],
+        "title": "GuestCheckoutToken",
+        "type": "object"
+      },
+      "GuestItem": {
+        "additionalProperties": false,
+        "properties": {
+          "participant": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant"
+          },
+          "program_fee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Fee Id"
+          },
+          "program_group_id": {
+            "format": "uuid",
+            "title": "Program Group Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "program_group_id"
+        ],
+        "title": "GuestItem",
+        "type": "object"
+      },
+      "GuestParticipant": {
+        "additionalProperties": false,
+        "properties": {
+          "birth_on": {
+            "format": "date",
+            "title": "Birth On",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "birth_on"
+        ],
+        "title": "GuestParticipant",
+        "type": "object"
+      },
+      "GuestPayer": {
+        "additionalProperties": false,
+        "properties": {
+          "birth_on": {
+            "format": "date",
+            "title": "Birth On",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          },
+          "phone_mobile": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Mobile"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "birth_on"
+        ],
+        "title": "GuestPayer",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -44322,6 +44684,18 @@
               }
             ],
             "title": "Payment Method Id"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "title": "PortalCheckoutConfirm",
@@ -44472,6 +44846,11 @@
             ],
             "title": "Completed At"
           },
+          "due_now_minor": {
+            "default": 0,
+            "title": "Due Now Minor",
+            "type": "integer"
+          },
           "expires_at": {
             "format": "date-time",
             "title": "Expires At",
@@ -44481,6 +44860,14 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "instalments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PortalInstalment"
+            },
+            "title": "Instalments",
+            "type": "array"
           },
           "invoice_id": {
             "anyOf": [
@@ -45191,6 +45578,18 @@
             ],
             "title": "Method Token"
           },
+          "payment_method_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method Id"
+          },
           "proration_tail": {
             "anyOf": [
               {
@@ -45238,6 +45637,18 @@
             ],
             "title": "Tender Kind",
             "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "required": [
@@ -46227,6 +46638,25 @@
         "title": "PortalInboxItem",
         "type": "object"
       },
+      "PortalInstalment": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "due_on",
+          "amount_minor"
+        ],
+        "title": "PortalInstalment",
+        "type": "object"
+      },
       "PortalInvite": {
         "additionalProperties": false,
         "properties": {
@@ -46371,6 +46801,38 @@
         "title": "PortalInvoiceOut",
         "type": "object"
       },
+      "PortalJoinLinkOut": {
+        "description": "SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one.",
+        "properties": {
+          "closes_at": {
+            "format": "date-time",
+            "title": "Closes At",
+            "type": "string"
+          },
+          "join_url": {
+            "title": "Join Url",
+            "type": "string"
+          },
+          "opens_at": {
+            "format": "date-time",
+            "title": "Opens At",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "join_url",
+          "opens_at",
+          "closes_at"
+        ],
+        "title": "PortalJoinLinkOut",
+        "type": "object"
+      },
       "PortalLeagueTeamOut": {
         "properties": {
           "competition_name": {
@@ -46399,6 +46861,70 @@
           "starts_on"
         ],
         "title": "PortalLeagueTeamOut",
+        "type": "object"
+      },
+      "PortalMenuItem": {
+        "additionalProperties": false,
+        "description": "One portal section (SSP-13): shown or hidden, in list order, optionally renamed.",
+        "properties": {
+          "is_visible": {
+            "default": true,
+            "title": "Is Visible",
+            "type": "boolean"
+          },
+          "key": {
+            "pattern": "^[a-z_]{1,30}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "PortalMenuItem",
+        "type": "object"
+      },
+      "PortalMenuItemOut": {
+        "properties": {
+          "is_visible": {
+            "title": "Is Visible",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "is_visible"
+        ],
+        "title": "PortalMenuItemOut",
         "type": "object"
       },
       "PortalMissingDocument": {
@@ -46484,6 +47010,18 @@
             "title": "Package Plan Id",
             "type": "string"
           },
+          "payment_method_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method Id"
+          },
           "quantity": {
             "anyOf": [
               {
@@ -46505,6 +47043,18 @@
             ],
             "title": "Tender Kind",
             "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "required": [
@@ -46892,6 +47442,97 @@
           "discount_minor"
         ],
         "title": "PortalPackagePlanOut",
+        "type": "object"
+      },
+      "PortalPackageQuoteOut": {
+        "description": "The portal's own preview shape (portalQuoteClientPackage); pre-tax, before any coupon.",
+        "properties": {
+          "is_member": {
+            "title": "Is Member",
+            "type": "boolean"
+          },
+          "is_unlimited": {
+            "title": "Is Unlimited",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "occurrences_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrences Count"
+          },
+          "online_sale_mode": {
+            "title": "Online Sale Mode",
+            "type": "string"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "requirements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "sessions_granted_count": {
+            "title": "Sessions Granted Count",
+            "type": "integer"
+          },
+          "unit_price_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price Minor"
+          },
+          "valid_from_on": {
+            "format": "date",
+            "title": "Valid From On",
+            "type": "string"
+          },
+          "valid_until_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until On"
+          }
+        },
+        "required": [
+          "name",
+          "is_unlimited",
+          "sessions_granted_count",
+          "price_minor",
+          "unit_price_minor",
+          "valid_from_on",
+          "valid_until_on",
+          "occurrences_count",
+          "is_member",
+          "online_sale_mode",
+          "requirements"
+        ],
+        "title": "PortalPackageQuoteOut",
         "type": "object"
       },
       "PortalPackageSaleOut": {
@@ -47954,18 +48595,51 @@
       },
       "PortalRentalConfirm": {
         "additionalProperties": false,
-        "description": "A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.",
+        "description": "A PaymentProvider client token (never raw card data) or one of the client's stored payment methods.",
         "properties": {
+          "payment_method_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method Id"
+          },
           "provider_payment_token": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Provider Payment Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Payment Token"
+          },
+          "save_method": {
+            "default": false,
+            "title": "Save Method",
+            "type": "boolean"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
-        "required": [
-          "provider_payment_token"
-        ],
         "title": "PortalRentalConfirm",
         "type": "object"
       },
@@ -48537,6 +49211,11 @@
             "title": "Is Bookable",
             "type": "boolean"
           },
+          "is_virtual": {
+            "default": false,
+            "title": "Is Virtual",
+            "type": "boolean"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -48552,6 +49231,18 @@
               }
             ],
             "title": "Reason"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
           },
           "session_id": {
             "format": "uuid",
@@ -48615,6 +49306,17 @@
             "title": "Allows Online Rentals",
             "type": "boolean"
           },
+          "allows_self_signup": {
+            "title": "Allows Self Signup",
+            "type": "boolean"
+          },
+          "group_redirect_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Group Redirect Urls",
+            "type": "object"
+          },
           "is_enabled": {
             "title": "Is Enabled",
             "type": "boolean"
@@ -48628,9 +49330,41 @@
             "title": "Location Id",
             "type": "string"
           },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/PortalMenuItemOut"
+            },
+            "title": "Menu",
+            "type": "array"
+          },
+          "redirect_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Redirect Domains",
+            "type": "array"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "social_links": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Social Links",
+            "type": "object"
           },
           "terms_text": {
             "anyOf": [
@@ -48675,7 +49409,13 @@
           "terms_text",
           "terms_version",
           "allows_online_rentals",
-          "allows_online_purchases"
+          "allows_online_purchases",
+          "allows_self_signup",
+          "menu",
+          "social_links",
+          "redirect_url",
+          "group_redirect_urls",
+          "redirect_domains"
         ],
         "title": "PortalSettingsOut",
         "type": "object"
@@ -48705,6 +49445,37 @@
             ],
             "title": "Allows Online Rentals"
           },
+          "allows_self_signup": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Self Signup"
+          },
+          "group_redirect_urls": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 500,
+                  "pattern": "^https://[^\\s]+$",
+                  "type": "string"
+                },
+                "maxProperties": 200,
+                "propertyNames": {
+                  "format": "uuid"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Redirect Urls"
+          },
           "is_enabled": {
             "anyOf": [
               {
@@ -48727,6 +49498,51 @@
             ],
             "title": "Is Public"
           },
+          "menu": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PortalMenuItem"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Menu"
+          },
+          "redirect_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 253,
+                  "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Domains"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "pattern": "^https://[^\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
           "slug": {
             "anyOf": [
               {
@@ -48738,6 +49554,32 @@
               }
             ],
             "title": "Slug"
+          },
+          "social_links": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 500,
+                  "pattern": "^https://[^\\s]+$",
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "facebook",
+                    "instagram",
+                    "x",
+                    "youtube",
+                    "tiktok",
+                    "linkedin"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Social Links"
           },
           "terms_text": {
             "anyOf": [
@@ -48765,6 +49607,180 @@
           }
         },
         "title": "PortalSettingsUpdate",
+        "type": "object"
+      },
+      "PortalShareLinkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "expires_in_days": {
+            "default": 30,
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Expires In Days",
+            "type": "integer"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "title": "PortalShareLinkCreate",
+        "type": "object"
+      },
+      "PortalShareLinkCreated": {
+        "description": "The token and its link are shown once; only the token's hash is stored.",
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "label",
+          "expires_at",
+          "revoked_at",
+          "created_at",
+          "is_active",
+          "token",
+          "url"
+        ],
+        "title": "PortalShareLinkCreated",
+        "type": "object"
+      },
+      "PortalShareLinkOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "label",
+          "expires_at",
+          "revoked_at",
+          "created_at",
+          "is_active"
+        ],
+        "title": "PortalShareLinkOut",
         "type": "object"
       },
       "PortalSigner": {
@@ -48845,6 +49861,167 @@
           "method"
         ],
         "title": "PortalSigner",
+        "type": "object"
+      },
+      "PortalSignupConfirmIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_kind": {
+            "default": "web",
+            "enum": [
+              "web",
+              "mobile"
+            ],
+            "title": "Client Kind",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "PortalSignupConfirmIn",
+        "type": "object"
+      },
+      "PortalSignupIn": {
+        "additionalProperties": false,
+        "description": "Public self-registration (SSP-05). The answer is the same whether or not the address is known.",
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "phone_mobile": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Mobile"
+          }
+        },
+        "required": [
+          "location_id",
+          "email",
+          "first_name",
+          "last_name"
+        ],
+        "title": "PortalSignupIn",
+        "type": "object"
+      },
+      "PortalSignupSession": {
+        "description": "The confirm answer, in the portal's own shape: `signed_in` (web: the session cookie is set and the CSRF\ntoken is here; mobile: the tokens are here) or `mfa_required` (202, finish with the MFA verify route).",
+        "properties": {
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
+          },
+          "csrf_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csrf Token"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "mfa_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Token"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          },
+          "status": {
+            "enum": [
+              "signed_in",
+              "mfa_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "PortalSignupSession",
         "type": "object"
       },
       "PortalStatementInvoice": {
@@ -49070,6 +50247,10 @@
             "title": "Body Html",
             "type": "string"
           },
+          "terms_version_id": {
+            "title": "Terms Version Id",
+            "type": "string"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -49077,7 +50258,8 @@
         },
         "required": [
           "title",
-          "body_html"
+          "body_html",
+          "terms_version_id"
         ],
         "title": "PortalTermsOut",
         "type": "object"
@@ -54568,18 +55750,19 @@
         "type": "object"
       },
       "PublicAppConfig": {
+        "description": "The public answer has its own models: it never reuses the staff config shapes.",
         "properties": {
           "app_name": {
             "title": "App Name",
             "type": "string"
           },
           "features": {
-            "$ref": "#/components/schemas/AppFeatures"
+            "$ref": "#/components/schemas/PublicAppFeatures"
           },
           "home_screen": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/AppHomeScreen"
+                "$ref": "#/components/schemas/PublicAppHomeScreen"
               },
               {
                 "type": "null"
@@ -54601,7 +55784,7 @@
             "$ref": "#/components/schemas/PublicPortalConfig"
           },
           "schedule": {
-            "$ref": "#/components/schemas/AppSchedule"
+            "$ref": "#/components/schemas/PublicAppSchedule"
           },
           "tenant_id": {
             "format": "uuid",
@@ -54625,14 +55808,160 @@
         "title": "PublicAppConfig",
         "type": "object"
       },
+      "PublicAppDesign": {
+        "properties": {
+          "columns": {
+            "title": "Columns",
+            "type": "integer"
+          },
+          "corners": {
+            "title": "Corners",
+            "type": "string"
+          }
+        },
+        "required": [
+          "columns",
+          "corners"
+        ],
+        "title": "PublicAppDesign",
+        "type": "object"
+      },
+      "PublicAppFeatures": {
+        "properties": {
+          "booking": {
+            "title": "Booking",
+            "type": "boolean"
+          },
+          "membership_card": {
+            "title": "Membership Card",
+            "type": "boolean"
+          },
+          "purchases": {
+            "title": "Purchases",
+            "type": "boolean"
+          },
+          "wallet_pass": {
+            "title": "Wallet Pass",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "booking",
+          "purchases",
+          "membership_card",
+          "wallet_pass"
+        ],
+        "title": "PublicAppFeatures",
+        "type": "object"
+      },
+      "PublicAppHomeScreen": {
+        "properties": {
+          "design": {
+            "$ref": "#/components/schemas/PublicAppDesign"
+          },
+          "tiles": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAppTile"
+            },
+            "title": "Tiles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tiles",
+          "design"
+        ],
+        "title": "PublicAppHomeScreen",
+        "type": "object"
+      },
+      "PublicAppSchedule": {
+        "properties": {
+          "days_ahead": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Ahead"
+          },
+          "shows_full_sessions": {
+            "title": "Shows Full Sessions",
+            "type": "boolean"
+          },
+          "shows_spots_left": {
+            "title": "Shows Spots Left",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "shows_spots_left",
+          "shows_full_sessions"
+        ],
+        "title": "PublicAppSchedule",
+        "type": "object"
+      },
+      "PublicAppTile": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "style": {
+            "title": "Style",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "style"
+        ],
+        "title": "PublicAppTile",
+        "type": "object"
+      },
       "PublicBranding": {
         "properties": {
+          "accent_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Color"
+          },
           "locations": {
             "items": {
               "$ref": "#/components/schemas/PublicLocationLogo"
             },
             "title": "Locations",
             "type": "array"
+          },
+          "primary_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Color"
           },
           "tenant_logo_url": {
             "anyOf": [
@@ -54648,6 +55977,8 @@
         },
         "required": [
           "tenant_logo_url",
+          "primary_color",
+          "accent_color",
           "locations"
         ],
         "title": "PublicBranding",
@@ -54917,6 +56248,17 @@
           "amount_minor": {
             "title": "Amount Minor",
             "type": "integer"
+          },
+          "deposit_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Minor"
           },
           "description": {
             "title": "Description",
@@ -55560,6 +56902,37 @@
         "title": "PublicLocationLogo",
         "type": "object"
       },
+      "PublicMenuItem": {
+        "description": "The same item on the public side: portal routes never share a staff model (test_portal_schemas).",
+        "properties": {
+          "is_visible": {
+            "title": "Is Visible",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "is_visible"
+        ],
+        "title": "PublicMenuItem",
+        "type": "object"
+      },
       "PublicPlanOut": {
         "properties": {
           "billing_interval_count": {
@@ -55688,10 +57061,15 @@
             },
             "title": "Locations",
             "type": "array"
+          },
+          "tenant_slug": {
+            "title": "Tenant Slug",
+            "type": "string"
           }
         },
         "required": [
           "facility_name",
+          "tenant_slug",
           "locations"
         ],
         "title": "PublicPortalConfig",
@@ -55707,18 +57085,54 @@
             "title": "Allows Online Rentals",
             "type": "boolean"
           },
+          "allows_self_signup": {
+            "title": "Allows Self Signup",
+            "type": "boolean"
+          },
+          "group_redirect_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Group Redirect Urls",
+            "type": "object"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
           },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMenuItem"
+            },
+            "title": "Menu",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
           },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "social_links": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Social Links",
+            "type": "object"
           },
           "terms_text": {
             "anyOf": [
@@ -55755,7 +57169,12 @@
           "terms_text",
           "terms_version",
           "allows_online_rentals",
-          "allows_online_purchases"
+          "allows_online_purchases",
+          "allows_self_signup",
+          "menu",
+          "social_links",
+          "redirect_url",
+          "group_redirect_urls"
         ],
         "title": "PublicPortalLocation",
         "type": "object"
@@ -55849,6 +57268,22 @@
       },
       "PublicProgramGroup": {
         "properties": {
+          "allows_guest_checkout": {
+            "title": "Allows Guest Checkout",
+            "type": "boolean"
+          },
+          "balance_due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due On"
+          },
           "children": {
             "items": {
               "$ref": "#/components/schemas/PublicProgramGroup"
@@ -55913,6 +57348,28 @@
             "title": "Id",
             "type": "string"
           },
+          "instalment_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Count"
+          },
+          "instalment_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Unit"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -55920,6 +57377,11 @@
           },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "payment_plan": {
+            "default": "pay_in_full",
+            "title": "Payment Plan",
             "type": "string"
           },
           "payment_requirement": {
@@ -55973,6 +57435,7 @@
           "payment_requirement",
           "confirmation_message",
           "closed_message",
+          "allows_guest_checkout",
           "fees",
           "children"
         ],
@@ -56021,6 +57484,17 @@
           "from_price_minor": {
             "title": "From Price Minor",
             "type": "integer"
+          },
+          "horizon_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
           },
           "id": {
             "format": "uuid",
@@ -57739,6 +59213,22 @@
       },
       "RegistrationConfigOut": {
         "properties": {
+          "allows_guest_checkout": {
+            "title": "Allows Guest Checkout",
+            "type": "boolean"
+          },
+          "balance_due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due On"
+          },
           "closed_message": {
             "anyOf": [
               {
@@ -57777,6 +59267,28 @@
             "title": "Displays Openings",
             "type": "boolean"
           },
+          "instalment_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Count"
+          },
+          "instalment_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Unit"
+          },
           "is_enabled": {
             "title": "Is Enabled",
             "type": "boolean"
@@ -57807,6 +59319,10 @@
               }
             ],
             "title": "Opens On"
+          },
+          "payment_plan": {
+            "title": "Payment Plan",
+            "type": "string"
           },
           "payment_requirement": {
             "title": "Payment Requirement",
@@ -57865,7 +59381,12 @@
           "public_slug",
           "is_portal_visible",
           "portal_publish_name",
-          "portal_published_at"
+          "portal_published_at",
+          "allows_guest_checkout",
+          "payment_plan",
+          "balance_due_on",
+          "instalment_count",
+          "instalment_unit"
         ],
         "title": "RegistrationConfigOut",
         "type": "object"
@@ -57873,6 +59394,29 @@
       "RegistrationConfigPut": {
         "additionalProperties": false,
         "properties": {
+          "allows_guest_checkout": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Guest Checkout"
+          },
+          "balance_due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due On"
+          },
           "closed_message": {
             "anyOf": [
               {
@@ -57920,6 +59464,35 @@
             ],
             "title": "Displays Openings"
           },
+          "instalment_count": {
+            "anyOf": [
+              {
+                "maximum": 24.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Count"
+          },
+          "instalment_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "week",
+                  "half_month",
+                  "month"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Unit"
+          },
           "is_enabled": {
             "anyOf": [
               {
@@ -57954,6 +59527,22 @@
               }
             ],
             "title": "Opens On"
+          },
+          "payment_plan": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pay_in_full",
+                  "deposit",
+                  "instalments"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Plan"
           },
           "payment_requirement": {
             "anyOf": [
@@ -59999,6 +61588,113 @@
         "title": "RentalPlanUpdate",
         "type": "object"
       },
+      "RentalPortalSettings": {
+        "additionalProperties": false,
+        "description": "Per-location online rental defaults (SSP-04). A limit tightens every self-service type here.",
+        "properties": {
+          "horizon_days": {
+            "anyOf": [
+              {
+                "maximum": 730.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
+          },
+          "is_online_enabled": {
+            "default": true,
+            "title": "Is Online Enabled",
+            "type": "boolean"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "maximum": 10080.0,
+                "minimum": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "anyOf": [
+              {
+                "maximum": 525600.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Lead Min"
+          }
+        },
+        "title": "RentalPortalSettings",
+        "type": "object"
+      },
+      "RentalPortalSettingsOut": {
+        "properties": {
+          "horizon_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
+          },
+          "is_online_enabled": {
+            "title": "Is Online Enabled",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Lead Min"
+          }
+        },
+        "required": [
+          "location_id",
+          "is_online_enabled",
+          "min_lead_min",
+          "max_length_min",
+          "horizon_days"
+        ],
+        "title": "RentalPortalSettingsOut",
+        "type": "object"
+      },
       "RentalPreview": {
         "properties": {
           "conflict_count": {
@@ -60718,6 +62414,17 @@
           "eligibility": {
             "title": "Eligibility",
             "type": "string"
+          },
+          "horizon_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
           },
           "id": {
             "format": "uuid",
@@ -65363,6 +67070,11 @@
           "is_self_bookable": {
             "title": "Is Self Bookable",
             "type": "boolean"
+          },
+          "is_virtual": {
+            "default": false,
+            "title": "Is Virtual",
+            "type": "boolean"
           }
         },
         "required": [
@@ -65460,6 +67172,74 @@
         "title": "SessionInstructorOut",
         "type": "object"
       },
+      "SessionMeetingOut": {
+        "description": "A virtual session's meeting (CLS-08). Staff only: the links are credentials.",
+        "properties": {
+          "closes_at": {
+            "format": "date-time",
+            "title": "Closes At",
+            "type": "string"
+          },
+          "host_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host Url"
+          },
+          "is_virtual": {
+            "title": "Is Virtual",
+            "type": "boolean"
+          },
+          "join_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Url"
+          },
+          "opens_at": {
+            "format": "date-time",
+            "title": "Opens At",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "is_virtual",
+          "provider",
+          "join_url",
+          "host_url",
+          "opens_at",
+          "closes_at"
+        ],
+        "title": "SessionMeetingOut",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "allows_free_booking": {
@@ -65512,6 +67292,11 @@
           },
           "is_self_bookable": {
             "title": "Is Self Bookable",
+            "type": "boolean"
+          },
+          "is_virtual": {
+            "default": false,
+            "title": "Is Virtual",
             "type": "boolean"
           },
           "location_id": {
@@ -65833,6 +67618,58 @@
           "client_id"
         ],
         "title": "ShareIn",
+        "type": "object"
+      },
+      "SharedProgressLookup": {
+        "additionalProperties": false,
+        "description": "The token from the link's URL fragment; it travels in the body, never the URL.",
+        "properties": {
+          "token": {
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "SharedProgressLookup",
+        "type": "object"
+      },
+      "SharedProgressOut": {
+        "properties": {
+          "bests": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAssessmentBestOut"
+            },
+            "title": "Bests",
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAssessmentResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "first_name",
+          "expires_at",
+          "results",
+          "bests"
+        ],
+        "title": "SharedProgressOut",
         "type": "object"
       },
       "ShiftCopy": {
@@ -71779,6 +73616,28 @@
       },
       "TenantOut": {
         "properties": {
+          "brand_accent_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Accent Color"
+          },
+          "brand_primary_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Primary Color"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -71840,7 +73699,9 @@
           "locale",
           "staff_mfa_policy",
           "trial_ends_on",
-          "settings"
+          "settings",
+          "brand_primary_color",
+          "brand_accent_color"
         ],
         "title": "TenantOut",
         "type": "object"
@@ -71864,6 +73725,30 @@
       "TenantUpdate": {
         "additionalProperties": false,
         "properties": {
+          "brand_accent_color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Accent Color"
+          },
+          "brand_primary_color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Primary Color"
+          },
           "currency": {
             "anyOf": [
               {
@@ -108148,6 +110033,139 @@
         ]
       }
     },
+    "/api/v1/locations/{location_id}/rental-portal-settings": {
+      "get": {
+        "operationId": "getRentalPortalSettings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPortalSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental Portal Settings",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "put": {
+        "description": "SSP-04: whether the portal books rentals at this location, and limits for every self-service type.",
+        "operationId": "putRentalPortalSettings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalPortalSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPortalSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Rental Portal Settings",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/locations/{location_id}/session-booking-policy": {
       "put": {
         "operationId": "putDefaultSessionBookingPolicy",
@@ -119489,6 +121507,86 @@
         ]
       }
     },
+    "/api/v1/portal/client-packages/quote": {
+      "post": {
+        "description": "Preview an online purchase with the buy body. Errors: validation-failed (a plan not sold online).",
+        "operationId": "portalQuoteClientPackage",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalPackageBuy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPackageQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Portal Quote Client Package",
+        "tags": [
+          "packages"
+        ]
+      }
+    },
     "/api/v1/portal/client-packages/{package_id}/auto-renew-opt-out": {
       "post": {
         "operationId": "portalOptOutPackageAutoRenew",
@@ -122893,6 +124991,196 @@
         ]
       }
     },
+    "/api/v1/portal/progress-share-links": {
+      "get": {
+        "description": "FIT-05: the acted-for client's share links, live and revoked. 404 while sharing is off.",
+        "operationId": "listPortalProgressShareLinks",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalShareLinkOut"
+                  },
+                  "title": "Response Listportalprogresssharelinks",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Progress Share Links",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "post": {
+        "description": "A revocable read-only link; the token is in the URL fragment and shown once.",
+        "operationId": "createPortalProgressShareLink",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalShareLinkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalShareLinkCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Progress Share Link",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/portal/progress-share-links/{progress_share_link_id}/revoke": {
+      "post": {
+        "operationId": "revokePortalProgressShareLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "progress_share_link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Progress Share Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Portal Progress Share Link",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
     "/api/v1/portal/registration-checkouts": {
       "post": {
         "operationId": "createPortalRegistrationCheckout",
@@ -124269,7 +126557,7 @@
     },
     "/api/v1/portal/rentals/{rental_id}/confirm": {
       "post": {
-        "description": "Errors: hold-expired, payment-declined.",
+        "description": "Pays through secure_online_checkout. Errors: hold-expired, payment-failed, payment-method-required,\npayment-method-not-usable, provider-unavailable (503, retry with the same key).",
         "operationId": "confirmPortalRental",
         "parameters": [
           {
@@ -124489,6 +126777,69 @@
           }
         },
         "summary": "List Portal Session Listings",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
+    "/api/v1/portal/sessions/{schedule_session_id}/join-link": {
+      "get": {
+        "description": "SSP-18: for an enrolled client (or someone acting for one), from 15 minutes before the start to the end.\nErrors: join-not-open (409, with opens_at and closes_at).",
+        "operationId": "getPortalSessionJoinLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalJoinLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Session Join Link",
         "tags": [
           "programs"
         ]
@@ -131927,6 +134278,169 @@
         ]
       }
     },
+    "/api/v1/public/guest-checkouts": {
+      "post": {
+        "description": "Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the\nonly key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required.",
+        "operationId": "createGuestCheckout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCheckoutCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestCheckoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Guest Checkout",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
+    "/api/v1/public/guest-checkouts/{checkout_id}/abandon": {
+      "post": {
+        "operationId": "abandonGuestCheckout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkout Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCheckoutToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestCheckoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abandon Guest Checkout",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
+    "/api/v1/public/guest-checkouts/{checkout_id}/confirm": {
+      "post": {
+        "description": "Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed.",
+        "operationId": "confirmGuestCheckout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCheckoutConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestCheckoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Guest Checkout",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
     "/api/v1/public/invoice-links/lookup": {
       "post": {
         "description": "What the emailed link pays. The token travels in the body, never the URL. Errors: link-invalid.",
@@ -132503,6 +135017,98 @@
         ]
       }
     },
+    "/api/v1/public/portal-signups": {
+      "post": {
+        "description": "Email a verification link to finish signing up. 202 whether or not the address is known. Errors:\nsignup-disabled (the location does not take online sign-ups), field-required, rate-limited.",
+        "operationId": "createPortalSignup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalSignupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Signup",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/api/v1/public/portal-signups/confirm": {
+      "post": {
+        "description": "Create the client and the portal login and sign in. Errors: token-invalid, token-expired.",
+        "operationId": "confirmPortalSignup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalSignupConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalSignupSession"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalSignupSession"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Portal Signup",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
     "/api/v1/public/portal-terms": {
       "get": {
         "description": "The terms a new portal account accepts (DOC-14). Tenant from the host or X-Tenant-Slug.",
@@ -132619,6 +135225,48 @@
         "summary": "Get Public Program Group",
         "tags": [
           "programs"
+        ]
+      }
+    },
+    "/api/v1/public/progress-shares/lookup": {
+      "post": {
+        "description": "FIT-05: what a live share link shows. The token travels in the body, never the URL. Errors: 404.",
+        "operationId": "getSharedProgress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedProgressLookup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedProgressOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shared Progress",
+        "tags": [
+          "assessments"
         ]
       }
     },
@@ -143079,6 +145727,183 @@
         "summary": "Assign Session Instructor",
         "tags": [
           "staff"
+        ]
+      }
+    },
+    "/api/v1/sessions/{schedule_session_id}/meeting": {
+      "delete": {
+        "operationId": "deleteSessionMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Session Meeting",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "get": {
+        "description": "CLS-08: the meeting links of a virtual session (staff only).",
+        "operationId": "getSessionMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeetingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Meeting",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "put": {
+        "description": "Make the session virtual (a meeting through the video port). Idempotent.",
+        "operationId": "createSessionMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeetingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session Meeting",
+        "tags": [
+          "scheduling"
         ]
       }
     },

@@ -87,7 +87,7 @@ export default function Invoices() {
               <Button variant="secondary" label="Fail the check (test)" onPress={() => authenticate.mutate(false)} loading={authenticate.isPending && !authenticate.variables} />
             </>
           ) : (
-            <Small>Confirming with your bank in the app needs the card processor's sheet, which is not available yet. Finish it on the web portal.</Small>
+            <Small>Confirming with your bank in the app needs the card processor&apos;s sheet, which is not available yet. Finish it on the web portal.</Small>
           )}
         </Surface>
       )}
