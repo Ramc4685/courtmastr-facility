@@ -384,3 +384,28 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
 - [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
 - [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
+
+### engagement re-check 2026-11-13 (+19) — [evidence](drift/engagement.md)
+
+New items only; the ten engagement items above are already ticked. Counts: contract 5, missing 1, undocumented 9, wording 4.
+
+- [ ] [contract] README:71 "API keys holding engagement scopes can create campaigns"; `integrations/service.py:64-72` `KEY_CONTEXTS` excludes engagement
+- [ ] [contract] README:34 "suppressions are T, admin only"; `GET /suppressions` needs only `campaign.read` (`router.py:246-248`, `service.py:1103-1104`), so managers can list them
+- [ ] [contract] README:58-59 `engagement.consent.changed`; published only at `service.py:1183,1224`, not for staff, portal, import or GDPR-off changes
+- [ ] [contract] spec ops tagged `engagement` with no route (webhooks/email, campaign resume/unschedule/copy/audience-preview, media-assets, news-stories, ...) not under Not built (README:131-136)
+- [ ] [contract] spec `/campaigns/{id}/test-send` vs code `/test` (`router.py:202`); spec `/portal/communication-preferences` vs code `/portal/clients/{client_id}/...` (`router.py:51,56`)
+- [ ] [missing] README:119 device `locale` accepted (`schemas.py:442`) but never stored (`service.py:1281-1311`)
+- [ ] [undocumented] test-send route and `campaign.edit` gate (`service.py:916-927`)
+- [ ] [undocumented] campaign lifecycle gates and states: cancel, delete, recall, stats, recipients (`service.py:804-913`)
+- [ ] [undocumented] https-only links, 180-character push limit, `duplicate` skip (`service.py:760-772,962-966`)
+- [ ] [undocumented] announcements write inbox items with no `is_subscribed` check (`service.py:943-951`)
+- [ ] [undocumented] `preset` template origin, retire-on-delete, `segment-in-use` (`service.py:546-577,704-705`)
+- [ ] [undocumented] portal settings slug, `portal-slug-taken`, `terms_version` bump, terms in public config (`service.py:1707-1760`)
+- [ ] [undocumented] staff `GET|PUT /clients/{id}/communication-preferences`, required note, basis list (`router.py:37-48`, `schemas.py:42`)
+- [ ] [undocumented] `automation_rule.is_system` guards with no system rule created (`service.py:1546-1561`)
+- [ ] [undocumented] `TRIGGERS` catalogue and the reschedule and renewal handlers (`service.py:1487-1494`, `handlers.py:34-36,88-91`)
+- [ ] [undocumented] web `UnsubscribePage`, `MessagesPages`, `PortalPage` not in README:16
+- [x] [wording] README:73-75 "sent" messages; code purges every non-queued message by `queued_at` (`subject.py:55-58`). Fixed: README and docstring now say "every message no longer queued".
+- [ ] [wording] README:43-45 basis `express_written` or `express_verbal`; plain `express` is accepted and default (`schemas.py:42`)
+- [ ] [wording] README:11,20 "one send path"; duplicate-skip row and inbox writes bypass `_deliver` (`service.py:943-966,1451-1458`)
+- [ ] [wording] `router.py:422-423` docstring says a token moves to the new login; code revokes and re-adds (`service.py:1296-1303`)

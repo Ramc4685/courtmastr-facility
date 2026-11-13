@@ -6,16 +6,18 @@ on the global allow-list of overview 3.1. `integrations` owns them once it is bu
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, Index, PrimaryKeyConstraint, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core import clock
 from app.core.db.base import Base
 from app.core.db.platform import platform_engine
 from app.core.ids import new_id
+from app.core.settings import get_settings
 
 
 class ProviderAccountLookup(Base):
@@ -100,6 +102,27 @@ def stale(tenant_id: UUID, before: datetime, max_attempts: int) -> list[UUID]:
                 {"t": tenant_id, "b": before, "m": max_attempts},
             ).scalars()
         )
+
+
+def purge_payloads() -> int:
+    """Retention (security-baseline 2.3): empty the payload of events processed or ignored more than
+    `retention.inbound_payload_days` ago, at most `retention.batch_rows` per call. The row stays so a late
+    redelivery is still a duplicate; events still awaiting a retry keep theirs. Idempotent. Run hourly by the
+    clock (app.scheduler.tick_hour) as fh_platform: the table is global, and ignored events have no tenant."""
+    cfg = get_settings().retention
+    before = clock.now() - timedelta(days=cfg.inbound_payload_days)
+    with platform_engine().begin() as conn:
+        # shortcut: no index covers processed rows by age, so each run scans them; add a partial index on
+        # COALESCE(processed_at, received_at) WHERE payload <> '{}' when this shows up in the slow-query log.
+        return conn.execute(
+            text(
+                "UPDATE inbound_webhook_event SET payload = '{}'::jsonb WHERE id IN (SELECT id FROM "
+                "inbound_webhook_event WHERE status IN ('processed', 'ignored') AND payload <> '{}'::jsonb AND "
+                "COALESCE(processed_at, received_at) < :before LIMIT :n "
+                "FOR UPDATE SKIP LOCKED)"
+            ),
+            {"before": before, "n": cfg.batch_rows},
+        ).rowcount
 
 
 def get(row_id: UUID):

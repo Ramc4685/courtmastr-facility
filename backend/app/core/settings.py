@@ -150,6 +150,10 @@ class Retention(BaseModel):
     gdpr_auth_token_days: int = 7
     tenant_export_days: int = 7  # a tenant export bundle stays downloadable this long (IMP-04)
     support_screenshot_days: int = 1  # a screenshot never attached to a support request (ONB-03)
+    message_body_days: int = 90  # message.body_text is nulled after this; the row and its counts stay (2.3)
+    # A processed or ignored inbound provider event keeps its row (deduplication) but its payload, which may hold
+    # provider PII, is emptied after this (ADR 0007 section 9: 90 days; the baseline names no period).
+    inbound_payload_days: int = 90
 
 
 class S3(BaseModel):

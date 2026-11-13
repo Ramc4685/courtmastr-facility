@@ -2,11 +2,14 @@
 messaging tables. The delivery log keeps its rows (counts and campaign stats) but erasure clears the address,
 subject and body; inbox items and devices are deleted; queued sends are cancelled."""
 
+from datetime import timedelta
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
+from app.core import clock
+from app.core.settings import get_settings
 from app.modules import clients, platform
 from app.modules.engagement.models import DeviceRegistration, InboxItem, Message, ScheduledNotification
 
@@ -43,5 +46,20 @@ def _erase(session: Session, client_id: UUID) -> dict:
     return {"messages_cleared": cleared.rowcount, "inbox_deleted": inbox.rowcount, "devices_deleted": devices.rowcount}
 
 
+def _purge_bodies(session: Session) -> int:
+    """Retention hook (platform.retention.register_purge, security-baseline 2.3 "bodies 90 days"): a
+    message's rendered body goes after `retention.message_body_days`; the row (recipient, status, counts) stays.
+    A message still queued keeps its body, which the send needs. One batch per run; idempotent."""
+    cfg = get_settings().retention
+    due = (
+        select(Message.id)
+        .where(Message.body_text.is_not(None), Message.status != "queued",
+               Message.queued_at < clock.now() - timedelta(days=cfg.message_body_days))
+        .limit(cfg.batch_rows).with_for_update(skip_locked=True)
+    )  # fmt: skip
+    return session.execute(update(Message).where(Message.id.in_(due)).values(body_text=None)).rowcount
+
+
 clients.merge.register_merge_handler("engagement_messaging", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("engagement_messaging", tables=_TABLES, export=_export, erase=_erase)
+platform.retention.register_purge("engagement_message_bodies", _purge_bodies)

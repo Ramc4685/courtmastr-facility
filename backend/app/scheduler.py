@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from sqlalchemy import text
 
 from app.bootstrap import bootstrap
+from app.core import inbound_webhooks
 from app.core.db.platform import platform_engine
 from app.core.jobs import broker
 
@@ -47,7 +48,9 @@ def active_tenants() -> list[str]:
 
 
 def tick_hour() -> int:
-    """The hourly round: every dated job for active tenants, the retention jobs for suspended ones."""
+    """The hourly round: every dated job for active tenants, the retention jobs for suspended ones, and the
+    retention of the global inbound-webhook table, which belongs to no tenant."""
+    inbound_webhooks.purge_payloads()
     return enqueue(EVERY_HOUR, tenants("active")) + enqueue(RETENTION, tenants("suspended"))
 
 
