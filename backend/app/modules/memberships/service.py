@@ -1853,13 +1853,16 @@ def member_on(session: Session, client_id: UUID, on: date) -> dict | None:
     or expired contract covered (arrears billing), and treats an auto-renewing live contract as covering past its
     `end_on` until it is cancelled or a renewal fails (the failed renewal ends it, and later dates are not covered).
     Freezes, suspensions and an unmet activation gate still exclude a date. Shares count while not revoked.
-    Returns {"contract_id", "membership_type_id"} or None."""
+    A contract cancelled on or before its start date was un-sold (everything billed reversed): it never made the
+    client a member. Returns {"contract_id", "membership_type_id"} or None."""
     c = MembershipContract
     shared = select(MembershipShare.membership_contract_id).where(
         MembershipShare.client_id == client_id, MembershipShare.revoked_at.is_(None)
     )
     stmt = select(c).where(c.start_on <= on, or_(c.owner_client_id == client_id, c.id.in_(shared)))
     for contract in session.scalars(stmt.order_by(c.start_on, c.id)):
+        if contract.cancel_reason and contract.end_on <= contract.start_on:
+            continue  # un-sold, not a one-day membership
         renewing = contract.is_auto_renew and contract.status in LIVE and not contract.cancel_reason
         end = date.max if renewing else contract.end_on
         if on > end:

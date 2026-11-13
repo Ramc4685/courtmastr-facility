@@ -131,6 +131,15 @@ def test_arrears_billing_prices_dates_an_ended_membership_covered(client, owner,
     assert later["quote"]["subtotal_minor"] == 2400
 
 
+def test_a_membership_cancelled_before_it_starts_never_earns_the_member_price(client, owner, f):
+    who = new_client(client, owner, f.location)["id"]
+    contract = join(client, owner, f, who, DAY)  # starts on the rental's date, then is un-sold
+    ok(client.post(f"{API}/membership-contracts/{contract}/cancel", json={"reason": "voluntary"},
+                   headers=owner | {"Idempotency-Key": uuid4().hex}), 200)  # fmt: skip
+    quote = ok(client.post(f"{API}/rentals/preview", headers=owner, json=body(f, who, 15, 16)), 200)["quote"]
+    assert quote["subtotal_minor"] == 2400 and not quote["lines"][0]["is_member_price"]
+
+
 def test_bill_selected_prices_the_payer_as_a_member(client, owner, f):
     unbilled = ok(rent(client, owner, body(f, f.member, 23, 24, charge={"decision": "unbilled"})))["rental"]
     billed = ok(client.post(f"{API}/rentals/charges", headers=owner | {"Idempotency-Key": uuid4().hex}, json={

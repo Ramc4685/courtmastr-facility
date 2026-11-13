@@ -178,7 +178,9 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   `bill_selected` (preview and charge), the portal open times and the portal checkout all go through it, so a quote
   and its charge agree. It reads `_member_pricing`, which is memberships' `member_on`, the date-aware form of
   `eligibility` (owner decision 13): an active contract, owned or shared, at any location, overdue or
-  used up counts on a date; suspended or frozen on that date, or after the contract's end, does not. The membership type of the covering contract
+  used up counts on a date; suspended or frozen on that date, or after the contract's end, does not, and a
+  contract cancelled on or before its start date (un-sold, everything reversed) never counts. Memberships has no
+  "paid to activate" gate (non-payment suspends, which already excludes the dates). The membership type of the covering contract
   feeds membership-type rate rules. A line is flagged `is_member_price` when the member amount or a
   membership-type rule set its unit.
 - **Dates.** Membership is read on each occurrence's local date through memberships' `member_on`: a recurring
