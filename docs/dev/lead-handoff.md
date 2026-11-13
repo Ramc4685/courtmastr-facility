@@ -34,6 +34,28 @@ the living records are `docs/status/feature-ledger.md` (every feature and its st
   in progress. New branch `claude/rentals-pilot` (member pricing and the minors rule on rentals, migrations
   `1981`+). Load average reached 47: no new builders.
 
+## Update 2026-11-13, late afternoon
+
+- **Hardening is merged** into local `main` (`14df685`, migration head `1951`), after two Fable verification
+  rounds; integration gate is draft PR #7, Auto-fix on. Origin `main` is at `39f55b3`.
+- **Owner decision, adult check for an unmanned site:** "Staff confirm once". Anyone may sign up and book on a
+  self-declared birth date; the first door entry code is held until staff confirm age once. Being built on
+  `claude/rentals-pilot` (confirm action, queue, notices) and `claude/building-control` (held codes released on
+  `clients.age_confirmed`).
+- **Merge order from here:** `claude/owner-decisions-1` (being brought onto main, re-parenting `1961` onto
+  `1951`), then `claude/rentals-pilot`, then `claude/building-control`, then `claude/phase9-orphans-2`, then
+  Phase 13. Each later branch re-parents its first migration onto main's head and rebuilds its lane.
+- **Phase 9:** second verification found the fix round added a new double refund (plan fallback into the caller's
+  transaction). Fix in progress; the five remaining features stay on hold. Every round on that branch has
+  introduced a defect: verify again before merging.
+- **Building control:** the door verify endpoint took five rounds. Final rule: authenticate the device first;
+  eight-digit codes; per-door queue and lock; delay keyed by location, ceiling 5 s; never refuse a valid code;
+  IP limit only for unknown credentials. Needs one full Fable verification of the finished branch.
+- **Builders run out of room** after about 300k tokens and stop mid-item. Start a fresh `builder` agent in the
+  existing worktree (no isolation, explicit path) with a full brief; tell the old one to stop first.
+- **Videos:** 13 CIRQT clips in `demo-videos/cirqt/` (git-ignored), made by a separate Sonnet session; six more
+  wait on features.
+
 ## Where things stood at 09:55
 
 - **Local `main` is at `9e70852` plus docs commits, and is not pushed.** The owner pushes main; the guard blocks it
