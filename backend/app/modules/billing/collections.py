@@ -217,8 +217,8 @@ PORTAL_PURCHASE_ROUTES = frozenset({
     "/portal/client-packages", "/portal/coupon-quotes", "/portal/enrollments", "/portal/membership-contracts",
     "/portal/membership-contracts/quote", "/portal/registration-checkouts",
     "/portal/registration-checkouts/{checkout_id}/confirm", "/portal/registration-checkouts/{checkout_id}/items",
-    "/portal/rentals", "/portal/rentals/{rental_id}/confirm", "/portal/waitlist-entries",
-    "/portal/waitlist-entries/{waitlist_entry_id}/claim",
+    "/portal/form-submissions", "/portal/rental-plan-purchases", "/portal/rentals",
+    "/portal/rentals/{rental_id}/confirm", "/portal/waitlist-entries", "/portal/waitlist-entries/{waitlist_entry_id}/claim",
 })  # fmt: skip
 
 

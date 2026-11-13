@@ -8,6 +8,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 
 ### Security
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
+- A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 
 ### Added
 - Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.

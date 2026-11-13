@@ -21,11 +21,13 @@ OPEN_PORTAL_POSTS = {
     "/portal/app-cards", "/portal/client-documents/{document_id}/acceptances",
     "/portal/client-packages/{package_id}/auto-renew-opt-out",
     "/portal/dependents", "/portal/devices", "/portal/enrollments/{enrollment_id}/cancel",
-    "/portal/inbox/{inbox_item_id}/read", "/portal/membership-contracts/{contract_id}/auto-renew-opt-out",
+    "/portal/inbox/{inbox_item_id}/read", "/portal/league-teams/{competition_team_id}/roster",
+    "/portal/membership-contracts/{contract_id}/auto-renew-opt-out",
     "/portal/package-series/{series_id}/auto-renew-opt-out", "/portal/payment-methods",
     "/portal/payment-methods/setup-intents", "/portal/payments", "/portal/payments/{payment_id}/confirm",
     "/portal/registration-checkouts/{checkout_id}/abandon", "/portal/relationships",
-    "/portal/relationships/{relationship_id}/end", "/portal/rentals/{rental_id}/abandon",
+    "/portal/relationships/{relationship_id}/end", "/portal/rental-plan-purchases/{purchase_id}/auto-renew-opt-out",
+    "/portal/rentals/{rental_id}/abandon",
     "/portal/rentals/{rental_id}/cancel",
 }  # fmt: skip
 
