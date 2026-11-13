@@ -1,7 +1,7 @@
 # Phase 15: public API and integrations
 
 Date: 2026-11-13. Branch: `claude/phase15-public-api-integrations`, cut from `main` at `aa20e1b` (Alembic head
-`1401`). One Opus builder, lane `p15` (`facilityhub_p15`, API 8801, web 5801), migrations `1601` to `1699`
+`1401`). One Opus builder, lane `p15` (`facilityhub_p15`, API 8801, web 5801), migrations `1701` to `1799`
 (first `down_revision = "1401"`). Source: `docs/planning/phase-features.md` section "Phase 15": 22 features in
 scope (4 P0, 15 P1, 3 P2); the 20 v2 rows are out of scope. The lead pushes and opens the pull request.
 Status: **planned.**
@@ -43,9 +43,9 @@ meeting and join redirect, calendar feeds, the public schedule, the member-realm
 2. INT-01 platform: tenant ceiling, rate-limit tests, `x-api-key-scopes` in the OpenAPI document, realm
    tests, guide. Then INT-02, INT-04 key-reach tests.
 3. INT-03, BIL-23, INT-05, SSP-19, INT-06, LGE-27, CLI-21, MEM-22, PKG-16: key-reach and member-realm tests.
-4. Calendar feeds (INT-08, LGE-25, STF-13, SCH-19) and SCH-20 public schedule; migration `1601`.
+4. Calendar feeds (INT-08, LGE-25, STF-13, SCH-19) and SCH-20 public schedule; migration `1701`.
 5. INT-07 QuickBooks: port, fake, contract tests, routes, inbound webhook; migration only if a column is needed.
-6. INT-09 Zoom: adapter, `video_meeting`, join redirect, inbound webhook; migration `1611`.
+6. INT-09 Zoom: adapter, `video_meeting`, join redirect, inbound webhook; migration `1711`.
 7. INT-13 analytics setting and hook; web screens for feeds, public schedule, QuickBooks mappings, API reference.
 8. Docs, status file `docs/status/phase15-api.md`, README, `make openapi web-api`.
 

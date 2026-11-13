@@ -233,6 +233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/api-reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Api Operations
+         * @description Every operation an API key may call and the scopes that open it, generated from the routes (INT-01).
+         */
+        get: operations["listApiOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assessment-fields/{assessment_field_id}": {
         parameters: {
             query?: never;
@@ -15488,6 +15508,24 @@ export interface components {
              * @default 1440
              */
             grace_minutes: number;
+        };
+        /** ApiOperationOut */
+        ApiOperationOut: {
+            /** Method */
+            method: string;
+            /** Operation Id */
+            operation_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Scopes
+             * @description Any one of these on the key opens the operation
+             */
+            scopes: string[];
+            /** Summary */
+            summary: string;
+            /** Tag */
+            tag: string;
         };
         /** AssessmentFieldCreate */
         AssessmentFieldCreate: {
@@ -39307,6 +39345,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listApiOperations: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiOperationOut"][];
                 };
             };
             /** @description Validation Error */

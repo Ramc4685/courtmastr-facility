@@ -146,6 +146,15 @@ class AccountingExportOut(Out):
     posted_at: datetime | None
 
 
+class ApiOperationOut(Out):
+    method: str
+    path: str
+    operation_id: str
+    summary: str
+    tag: str
+    scopes: list[str] = Field(description="Any one of these on the key opens the operation")
+
+
 class AdapterOut(Out):
     port: str
     label: str

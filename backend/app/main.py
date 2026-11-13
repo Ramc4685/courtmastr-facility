@@ -49,6 +49,9 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
     api.install(app)
+    from app.modules.integrations.router import inbound as integrations_inbound
+
+    app.include_router(integrations_inbound, prefix=API_PREFIX)  # before billing's /webhooks/{provider}
     for each in (router, clients_router, billing_router, pos_router, documents_router):
         app.include_router(each, prefix=API_PREFIX)
     for each in (clients_public, engagement_router, engagement_public, privacy_router, documents_public):
@@ -100,6 +103,9 @@ def _document_auth(app: FastAPI) -> None:
                 "bearer": {"type": "http", "scheme": "bearer", "description": "API key (fhk_...) or session token"}
             }
             doc["security"] = [{"bearer": []}]
+            from app.modules.integrations import reference
+
+            reference.annotate(doc, app.routes)  # x-api-key-scopes: what an API key may call (INT-01)
         return app.openapi_schema
 
     app.openapi = openapi

@@ -5,7 +5,7 @@ call them too, but minting credentials and subscribing need a signed-in person (
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, require
@@ -19,6 +19,9 @@ router = APIRouter(
     route_class=TxRoute, tags=["integrations"], generate_unique_id_function=camel_id,
     dependencies=[Depends(idempotency)],
 )  # fmt: skip
+# Inbound provider webhooks: authenticated by the provider's signature, registered before billing's
+# /webhooks/{provider} so these static paths win (app.main).
+inbound = APIRouter(route_class=TxRoute, tags=["integrations"], generate_unique_id_function=camel_id)
 Lists = Annotated[ListQuery, Depends(list_query)]
 KEYS, HOOKS = "integrations.api_key.manage", "integrations.webhook.manage"
 
@@ -167,6 +170,14 @@ def run_accounting_export(body: s.AccountingExportRun, ctx: Ctx = Depends(requir
 def list_integration_adapters(ctx: Ctx = Depends(require("integrations.connection.manage"))):
     """Each integration port with its adapter and whether it is connected, simulated or not configured."""
     return service.list_adapters(ctx.session, ctx.principal)
+
+
+@router.get("/api-reference", response_model=list[s.ApiOperationOut])
+def list_api_operations(request: Request, ctx: Ctx = Depends(require(KEYS))):
+    """Every operation an API key may call and the scopes that open it, generated from the routes (INT-01)."""
+    from app.modules.integrations import reference
+
+    return reference.operations(request.app.openapi())
 
 
 @router.get("/adapter-commands", response_model=s.Page[s.AdapterCommandOut])

@@ -13,7 +13,7 @@ import redis
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core import clock
+from app.core import clock, ratelimit
 from app.core.auth import Principal, tokens
 from app.core.errors import DomainError, PermissionDenied, Unauthenticated
 from app.core.ratelimit import _redis
@@ -80,6 +80,8 @@ def _rate_limit(key: ApiKey) -> None:
         raise DomainError(
             "Too many requests for this API key", status=429, code="rate-limited", headers={"Retry-After": "60"}
         )
+    # The tenant's ceiling across all its keys (ADR 0012 section 2, bucket `api-tenant` in config/app.yaml).
+    ratelimit.hit("api-tenant", str(key.tenant_id), tenant=key.tenant_id)
 
 
 def authenticate(session: Session, token: str) -> Principal:

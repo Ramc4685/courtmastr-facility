@@ -15,7 +15,8 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `service.py` | staff commands with both permission gates and audit, then fan-out, delivery, re-evaluation, export, directory |
 | `handlers.py` | the outbox subscriber that fans events out, and the staff-deactivated handler |
 | `jobs.py` | `deliver_webhook` (one attempt, reschedules itself) and an unscheduled sweep |
-| `router.py` | the endpoints in `docs/api/openapi-programs.yaml` tag integrations, all `require()`-gated |
+| `router.py` | the endpoints in `docs/api/openapi-programs.yaml` tag integrations, all `require()`-gated; `inbound` holds the provider webhooks, registered before billing's `/webhooks/{provider}` |
+| `reference.py` | the generated public API reference: `x-api-key-scopes` on every operation a key may call (added in `app.main`'s OpenAPI hook), listed by `GET /api-reference` |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`)
 and `app/ports/video_meeting.py` (`FakeVideo`, a simulated Zoom). `app/core/crypto.py` seals webhook secrets
@@ -58,8 +59,12 @@ through `service.adapter_for`.
 ## Assumptions and shortcuts (written down, not guessed)
 
 - `api_key` lives here rather than in platform: integrations owns the machine surface (ADR 0012).
-- One fixed-window Redis counter per key and minute. It fails open when Redis is down. A token bucket is a
-  later upgrade if partners need bursts.
+- One fixed-window Redis counter per key and minute, then the tenant's ceiling across all its keys (bucket
+  `api-tenant`, 600 a minute, `config/app.yaml`). Both fail open when Redis is down. A token bucket and
+  `RateLimit-*` headers on successful key responses need a core change (the authenticator sees no response).
+- Realms (INT-05, SSP-19): keys reach the back-office resources only; the member realm is `/portal/*` with a
+  client identity token. Some key-gated reads need a person and refuse a key in the service: the caller's own
+  time-clock state, report runs, saved reports and export jobs (Phase 15 finding, `test_public_api.py`).
 - `_ledger_rows` reads `ledger_entry` with SQL rather than through a billing interface, because billing has no
   journal read yet. Replace it when module 8 adds one.
 - `sweep_webhook_deliveries` runs every minute (app/scheduler.py) and re-enqueues due deliveries whose message

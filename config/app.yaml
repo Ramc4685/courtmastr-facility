@@ -72,6 +72,9 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     public-form:      {limit: 60, window_sec: 60}                   # public event form and header image, per IP
     public-form-submit: {limit: 20, window_sec: 900, closed: true}  # anonymous form registrations, per IP (a family on venue Wi-Fi)
     public-form-email:  {limit: 5, window_sec: 3600, closed: true}  # anonymous registrations, per contact address
+    api-tenant:       {limit: 600, window_sec: 60}                  # every API key of one tenant together (ADR 0012 s.2)
+    calendar-feed:    {limit: 12, window_sec: 3600}                 # per calendar feed token; calendar apps poll
+    public-schedule:  {limit: 60, window_sec: 60}                   # embedded public schedule, per IP
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months

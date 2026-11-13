@@ -1802,6 +1802,48 @@
         "title": "ApiKeyRotate",
         "type": "object"
       },
+      "ApiOperationOut": {
+        "properties": {
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "operation_id": {
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "scopes": {
+            "description": "Any one of these on the key opens the operation",
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "operation_id",
+          "summary",
+          "tag",
+          "scopes"
+        ],
+        "title": "ApiOperationOut",
+        "type": "object"
+      },
       "AssessmentFieldCreate": {
         "additionalProperties": false,
         "properties": {
@@ -74430,6 +74472,9 @@
         "summary": "Put Access Rules",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.rule.manage"
         ]
       }
     },
@@ -74629,6 +74674,9 @@
         "summary": "Create Access Schedule",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.rule.manage"
         ]
       }
     },
@@ -74701,6 +74749,9 @@
         "summary": "Update Access Schedule",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.rule.manage"
         ]
       }
     },
@@ -74834,6 +74885,9 @@
         "summary": "Put Access Settings",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.settings.manage"
         ]
       }
     },
@@ -74973,6 +75027,9 @@
         "summary": "List Accounting Exports",
         "tags": [
           "integrations"
+        ],
+        "x-api-key-scopes": [
+          "integrations.sync.run"
         ]
       },
       "post": {
@@ -75034,6 +75091,9 @@
         "summary": "Run Accounting Export",
         "tags": [
           "integrations"
+        ],
+        "x-api-key-scopes": [
+          "integrations.sync.run"
         ]
       }
     },
@@ -75312,6 +75372,9 @@
         "summary": "List Age Groups",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -75372,6 +75435,9 @@
         "summary": "Create Age Group",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -75427,6 +75493,9 @@
         "summary": "Delete Age Group",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "get": {
@@ -75487,6 +75556,9 @@
         "summary": "Get Age Group",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -75557,6 +75629,9 @@
         "summary": "Update Age Group",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -75889,6 +75964,63 @@
         ]
       }
     },
+    "/api/v1/api-reference": {
+      "get": {
+        "description": "Every operation an API key may call and the scopes that open it, generated from the routes (INT-01).",
+        "operationId": "listApiOperations",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiOperationOut"
+                  },
+                  "title": "Response Listapioperations",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Api Operations",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/assessment-fields/{assessment_field_id}": {
       "patch": {
         "operationId": "updateAssessmentField",
@@ -75958,6 +76090,9 @@
         "summary": "Update Assessment Field",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.definition.manage"
         ]
       }
     },
@@ -76106,6 +76241,9 @@
         "summary": "List Assessment Results",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.read"
         ]
       },
       "post": {
@@ -76166,6 +76304,9 @@
         "summary": "Create Assessment Result",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.record"
         ]
       }
     },
@@ -76221,6 +76362,9 @@
         "summary": "Delete Assessment Result",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.delete"
         ]
       },
       "get": {
@@ -76281,6 +76425,9 @@
         "summary": "Get Assessment Result",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.read"
         ]
       },
       "patch": {
@@ -76351,6 +76498,9 @@
         "summary": "Update Assessment Result",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.record"
         ]
       }
     },
@@ -76482,6 +76632,9 @@
         "summary": "Get Assessment Series",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.read"
         ]
       }
     },
@@ -76534,6 +76687,9 @@
         "summary": "Get Assessment Settings",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.read"
         ]
       },
       "patch": {
@@ -76594,6 +76750,9 @@
         "summary": "Update Assessment Settings",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.definition.manage"
         ]
       }
     },
@@ -76732,6 +76891,9 @@
         "summary": "List Assessment Templates",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.assessment.read"
         ]
       },
       "post": {
@@ -76792,6 +76954,9 @@
         "summary": "Create Assessment Template",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.definition.manage"
         ]
       }
     },
@@ -76864,6 +77029,9 @@
         "summary": "Update Assessment Template",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.definition.manage"
         ]
       }
     },
@@ -76936,6 +77104,9 @@
         "summary": "Create Assessment Field",
         "tags": [
           "assessments"
+        ],
+        "x-api-key-scopes": [
+          "assessments.definition.manage"
         ]
       }
     },
@@ -77075,6 +77246,9 @@
         "summary": "List Audit Events",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.audit.read"
         ]
       }
     },
@@ -78061,6 +78235,9 @@
         "summary": "List Automation Rules",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.automation.manage"
         ]
       },
       "post": {
@@ -78122,6 +78299,9 @@
         "summary": "Create Automation Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.automation.manage"
         ]
       }
     },
@@ -78178,6 +78358,9 @@
         "summary": "Delete Automation Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.automation.manage"
         ]
       },
       "patch": {
@@ -78249,6 +78432,9 @@
         "summary": "Update Automation Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.automation.manage"
         ]
       }
     },
@@ -78388,6 +78574,9 @@
         "summary": "List Autopay Attempts",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -78450,6 +78639,9 @@
         "summary": "Clear Autopay Error",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.autopay.run"
         ]
       }
     },
@@ -78508,6 +78700,9 @@
         "summary": "Retry Autopay Attempt",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.autopay.run"
         ]
       }
     },
@@ -78646,6 +78841,9 @@
         "summary": "List Autopay Runs",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       },
       "post": {
@@ -78702,6 +78900,9 @@
         "summary": "Start Autopay Run",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.autopay.run"
         ]
       }
     },
@@ -78764,6 +78965,9 @@
         "summary": "Get Autopay Run",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -78875,6 +79079,9 @@
         "summary": "Get Resource Availability",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -78930,6 +79137,9 @@
         "summary": "Delete Availability Window",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.availability.manage"
         ]
       },
       "patch": {
@@ -79000,6 +79210,9 @@
         "summary": "Update Availability Window",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.availability.manage"
         ]
       }
     },
@@ -79063,6 +79276,9 @@
         "summary": "Create Billing Bulk Action",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.bulk_create"
         ]
       }
     },
@@ -79202,6 +79418,9 @@
         "summary": "List Billing History",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.history.read"
         ]
       }
     },
@@ -79341,6 +79560,9 @@
         "summary": "List Billing Notices",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -79414,6 +79636,9 @@
         "summary": "Update Billing Schedule Period",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.billing_schedule.update"
         ]
       }
     },
@@ -79888,6 +80113,9 @@
         "summary": "Create Blackout",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       }
     },
@@ -79943,6 +80171,9 @@
         "summary": "Delete Blackout",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       },
       "patch": {
@@ -80013,6 +80244,9 @@
         "summary": "Update Blackout",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       }
     },
@@ -80075,6 +80309,9 @@
         "summary": "Get Booking Series",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -80147,6 +80384,9 @@
         "summary": "Cancel Booking Series",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.delete_series"
         ]
       }
     },
@@ -80220,6 +80460,9 @@
         "summary": "Edit Booking Series",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.update_series"
         ]
       }
     },
@@ -80293,6 +80536,9 @@
         "summary": "Add Booking Series Rule",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.update_series"
         ]
       }
     },
@@ -80365,6 +80611,9 @@
         "summary": "Get Booking Series Rule",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "patch": {
@@ -80446,6 +80695,9 @@
         "summary": "Update Booking Series Rule",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.update_series"
         ]
       }
     },
@@ -80519,6 +80771,9 @@
         "summary": "Get Booking Series Run",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -80658,6 +80913,9 @@
         "summary": "List Bookings",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "post": {
@@ -80719,6 +80977,10 @@
         "summary": "Create Booking",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.create",
+          "scheduling.block.manage"
         ]
       }
     },
@@ -80782,6 +81044,10 @@
         "summary": "Preview Booking",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.create",
+          "scheduling.block.manage"
         ]
       }
     },
@@ -80844,6 +81110,9 @@
         "summary": "Get Booking",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "patch": {
@@ -80915,6 +81184,10 @@
         "summary": "Update Booking",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.update",
+          "scheduling.block.manage"
         ]
       }
     },
@@ -80988,6 +81261,10 @@
         "summary": "Cancel Booking",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.delete",
+          "scheduling.block.manage"
         ]
       }
     },
@@ -81061,6 +81338,10 @@
         "summary": "Reschedule Booking",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.update",
+          "scheduling.block.manage"
         ]
       }
     },
@@ -81133,6 +81414,9 @@
         "summary": "Update Bracket Slot",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -81188,6 +81472,9 @@
         "summary": "Delete Bracket",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       },
       "get": {
@@ -81248,6 +81535,9 @@
         "summary": "Get Bracket",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -81310,6 +81600,9 @@
         "summary": "Publish Bracket",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -81499,6 +81792,9 @@
         "summary": "Get Calendar",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -81638,6 +81934,9 @@
         "summary": "List Campaigns",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -81699,6 +81998,9 @@
         "summary": "Create Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       }
     },
@@ -81754,6 +82056,9 @@
         "summary": "Delete Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       },
       "get": {
@@ -81814,6 +82119,9 @@
         "summary": "Get Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -81885,6 +82193,9 @@
         "summary": "Update Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       }
     },
@@ -81947,6 +82258,9 @@
         "summary": "Cancel Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       }
     },
@@ -82010,6 +82324,9 @@
         "summary": "Recall Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.push.send"
         ]
       }
     },
@@ -82159,6 +82476,9 @@
         "summary": "List Campaign Recipients",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -82231,6 +82551,9 @@
         "summary": "Schedule Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -82294,6 +82617,9 @@
         "summary": "Send Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -82356,6 +82682,9 @@
         "summary": "Get Campaign Stats",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -82419,6 +82748,9 @@
         "summary": "Test Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -82558,6 +82890,9 @@
         "summary": "List Catalog Item Sales",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
         ]
       }
     },
@@ -82631,6 +82966,9 @@
         "summary": "Cancel Catalog Item Sale",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.reverse"
         ]
       }
     },
@@ -82830,6 +83168,9 @@
         "summary": "Create Catalog Item",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.item.manage"
         ]
       }
     },
@@ -82963,6 +83304,9 @@
         "summary": "Update Catalog Item",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.item.manage"
         ]
       }
     },
@@ -83031,6 +83375,9 @@
         "summary": "Sell Catalog Item",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.create"
         ]
       }
     },
@@ -83170,6 +83517,9 @@
         "summary": "List Charges",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
         ]
       },
       "post": {
@@ -83231,6 +83581,9 @@
         "summary": "Create Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.create"
         ]
       }
     },
@@ -83293,6 +83646,9 @@
         "summary": "Preview Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.create"
         ]
       }
     },
@@ -83355,6 +83711,9 @@
         "summary": "Get Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
         ]
       },
       "patch": {
@@ -83426,6 +83785,9 @@
         "summary": "Update Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.update"
         ]
       }
     },
@@ -83494,6 +83856,9 @@
         "summary": "Reverse Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.reverse"
         ]
       }
     },
@@ -83562,6 +83927,9 @@
         "summary": "Void Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.void"
         ]
       }
     },
@@ -83685,6 +84053,9 @@
         "summary": "Create Check In Station",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.settings.manage"
         ]
       }
     },
@@ -83757,6 +84128,9 @@
         "summary": "Update Check In Station",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.settings.manage"
         ]
       }
     },
@@ -83896,6 +84270,9 @@
         "summary": "List Check Ins",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
         ]
       },
       "post": {
@@ -83957,6 +84334,9 @@
         "summary": "Create Check In",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.create"
         ]
       }
     },
@@ -84020,6 +84400,9 @@
         "summary": "Evaluate Check In",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.create"
         ]
       }
     },
@@ -84082,6 +84465,9 @@
         "summary": "Get Check In",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
         ]
       }
     },
@@ -84155,6 +84541,9 @@
         "summary": "Create Check In Attendance",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.create"
         ]
       }
     },
@@ -84235,6 +84624,9 @@
         "summary": "Check Out",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.check_out"
         ]
       }
     },
@@ -84307,6 +84699,9 @@
         "summary": "Update Client Alert",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.write"
         ]
       }
     },
@@ -84363,6 +84758,9 @@
         "summary": "List Client Categories",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -84423,6 +84821,9 @@
         "summary": "Create Client Category",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -84479,6 +84880,9 @@
         "summary": "Delete Client Category",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       },
       "patch": {
@@ -84549,6 +84953,9 @@
         "summary": "Update Client Category",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -84611,6 +85018,9 @@
         "summary": "List Client Document Statuses",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       }
     },
@@ -84666,6 +85076,9 @@
         "summary": "Clear Waiver Override",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.collect_signature"
         ]
       },
       "put": {
@@ -84736,6 +85149,9 @@
         "summary": "Set Waiver Override",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.collect_signature"
         ]
       }
     },
@@ -84875,6 +85291,9 @@
         "summary": "List Client Documents",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       },
       "post": {
@@ -84936,6 +85355,9 @@
         "summary": "Create Client Document",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.generate"
         ]
       }
     },
@@ -84992,6 +85414,9 @@
         "summary": "Delete Client Document",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.void"
         ]
       },
       "get": {
@@ -85052,6 +85477,9 @@
         "summary": "Get Client Document",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       }
     },
@@ -85125,6 +85553,9 @@
         "summary": "Submit Client Document Acceptance",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.collect_signature"
         ]
       }
     },
@@ -85273,6 +85704,9 @@
         "summary": "List Client Document Deliveries",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       },
       "post": {
@@ -85344,6 +85778,9 @@
         "summary": "Send Client Document",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.collect_signature"
         ]
       }
     },
@@ -85411,6 +85848,9 @@
         "summary": "Get Client Document File",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       }
     },
@@ -85474,6 +85914,9 @@
         "summary": "Clear Client Document Paper Signed",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.collect_signature"
         ]
       },
       "put": {
@@ -85535,6 +85978,9 @@
         "summary": "Upload Client Document Paper Scan",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.collect_signature"
         ]
       }
     },
@@ -85598,6 +86044,9 @@
         "summary": "Restore Client Document",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.void"
         ]
       }
     },
@@ -85660,6 +86109,9 @@
         "summary": "Void Client Document",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.void"
         ]
       }
     },
@@ -85733,6 +86185,9 @@
         "summary": "List Client Duplicate Candidates",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.merge"
         ]
       }
     },
@@ -85785,6 +86240,9 @@
         "summary": "Get Client Field Policies",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "put": {
@@ -85846,6 +86304,9 @@
         "summary": "Replace Client Field Policies",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -85908,6 +86369,9 @@
         "summary": "Get Client Location Settings",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "put": {
@@ -85978,6 +86442,9 @@
         "summary": "Update Client Location Settings",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -86033,6 +86500,9 @@
         "summary": "Delete Client Note",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.delete"
         ]
       },
       "patch": {
@@ -86103,6 +86573,9 @@
         "summary": "Update Client Note",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.write"
         ]
       }
     },
@@ -86169,6 +86642,9 @@
         "summary": "List Client Note Attachments",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.read"
         ]
       },
       "post": {
@@ -86230,6 +86706,9 @@
         "summary": "Upload Client Note Attachment",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.write"
         ]
       }
     },
@@ -86295,6 +86774,9 @@
         "summary": "Delete Client Note Attachment",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.write"
         ]
       },
       "get": {
@@ -86358,6 +86840,9 @@
         "summary": "Get Client Note Attachment",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.read"
         ]
       }
     },
@@ -86497,6 +86982,9 @@
         "summary": "List Client Packages",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       },
       "post": {
@@ -86558,6 +87046,9 @@
         "summary": "Sell Client Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.sell"
         ]
       }
     },
@@ -86621,6 +87112,9 @@
         "summary": "Grant Complimentary Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.grant_complimentary"
         ]
       }
     },
@@ -86684,6 +87178,9 @@
         "summary": "Quote Client Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.sell"
         ]
       }
     },
@@ -86746,6 +87243,9 @@
         "summary": "Get Client Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       },
       "patch": {
@@ -86817,6 +87317,9 @@
         "summary": "Update Client Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.update"
         ]
       }
     },
@@ -86890,6 +87393,9 @@
         "summary": "Adjust Client Package Credits",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.credit.adjust"
         ]
       }
     },
@@ -87039,6 +87545,9 @@
         "summary": "List Client Package Ledger",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       }
     },
@@ -87101,6 +87610,9 @@
         "summary": "Quote Client Package Removal",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.remove"
         ]
       }
     },
@@ -87174,6 +87686,9 @@
         "summary": "Remove Client Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.remove"
         ]
       }
     },
@@ -87237,6 +87752,9 @@
         "summary": "Renew Client Package",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.sell"
         ]
       }
     },
@@ -87303,6 +87821,9 @@
         "summary": "List Package Shares",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       },
       "post": {
@@ -87373,6 +87894,9 @@
         "summary": "Add Package Share",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.share"
         ]
       }
     },
@@ -87438,6 +87962,9 @@
         "summary": "Revoke Package Share",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.share"
         ]
       }
     },
@@ -87500,6 +88027,9 @@
         "summary": "Approve Client Relationship",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.relationship.manage"
         ]
       }
     },
@@ -87562,6 +88092,9 @@
         "summary": "End Client Relationship",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.relationship.manage"
         ]
       }
     },
@@ -87614,6 +88147,9 @@
         "summary": "Get Client Settings",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "patch": {
@@ -87674,6 +88210,9 @@
         "summary": "Update Client Settings",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -87813,6 +88352,9 @@
         "summary": "List Client Tasks",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.task.manage"
         ]
       },
       "post": {
@@ -87873,6 +88415,9 @@
         "summary": "Create Client Task",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.task.manage"
         ]
       }
     },
@@ -87925,6 +88470,9 @@
         "summary": "Get Open Client Task Count",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.task.manage"
         ]
       }
     },
@@ -87997,6 +88545,9 @@
         "summary": "Update Client Task",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.task.manage"
         ]
       }
     },
@@ -88136,6 +88687,9 @@
         "summary": "List Clients",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -88197,6 +88751,9 @@
         "summary": "Create Client",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.create"
         ]
       }
     },
@@ -88259,6 +88816,9 @@
         "summary": "Get Client",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "patch": {
@@ -88330,6 +88890,9 @@
         "summary": "Update Client",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.update"
         ]
       }
     },
@@ -88392,6 +88955,9 @@
         "summary": "Get Client Access Mode",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.create"
         ]
       },
       "put": {
@@ -88463,6 +89029,9 @@
         "summary": "Set Client Access Mode",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.client.set_access_mode"
         ]
       }
     },
@@ -88525,6 +89094,9 @@
         "summary": "Get Account Credit",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -88598,6 +89170,9 @@
         "summary": "Apply Account Credit",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.credit.apply"
         ]
       }
     },
@@ -88670,6 +89245,9 @@
         "summary": "Refund Account Credit",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.refund.create"
         ]
       }
     },
@@ -88736,6 +89314,9 @@
         "summary": "List Client Alerts",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.read"
         ]
       },
       "post": {
@@ -88806,6 +89387,9 @@
         "summary": "Create Client Alert",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.write"
         ]
       }
     },
@@ -88868,6 +89452,9 @@
         "summary": "Get Client Billing Summary",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -88923,6 +89510,9 @@
         "summary": "Delete Collections Profile",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections.manage"
         ]
       },
       "get": {
@@ -88984,6 +89574,9 @@
         "summary": "Get Collections Profile",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections.read"
         ]
       },
       "put": {
@@ -89055,6 +89648,9 @@
         "summary": "Put Collections Profile",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections.manage"
         ]
       }
     },
@@ -89118,6 +89714,9 @@
         "summary": "Get Client Communication Preferences",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "put": {
@@ -89189,6 +89788,9 @@
         "summary": "Put Client Communication Preferences",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "clients.consent.update"
         ]
       }
     },
@@ -89251,6 +89853,9 @@
         "summary": "List Client Credentials",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
         ]
       },
       "post": {
@@ -89322,6 +89927,9 @@
         "summary": "Assign Credential",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.credential.assign"
         ]
       }
     },
@@ -89388,6 +89996,9 @@
         "summary": "Revoke Client App Cards",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.credential.assign"
         ]
       }
     },
@@ -89451,6 +90062,9 @@
         "summary": "Disable Client",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.disable"
         ]
       }
     },
@@ -89524,6 +90138,9 @@
         "summary": "Send Client Email Verification",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.update"
         ]
       }
     },
@@ -89586,6 +90203,9 @@
         "summary": "Get Client Emergency Contacts",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read_sensitive"
         ]
       },
       "put": {
@@ -89656,6 +90276,9 @@
         "summary": "Replace Client Emergency Contacts",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.update"
         ]
       }
     },
@@ -89718,6 +90341,9 @@
         "summary": "Enable Client",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.disable"
         ]
       }
     },
@@ -89815,6 +90441,9 @@
         "summary": "Get Client Id Card",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.credential.assign"
         ]
       }
     },
@@ -89888,6 +90517,9 @@
         "summary": "Assign Client Member Number",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.update"
         ]
       }
     },
@@ -89961,6 +90593,9 @@
         "summary": "Merge Clients",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.merge"
         ]
       }
     },
@@ -90033,6 +90668,9 @@
         "summary": "Precheck Client Merge",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.merge"
         ]
       }
     },
@@ -90182,6 +90820,9 @@
         "summary": "List Client Notes",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.read"
         ]
       },
       "post": {
@@ -90252,6 +90893,9 @@
         "summary": "Create Client Note",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.write"
         ]
       }
     },
@@ -90324,6 +90968,9 @@
         "summary": "Assign Client Owners",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.assign_owner"
         ]
       }
     },
@@ -90390,6 +91037,9 @@
         "summary": "List Client Payment Methods",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.read"
         ]
       },
       "post": {
@@ -90461,6 +91111,9 @@
         "summary": "Attach Payment Method",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.manage"
         ]
       }
     },
@@ -90533,6 +91186,9 @@
         "summary": "Create Setup Intent",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.manage"
         ]
       }
     },
@@ -90588,6 +91244,9 @@
         "summary": "Delete Client Photo",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.update"
         ]
       },
       "get": {
@@ -90641,6 +91300,9 @@
         "summary": "Get Client Photo",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "put": {
@@ -90702,6 +91364,9 @@
         "summary": "Set Client Photo",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.update"
         ]
       }
     },
@@ -90764,6 +91429,9 @@
         "summary": "Get Client Portal Access",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.portal_access.manage"
         ]
       }
     },
@@ -90837,6 +91505,9 @@
         "summary": "Invite Client To Portal",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.portal_access.manage"
         ]
       }
     },
@@ -90899,6 +91570,9 @@
         "summary": "Revoke Client Portal Access",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.portal_access.manage"
         ]
       }
     },
@@ -90965,6 +91639,9 @@
         "summary": "List Client Relationships",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -91036,6 +91713,9 @@
         "summary": "Create Client Relationship",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.relationship.manage"
         ]
       }
     },
@@ -91144,6 +91824,9 @@
         "summary": "Get Client Statement",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -91216,6 +91899,9 @@
         "summary": "Send Client Statement",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.statement.send"
         ]
       }
     },
@@ -91319,6 +92005,9 @@
         "summary": "Get Client Statement Pdf",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -91386,6 +92075,9 @@
         "summary": "List Client System Alerts",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       }
     },
@@ -91478,6 +92170,9 @@
         "summary": "Get Client Timeline",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.read"
         ]
       }
     },
@@ -91617,6 +92312,9 @@
         "summary": "Get Collections Report",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections.read"
         ]
       }
     },
@@ -91756,6 +92454,9 @@
         "summary": "List Collections Tags",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections.read"
         ]
       },
       "post": {
@@ -91816,6 +92517,9 @@
         "summary": "Create Collections Tag",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections_tag.manage"
         ]
       }
     },
@@ -91888,6 +92592,9 @@
         "summary": "Update Collections Tag",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.collections_tag.manage"
         ]
       }
     },
@@ -91943,6 +92650,9 @@
         "summary": "Remove Competition Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       },
       "patch": {
@@ -92013,6 +92723,9 @@
         "summary": "Update Competition Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -92086,6 +92799,9 @@
         "summary": "Bill Competition Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -92152,6 +92868,9 @@
         "summary": "List Team Fee Shares",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       },
       "post": {
@@ -92227,6 +92946,9 @@
         "summary": "Split Team Fee",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -92293,6 +93015,9 @@
         "summary": "List Team Preferences",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       },
       "put": {
@@ -92368,6 +93093,9 @@
         "summary": "Replace Team Preferences",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -92434,6 +93162,9 @@
         "summary": "List Team Roster",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.roster.manage"
         ]
       },
       "post": {
@@ -92504,6 +93235,9 @@
         "summary": "Add Roster Entry",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.roster.manage"
         ]
       }
     },
@@ -92643,6 +93377,9 @@
         "summary": "List Competitions",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -92704,6 +93441,9 @@
         "summary": "Create Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -92767,6 +93507,9 @@
         "summary": "Create Competition From Program Group",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -92822,6 +93565,9 @@
         "summary": "Delete Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.delete"
         ]
       },
       "get": {
@@ -92882,6 +93628,9 @@
         "summary": "Get Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -92952,6 +93701,9 @@
         "summary": "Update Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93014,6 +93766,9 @@
         "summary": "Activate Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93076,6 +93831,9 @@
         "summary": "Archive Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93134,6 +93892,9 @@
         "summary": "Get Blank Game Card",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game_card.print"
         ]
       }
     },
@@ -93200,6 +93961,9 @@
         "summary": "List Brackets",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -93271,6 +94035,9 @@
         "summary": "Generate Bracket",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -93333,6 +94100,9 @@
         "summary": "Complete Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93399,6 +94169,9 @@
         "summary": "List Divisions",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -93469,6 +94242,9 @@
         "summary": "Create Division",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93535,6 +94311,10 @@
         "summary": "Get Ladder",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage",
+          "leagues.result.enter"
         ]
       },
       "put": {
@@ -93609,6 +94389,9 @@
         "summary": "Replace Ladder",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93682,6 +94465,9 @@
         "summary": "Create Ladder Challenge",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
         ]
       }
     },
@@ -93749,6 +94535,10 @@
         "summary": "List Competition Player Stats",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage",
+          "leagues.result.enter"
         ]
       }
     },
@@ -93811,6 +94601,9 @@
         "summary": "Reopen Competition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -93887,6 +94680,9 @@
         "summary": "Put Competition Seeding",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -93953,6 +94749,9 @@
         "summary": "List Competition Staff",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "put": {
@@ -94028,6 +94827,9 @@
         "summary": "Replace Competition Staff",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -94095,6 +94897,9 @@
         "summary": "List Staff Candidates",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -94178,6 +94983,9 @@
         "summary": "List Standings",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -94244,6 +95052,9 @@
         "summary": "Recompute Standings",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -94310,6 +95121,9 @@
         "summary": "List Competition Teams",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       },
       "post": {
@@ -94381,6 +95195,9 @@
         "summary": "Add Competition Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -94457,6 +95274,9 @@
         "summary": "Copy Competition Teams",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -94533,6 +95353,9 @@
         "summary": "Generate Competition Teams",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -94731,6 +95554,9 @@
         "summary": "Create Coupon",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.coupon.manage"
         ]
       }
     },
@@ -94794,6 +95620,9 @@
         "summary": "Validate Coupon",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.discount.apply_preset"
         ]
       }
     },
@@ -94850,6 +95679,9 @@
         "summary": "Delete Coupon",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.coupon.manage"
         ]
       },
       "get": {
@@ -94980,6 +95812,9 @@
         "summary": "Update Coupon",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.coupon.manage"
         ]
       }
     },
@@ -95046,6 +95881,9 @@
         "summary": "List Coupon Redemptions",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.coupon.manage"
         ]
       }
     },
@@ -95109,6 +95947,9 @@
         "summary": "Resolve Credential",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.create"
         ]
       }
     },
@@ -95171,6 +96012,9 @@
         "summary": "Revoke Credential",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.credential.assign"
         ]
       }
     },
@@ -95227,6 +96071,9 @@
         "summary": "List Custom Fields",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -95287,6 +96134,9 @@
         "summary": "Create Custom Field",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -95359,6 +96209,9 @@
         "summary": "Update Custom Field",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -95892,6 +96745,9 @@
         "summary": "Create Discount Preset",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -95964,6 +96820,9 @@
         "summary": "Update Discount Preset",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -96019,6 +96878,9 @@
         "summary": "Delete Division",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -96089,6 +96951,9 @@
         "summary": "Update Division",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -96228,6 +97093,9 @@
         "summary": "List Document Bindings",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.generate"
         ]
       },
       "put": {
@@ -96289,6 +97157,9 @@
         "summary": "Upsert Document Binding",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -96344,6 +97215,9 @@
         "summary": "Deactivate Document Binding",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -96406,6 +97280,9 @@
         "summary": "Get Document Location Settings",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       },
       "patch": {
@@ -96477,6 +97354,9 @@
         "summary": "Update Document Location Settings",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -96574,6 +97454,9 @@
         "summary": "Get Document Requirements",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       }
     },
@@ -96626,6 +97509,9 @@
         "summary": "Get Document Settings",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.read"
         ]
       },
       "patch": {
@@ -96686,6 +97572,9 @@
         "summary": "Update Document Settings",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -96825,6 +97714,9 @@
         "summary": "List Document Templates",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.generate"
         ]
       },
       "post": {
@@ -96886,6 +97778,9 @@
         "summary": "Create Document Template",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -96948,6 +97843,9 @@
         "summary": "Get Document Template",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.document.generate"
         ]
       },
       "patch": {
@@ -97018,6 +97916,9 @@
         "summary": "Update Document Template",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -97081,6 +97982,9 @@
         "summary": "Archive Document Template",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -97154,6 +98058,9 @@
         "summary": "Save Document Template Draft",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -97217,6 +98124,9 @@
         "summary": "Publish Document Template",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -97279,6 +98189,9 @@
         "summary": "Restore Document Template",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -97427,6 +98340,9 @@
         "summary": "List Document Template Versions",
         "tags": [
           "documents"
+        ],
+        "x-api-key-scopes": [
+          "documents.template.manage"
         ]
       }
     },
@@ -97566,6 +98482,9 @@
         "summary": "List Drawer Sessions",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       }
     },
@@ -97639,6 +98558,9 @@
         "summary": "Close Drawer Session",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.drawer.operate"
         ]
       }
     },
@@ -97711,6 +98633,9 @@
         "summary": "Reconcile Drawer Session",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.drawer.reconcile"
         ]
       }
     },
@@ -97850,6 +98775,10 @@
         "summary": "List Enrollments",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read",
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -97911,6 +98840,10 @@
         "summary": "Create Enrollment",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.create",
+          "programs.registration.create"
         ]
       }
     },
@@ -97974,6 +98907,9 @@
         "summary": "Create Enrollment Batch",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.create"
         ]
       }
     },
@@ -98037,6 +98973,9 @@
         "summary": "Move Enrollments",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.update"
         ]
       }
     },
@@ -98099,6 +99038,10 @@
         "summary": "Get Enrollment",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read",
+          "programs.registration.read"
         ]
       }
     },
@@ -98172,6 +99115,10 @@
         "summary": "Cancel Enrollment",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.cancel",
+          "programs.registration.cancel"
         ]
       }
     },
@@ -98244,6 +99191,9 @@
         "summary": "Rebook Enrollment",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.create"
         ]
       }
     },
@@ -98442,6 +99392,9 @@
         "summary": "Create Equipment Category",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -98514,6 +99467,9 @@
         "summary": "Update Equipment Category",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -98713,6 +99669,9 @@
         "summary": "Create Equipment Item",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -98846,6 +99805,9 @@
         "summary": "Update Equipment Item",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -99001,6 +99963,9 @@
         "summary": "List Equipment Loans",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.equipment.rent"
         ]
       }
     },
@@ -99063,6 +100028,9 @@
         "summary": "Get Equipment Loan",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.equipment.rent"
         ]
       }
     },
@@ -99136,6 +100104,9 @@
         "summary": "Return Equipment",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.equipment.rent"
         ]
       }
     },
@@ -99233,6 +100204,9 @@
         "summary": "Get Equipment Return Quote",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.equipment.rent"
         ]
       }
     },
@@ -99389,6 +100363,9 @@
         "summary": "List Expiring Cards",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.read"
         ]
       }
     },
@@ -99527,6 +100504,9 @@
         "summary": "List Export Jobs",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.report.export"
         ]
       },
       "post": {
@@ -99587,6 +100567,9 @@
         "summary": "Create Export Job",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.report.export"
         ]
       }
     },
@@ -99649,6 +100632,9 @@
         "summary": "Get Export Job",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.report.export"
         ]
       }
     },
@@ -99704,6 +100690,9 @@
         "summary": "Get Export Job File",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.report.export"
         ]
       }
     },
@@ -100171,6 +101160,9 @@
         "summary": "List Form Submissions",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form_response.read"
         ]
       }
     },
@@ -100233,6 +101225,9 @@
         "summary": "Get Form Submission",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form_response.read"
         ]
       },
       "patch": {
@@ -100304,6 +101299,9 @@
         "summary": "Update Form Submission",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.update"
         ]
       }
     },
@@ -100377,6 +101375,9 @@
         "summary": "Cancel Form Submission",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.cancel"
         ]
       }
     },
@@ -100440,6 +101441,9 @@
         "summary": "Promote Form Submission",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.update"
         ]
       }
     },
@@ -100579,6 +101583,9 @@
         "summary": "List Forms",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       },
       "post": {
@@ -100640,6 +101647,9 @@
         "summary": "Create Form",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -100702,6 +101712,9 @@
         "summary": "Get Form",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       },
       "patch": {
@@ -100773,6 +101786,9 @@
         "summary": "Update Form",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -100835,6 +101851,9 @@
         "summary": "Close Form",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -100908,6 +101927,9 @@
         "summary": "Put Form Draft",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -100945,6 +101967,9 @@
         "summary": "Export Form Submissions",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.export"
         ]
       }
     },
@@ -101000,6 +102025,9 @@
         "summary": "Remove Form Header Image",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       },
       "put": {
@@ -101061,6 +102089,9 @@
         "summary": "Set Form Header Image",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -101127,6 +102158,9 @@
         "summary": "List Form Inventory",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       },
       "put": {
@@ -101202,6 +102236,9 @@
         "summary": "Put Form Inventory",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -101265,6 +102302,9 @@
         "summary": "Publish Form",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -101327,6 +102367,9 @@
         "summary": "Reopen Form",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.form.manage"
         ]
       }
     },
@@ -101399,6 +102442,9 @@
         "summary": "Get Form Summary",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "reporting.program.run"
         ]
       }
     },
@@ -101478,6 +102524,9 @@
         "summary": "Get Game Cards",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game_card.print"
         ]
       }
     },
@@ -101617,6 +102666,10 @@
         "summary": "List Games",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage",
+          "leagues.result.enter"
         ]
       },
       "post": {
@@ -101677,6 +102730,9 @@
         "summary": "Create Game",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
         ]
       }
     },
@@ -101739,6 +102795,10 @@
         "summary": "Get Game",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage",
+          "leagues.result.enter"
         ]
       },
       "patch": {
@@ -101809,6 +102869,9 @@
         "summary": "Update Game",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
         ]
       }
     },
@@ -101871,6 +102934,9 @@
         "summary": "Cancel Game",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
         ]
       }
     },
@@ -101929,6 +102995,9 @@
         "summary": "Get Game Card",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game_card.print"
         ]
       }
     },
@@ -101995,6 +103064,9 @@
         "summary": "List Game Officials",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       },
       "put": {
@@ -102070,6 +103142,9 @@
         "summary": "Put Game Officials",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       }
     },
@@ -102136,6 +103211,9 @@
         "summary": "List Game Player Stats",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.result.enter"
         ]
       },
       "put": {
@@ -102210,6 +103288,9 @@
         "summary": "Replace Game Player Stats",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.result.enter"
         ]
       }
     },
@@ -102282,6 +103363,9 @@
         "summary": "Postpone Game",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
         ]
       }
     },
@@ -102354,6 +103438,9 @@
         "summary": "Reschedule Game",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
         ]
       }
     },
@@ -102409,6 +103496,9 @@
         "summary": "Delete Game Result",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.result.amend_final"
         ]
       },
       "get": {
@@ -102469,6 +103559,9 @@
         "summary": "Get Game Result",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.result.enter"
         ]
       },
       "put": {
@@ -102539,6 +103632,9 @@
         "summary": "Put Game Result",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.result.enter"
         ]
       }
     },
@@ -102706,6 +103802,9 @@
         "summary": "Create Id Card Template",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.settings.manage"
         ]
       }
     },
@@ -102778,6 +103877,9 @@
         "summary": "Update Id Card Template",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.settings.manage"
         ]
       }
     },
@@ -103302,6 +104404,9 @@
         "summary": "List Import Jobs",
         "tags": [
           "imports"
+        ],
+        "x-api-key-scopes": [
+          "platform.import_job.read"
         ]
       },
       "post": {
@@ -103424,6 +104529,9 @@
         "summary": "Get Import Job",
         "tags": [
           "imports"
+        ],
+        "x-api-key-scopes": [
+          "platform.import_job.read"
         ]
       }
     },
@@ -103615,6 +104723,9 @@
         "summary": "Get Import Job Error Report",
         "tags": [
           "imports"
+        ],
+        "x-api-key-scopes": [
+          "platform.import_job.read"
         ]
       }
     },
@@ -103730,6 +104841,9 @@
         "summary": "List Import Templates",
         "tags": [
           "imports"
+        ],
+        "x-api-key-scopes": [
+          "platform.import_job.read"
         ]
       }
     },
@@ -103785,6 +104899,9 @@
         "summary": "Get Import Template",
         "tags": [
           "imports"
+        ],
+        "x-api-key-scopes": [
+          "platform.import_job.read"
         ]
       }
     },
@@ -103981,6 +105098,9 @@
         "summary": "List Invoices",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       },
       "post": {
@@ -104042,6 +105162,9 @@
         "summary": "Create Invoice",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.create"
         ]
       }
     },
@@ -104104,6 +105227,9 @@
         "summary": "Get Invoice",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       },
       "patch": {
@@ -104175,6 +105301,9 @@
         "summary": "Update Invoice",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.update"
         ]
       }
     },
@@ -104248,6 +105377,9 @@
         "summary": "Add Invoice Charges",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.update"
         ]
       }
     },
@@ -104321,6 +105453,9 @@
         "summary": "Remove Invoice Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.update"
         ]
       }
     },
@@ -104404,6 +105539,9 @@
         "summary": "Move Invoice Charge",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.update"
         ]
       }
     },
@@ -104470,6 +105608,9 @@
         "summary": "List Invoice Deliveries",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       },
       "post": {
@@ -104541,6 +105682,9 @@
         "summary": "Send Invoice",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.send"
         ]
       }
     },
@@ -104604,6 +105748,9 @@
         "summary": "Get Invoice Document",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -104672,6 +105819,9 @@
         "summary": "Mark Invoice Paid",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.take"
         ]
       }
     },
@@ -104734,6 +105884,9 @@
         "summary": "Get Payment Schedule",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       },
       "put": {
@@ -104805,6 +105958,9 @@
         "summary": "Put Payment Schedule",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_schedule.manage"
         ]
       }
     },
@@ -104877,6 +106033,9 @@
         "summary": "Generate Payment Schedule",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_schedule.manage"
         ]
       }
     },
@@ -104935,6 +106094,9 @@
         "summary": "Get Invoice Pdf",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -105008,6 +106170,9 @@
         "summary": "Reassign Invoice Payer",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.reassign_payer"
         ]
       }
     },
@@ -105076,6 +106241,9 @@
         "summary": "Void Invoice",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.void"
         ]
       }
     },
@@ -105484,6 +106652,9 @@
         "summary": "List Kiosk Devices",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.kiosk.launch"
         ]
       },
       "post": {
@@ -105608,6 +106779,9 @@
         "summary": "Create Kiosk Pairing Code",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.kiosk.launch"
         ]
       }
     },
@@ -105802,6 +106976,9 @@
         "summary": "Put Kiosk Settings",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.settings.manage"
         ]
       }
     },
@@ -106142,6 +107319,9 @@
         "summary": "List Venues",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -106202,6 +107382,9 @@
         "summary": "Create Venue",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -106257,6 +107440,9 @@
         "summary": "Delete Venue",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "get": {
@@ -106317,6 +107503,9 @@
         "summary": "Get Venue",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -106387,6 +107576,9 @@
         "summary": "Update Venue",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -106526,6 +107718,9 @@
         "summary": "List Ledger Entries",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.ledger.read"
         ]
       }
     },
@@ -106858,6 +108053,9 @@
         "summary": "Update Location",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       }
     },
@@ -107054,6 +108252,9 @@
         "summary": "Replace Facility Hours",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       }
     },
@@ -107097,6 +108298,9 @@
         "summary": "Delete Location Logo",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       },
       "put": {
@@ -107139,6 +108343,9 @@
         "summary": "Put Location Logo",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       }
     },
@@ -107201,6 +108408,9 @@
         "summary": "Get Portal Settings",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.portal_settings.manage"
         ]
       },
       "put": {
@@ -107272,6 +108482,9 @@
         "summary": "Put Portal Settings",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.portal_settings.manage"
         ]
       }
     },
@@ -107335,6 +108548,9 @@
         "summary": "Get Registration Defaults",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       },
       "put": {
@@ -107405,6 +108621,9 @@
         "summary": "Put Registration Defaults",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -107477,6 +108696,9 @@
         "summary": "Put Default Session Booking Policy",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -107616,6 +108838,9 @@
         "summary": "List Locker Leases",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.locker_rental.manage"
         ]
       },
       "post": {
@@ -107677,6 +108902,9 @@
         "summary": "Create Locker Lease",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.locker_rental.manage"
         ]
       }
     },
@@ -107739,6 +108967,9 @@
         "summary": "Clear Expired Locker Leases",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.locker_rental.manage"
         ]
       }
     },
@@ -107801,6 +109032,9 @@
         "summary": "Clear Locker Lease",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.locker_rental.manage"
         ]
       }
     },
@@ -107874,6 +109108,9 @@
         "summary": "Renew Locker Lease",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.locker_rental.manage"
         ]
       }
     },
@@ -108073,6 +109310,9 @@
         "summary": "Create Locker Room",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.locker.manage"
         ]
       }
     },
@@ -108145,6 +109385,9 @@
         "summary": "Update Locker Room",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.locker.manage"
         ]
       }
     },
@@ -108218,6 +109461,9 @@
         "summary": "Bulk Create Lockers",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.locker.manage"
         ]
       }
     },
@@ -108417,6 +109663,9 @@
         "summary": "Create Locker Term",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.locker.manage"
         ]
       }
     },
@@ -108489,6 +109738,9 @@
         "summary": "Update Locker Term",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.locker.manage"
         ]
       }
     },
@@ -108701,6 +109953,9 @@
         "summary": "Update Locker",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.locker.manage"
         ]
       }
     },
@@ -108983,6 +110238,9 @@
         "summary": "List Membership Contracts",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "post": {
@@ -109044,6 +110302,9 @@
         "summary": "Sell Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.sell"
         ]
       }
     },
@@ -109107,6 +110368,9 @@
         "summary": "Quote Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.sell"
         ]
       }
     },
@@ -109193,6 +110457,9 @@
         "summary": "List Upcoming Membership Renewals",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       }
     },
@@ -109255,6 +110522,9 @@
         "summary": "Get Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "patch": {
@@ -109326,6 +110596,9 @@
         "summary": "Update Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.update"
         ]
       }
     },
@@ -109392,6 +110665,9 @@
         "summary": "List Membership Billing Schedule",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       }
     },
@@ -109472,6 +110748,9 @@
         "summary": "Invoice Deferred Schedule Periods",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.billing_schedule.update"
         ]
       }
     },
@@ -109545,6 +110824,9 @@
         "summary": "Cancel Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.cancel"
         ]
       }
     },
@@ -109625,6 +110907,9 @@
         "summary": "Quote Membership Cancellation",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.cancel"
         ]
       }
     },
@@ -109691,6 +110976,9 @@
         "summary": "List Membership Freezes",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "post": {
@@ -109769,6 +111057,9 @@
         "summary": "Freeze Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.freeze"
         ]
       }
     },
@@ -109835,6 +111126,9 @@
         "summary": "List Membership Contract History",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       }
     },
@@ -109915,6 +111209,9 @@
         "summary": "Renew Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.renew"
         ]
       }
     },
@@ -109988,6 +111285,9 @@
         "summary": "Reprice Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.billing_schedule.update"
         ]
       }
     },
@@ -110054,6 +111354,9 @@
         "summary": "List Membership Shares",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "post": {
@@ -110124,6 +111427,9 @@
         "summary": "Add Membership Share",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.share"
         ]
       }
     },
@@ -110189,6 +111495,9 @@
         "summary": "Revoke Membership Share",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.share"
         ]
       }
     },
@@ -110261,6 +111570,9 @@
         "summary": "Set Membership Contract Sold By",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.edit_sold_by"
         ]
       }
     },
@@ -110327,6 +111639,9 @@
         "summary": "List Membership Suspensions",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "post": {
@@ -110405,6 +111720,9 @@
         "summary": "Suspend Membership Contract",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.suspend"
         ]
       }
     },
@@ -110468,6 +111786,9 @@
         "summary": "Undo Membership Cancel",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.cancel"
         ]
       }
     },
@@ -110540,6 +111861,9 @@
         "summary": "Adjust Membership Visits",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.adjust_visits"
         ]
       }
     },
@@ -110689,6 +112013,9 @@
         "summary": "List Membership Visits",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       }
     },
@@ -110762,6 +112089,9 @@
         "summary": "Update Membership Freeze",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.freeze"
         ]
       }
     },
@@ -110842,6 +112172,9 @@
         "summary": "Remove Membership Freeze",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.freeze"
         ]
       }
     },
@@ -110981,6 +112314,9 @@
         "summary": "List Membership Plans",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "post": {
@@ -111041,6 +112377,9 @@
         "summary": "Create Membership Plan",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -111103,6 +112442,9 @@
         "summary": "Get Membership Plan",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "patch": {
@@ -111174,6 +112516,9 @@
         "summary": "Update Membership Plan",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -111247,6 +112592,9 @@
         "summary": "Replace Membership Plan Addons",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -111309,6 +112657,9 @@
         "summary": "Duplicate Membership Plan",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -111361,6 +112712,9 @@
         "summary": "Get Membership Settings",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "patch": {
@@ -111421,6 +112775,9 @@
         "summary": "Update Membership Settings",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -111493,6 +112850,9 @@
         "summary": "List Membership Standings",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       }
     },
@@ -111565,6 +112925,9 @@
         "summary": "Update Membership Suspension",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.suspend"
         ]
       }
     },
@@ -111644,6 +113007,9 @@
         "summary": "Remove Membership Suspension",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.suspend"
         ]
       }
     },
@@ -111836,6 +113202,9 @@
         "summary": "List Membership Types",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.read"
         ]
       },
       "post": {
@@ -111896,6 +113265,9 @@
         "summary": "Create Membership Type",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -111968,6 +113340,9 @@
         "summary": "Update Membership Type",
         "tags": [
           "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.plan.manage"
         ]
       }
     },
@@ -112040,6 +113415,9 @@
         "summary": "Put Membership Type Access",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.rule.manage"
         ]
       }
     },
@@ -112179,6 +113557,9 @@
         "summary": "List Message Templates",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -112240,6 +113621,9 @@
         "summary": "Create Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -112296,6 +113680,9 @@
         "summary": "Delete Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       },
       "get": {
@@ -112356,6 +113743,9 @@
         "summary": "Get Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -112427,6 +113817,9 @@
         "summary": "Update Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -112566,6 +113959,9 @@
         "summary": "List Messages",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -112627,6 +114023,9 @@
         "summary": "Send Direct Message",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.message.send_direct"
         ]
       }
     },
@@ -112689,6 +114088,9 @@
         "summary": "Get Message",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -112883,6 +114285,9 @@
         "summary": "List Note Subjects",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.activity.read"
         ]
       },
       "post": {
@@ -112943,6 +114348,9 @@
         "summary": "Create Note Subject",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -112999,6 +114407,9 @@
         "summary": "Delete Note Subject",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       },
       "patch": {
@@ -113069,6 +114480,9 @@
         "summary": "Update Note Subject",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -113207,6 +114621,9 @@
         "summary": "List Notification Routes",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       },
       "post": {
@@ -113268,6 +114685,9 @@
         "summary": "Create Notification Route",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -113323,6 +114743,9 @@
         "summary": "Delete Notification Route",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       },
       "get": {
@@ -113383,6 +114806,9 @@
         "summary": "Get Notification Route",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       },
       "patch": {
@@ -113453,6 +114879,9 @@
         "summary": "Update Notification Route",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -113516,6 +114945,9 @@
         "summary": "Get Occupancy",
         "tags": [
           "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
         ]
       }
     },
@@ -113655,6 +115087,9 @@
         "summary": "List Officials",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       },
       "post": {
@@ -113715,6 +115150,9 @@
         "summary": "Create Official",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       }
     },
@@ -113770,6 +115208,9 @@
         "summary": "Delete Official",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       },
       "get": {
@@ -113830,6 +115271,9 @@
         "summary": "Get Official",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       },
       "patch": {
@@ -113900,6 +115344,9 @@
         "summary": "Update Official",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.official.manage"
         ]
       }
     },
@@ -114492,6 +115939,9 @@
         "summary": "List Package Plans",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       },
       "post": {
@@ -114552,6 +116002,9 @@
         "summary": "Create Package Plan",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.plan.manage"
         ]
       }
     },
@@ -114614,6 +116067,9 @@
         "summary": "Get Package Plan",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       },
       "patch": {
@@ -114685,6 +116141,9 @@
         "summary": "Update Package Plan",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.plan.manage"
         ]
       }
     },
@@ -114824,6 +116283,9 @@
         "summary": "List Package Series",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       }
     },
@@ -114886,6 +116348,9 @@
         "summary": "Get Package Series",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       }
     },
@@ -114948,6 +116413,9 @@
         "summary": "Cancel Package Series",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.remove"
         ]
       }
     },
@@ -115000,6 +116468,9 @@
         "summary": "Get Package Settings",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.read"
         ]
       },
       "patch": {
@@ -115060,6 +116531,9 @@
         "summary": "Update Package Settings",
         "tags": [
           "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.plan.manage"
         ]
       }
     },
@@ -115199,6 +116673,9 @@
         "summary": "List Padlocks",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.padlock.manage"
         ]
       },
       "post": {
@@ -115259,6 +116736,9 @@
         "summary": "Create Padlock",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.padlock.manage"
         ]
       }
     },
@@ -115315,6 +116795,9 @@
         "summary": "Delete Padlock",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.padlock.manage"
         ]
       },
       "patch": {
@@ -115385,6 +116868,9 @@
         "summary": "Update Padlock",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.padlock.manage"
         ]
       }
     },
@@ -115869,6 +117355,9 @@
         "summary": "List Payment Methods",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.read"
         ]
       }
     },
@@ -115924,6 +117413,9 @@
         "summary": "Remove Payment Method",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.manage"
         ]
       },
       "patch": {
@@ -115995,6 +117487,9 @@
         "summary": "Update Payment Method",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.manage"
         ]
       }
     },
@@ -116068,6 +117563,9 @@
         "summary": "Verify Bank Account",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment_method.manage"
         ]
       }
     },
@@ -116207,6 +117705,9 @@
         "summary": "List Payments",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       },
       "post": {
@@ -116263,6 +117764,9 @@
         "summary": "Take Payment",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.take"
         ]
       }
     },
@@ -116325,6 +117829,9 @@
         "summary": "Get Payment",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -116398,6 +117905,9 @@
         "summary": "Allocate Payment",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.reallocate"
         ]
       }
     },
@@ -116471,6 +117981,9 @@
         "summary": "Release Allocation",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.reallocate"
         ]
       }
     },
@@ -116534,6 +118047,9 @@
         "summary": "Cancel Payment",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.take"
         ]
       }
     },
@@ -116597,6 +118113,9 @@
         "summary": "Confirm Payment",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.take"
         ]
       }
     },
@@ -116659,6 +118178,9 @@
         "summary": "Get Receipt",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -116731,6 +118253,9 @@
         "summary": "Send Receipt",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.send"
         ]
       }
     },
@@ -116789,6 +118314,9 @@
         "summary": "Get Receipt Pdf",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -116857,6 +118385,9 @@
         "summary": "Create Refund",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.refund.create"
         ]
       }
     },
@@ -116925,6 +118456,9 @@
         "summary": "Void Payment",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.void"
         ]
       }
     },
@@ -117653,6 +119187,9 @@
         "summary": "List Permission Catalogue",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.role.read"
         ]
       }
     },
@@ -124410,6 +125947,9 @@
         "summary": "Get Pos Daily Register Report",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       }
     },
@@ -124472,6 +126012,9 @@
         "summary": "Get Pos Reorder Report",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       }
     },
@@ -124561,6 +126104,9 @@
         "summary": "Get Pos Returns Report",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       }
     },
@@ -124668,6 +126214,9 @@
         "summary": "Get Pos Sales Report",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       }
     },
@@ -124807,6 +126356,9 @@
         "summary": "List Pos Sales",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       },
       "post": {
@@ -124868,6 +126420,9 @@
         "summary": "Create Pos Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -124930,6 +126485,9 @@
         "summary": "Get Pos Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       },
       "patch": {
@@ -125001,6 +126559,9 @@
         "summary": "Update Pos Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125064,6 +126625,9 @@
         "summary": "Abandon Pos Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125122,6 +126686,9 @@
         "summary": "Complete Pos Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125195,6 +126762,9 @@
         "summary": "Add Pos Sale Discount",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "billing.discount.apply_preset"
         ]
       }
     },
@@ -125260,6 +126830,9 @@
         "summary": "Remove Pos Sale Discount",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125333,6 +126906,9 @@
         "summary": "Add Pos Sale Line",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125398,6 +126974,9 @@
         "summary": "Remove Pos Sale Line",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       },
       "patch": {
@@ -125479,6 +127058,9 @@
         "summary": "Update Pos Sale Line",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125552,6 +127134,9 @@
         "summary": "Create Pos Sale Quick Client",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125631,6 +127216,9 @@
         "summary": "Get Pos Receipt",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.read"
         ]
       }
     },
@@ -125704,6 +127292,10 @@
         "summary": "Send Pos Receipt",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.receipt.resend",
+          "pos.sale.create"
         ]
       }
     },
@@ -125772,6 +127364,9 @@
         "summary": "Create Pos Return",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.return"
         ]
       }
     },
@@ -125840,6 +127435,9 @@
         "summary": "Add Pos Sale Tender",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125913,6 +127511,9 @@
         "summary": "Remove Pos Sale Tender",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -125981,6 +127582,9 @@
         "summary": "Void Pos Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.void"
         ]
       }
     },
@@ -126128,6 +127732,9 @@
         "summary": "Put Pos Settings",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.register.manage"
         ]
       }
     },
@@ -126439,6 +128046,9 @@
         "summary": "Create Product Brand",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -126511,6 +128121,9 @@
         "summary": "Update Product Brand",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -126710,6 +128323,9 @@
         "summary": "Create Product Category",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -126765,6 +128381,9 @@
         "summary": "Reorder Product Categories",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -126838,6 +128457,9 @@
         "summary": "Update Product Category",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -127036,6 +128658,9 @@
         "summary": "Create Product Supplier",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -127108,6 +128733,9 @@
         "summary": "Update Product Supplier",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -127307,6 +128935,9 @@
         "summary": "Create Product",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -127439,6 +129070,9 @@
         "summary": "Update Product",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.product.manage"
         ]
       }
     },
@@ -127660,6 +129294,9 @@
         "summary": "List Program Classifiers",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -127721,6 +129358,9 @@
         "summary": "Create Program Classifier",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -127777,6 +129417,9 @@
         "summary": "Delete Program Classifier",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       },
       "patch": {
@@ -127847,6 +129490,9 @@
         "summary": "Update Program Classifier",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -127986,6 +129632,9 @@
         "summary": "List Program Fees",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -128046,6 +129695,9 @@
         "summary": "Create Catalogue Fee",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128102,6 +129754,9 @@
         "summary": "Delete Program Fee",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       },
       "patch": {
@@ -128172,6 +129827,9 @@
         "summary": "Update Program Fee",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128311,6 +129969,9 @@
         "summary": "List Program Groups",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -128372,6 +130033,9 @@
         "summary": "Create Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128428,6 +130092,9 @@
         "summary": "Delete Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.delete"
         ]
       },
       "get": {
@@ -128488,6 +130155,9 @@
         "summary": "Get Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "patch": {
@@ -128559,6 +130229,9 @@
         "summary": "Update Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128621,6 +130294,9 @@
         "summary": "Archive Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128694,6 +130370,9 @@
         "summary": "Generate Program Group Children",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128756,6 +130435,9 @@
         "summary": "Complete Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128829,6 +130511,9 @@
         "summary": "Copy Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -128866,6 +130551,9 @@
         "summary": "Export Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.export"
         ]
       }
     },
@@ -128932,6 +130620,9 @@
         "summary": "List Program Group Fees",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -129002,6 +130693,9 @@
         "summary": "Create Program Group Fee",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -129065,6 +130759,9 @@
         "summary": "Publish Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -129127,6 +130824,9 @@
         "summary": "Get Registration Config",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "put": {
@@ -129198,6 +130898,9 @@
         "summary": "Put Registration Config",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -129260,6 +130963,9 @@
         "summary": "Reopen Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -129322,6 +131028,9 @@
         "summary": "Restore Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.delete"
         ]
       }
     },
@@ -129385,6 +131094,9 @@
         "summary": "Get Program Group Roster",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       }
     },
@@ -129451,6 +131163,9 @@
         "summary": "List Program Sessions",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -129526,6 +131241,9 @@
         "summary": "Add Program Sessions",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -129591,6 +131309,9 @@
         "summary": "Remove Program Session",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.program.manage"
         ]
       }
     },
@@ -129653,6 +131374,9 @@
         "summary": "Get Program Group Tree",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       }
     },
@@ -129715,6 +131439,9 @@
         "summary": "Unpublish Program Group",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -129777,6 +131504,9 @@
         "summary": "Get Program Page Setting",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "put": {
@@ -129846,6 +131576,9 @@
         "summary": "Put Program Page Setting",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       }
     },
@@ -129903,6 +131636,9 @@
         "summary": "List Program Saved Views",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "post": {
@@ -129963,6 +131699,9 @@
         "summary": "Create Program Saved View",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       }
     },
@@ -130018,6 +131757,9 @@
         "summary": "Delete Program Saved View",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       },
       "patch": {
@@ -130088,6 +131830,9 @@
         "summary": "Update Program Saved View",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.read"
         ]
       }
     },
@@ -131910,6 +133655,9 @@
         "summary": "Get Receivables Ageing",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.invoice.read"
         ]
       }
     },
@@ -131966,6 +133714,9 @@
         "summary": "List Referral Categories",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -132026,6 +133777,9 @@
         "summary": "Create Referral Category",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -132082,6 +133836,9 @@
         "summary": "Delete Referral Category",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       },
       "patch": {
@@ -132152,6 +133909,9 @@
         "summary": "Update Referral Category",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -132291,6 +134051,9 @@
         "summary": "List Refunds",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
         ]
       }
     },
@@ -132490,6 +134253,9 @@
         "summary": "Create Register",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.register.manage"
         ]
       }
     },
@@ -132562,6 +134328,9 @@
         "summary": "Update Register",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.register.manage"
         ]
       }
     },
@@ -132635,6 +134404,9 @@
         "summary": "Open Drawer Session",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.drawer.operate"
         ]
       }
     },
@@ -132707,6 +134479,9 @@
         "summary": "Put Register Favorites",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.register.manage"
         ]
       }
     },
@@ -132773,6 +134548,9 @@
         "summary": "Open Drawer No Sale",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.drawer.open_no_sale"
         ]
       }
     },
@@ -132836,6 +134614,9 @@
         "summary": "Get Register Session",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.sale.create"
         ]
       }
     },
@@ -132898,6 +134679,9 @@
         "summary": "Create Registration Checkout",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.create"
         ]
       }
     },
@@ -132960,6 +134744,9 @@
         "summary": "Get Registration Checkout",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.create"
         ]
       }
     },
@@ -133022,6 +134809,9 @@
         "summary": "Abandon Registration Checkout",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.create"
         ]
       }
     },
@@ -133085,6 +134875,9 @@
         "summary": "Confirm Registration Checkout",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.create"
         ]
       }
     },
@@ -133158,6 +134951,9 @@
         "summary": "Add Registration Checkout Item",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.create"
         ]
       }
     },
@@ -133230,6 +135026,9 @@
         "summary": "Remove Registration Checkout Item",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration.create"
         ]
       }
     },
@@ -133286,6 +135085,9 @@
         "summary": "List Relationship Types",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -133346,6 +135148,9 @@
         "summary": "Create Relationship Type",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -133418,6 +135223,9 @@
         "summary": "Update Relationship Type",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -133556,6 +135364,9 @@
         "summary": "List Reminder Rules",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       },
       "post": {
@@ -133617,6 +135428,9 @@
         "summary": "Create Reminder Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -133672,6 +135486,9 @@
         "summary": "Delete Reminder Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       },
       "get": {
@@ -133732,6 +135549,9 @@
         "summary": "Get Reminder Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       },
       "patch": {
@@ -133802,6 +135622,9 @@
         "summary": "Update Reminder Rule",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -133941,6 +135764,9 @@
         "summary": "List Rental Plan Purchases",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.sell"
         ]
       },
       "post": {
@@ -133996,6 +135822,9 @@
         "summary": "Sell Rental Plan",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.sell"
         ]
       }
     },
@@ -134058,6 +135887,9 @@
         "summary": "Get Rental Plan Purchase",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.sell"
         ]
       },
       "patch": {
@@ -134129,6 +135961,9 @@
         "summary": "Update Rental Plan Purchase",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.sell"
         ]
       }
     },
@@ -134201,6 +136036,9 @@
         "summary": "Cancel Rental Plan Purchase",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.remove"
         ]
       }
     },
@@ -134267,6 +136105,9 @@
         "summary": "List Rental Plan Ledger",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.sell"
         ]
       }
     },
@@ -134340,6 +136181,9 @@
         "summary": "Replace Rental Plan Shares",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.share"
         ]
       }
     },
@@ -134539,6 +136383,9 @@
         "summary": "Create Rental Plan",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.manage"
         ]
       }
     },
@@ -134595,6 +136442,9 @@
         "summary": "Delete Rental Plan",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.manage"
         ]
       },
       "get": {
@@ -134725,6 +136575,9 @@
         "summary": "Update Rental Plan",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_plan.manage"
         ]
       }
     },
@@ -134857,6 +136710,9 @@
         "summary": "Update Rental Rate",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_type.manage"
         ]
       }
     },
@@ -135056,6 +136912,9 @@
         "summary": "Create Rental Type",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_type.manage"
         ]
       }
     },
@@ -135189,6 +137048,9 @@
         "summary": "Update Rental Type",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_type.manage"
         ]
       }
     },
@@ -135407,6 +137269,9 @@
         "summary": "Create Rental Rate",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.rental_type.manage"
         ]
       }
     },
@@ -135546,6 +137411,9 @@
         "summary": "List Rentals",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "post": {
@@ -135602,6 +137470,9 @@
         "summary": "Create Rental",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.booking.create"
         ]
       }
     },
@@ -135660,6 +137531,9 @@
         "summary": "Bill Selected Rentals",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.booking.update"
         ]
       }
     },
@@ -135723,6 +137597,9 @@
         "summary": "Preview Rental",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.booking.create"
         ]
       }
     },
@@ -135785,6 +137662,9 @@
         "summary": "Get Rental",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -135858,6 +137738,9 @@
         "summary": "Cancel Rental",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.booking.cancel"
         ]
       }
     },
@@ -135931,6 +137814,9 @@
         "summary": "Extend Rental",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.booking.update"
         ]
       }
     },
@@ -136003,6 +137889,9 @@
         "summary": "Set Rental Public Schedule",
         "tags": [
           "rentals"
+        ],
+        "x-api-key-scopes": [
+          "rentals.public_listing.publish"
         ]
       }
     },
@@ -136087,6 +137976,15 @@
         "summary": "List Report Definitions",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -136148,6 +138046,15 @@
         "summary": "Get Report Definition",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -136286,6 +138193,15 @@
         "summary": "List Report Runs",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       },
       "post": {
@@ -136346,6 +138262,15 @@
         "summary": "Create Report Run",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -136408,6 +138333,15 @@
         "summary": "Get Report Run",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -136530,6 +138464,15 @@
         "summary": "List Report Run Rows",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -136728,6 +138671,9 @@
         "summary": "Create Reservation Category",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.reservation_type.manage"
         ]
       }
     },
@@ -136800,6 +138746,9 @@
         "summary": "Update Reservation Category",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.reservation_type.manage"
         ]
       }
     },
@@ -136999,6 +138948,9 @@
         "summary": "Create Reservation Type",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.reservation_type.manage"
         ]
       }
     },
@@ -137132,6 +139084,9 @@
         "summary": "Update Reservation Type",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.reservation_type.manage"
         ]
       }
     },
@@ -137195,6 +139150,9 @@
         "summary": "List Reservation Type Grants",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.reservation_type.grant"
         ]
       },
       "put": {
@@ -137266,6 +139224,9 @@
         "summary": "Replace Reservation Type Grants",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.reservation_type.grant"
         ]
       }
     },
@@ -137321,6 +139282,9 @@
         "summary": "Delete Session Booking Policy Override",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       },
       "put": {
@@ -137391,6 +139355,9 @@
         "summary": "Put Session Booking Policy Override",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -137590,6 +139557,9 @@
         "summary": "Create Resource Group",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -137663,6 +139633,9 @@
         "summary": "Update Resource Group",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -137863,6 +139836,9 @@
         "summary": "Create Resource",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -137996,6 +139972,9 @@
         "summary": "Update Resource",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -138059,6 +140038,9 @@
         "summary": "Archive Resource",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -138195,6 +140177,9 @@
         "summary": "Create Availability Window",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.availability.manage"
         ]
       }
     },
@@ -138268,6 +140253,9 @@
         "summary": "Replace Resource Links",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -138330,6 +140318,9 @@
         "summary": "Restore Resource",
         "tags": [
           "resources"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -138529,6 +140520,9 @@
         "summary": "Create Revenue Category",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.revenue_category.manage"
         ]
       }
     },
@@ -138662,6 +140656,9 @@
         "summary": "Update Revenue Category",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.revenue_category.manage"
         ]
       }
     },
@@ -138800,6 +140797,9 @@
         "summary": "List Roles",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.role.read"
         ]
       },
       "post": {
@@ -138977,6 +140977,9 @@
         "summary": "Get Role",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.role.read"
         ]
       },
       "patch": {
@@ -139260,6 +141263,9 @@
         "summary": "Search Roster Entries",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.roster.manage"
         ]
       }
     },
@@ -139315,6 +141321,9 @@
         "summary": "Remove Roster Entry",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.roster.manage"
         ]
       },
       "patch": {
@@ -139385,6 +141394,9 @@
         "summary": "Update Roster Entry",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.roster.manage"
         ]
       }
     },
@@ -139523,6 +141535,15 @@
         "summary": "List Saved Reports",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       },
       "post": {
@@ -139583,6 +141604,15 @@
         "summary": "Create Saved Report",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -139638,6 +141668,15 @@
         "summary": "Delete Saved Report",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       },
       "get": {
@@ -139698,6 +141737,15 @@
         "summary": "Get Saved Report",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       },
       "patch": {
@@ -139768,6 +141816,15 @@
         "summary": "Update Saved Report",
         "tags": [
           "reporting"
+        ],
+        "x-api-key-scopes": [
+          "reporting.attendance.run",
+          "reporting.client.run",
+          "reporting.financial.run",
+          "reporting.league.run",
+          "reporting.membership.run",
+          "reporting.pos.run",
+          "reporting.time_clock.run"
         ]
       }
     },
@@ -139907,6 +141964,9 @@
         "summary": "List Schedule Runs",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       },
       "post": {
@@ -139967,6 +142027,9 @@
         "summary": "Create Schedule Run",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -140029,6 +142092,9 @@
         "summary": "Get Schedule Run",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       },
       "patch": {
@@ -140099,6 +142165,9 @@
         "summary": "Update Schedule Run",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -140162,6 +142231,9 @@
         "summary": "Commit Schedule",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -140224,6 +142296,9 @@
         "summary": "Discard Schedule Run",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -140372,6 +142447,9 @@
         "summary": "List Schedule Run Games",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -140435,6 +142513,9 @@
         "summary": "Generate Schedule",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.schedule.generate"
         ]
       }
     },
@@ -140582,6 +142663,9 @@
         "summary": "Update Scheduling Settings",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "platform.location.update"
         ]
       }
     },
@@ -140721,6 +142805,9 @@
         "summary": "List Seasons",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -140781,6 +142868,9 @@
         "summary": "Create Season",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -140836,6 +142926,9 @@
         "summary": "Delete Season",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "get": {
@@ -140896,6 +142989,9 @@
         "summary": "Get Season",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -140966,6 +143062,9 @@
         "summary": "Update Season",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -141218,6 +143317,9 @@
         "summary": "List Segments",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -141279,6 +143381,9 @@
         "summary": "Create Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -141342,6 +143447,9 @@
         "summary": "Preview Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -141398,6 +143506,9 @@
         "summary": "Delete Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       },
       "get": {
@@ -141458,6 +143569,9 @@
         "summary": "Get Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -141529,6 +143643,9 @@
         "summary": "Update Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -141595,6 +143712,9 @@
         "summary": "List Session Booking Policies",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "programs.registration_config.manage"
         ]
       }
     },
@@ -141734,6 +143854,9 @@
         "summary": "List Sessions",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -141797,6 +143920,9 @@
         "summary": "Change Session Capacity",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.change_capacity"
         ]
       }
     },
@@ -141859,6 +143985,9 @@
         "summary": "Get Session",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "patch": {
@@ -141929,6 +144058,9 @@
         "summary": "Update Session",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
         ]
       }
     },
@@ -142002,6 +144134,9 @@
         "summary": "Put Session Attendance",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.attendance.mark"
         ]
       }
     },
@@ -142075,6 +144210,9 @@
         "summary": "Assign Session Instructor",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
         ]
       }
     },
@@ -142137,6 +144275,9 @@
         "summary": "Get Session Roster",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -142210,6 +144351,9 @@
         "summary": "Send Session Roster Message",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.create"
         ]
       }
     },
@@ -142349,6 +144493,9 @@
         "summary": "List Shifts",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       },
       "post": {
@@ -142410,6 +144557,9 @@
         "summary": "Create Shift",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       }
     },
@@ -142473,6 +144623,9 @@
         "summary": "Copy Shifts",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       }
     },
@@ -142535,6 +144688,9 @@
         "summary": "Publish Shifts",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       }
     },
@@ -142646,6 +144802,9 @@
         "summary": "Get Shift Variance",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       }
     },
@@ -142718,6 +144877,9 @@
         "summary": "Update Shift",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       }
     },
@@ -142780,6 +144942,9 @@
         "summary": "Cancel Shift",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.shift.manage"
         ]
       }
     },
@@ -142919,6 +145084,9 @@
         "summary": "List Slot Offers",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "post": {
@@ -142980,6 +145148,9 @@
         "summary": "Create Slot Offer",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
         ]
       }
     },
@@ -143052,6 +145223,9 @@
         "summary": "Update Slot Offer",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
         ]
       }
     },
@@ -143149,6 +145323,9 @@
         "summary": "List Slot Offer Slots",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       },
       "post": {
@@ -143220,6 +145397,9 @@
         "summary": "Book Slot Offer Slot",
         "tags": [
           "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.create"
         ]
       }
     },
@@ -143359,6 +145539,9 @@
         "summary": "List Sports",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -143419,6 +145602,9 @@
         "summary": "Create Sport",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -143474,6 +145660,9 @@
         "summary": "Delete Sport",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "get": {
@@ -143534,6 +145723,9 @@
         "summary": "Get Sport",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -143604,6 +145796,9 @@
         "summary": "Update Sport",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -143670,6 +145865,9 @@
         "summary": "List Stat Tables",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "post": {
@@ -143740,6 +145938,9 @@
         "summary": "Create Stat Table",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -143940,6 +146141,9 @@
         "summary": "Create Staff Payee",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -144072,6 +146276,9 @@
         "summary": "Update Staff Payee",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "resources.resource.manage"
         ]
       }
     },
@@ -144868,6 +147075,9 @@
         "summary": "List Staff Payee Sessions",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
         ]
       }
     },
@@ -145154,6 +147364,9 @@
         "summary": "List Staff Users",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.staff_user.read"
         ]
       },
       "post": {
@@ -145277,6 +147490,9 @@
         "summary": "Get Staff User",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.staff_user.read"
         ]
       },
       "patch": {
@@ -145997,6 +148213,9 @@
         "summary": "Get Staff User Permissions",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.staff_user.read"
         ]
       }
     },
@@ -146267,6 +148486,9 @@
         "summary": "Adjust Standing",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.standings.adjust"
         ]
       }
     },
@@ -146322,6 +148544,9 @@
         "summary": "Delete Stat Definition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -146392,6 +148617,9 @@
         "summary": "Update Stat Definition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -146447,6 +148675,9 @@
         "summary": "Delete Stat Table",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       },
       "patch": {
@@ -146517,6 +148748,9 @@
         "summary": "Update Stat Table",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -146590,6 +148824,9 @@
         "summary": "Create Stat Definition",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.competition.manage"
         ]
       }
     },
@@ -146729,6 +148966,9 @@
         "summary": "List Statement Batches",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.statement.send"
         ]
       },
       "post": {
@@ -146790,6 +149030,9 @@
         "summary": "Create Statement Batch",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.statement.send"
         ]
       }
     },
@@ -146852,6 +149095,9 @@
         "summary": "Get Statement Batch",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.statement.send"
         ]
       }
     },
@@ -146919,6 +149165,9 @@
         "summary": "List Statement Recipients",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.statement.send"
         ]
       }
     },
@@ -146992,6 +149241,9 @@
         "summary": "Resend Statement Batch",
         "tags": [
           "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.statement.send"
         ]
       }
     },
@@ -147131,6 +149383,9 @@
         "summary": "List Stock Movements",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.inventory.adjust"
         ]
       },
       "post": {
@@ -147192,6 +149447,9 @@
         "summary": "Create Stock Movement",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.inventory.adjust"
         ]
       }
     },
@@ -147259,6 +149517,9 @@
         "summary": "Create Stock Transfer",
         "tags": [
           "pos"
+        ],
+        "x-api-key-scopes": [
+          "pos.inventory.adjust"
         ]
       }
     },
@@ -147398,6 +149659,9 @@
         "summary": "List Support Requests",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.support_request.create"
         ]
       },
       "post": {
@@ -147459,6 +149723,9 @@
         "summary": "Create Support Request",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.support_request.create"
         ]
       }
     },
@@ -147512,6 +149779,9 @@
         "summary": "Upload Support Screenshot",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.support_request.create"
         ]
       }
     },
@@ -147574,6 +149844,9 @@
         "summary": "Get Support Request",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.support_request.create"
         ]
       }
     },
@@ -147637,6 +149910,9 @@
         "summary": "Close Support Request",
         "tags": [
           "platform"
+        ],
+        "x-api-key-scopes": [
+          "platform.support_request.create"
         ]
       }
     },
@@ -147775,6 +150051,9 @@
         "summary": "List Suppressions",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -147835,6 +150114,9 @@
         "summary": "Create Suppression",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.suppression.manage"
         ]
       }
     },
@@ -147898,6 +150180,9 @@
         "summary": "Release Suppression",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.suppression.manage"
         ]
       }
     },
@@ -147954,6 +150239,9 @@
         "summary": "List Tags",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.client.read"
         ]
       },
       "post": {
@@ -148014,6 +150302,9 @@
         "summary": "Create Tag",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -148086,6 +150377,9 @@
         "summary": "Update Tag",
         "tags": [
           "clients"
+        ],
+        "x-api-key-scopes": [
+          "clients.config.manage"
         ]
       }
     },
@@ -148774,6 +151068,9 @@
         "summary": "List Teams",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       },
       "post": {
@@ -148834,6 +151131,9 @@
         "summary": "Create Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -148889,6 +151189,9 @@
         "summary": "Delete Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       },
       "get": {
@@ -148949,6 +151252,9 @@
         "summary": "Get Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       },
       "patch": {
@@ -149019,6 +151325,9 @@
         "summary": "Update Team",
         "tags": [
           "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.team.manage"
         ]
       }
     },
@@ -149919,6 +152228,9 @@
         "summary": "Clock In",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.time_entry.punch"
         ]
       }
     },
@@ -149982,6 +152294,9 @@
         "summary": "Clock Out",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.time_entry.punch"
         ]
       }
     },
@@ -150051,6 +152366,9 @@
         "summary": "Get Time Clock State",
         "tags": [
           "staff"
+        ],
+        "x-api-key-scopes": [
+          "staff.time_entry.punch"
         ]
       }
     },
@@ -150427,6 +152745,9 @@
         "summary": "List Videos",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "post": {
@@ -150488,6 +152809,9 @@
         "summary": "Create Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
@@ -150543,6 +152867,9 @@
         "summary": "Delete Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "get": {
@@ -150603,6 +152930,9 @@
         "summary": "Get Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "patch": {
@@ -150673,6 +153003,9 @@
         "summary": "Update Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
@@ -150764,6 +153097,10 @@
         "summary": "List Waitlist Entries",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.waitlist.manage",
+          "programs.waitlist.manage"
         ]
       },
       "post": {
@@ -150824,6 +153161,10 @@
         "summary": "Create Waitlist Entry",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.waitlist.manage",
+          "programs.waitlist.manage"
         ]
       }
     },
@@ -150879,6 +153220,10 @@
         "summary": "Remove Waitlist Entry",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.waitlist.manage",
+          "programs.waitlist.manage"
         ]
       }
     },
@@ -150942,6 +153287,10 @@
         "summary": "Promote Waitlist Entry",
         "tags": [
           "programs"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.waitlist.manage",
+          "programs.waitlist.manage"
         ]
       }
     },
@@ -151081,6 +153430,9 @@
         "summary": "List Webhook Deliveries",
         "tags": [
           "integrations"
+        ],
+        "x-api-key-scopes": [
+          "integrations.delivery.read"
         ]
       }
     },
@@ -151143,6 +153495,9 @@
         "summary": "Get Webhook Delivery",
         "tags": [
           "integrations"
+        ],
+        "x-api-key-scopes": [
+          "integrations.delivery.read"
         ]
       }
     },
