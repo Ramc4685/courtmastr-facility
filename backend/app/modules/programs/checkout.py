@@ -431,12 +431,15 @@ def guest_create(session: Db, data: dict) -> dict:
     payer = clients.service.create_self_service(
         session, {"first_name": payer_data["first_name"], "last_name": payer_data["last_name"],
                   "home_location_id": location_id, "primary_email": payer_data["email"],
-                  "phone_mobile": payer_data.get("phone_mobile")}, created_via="registration",
+                  "phone_mobile": payer_data.get("phone_mobile"), "birth_on": payer_data["birth_on"]},
+        created_via="registration",
     )  # fmt: skip
     people = [
         clients.service.create_self_service(
-            session, {"first_name": p["first_name"], "last_name": p["last_name"], "birth_on": p.get("birth_on"),
-                      "home_location_id": location_id}, created_via="registration",
+            # registration always requires an email (data-model 1.7): a guest's participant shares the payer's
+            session, {"first_name": p["first_name"], "last_name": p["last_name"], "birth_on": p["birth_on"],
+                      "primary_email": payer_data["email"], "home_location_id": location_id},
+            created_via="registration",
         ).id
         for p in data["participants"]
     ]  # fmt: skip

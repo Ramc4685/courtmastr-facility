@@ -56,7 +56,7 @@ def test_signup_verifies_the_email_then_creates_the_client_and_signs_in(client, 
     assert done.json()["status"] == "signed_in" and done.json()["csrf_token"]
     assert not done.json().get("access_token")  # the web gets the session cookie, not a token
     assert "fh_session" in done.headers.get("set-cookie", "")
-    found = ok(client.get(f"{API}/clients", headers=owner, params={"q": email}), 200)["items"]
+    found = ok(client.get(f"{API}/clients", headers=owner, params={"q": email}), 200)["data"]
     assert len(found) == 1
 
     again = client.post(f"{SIGNUPS}/confirm", headers=public(tenant), json={"token": token})

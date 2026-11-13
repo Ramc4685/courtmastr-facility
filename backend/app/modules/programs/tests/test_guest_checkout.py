@@ -32,8 +32,8 @@ def allow_guests(client, owner, group_id: str):
 
 
 def start(client, tenant, f, camp, fee, email="guest@example.com"):
-    body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest", "email": email},
-            "participants": [{"first_name": "Kit", "last_name": "Guest"}],
+    body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest", "email": email, "birth_on": "1985-02-03"},
+            "participants": [{"first_name": "Kit", "last_name": "Guest", "birth_on": "2015-04-01"}],
             "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"], "participant": 0}]}  # fmt: skip
     return client.post(GUEST, headers=public(tenant), json=body)
 
@@ -62,8 +62,8 @@ def test_guest_pays_by_new_card_and_gets_new_clients_every_time(client, owner, t
     assert "guest_token" not in paid or paid["guest_token"] is None
 
     ok(start(client, tenant, f, camp, fee))  # the same email again: never matched to the first payer
-    found = ok(client.get(f"{API}/clients", headers=owner, params={"q": "guest@example.com"}), 200)["items"]
-    assert len(found) == 2
+    found = ok(client.get(f"{API}/clients", headers=owner, params={"q": "guest@example.com"}), 200)["data"]
+    assert [c["first_name"] for c in found].count("Gale") == 2  # two payers; each child shares its payer's email
 
 
 def test_abandon_releases_the_place(client, owner, tenant, f):

@@ -488,12 +488,13 @@ class GuestPayer(In):
         StringConstraints(strip_whitespace=True, min_length=3, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
     ]
     phone_mobile: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)] | None = None
+    birth_on: date  # registration always requires it (clients LOCKED fields)
 
 
 class GuestParticipant(In):
     first_name: GuestName
     last_name: GuestName
-    birth_on: date | None = None
+    birth_on: date  # registration always requires it; the email is the payer's
 
 
 class GuestItem(In):

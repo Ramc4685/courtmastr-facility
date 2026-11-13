@@ -42,8 +42,8 @@ def _fk(table: str, column: str, target: str) -> sa.ForeignKeyConstraint:
 def upgrade() -> None:
     op.add_column("tenant", sa.Column("brand_primary_color", sa.Text(), nullable=True))
     op.add_column("tenant", sa.Column("brand_accent_color", sa.Text(), nullable=True))
-    op.create_check_constraint("ck_tenant_brand_primary_color", "tenant", "brand_primary_color ~ '^#[0-9a-f]{6}$'")
-    op.create_check_constraint("ck_tenant_brand_accent_color", "tenant", "brand_accent_color ~ '^#[0-9a-f]{6}$'")
+    op.create_check_constraint(op.f("ck_tenant_brand_primary_color"), "tenant", "brand_primary_color ~ '^#[0-9a-f]{6}$'")
+    op.create_check_constraint(op.f("ck_tenant_brand_accent_color"), "tenant", "brand_accent_color ~ '^#[0-9a-f]{6}$'")
 
     jsonb = postgresql.JSONB(astext_type=sa.Text())
     for column in (
@@ -61,7 +61,7 @@ def upgrade() -> None:
         ("group_redirect_urls", "jsonb_typeof(group_redirect_urls) = 'object'"),
         ("redirect_url", "redirect_url IS NULL OR redirect_url LIKE 'https://%'"),
     ):
-        op.create_check_constraint(f"ck_portal_settings_{name}", "portal_settings", sql)
+        op.create_check_constraint(op.f(f"ck_portal_settings_{name}"), "portal_settings", sql)
 
     op.create_table(
         "portal_signup",
@@ -80,7 +80,7 @@ def upgrade() -> None:
         sa.Column("client_id", sa.Uuid(), nullable=True),
         sa.Column("ip", postgresql.INET(), nullable=True),
         *_stamps(),
-        sa.CheckConstraint("status IN ('pending', 'confirmed', 'superseded')", name="ck_portal_signup_status"),
+        sa.CheckConstraint("status IN ('pending', 'confirmed', 'superseded')", name=op.f("ck_portal_signup_status")),
         _fk("portal_signup", "location_id", "location"),
         _fk("portal_signup", "client_id", "client"),
         _tenant_fk("portal_signup"),
@@ -107,7 +107,7 @@ def upgrade() -> None:
         sa.Column("ip", postgresql.INET(), nullable=True),
         *_stamps(),
         sa.CheckConstraint(
-            "sale_kind IN ('membership', 'package', 'program', 'rental')", name="ck_terms_acceptance_sale_kind"
+            "sale_kind IN ('membership', 'package', 'program', 'rental')", name=op.f("ck_terms_acceptance_sale_kind")
         ),
         _fk("terms_acceptance", "client_id", "client"),
         _fk("terms_acceptance", "binding_id", "document_binding"),
@@ -124,22 +124,22 @@ def upgrade() -> None:
         sa.Column("allows_guest_checkout", sa.Boolean(), server_default=sa.text("false"), nullable=False),
     )
     op.add_column("registration_checkout", sa.Column("guest_token_hash", sa.Text(), nullable=True))
-    op.drop_constraint("ck_registration_checkout_channel", "registration_checkout", type_="check")
-    op.create_check_constraint("ck_registration_checkout_channel", "registration_checkout", _CHANNELS_NEW)
+    op.drop_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", type_="check")
+    op.create_check_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", _CHANNELS_NEW)
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_registration_checkout_channel", "registration_checkout", type_="check")
-    op.create_check_constraint("ck_registration_checkout_channel", "registration_checkout", _CHANNELS_OLD)
+    op.drop_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", type_="check")
+    op.create_check_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", _CHANNELS_OLD)
     op.drop_column("registration_checkout", "guest_token_hash")
     op.drop_column("registration_config", "allows_guest_checkout")
     op.drop_table("terms_acceptance")
     op.drop_table("portal_signup")
     for name in ("redirect_url", "group_redirect_urls", "social_links", "menu"):
-        op.drop_constraint(f"ck_portal_settings_{name}", "portal_settings", type_="check")
+        op.drop_constraint(op.f(f"ck_portal_settings_{name}"), "portal_settings", type_="check")
     for name in ("redirect_domains", "group_redirect_urls", "redirect_url", "social_links", "menu", "allows_self_signup"):
         op.drop_column("portal_settings", name)
-    op.drop_constraint("ck_tenant_brand_accent_color", "tenant", type_="check")
-    op.drop_constraint("ck_tenant_brand_primary_color", "tenant", type_="check")
+    op.drop_constraint(op.f("ck_tenant_brand_accent_color"), "tenant", type_="check")
+    op.drop_constraint(op.f("ck_tenant_brand_primary_color"), "tenant", type_="check")
     op.drop_column("tenant", "brand_accent_color")
     op.drop_column("tenant", "brand_primary_color")
