@@ -465,7 +465,12 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     catalog_item = post("/catalog-items", {"location_id": location["id"], "kind": "one_off", "description": "Locker",
                                            "fee_minor": 1000, "revenue_category_id": category_id})  # fmt: skip
     catalog_sale = post(f"/catalog-items/{catalog_item['id']}/sales", {"client_id": person["id"]}, key=key())
+    tag = post("/collections-tags", {"name": "Payment plan"})  # collections_tag + client_collections_profile
+    profile = client.put(f"/api/v1/clients/{person['id']}/collections-profile", headers=headers,
+                         json={"collections_tag_id": tag["id"]})  # fmt: skip
+    assert profile.status_code == 200, profile.text
     return {
+        "collections_tag_id": tag["id"],
         "statement_batch_id": batch["id"],
         "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],
         "coupon_id": coupon["id"], "payment_method_id": method["id"], "autopay_run_id": run["id"],

@@ -27,6 +27,13 @@ def is_secured(payment: Payment | None) -> bool:
     return payment is not None and payment.status in SECURED
 
 
+def _saved(session: Session, client_id: UUID, payment: Payment, save: bool, as_autopay: bool | None) -> Payment:
+    """Record the method the processor saved with a secured payment, when the sale asked for it."""
+    if save:
+        methods.save_from_payment(session, client_id, payment, is_autopay=as_autopay)
+    return payment
+
+
 def secure_online_checkout(
     session: Session,
     *,
@@ -41,13 +48,17 @@ def secure_online_checkout(
     must_pay_now: bool = True,
     on_account_ok: bool = False,
     coupon_code: str | None = None,
+    save_method: bool = False,
+    save_as_autopay: bool | None = None,
 ) -> Payment | None:
     """Pay what is due now, or prove a chargeable method is on file for what falls due later.
 
     None when nothing needed securing (a free sale, or a plan that explicitly sells on account); the payment
     when it went through. `unknown` or `initiated` is a 503: the `initiated` row was committed before the
     provider call, so a retry with the same key replays it and money that did go through lands as credit.
-    A `coupon_code` comes off what is invoiced now before anything is charged.
+    A `coupon_code` comes off what is invoiced now before anything is charged. `save_method` keeps the card or
+    bank account that pays now on the payer's file, saved by the processor with the charge (industry "save
+    during payment"), never attached before it; `save_as_autopay` is passed to `methods.attach_method`.
     """
     if coupon_code:
         if invoice is None:
@@ -77,14 +88,18 @@ def secure_online_checkout(
                 # a retry after a timeout: ask the processor first, so the card is never charged twice
                 earlier = service.confirm_payment(session, earlier.id)
             if is_secured(earlier):  # a replay: the key's money secures this sale only if it covers it
-                return _covering(session, invoice, service.allocate(session, earlier.id, invoice_id=invoice.id))
+                covered = _covering(session, invoice, service.allocate(session, earlier.id, invoice_id=invoice.id))
+                return _saved(session, client_id, covered, save_method, save_as_autopay)
+        saving = save_method and bool(method_token) and payment_method_id is None
+        if saving:
+            methods.ensure_customer(session, client_id)
         payment = service.take_payment(
             session, client_id=client_id, location_id=location_id, amount_minor=invoice.balance_minor,
             tender_kind=tender_kind, method_token=method_token, payment_method_id=payment_method_id,
-            idempotency_key=idempotency_key, origin="portal", invoice_id=invoice.id,
+            idempotency_key=idempotency_key, origin="portal", invoice_id=invoice.id, save_method=saving,
         )  # fmt: skip
         if is_secured(payment):
-            return _covering(session, invoice, payment)
+            return _saved(session, client_id, _covering(session, invoice, payment), save_method, save_as_autopay)
         if payment.status in ("unknown", "initiated"):
             raise DomainError(
                 "The card processor did not answer; retry with the same Idempotency-Key.", status=503,

@@ -63,9 +63,11 @@ import { AuthProvider } from '../lib/auth'
 import { AgeingPage, AutopayPage } from '../features/billing/AutopayPage'
 import { BillingLayout } from '../features/billing/BillingLayout'
 import { ClientBillingLookupPage, ClientBillingPage } from '../features/billing/ClientBillingPage'
+import { CollectionsPage } from '../features/billing/CollectionsPage'
 import { CouponsPage } from '../features/billing/CouponsPage'
 import { CatalogPage } from '../features/billing/CatalogPage'
 import { InvoiceDocumentPage, InvoicePage } from '../features/billing/InvoicePage'
+import { ExpiringCardsPage, NoticesPage } from '../features/billing/NoticesPage'
 import { PaymentPage, ReceiptPage } from '../features/billing/PaymentPage'
 import { BillingSettingsPage } from '../features/billing/SettingsPage'
 import { StatementsPage } from '../features/billing/StatementsPage'
@@ -155,6 +157,9 @@ export function AppRoutes() {
           <Route path="autopay" element={<RequirePermission permission="billing.payment.read"><AutopayPage /></RequirePermission>} />
           <Route path="receivables" element={<RequirePermission permission="billing.invoice.read"><AgeingPage /></RequirePermission>} />
           <Route path="statements" element={<RequirePermission permission="billing.statement.send"><StatementsPage /></RequirePermission>} />
+          <Route path="collections" element={<RequirePermission permission="billing.collections.read"><CollectionsPage /></RequirePermission>} />
+          <Route path="notices" element={<RequirePermission permission="billing.invoice.read"><NoticesPage /></RequirePermission>} />
+          <Route path="expiring-cards" element={<RequirePermission permission="billing.payment_method.read"><ExpiringCardsPage /></RequirePermission>} />
           <Route path="coupons" element={<CouponsPage />} />
           <Route path="catalog" element={<CatalogPage />} />
           <Route path="setup" element={<BillingSetupPage />} />

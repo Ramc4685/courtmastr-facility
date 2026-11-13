@@ -2,7 +2,7 @@
 COMPOSE = docker compose --env-file .env -f infra/docker-compose.yml
 UV = cd backend && uv run
 
-.PHONY: up down reset migrate lane-db seed test lint fmt typecheck boundaries contract api-diff api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
+.PHONY: up down reset migrate lane-db lane-env lane-drop seed test lint fmt typecheck boundaries contract api-diff api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
 
 .env:
 	cp .env.example .env
@@ -23,6 +23,12 @@ lane-db: .env       ## create (if missing) and migrate the databases named by FH
 	$(UV) python -m app.cli lane-db
 	$(UV) alembic upgrade head
 	cd backend && FH_ENV=test uv run alembic upgrade head
+
+lane-env:           ## in a worktree: write .env from the main checkout's; LANE=name [API_PORT=n WEB_PORT=n]
+	$(UV) python -m app.cli lane-env --lane "$(LANE)" $(if $(API_PORT),--api-port $(API_PORT)) $(if $(WEB_PORT),--web-port $(WEB_PORT))
+
+lane-drop: .env     ## DELETE a lane's two databases after it merges (refuses the main ones); [LANE=name], default this .env's
+	$(UV) python -m app.cli lane-drop $(if $(LANE),--lane "$(LANE)")
 
 seed: .env          ## idempotent demo data (docs/dev/demo-accounts.md)
 	$(UV) python -m seeds.demo

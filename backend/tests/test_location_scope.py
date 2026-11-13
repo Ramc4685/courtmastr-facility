@@ -54,6 +54,7 @@ CLIENT_OR_TENANT_ROUTES = {
         assignCredential revokeClientAppCards revokeCredential
         getClientAccessMode setClientAccessMode
         getClientIdCard
+        getCollectionsProfile
     """.split()),
     "tenant": set("""
         createImportJobCommit createImportJobDryRun getImportJob getImportJobErrorReport getImportTemplate uploadImportJobSource
@@ -87,6 +88,7 @@ CLIENT_OR_TENANT_ROUTES = {
         setClientPhoto deleteClientPhoto getClientPhoto listClientNoteAttachments uploadClientNoteAttachment
         getClientNoteAttachment deleteClientNoteAttachment
         createAssessmentField updateAssessmentField updateAssessmentTemplate
+        updateCollectionsTag
     """.split())
     # Integrations (module 16): T keys; the service limits a location-bound admin to their own endpoints and to
     # keys inside their locations, and disconnect authorizes on the connection's location_id.

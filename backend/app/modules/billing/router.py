@@ -21,6 +21,7 @@ from app.modules.billing import (
     catalog,
     catalogue,
     checkout,
+    collections,
     desk,
     documents,
     methods,
@@ -527,7 +528,8 @@ def list_billing_notices(query: Lists, ctx: Ctx = Depends(require("billing.invoi
         ctx.session, select(BillingNotice), query, id_column=BillingNotice.id,
         sort_fields={"sent_at": BillingNotice.sent_at}, default_sort="-sent_at",
         filter_fields={
-            "kind": BillingNotice.kind, "client_id": BillingNotice.client_id, "subject_id": BillingNotice.subject_id
+            "kind": BillingNotice.kind, "client_id": BillingNotice.client_id, "subject_id": BillingNotice.subject_id,
+            "location_id": BillingNotice.location_id,
         },
     )  # fmt: skip
 
@@ -795,6 +797,66 @@ def create_onboarding_link(provider_account_id: UUID, ctx: Ctx = Depends(require
 @router.post("/provider-accounts/{provider_account_id}/disconnect", response_model=s.ProviderAccountOut)
 def disconnect_provider_account(provider_account_id: UUID, ctx: Ctx = Depends(require("billing.provider.manage"))):
     return methods.disconnect_provider_account(ctx.session, ctx.principal, provider_account_id)
+
+
+# --- collections (BIL-20) and expiring cards (PAY-07); Phase 9 chip D --------------------------------------
+
+
+@router.get("/collections-tags", response_model=s.Page[s.CollectionsTagOut])
+def list_collections_tags(query: Lists, ctx: Ctx = Depends(require("billing.collections.read"))):
+    """Filters: is_active; q searches the name."""
+    return collections.list_tags(ctx.session, ctx.principal, query)
+
+
+@router.post("/collections-tags", response_model=s.CollectionsTagOut, status_code=201)
+def create_collections_tag(body: s.CollectionsTagCreate, ctx: Ctx = Depends(require("billing.collections_tag.manage"))):
+    return collections.create_tag(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/collections-tags/{collections_tag_id}", response_model=s.CollectionsTagOut)
+def update_collections_tag(
+    collections_tag_id: UUID,
+    body: s.CollectionsTagUpdate,
+    ctx: Ctx = Depends(require("billing.collections_tag.manage")),
+):
+    return collections.update_tag(ctx.session, ctx.principal, collections_tag_id, body.model_dump(exclude_unset=True))
+
+
+@router.get("/clients/{client_id}/collections-profile", response_model=s.CollectionsProfileOut)
+def get_collections_profile(client_id: UUID, ctx: Ctx = Depends(require("billing.collections.read"))):
+    """404 not-in-collections when the client has no profile."""
+    return collections.get_profile(ctx.session, ctx.principal, client_id)
+
+
+@router.put("/clients/{client_id}/collections-profile", response_model=s.CollectionsProfileOut)
+def put_collections_profile(
+    client_id: UUID, body: s.CollectionsProfileIn, ctx: Ctx = Depends(require("billing.collections.manage"))
+):
+    """Place the client in collections or change the profile; checked at the client's home location."""
+    return collections.put_profile(ctx.session, ctx.principal, client_id, body.model_dump())
+
+
+@router.delete("/clients/{client_id}/collections-profile", status_code=204)
+def delete_collections_profile(client_id: UUID, ctx: Ctx = Depends(require("billing.collections.manage"))) -> None:
+    collections.delete_profile(ctx.session, ctx.principal, client_id)
+
+
+@router.get("/collections-report", response_model=s.Page[s.CollectionsReportRow])
+def get_collections_report(query: Lists, ctx: Ctx = Depends(require("billing.collections.read"))):
+    """Clients in collections and what they owe. Filter collections_tag_id; sort placed_on."""
+    return collections.report(ctx.session, ctx.principal, query)
+
+
+@router.get("/expiring-cards", response_model=s.Page[s.ExpiringCardOut])
+def list_expiring_cards(
+    query: Lists,
+    through: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")] = None,
+    ctx: Ctx = Depends(require("billing.payment_method.read")),
+):
+    """Active cards expiring through `through` (YYYY-MM, default next month), expired ones included.
+    Filters: is_autopay, client_id."""
+    query.filters.pop("through", None)
+    return collections.expiring_cards(ctx.session, ctx.principal, through, query)
 
 
 # --- client portal: ownership is checked in billing.portal -------------------------------------------------

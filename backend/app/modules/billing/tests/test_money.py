@@ -383,12 +383,19 @@ def test_an_instalment_becomes_past_due_once_and_a_payment_clears_it(shop):
         svc.refresh_invoice(session, invoice_id)
         invoice = session.get(Invoice, invoice_id)
         assert invoice.past_due_since_on == date(2026, 12, 15)
+        # A pending debit pauses the dunning clock; it does not restart it (Stripe Billing, Chargebee).
+        bounced = card(session, shop, 541, token="tok_ach_fail", tender_kind="bank_debit", invoice_id=invoice_id)
+        assert (invoice.status, invoice.past_due_since_on) == ("payment_pending", date(2026, 12, 15))
+        payment_provider.get("fake").settle(bounced.provider_payment_ref)
+        svc.confirm_payment(session, bounced.id)
+        svc.refresh_invoice(session, invoice_id)
+        assert invoice.past_due_since_on == date(2026, 12, 15)  # returned: past due from the first day, not today
         pending = card(session, shop, 541, token="tok_ach_ok", tender_kind="bank_debit", invoice_id=invoice_id)
-        assert (invoice.status, invoice.past_due_since_on) == ("payment_pending", None)  # a pending debit covers it
+        assert (invoice.status, invoice.past_due_since_on) == ("payment_pending", date(2026, 12, 15))
         payment_provider.get("fake").settle(pending.provider_payment_ref)
         svc.confirm_payment(session, pending.id)
         assert (invoice.status, invoice.past_due_since_on) == ("paid", None)
-    assert event_types(shop.tenant).count("billing.invoice.past_due") == 1
+    assert event_types(shop.tenant).count("billing.invoice.past_due") == 1  # paused and resumed: no second notice
 
 
 @pytest.mark.parametrize(

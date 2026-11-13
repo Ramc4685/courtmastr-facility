@@ -44,16 +44,36 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
 
 ## Not built (by name)
 
-- Non-payment suspension (billing emits `billing.invoice.past_due`; nothing here subscribes), account credit
-  auto-applied at sale, the card-save modes at sale. Since integration an invoice billed for an autopay
-  contract is an autopay invoice, and billing's autopay run collects it from the client's stored method.
+- Account credit auto-applied at sale. Since integration an invoice billed for an autopay contract is an
+  autopay invoice, and billing's autopay run collects it from the client's stored method.
 - Coupons on a contract.
 - `POST /plan-changes` (deferred by ADR 0005's reconciliation): upgrade and downgrade are "renew into another
   plan" (`renews_as_plan_id` on the contract or on a manual renew) or cancel with a reason and sell anew.
 - Backdated freezes and suspensions (they start today or later); freeze limits and freeze fees (not in the
-  reference). `freeze_resume_invoice_mode` is stored, the schedule always resumes per period.
+  reference).
 - MEM-21 reports and `rpt_*` views, MEM-22 API keys, MEM-23 checklist, member card rendering (MEM-19: the
   number lives on `client`; `ensure_member_number` is called at sale).
+
+## Billing settings that take effect (Phase 9 chip D)
+
+- **Non-payment suspension (MEM-14, Q13).** `suspend_past_due_memberships` (hourly in `app/scheduler.py`,
+  idempotent `@tenant_actor`) runs `sweep_past_due`: when billing's `membership_suspend_after_days` is set,
+  an active contract whose invoice has been past due that many days gets a suspension with reason
+  `non_payment`; it is lifted when the invoice is paid or voided (the `billing.invoice.paid` / `voided`
+  handlers, and the sweep as a backstop). One automatic suspension per contract and invoice; a suspension
+  staff remove by hand stays removed. Manual suspension is unchanged.
+- **Payment capture (MEM-05).** `payment_method_capture = required` refuses a staff autopay sale without a
+  stored method (`payment-method-required`); `hidden` and `optional` change only the screen.
+- **Online card save (MEM-05).** `online_card_save_mode`: `always` keeps the card that pays now, `ask` keeps
+  it only when the member ticks "Save this card", `when_nothing_due` keeps it only when nothing is due now.
+  An autopay contract always keeps it (its later dues need a method). The processor saves it with the charge
+  (billing's "save during payment"), so a timeout stays recoverable. The quote returns `card_save_mode` and
+  `is_autopay` so the portal knows whether to ask.
+- **Freeze resume (MEM-05).** `freeze_resume_invoice_mode`: `per_period` (default) bills each period as
+  before; `single` bills every period left on the resume day as one invoice; `deferred` holds those periods
+  until billing's `invoice_deferred` releases them.
+- **Autopay default (BIL-17).** `membership_plan.is_autopay_default` is nullable: null follows billing's
+  setting for the sales channel. The quote returns the resolved `is_autopay`.
 
 ## Assumptions and deviations
 

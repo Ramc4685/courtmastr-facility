@@ -432,7 +432,9 @@ def _draft(session: Session, principal: Principal, data: dict, channel: str) -> 
         "term_fee_minor": terms.fee_minor, "initiation_fee_minor": terms.initiation_fee_minor,
         "discount_pct": terms.discount_pct, "discount_minor": terms.discount_minor,
         "payment_due_day": plan.payment_due_day, "max_visits_count": custom.get("max_visits_count", plan.max_visits_count),
-        "is_autopay": plan.is_autopay_default if data.get("is_autopay") is None else data["is_autopay"],
+        "is_autopay": billing.catalogue.membership_autopay_default(
+            session, location_id, channel=channel, plan_default=plan.is_autopay_default
+        ) if data.get("is_autopay") is None else data["is_autopay"],
         "invoice_mode": invoice_mode, "is_prorated": is_prorated, "proration_tail": tail if is_prorated else None,
         "is_auto_renew": auto_renew, "auto_renew_lead_count": lead[0], "auto_renew_lead_unit": lead[1],
         "renew_on": domain.renew_on(end_on, *lead), "renewal_target": plan.renewal_target,
@@ -459,11 +461,21 @@ def quote_contract(session: Session, principal: Principal, data: dict, channel: 
     today = _today(session, fields["location_id"])
     lead = timedelta(days=settings_row(session).billing_lead_days)
     due_now = periods if fields["invoice_mode"] == "single" else [p for p in periods if p.due_on - lead <= today]
-    keys = ("start_on", "end_on", "is_prorated", "proration_tail", "invoice_mode", "is_auto_renew", "renew_on")
+    keys = (
+        "start_on",
+        "end_on",
+        "is_prorated",
+        "proration_tail",
+        "invoice_mode",
+        "is_autopay",
+        "is_auto_renew",
+        "renew_on",
+    )
     return {k: fields[k] for k in keys} | {
         "periods": [_period_view(p) for p in periods],
         "total_minor": sum(p.amount_minor for p in periods),
         "due_now_minor": 0 if fields["invoice_mode"] == "deferred" else sum(p.amount_minor for p in due_now),
+        "card_save_mode": settings_row(session).online_card_save_mode,
         "requirements": documents.service.requirements_for(
             session, "membership_plan", fields["membership_plan_id"], fields["owner_client_id"],
             online=channel == "portal",
@@ -573,6 +585,14 @@ def _sell(session: Session, principal: Principal, data: dict, channel: str):
     """The sale itself, shared by the desk and the portal. Returns (contract, invoice for what is due now)."""
     fields, periods = _draft(session, principal, data, channel)
     addons = fields.pop("addons")
+    if (
+        channel == "staff" and fields["is_autopay"] and settings_row(session).payment_method_capture == "required"
+        and billing.methods.autopay_method(session, fields["owner_client_id"]) is None
+    ):  # fmt: skip
+        raise ValidationFailed(
+            "Store the member's card or bank account first: an autopay membership needs one (membership preferences).",
+            pointer="/is_autopay", code="payment-method-required",
+        )  # fmt: skip
     if channel == "staff":  # what the sale carries is gated like the commands that would set it later
         if data.get("share_client_ids"):
             authorize(principal, _SHARE, location_id=fields["location_id"])
@@ -742,14 +762,19 @@ def effective_status(session: Session, contract: MembershipContract, on: date) -
     )  # fmt: skip
 
 
+def _ended_freezes(contract_id: UUID, today: date):
+    return select(MembershipFreeze.id).where(
+        MembershipFreeze.membership_contract_id == contract_id, func.upper(MembershipFreeze.during) <= today
+    )
+
+
 def _converge(session: Session, contract: MembershipContract, today: date, *, reason: str = "start") -> int:
     """Move the stored status to what the dates say and emit the transition events. Idempotent: commands call
     it after changing dates or ranges, the daily job calls it for every live contract."""
     ref = {"contract_id": contract.id, "client_id": contract.owner_client_id}
-    # A freeze that has ended hands its periods back to the billing run.
-    ended = select(MembershipFreeze.id).where(
-        MembershipFreeze.membership_contract_id == contract.id, func.upper(MembershipFreeze.during) <= today
-    )
+    # A freeze that has ended hands its periods back to the billing run, unless it resumes "invoice later"
+    # (`deferred`): those rows wait, still held, until staff invoice them (invoice_deferred).
+    ended = _ended_freezes(contract.id, today).where(MembershipFreeze.resume_invoice_mode.is_distinct_from("deferred"))
     session.execute(
         update(Period).where(Period.withheld_by_freeze_id.in_(ended))
         .values(status="scheduled", withheld_by_freeze_id=None, pre_freeze=None)
@@ -989,12 +1014,23 @@ def reprice_contract(session: Session, principal: Principal, contract_id: UUID, 
 
 
 def invoice_deferred(session: Session, principal: Principal, contract_id: UUID, period_ids: list[UUID] | None) -> dict:
-    """Invoice scheduled rows now ("invoice later" contracts, or billing a period ahead of its date)."""
+    """Invoice scheduled rows now ("invoice later" contracts, or billing a period ahead of its date), and the
+    rows a freeze that resumed "invoice later" still holds."""
     contract = _load(session, principal, contract_id, _SCHEDULE)
-    rows = [r for r in _rows(session, contract.id, "scheduled") if period_ids is None or r.id in period_ids]
+    today = _today(session, contract.location_id)
+    held = set(session.scalars(
+        _ended_freezes(contract.id, today).where(MembershipFreeze.resume_invoice_mode == "deferred")
+    ))  # fmt: skip
+    rows = [
+        r for r in _rows(session, contract.id, "scheduled", "withheld")
+        if (r.status == "scheduled" or r.withheld_by_freeze_id in held) and (period_ids is None or r.id in period_ids)
+    ]  # fmt: skip
     if not rows or (period_ids is not None and len(rows) != len(set(period_ids))):
         raise ValidationFailed("Choose scheduled periods of this contract.", pointer="/period_ids")
-    invoice = _bill_rows(session, contract, rows, _today(session, contract.location_id))
+    for row in rows:
+        row.status, row.withheld_by_freeze_id, row.pre_freeze = "scheduled", None, None
+    session.flush()
+    invoice = _bill_rows(session, contract, rows, today)
     audit.record(
         session, _SCHEDULE, contract, location_id=contract.location_id, changes={"periods_billed": [None, len(rows)]}
     )
@@ -1093,10 +1129,17 @@ def _settle(session: Session, contract: MembershipContract, freeze: MembershipFr
             before, start + timedelta(days=days), contract.billing_interval_unit, contract.billing_interval_count
         )
     lead = timedelta(days=settings_row(session).billing_lead_days)
+    # MEM-05/MEM-13 `single`: everything left is billed together on the resume day (one invoice). `deferred` is
+    # applied when the freeze ends (_converge keeps the rows held until staff invoice them).
+    together = (
+        max(start + timedelta(days=days) - lead, start) if days and freeze.resume_invoice_mode == "single" else None
+    )
     for row, was, now in zip(rows, before, after, strict=True):
         moved = now.due_on != was.due_on
         row.due_on = now.due_on
         row.bill_on = max(now.due_on - lead, start) if moved else _iso(row.pre_freeze["bill_on"])
+        if together and moved:
+            row.bill_on = together
         row.revenue_on = (now.starts_on or now.due_on) if moved else _iso(row.pre_freeze["revenue_on"])
         row.service_during = Range(now.starts_on, now.ends_on) if now.starts_on else None
     session.flush()
@@ -1313,18 +1356,31 @@ def remove_suspension(session: Session, principal: Principal, suspension_id: UUI
     """Unsuspend: not yet begun, it is withdrawn with its fee rows; begun, it ends as of yesterday and fee rows
     due from today on are cancelled."""
     suspension, contract, today = _suspension(session, principal, suspension_id)
-    last_day = today - _ONE_DAY
-    if last_day < suspension.during.lower:
-        suspension.removed_at, suspension.removed_by_staff_user_id = clock.now(), _staff_id(principal)
-    else:
-        suspension.during = _range(suspension.during.lower, last_day)
-    suspension.removal_remarks = data.get("removal_remarks")
-    session.flush()
-    _sync_fee_rows(session, contract, suspension, today)
+    _lift(session, contract, suspension, today, staff_id=_staff_id(principal), remarks=data.get("removal_remarks"))
     audit.record(session, _SUSPEND, contract, location_id=contract.location_id, reason=data.get("removal_remarks"),
                  changes={"suspension_removed": [None, str(suspension.id)]})  # fmt: skip
     _converge(session, contract, today)
     return suspension
+
+
+def _lift(
+    session: Session,
+    contract: MembershipContract,
+    suspension: MembershipSuspension,
+    today: date,
+    *,
+    staff_id: UUID | None,
+    remarks: str | None,
+) -> None:
+    """End a suspension as of yesterday, or withdraw it with its fee rows when it has not begun yet."""
+    last_day = today - _ONE_DAY
+    if last_day < suspension.during.lower:
+        suspension.removed_at, suspension.removed_by_staff_user_id = clock.now(), staff_id
+    else:
+        suspension.during = _range(suspension.during.lower, last_day)
+    suspension.removal_remarks = remarks
+    session.flush()
+    _sync_fee_rows(session, contract, suspension, today)
 
 
 def list_suspensions(session: Session, principal: Principal, contract_id: UUID) -> list[MembershipSuspension]:
@@ -1931,8 +1987,8 @@ def public_list_plans(session: Session, query: ListQuery) -> dict:
 
 
 def _portal_sale(session: Session, principal: Principal, data: dict) -> dict:
-    """The sale a portal caller may ask for. The server decides autopay (on: whatever falls due later is
-    charged to the stored method) and the start date stays within ONLINE_START_WINDOW_DAYS from today."""
+    """The sale a portal caller may ask for. The server decides autopay (the plan, else the billing setting for
+    online sales, BIL-17) and the start date stays within ONLINE_START_WINDOW_DAYS from today."""
     subject = _portal_client(session, principal, data.get("client_id"), "buy")
     start_on = data.get("start_on")
     if start_on is not None:
@@ -1946,7 +2002,7 @@ def _portal_sale(session: Session, principal: Principal, data: dict) -> dict:
                 pointer="/start_on",
             )  # fmt: skip
     keys = ("location_id", "membership_plan_id", "start_on", "proration_tail", "is_auto_renew")
-    return {key: data.get(key) for key in keys} | {"client_id": subject, "is_autopay": True}
+    return {key: data.get(key) for key in keys} | {"client_id": subject}
 
 
 def portal_quote(session: Session, principal: Principal, data: dict) -> dict:
@@ -1959,11 +2015,24 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     account is stored as the owner's autopay method for what falls due later. A plan whose document is
     enforced online leaves the contract `upcoming` until that document is accepted in the portal (MEM-08)."""
     contract, invoice = _sell(session, principal, _portal_sale(session, principal, data), "portal")
+    token, tender = data.get("method_token"), data.get("tender_kind") or "card"
+    mode = settings_row(session).online_card_save_mode
+    paying_now = invoice is not None and invoice.balance_minor > 0
+    # MEM-05: keep the card that pays now (with nothing due now checkout always stores it). An autopay contract
+    # always keeps it, or its later dues would have no method to collect from. The processor saves it with the
+    # charge (save during payment), so a timeout stays recoverable on retry.
+    save = (
+        token is not None
+        and tender == "card"
+        and paying_now
+        and (mode == "always" or contract.is_autopay or (mode == "ask" and bool(data.get("save_method"))))
+    )
     payment = billing.checkout.secure_online_checkout(
         session, client_id=contract.owner_client_id, location_id=contract.location_id,
         total_minor=sum(row.amount_minor for row in _rows(session, contract.id)), invoice=invoice,
-        idempotency_key=idempotency_key, method_token=data.get("method_token"),
-        tender_kind=data.get("tender_kind") or "card", must_pay_now=False, coupon_code=data.get("coupon_code"),
+        idempotency_key=idempotency_key, method_token=token, tender_kind=tender,
+        must_pay_now=False, coupon_code=data.get("coupon_code"),
+        save_method=save, save_as_autopay=True if contract.is_autopay else None,
     )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)
 
@@ -2202,3 +2271,117 @@ def seller_periods(session: Session, staff_user_id: UUID, starts_on: date, ends_
          "location_id": r[4], "membership_type_id": r[5], "name": r[6]}
         for r in session.execute(stmt.order_by(p.bill_on, p.id))
     ]  # fmt: skip
+
+
+# --- suspension for non-payment (MEM-14, owner decision Q13) ------------------------------------------------------
+
+_AUTO_REMARK = "Suspended automatically: invoice past due"
+_LIFT_REMARK = "Lifted automatically: the invoice was settled"
+
+
+def _open_auto(session: Session, *where) -> list[MembershipSuspension]:
+    """Automatic suspensions still in force somewhere: not removed and not ended before yesterday (any
+    location's day), so lifted or finished ones are not rescanned and relocked every hour."""
+    s = MembershipSuspension
+    since = platform.service.earliest_today(session) - _ONE_DAY
+    return list(session.scalars(select(s).where(
+        s.past_due_invoice_id.is_not(None), s.removed_at.is_(None),
+        or_(func.upper(s.during).is_(None), func.upper(s.during) > since), *where,
+    )))  # fmt: skip
+
+
+def _lift_settled(session: Session, suspensions: list[MembershipSuspension], failed: list | None = None) -> int:
+    """Lift automatic suspensions whose invoice no longer owes (paid, reversed or voided), each in its own
+    savepoint so one refusal does not stop the others (it lands in `failed`)."""
+    owing = billing.collections.still_owing(session, [row.past_due_invoice_id for row in suspensions])
+    lifted = 0
+    for suspension in suspensions:
+        if suspension.past_due_invoice_id in owing:
+            continue
+        try:
+            with session.begin_nested():
+                contract = _get(session, MembershipContract, suspension.membership_contract_id, lock=True)
+                session.refresh(suspension)  # loaded before the contract lock: staff may have changed it since
+                today = _today(session, contract.location_id)
+                if suspension.removed_at is not None or (suspension.during.upper and suspension.during.upper <= today):
+                    continue
+                _lift(session, contract, suspension, today, staff_id=None, remarks=_LIFT_REMARK)
+                contract.version += 1
+                audit.record(session, _SUSPEND, contract, location_id=contract.location_id, reason=_LIFT_REMARK,
+                             changes={"suspension_removed": [None, str(suspension.id)]})  # fmt: skip
+                _converge(session, contract, today)
+                lifted += 1
+        except (DomainError, IntegrityError) as exc:
+            if failed is None:
+                raise
+            failed.append({"suspension_id": str(suspension.id), "error": getattr(exc, "code", "integrity-error")})
+    return lifted
+
+
+def _suspend_for(session: Session, contract: MembershipContract, invoice_id: UUID, today: date) -> bool:
+    """Suspend from today until the next freeze or suspension already planned (or open-ended)."""
+    freezes, suspensions = _spans(session, contract.id)
+    spans = [row.during for row in (*freezes, *suspensions)]
+    if any(today in span for span in spans):
+        return False
+    later = [span.lower for span in spans if span.lower > today]
+    suspension = MembershipSuspension(
+        membership_contract_id=contract.id, during=_range(today, min(later) - _ONE_DAY if later else None),
+        remarks=_AUTO_REMARK, past_due_invoice_id=invoice_id,
+    )  # fmt: skip
+    session.add(suspension)
+    session.flush()
+    contract.version += 1
+    audit.record(
+        session, _SUSPEND, contract, location_id=contract.location_id, reason=_AUTO_REMARK,
+        changes={"suspension": [None, [str(today), None]], "past_due_invoice_id": [None, str(invoice_id)]},
+    )  # fmt: skip
+    _converge(session, contract, today)
+    return True
+
+
+def sweep_past_due(session: Session) -> dict:
+    """The daily rule (off unless `membership_suspend_after_days` is set in billing settings): an active
+    membership with an invoice for it past due by that many days on the location's day is suspended (access
+    denied, dues keep billing), and the suspension is lifted once that invoice is settled. One automatic
+    suspension per contract and invoice, ever (unique index): once lifted, by payment or by staff, that invoice
+    never suspends the contract again; another overdue invoice can. Each contract in its own savepoint."""
+    result = {"suspended": 0, "lifted": 0, "failed": []}
+    result["lifted"] = _lift_settled(session, _open_auto(session), result["failed"])
+    if not billing.collections.is_suspension_rule_on(session):
+        return result
+    c = MembershipContract
+    for contract_id in list(session.scalars(select(c.id).where(c.status == "active", c.cancel_reason.is_(None)))):
+        try:
+            with session.begin_nested():
+                contract = _get(session, c, contract_id, lock=True)
+                after_days = billing.catalogue.settings_for(session, contract.location_id).membership_suspend_after_days
+                if not after_days or contract.status != "active":
+                    continue
+                today = _today(session, contract.location_id)
+                charge_ids = [row.charge_id for row in _rows(session, contract.id, "billed")]
+                overdue = billing.collections.unpaid_past_due(
+                    session, charge_ids, since_on_or_before=today - timedelta(days=after_days)
+                )
+                tried = set(session.scalars(select(MembershipSuspension.past_due_invoice_id).where(
+                    MembershipSuspension.membership_contract_id == contract.id,
+                    MembershipSuspension.past_due_invoice_id.is_not(None),
+                )))  # fmt: skip
+                invoice_id = next((i for i in overdue if i not in tried), None)
+                if invoice_id is not None and _suspend_for(session, contract, invoice_id, today):
+                    result["suspended"] += 1
+        except (DomainError, IntegrityError) as exc:
+            result["failed"].append({"contract_id": str(contract_id), "error": getattr(exc, "code", "integrity-error")})
+    return result
+
+
+def invoice_settled(session: Session, invoice_id: UUID) -> int:
+    """Lift, now, the automatic suspensions an invoice caused once it is paid or voided (event handler)."""
+    rows = _open_auto(session, MembershipSuspension.past_due_invoice_id == invoice_id)
+    return _lift_settled(session, rows) if rows else 0
+
+
+@tenant_actor
+def suspend_past_due_memberships(session: Session) -> dict:
+    """The hourly job behind the non-payment rule (scheduler); each location acts on its own day."""
+    return sweep_past_due(session)

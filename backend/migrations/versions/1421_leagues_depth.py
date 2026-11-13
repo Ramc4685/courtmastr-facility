@@ -7,7 +7,7 @@ views behind the game-card reports (RPT-36).
 Generated from the models, then completed by hand: enable_rls() per table, the competition checks, the views.
 
 Revision ID: 1421
-Revises: 1310
+Revises: 1331
 """
 
 import sqlalchemy as sa
@@ -17,7 +17,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "1421"
-down_revision = "1310"
+down_revision = "1331"
 
 TENANT_TABLES = (
     "venue", "team_preference", "stat_table", "stat_definition", "player_stat", "competition_staff",

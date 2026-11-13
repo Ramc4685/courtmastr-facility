@@ -89,7 +89,7 @@ class _PlanFields(In):
     discount_minor: Minor | None = None
     revenue_category_id: UUID | None = None
     default_invoice_mode: Literal["ask", "per_period", "single"] = "ask"
-    is_autopay_default: bool = False
+    is_autopay_default: bool | None = None  # BIL-17: null follows the billing setting for the channel
     is_sold_online: bool = False
     proration_mode: Literal["none", "to_month_start", "seller_choice"] = "none"
     proration_tail: Tail | None = None
@@ -153,7 +153,7 @@ class MembershipPlanOut(Out):
     discount_minor: int | None
     revenue_category_id: UUID | None
     default_invoice_mode: str
-    is_autopay_default: bool
+    is_autopay_default: bool | None
     is_sold_online: bool
     proration_mode: str
     proration_tail: str | None
@@ -240,6 +240,7 @@ class PortalContractBuy(In):
     is_auto_renew: bool | None = None
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    save_method: bool | None = None  # MEM-05: the buyer's answer when the card-save mode is `ask`
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
         None  # SSP-11
     )
@@ -279,6 +280,8 @@ class ContractQuoteOut(Out):
     is_prorated: bool
     proration_tail: str | None
     invoice_mode: str
+    is_autopay: bool  # BIL-17: what the sale resolves when it does not say
+    card_save_mode: str  # MEM-05: whether checkout keeps the card that pays now (the portal asks in `ask`)
     is_auto_renew: bool
     renew_on: date | None
     periods: list[QuotePeriodOut]
@@ -493,6 +496,7 @@ class SuspensionOut(Out):
     fee_minor: int | None
     remarks: str | None
     created_by_staff_user_id: UUID | None
+    past_due_invoice_id: UUID | None  # set when the non-payment rule suspended it (MEM-14)
     removed_at: datetime | None
     removal_remarks: str | None
     created_at: datetime

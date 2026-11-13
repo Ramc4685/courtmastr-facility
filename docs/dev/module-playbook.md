@@ -16,6 +16,11 @@ Postgres, Redis and Mailpit from `make up` in the main checkout.
 - A lane's `.env` is the main `.env` plus four variables: `FH_DB_NAME`, `FH_TEST_DB_NAME`, `FH_API_PORT`,
   `FH_WEB_PORT`. Settings, the Makefile targets, Vite and Playwright all read them (unset = the defaults
   `facilityhub`, `facilityhub_test`, 8100, 5183). Never run `make up`, `down` or `reset` from a lane.
+- `make lane-env LANE=<name>` writes a new worktree's `.env` from the main checkout's: databases
+  `facilityhub_<name>` and `facilityhub_<name>_test`, ports stable per name (or `API_PORT=` / `WEB_PORT=`), and
+  no payment-provider or Stripe lines (lanes use the Fake provider). It refuses the main checkout and an existing
+  `.env`. After the lane merges, `make lane-drop LANE=<name>` (from any checkout) deletes its two databases; it
+  refuses `facilityhub` and `facilityhub_test`.
 - `make lane-db` creates the two databases if missing (owned by `fh_owner`, same roles and grants as the
   defaults) and migrates both. Run it after adding a migration too. Then `make seed` for the lane's dev data.
 - `make test` uses the lane's test database; `make api`, `make web` and `make web-e2e` use the lane's ports.

@@ -118,12 +118,12 @@ def test_credentials_resolve_assign_revoke(client, tenant, owner, f):
     assert again["id"] != made["id"]
 
 
-def _session_near_now(client, owner, ids):
+def _session_near_now(client, owner, ids, **names):
     """An extra client enrolled in the next session after populate()'s first that still has a seat."""
     from app.modules import scheduling
     from app.modules.scheduling.models import Session
 
-    kid = new_client(client, owner, ids.location_id)
+    kid = new_client(client, owner, ids.location_id, **names)
     with tenant_session(ids.tenant.id) as session:
         first = scheduling.service.get_session(session, ids.schedule_session_id)
         open_ids = session.scalars(select(Session.id).where(Session.booked_count < Session.capacity))
@@ -193,6 +193,24 @@ def test_kiosk_pairing_lookup_check_in_and_exit(client, tenant, owner, f):
     assert ok(client.get(f"{API}/kiosk/config"))["settings"]["has_exit_pin"]  # still paired after a wrong PIN
     assert client.post(f"{API}/kiosk/exit", json={"staff_pin": "246810"}).status_code == 204
     assert client.get(f"{API}/kiosk/config").status_code == 401
+
+
+def test_kiosk_attendance_window_runs_from_early_before_start_to_late_after(client, monkeypatch):
+    """Defaults 60 early / 30 late: 50 minutes before a session marks it, 45 minutes after does not."""
+    ids = populate(client, make_tenant())
+    kid, seat = _session_near_now(client, ids.headers, ids, first_name="Kiosk", last_name="Windowtest")
+    starts = seat["starts_at"]
+    _pair(client, ids.tenant, ids.headers, ids.location_id)
+    from app.modules.access import service  # its clock only: the kiosk token must not expire
+
+    def kiosk_at(moment):
+        monkeypatch.setattr(service, "clock", SimpleNamespace(now=lambda: moment))
+        found = ok(client.post(f"{API}/kiosk/lookups", json={"last_name_prefix": kid["last_name"][:5]}))["matches"]
+        (token,) = [m["match_token"] for m in found]
+        return ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": token}), 201)["attended"]
+
+    assert kiosk_at(starts + timedelta(minutes=45)) == []
+    assert [a["session_id"] for a in kiosk_at(starts - timedelta(minutes=50))] == [str(seat["id"])]
 
 
 def test_kiosk_settings_gate_lookups_and_alerts(client, tenant, owner, f):

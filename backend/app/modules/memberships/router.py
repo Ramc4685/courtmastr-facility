@@ -94,7 +94,7 @@ def update_membership_plan(membership_plan_id: UUID, body: s.MembershipPlanUpdat
     nullable = {
         "invoice_description", "fixed_start_on", "auto_renew_lead_count", "auto_renew_lead_unit", "renews_as_plan_id",
         "max_visits_count", "payment_due_day", "discount_pct", "discount_minor", "revenue_category_id",
-        "proration_tail",
+        "proration_tail", "is_autopay_default",
     }  # fmt: skip
     return service.update_plan(ctx.session, ctx.principal, membership_plan_id, _patch(body, nullable))
 

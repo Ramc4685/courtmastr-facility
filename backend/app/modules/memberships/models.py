@@ -204,7 +204,7 @@ class MembershipPlan(TenantOwned, Timestamps, Base):
     discount_minor: Mapped[int | None]
     revenue_category_id: Mapped[UUID | None]
     default_invoice_mode: Mapped[str] = enum_column(server_default=text("'ask'"))
-    is_autopay_default: Mapped[bool] = mapped_column(server_default=text("false"))
+    is_autopay_default: Mapped[bool | None]  # BIL-17: null follows the billing setting for the sales channel
     is_sold_online: Mapped[bool] = mapped_column(server_default=text("false"))
     proration_mode: Mapped[str] = enum_column(server_default=text("'none'"))
     proration_tail: Mapped[str | None] = enum_column()
@@ -470,10 +470,22 @@ class MembershipSuspension(TenantOwned, Timestamps, Base):
         *tfk("removed_by_staff_user_id", "staff_user"),
         CheckConstraint("NOT isempty(during) AND lower(during) IS NOT NULL", name="during"),
         CheckConstraint("fee_minor > 0", name="fee_minor"),
-    )
+        *tfk("past_due_invoice_id", "invoice", index=False),
+        # MEM-14: one automatic suspension per contract and unpaid invoice, ever, so a sweep that runs again (or
+        # one that runs after staff lifted it by hand) never suspends twice for the same invoice.
+        Index(
+            "uq_membership_suspension_past_due", "tenant_id", "membership_contract_id", "past_due_invoice_id",
+            unique=True, postgresql_where=text("past_due_invoice_id IS NOT NULL"),
+        ),
+        Index(  # invoice_settled looks suspensions up by invoice alone
+            "ix_membership_suspension_past_due_invoice", "tenant_id", "past_due_invoice_id",
+            postgresql_where=text("past_due_invoice_id IS NOT NULL"),
+        ),
+    )  # fmt: skip
 
     membership_contract_id: Mapped[UUID]
     during: Mapped[Range[date]] = mapped_column(DATERANGE)
+    past_due_invoice_id: Mapped[UUID | None]  # set when billing's non-payment rule suspended it (MEM-14)
     fee_minor: Mapped[int | None]
     remarks: Mapped[str | None]
     created_by_staff_user_id: Mapped[UUID | None]
