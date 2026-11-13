@@ -186,7 +186,7 @@ Re-check 2026-11-13 (claude/hardening-pass, new items only):
 - [ ] [undocumented] Error report is absent (404 "This import has no error report.", service.py:255-258) when no row has a problem or warning; README implies it always exists.
 - [ ] [undocumented] Routes carry the `idempotency` dependency, CSV downloads set `nosniff` and `no-store` (router.py:17, 35-40), dry-run and commit answer 202 (router.py:75, 85), and create refuses non-staff principals and unknown locations (service.py:148-155).
 
-### integrations (63 open, 25 closed) — [evidence](drift/integrations.md)
+### integrations (67 open, 35 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -307,11 +307,12 @@ Re-check 2026-11-13 pass 2 (`claude/hardening-pass`, new items only):
 
 - [ ] [undocumented] Audit actions still not named in the README: `integrations.connection.authorize`, `.update`, `integrations.sync.reset`, `integrations.sync_mapping.replace`, `integrations.video_meeting.put`, `.delete` (`backend/app/modules/integrations/quickbooks.py:386`, `meetings.py`).
 - [ ] [wording] README:12 says `domain/webhooks.py` holds the SSRF address classes; they are in `backend/app/core/networks.py:64` (`blocked_reason`, used at `transport.py:49`).
-- [ ] [stale-not-built] `docs/status/README.md:98` says cross-site embedding is not enabled at the proxy (`infra/proxy/Caddyfile:56` now allows `/schedule/public/*`); `docs/status/02-resources-scheduling.md:47` says the settings screen is not built (`web/src/features/integrations/PublicSchedulePanel.tsx`); `backend/app/modules/scheduling/README.md:122-124` says `scheduling.public_schedule.manage` has no route (`router.py:432, 438`).
+- [x] [stale-not-built] `docs/status/README.md:98` says cross-site embedding is not enabled at the proxy (`infra/proxy/Caddyfile:56` now allows `/schedule/public/*`); `docs/status/02-resources-scheduling.md:47` says the settings screen is not built (`web/src/features/integrations/PublicSchedulePanel.tsx`); `backend/app/modules/scheduling/README.md:122-124` says `scheduling.public_schedule.manage` has no route (`router.py:432, 438`). Closed: the row now says done (`docs/status/README.md:98`).
 
 Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 
-- [ ] [wording] README:98-100 says no method may reach the framework's 405 because it logs the raw path ("handover: redact in `core.api`"); `core.api` now redacts the calendar-feed token prefix for every method, trailing slash and deeper path (`backend/app/core/api.py:29-38, 196`, uncommitted), so the method list is no longer the guard and the router's `_redact` (`backend/app/modules/integrations/router.py:373-375, 423`) is a redundant second layer.
+- [x] [wording] README:98-100 said no method may reach the framework's 405 (handover: redact in `core.api`). Closed: the README now describes `core.api._loggable_path` and the route rewrite (README lines 99-103; `backend/app/core/api.py:32-38, 215`).
+- [ ] [contract] `getSyncStatus` and `resetSync` answer `200` with no schema and no `security` line (openapi-programs.yaml:7084, 7102); `SyncStatusOut` (`idle|running|completed|failed`, `counts`, `next_on`, `last_on`, `retries_failed`, `beat_at`, `is_stale`) is not in the contract, and the README names neither the `idle` status nor the `integrations.sync.run` gate on `GET .../sync` (`backend/app/modules/integrations/router.py:210-221`, `schemas.py:201-211`).
 
 ### leagues (10: 5 closed, 5 open) — [evidence](drift/leagues.md)
 
