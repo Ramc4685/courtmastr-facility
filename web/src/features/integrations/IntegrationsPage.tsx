@@ -6,6 +6,7 @@ import { ApiKeysPanel } from './ApiKeysPanel'
 import { CalendarFeedsPanel } from './CalendarFeedsPanel'
 import { ConnectionsPanel } from './ConnectionsPanel'
 import { DirectoryPanel } from './DirectoryPanel'
+import { PublicSchedulePanel } from './PublicSchedulePanel'
 import { WebhooksPanel } from './WebhooksPanel'
 
 // `permission: null`: any staff member (calendar feeds are personal). `feature`: the panel is hidden when the account's plan lacks it (the API refuses with feature-not-in-plan too).
@@ -15,6 +16,7 @@ const PANELS: (TabItem & { permission: string | null; feature?: string })[] = [
   { id: 'api-keys', label: 'API keys', permission: 'integrations.api_key.manage', feature: 'api_access', content: <ApiKeysPanel /> },
   { id: 'webhooks', label: 'Webhooks', permission: 'integrations.webhook.manage', content: <WebhooksPanel /> },
   { id: 'calendar-feeds', label: 'Calendar feeds', permission: null, content: <CalendarFeedsPanel /> },
+  { id: 'public-schedule', label: 'Public schedule', permission: 'scheduling.public_schedule.manage', content: <PublicSchedulePanel /> },
 ]
 
 export function IntegrationsPage() {

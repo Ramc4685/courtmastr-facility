@@ -179,6 +179,24 @@ describe('integrations settings', () => {
     expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/sync'))?.body).toEqual({ location_id: null, from: null, to: null, retries_failed: false })
   })
 
+  it('publishes a location schedule and offers the embed snippet with its proxy caveat', async () => {
+    const user = userEvent.setup()
+    const settings = { location_id: 'l1', is_enabled: false, show_sessions: true, show_busy: false, days_ahead: 14 }
+    const calls = renderAt(['scheduling.public_schedule.manage'], {
+      'GET /api/v1/public-schedule-settings': { status: 200, body: settings },
+      'PATCH /api/v1/public-schedule-settings': ({ body }: { body: unknown }) => ({ status: 200, body }),
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Public schedule' }))
+    await user.click(await screen.findByLabelText("Publish this location's schedule"))
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(await screen.findByText('Public schedule saved and published.')).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ ...settings, is_enabled: true })
+    const snippet = screen.getByRole('textbox', { name: 'Embed snippet' })
+    expect((snippet as HTMLTextAreaElement).value).toContain('/api/v1/public/schedule?location_id=l1')
+    expect((snippet as HTMLTextAreaElement).value).toContain("'X-Tenant-Slug': 'courtside-demo'")
+    expect(snippet).toHaveAccessibleDescription(/not turned on at our proxy yet/)
+  })
+
   it('shows a new calendar feed address once, to any staff member', async () => {
     const user = userEvent.setup()
     const feed = { id: 'f1', kind: 'staff_schedule', name: 'My bookings', status: 'active', owner_staff_user_id: 's1', location_id: null, competition_team_id: null, include_shifts: false, last_fetched_at: null, created_at: '2026-11-10T00:00:00Z' }

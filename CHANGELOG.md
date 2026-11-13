@@ -14,6 +14,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - The Integrations screen gains Connections and Calendar feeds tabs.
 - The API reference lists the key scopes each operation needs.
 - Connections: edit an accounting connection's account and class mappings, and queue a QuickBooks sync.
+- A Public schedule tab to publish a location's schedule and copy an embed snippet (other sites cannot load it until the proxy allows it).
 
 ### Security
 - The public schedule leaves out hidden, unlisted and out-of-range sessions, and busy times show only that location's.

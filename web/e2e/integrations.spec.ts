@@ -127,3 +127,16 @@ test('the accounting mappings dialog of the seeded connection passes axe', async
   await scan(page, 'mappings dialog dark')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
 })
+
+test('the public schedule settings save and show the embed snippet, and pass axe', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('tab', { name: 'Public schedule' }).click()
+  const snippet = page.getByRole('textbox', { name: 'Embed snippet' })
+  await expect(snippet).toHaveValue(/\/api\/v1\/public\/schedule\?location_id=/)
+  await expect(page.getByText(/not turned on at our proxy yet/)).toBeVisible()
+  await page.getByRole('button', { name: 'Save settings' }).click() // unchanged values: saving is harmless
+  await expect(page.getByText(/Public schedule saved/)).toBeVisible()
+  await scan(page, 'public schedule')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await scan(page, 'public schedule dark')
+})
