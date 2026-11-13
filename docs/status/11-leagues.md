@@ -26,7 +26,6 @@ Backend tests: `backend/app/modules/leagues/tests/` (`test_domain.py`, pure rule
 | LGE-31 Manual and post-season games | P0 | done | `POST/PATCH /games` (`game_type`, `round_label`, placeholder labels), version check | `test_game_lifecycle`, `test_maintenance_paths` | The booking exclusion constraint decides clashes (`409 booking-conflict`). |
 | LGE-05 Per-sport defaults | P1 | done | sport scoring, game length and fee text, copied onto new competitions | `test_reference_data_is_tenant_wide_and_guarded` | Tenant-wide. Writes need tenant-wide reach. |
 | LGE-11 Pool-play generation | P1 | done | pool play per division; bracket "Seed from: pool standings" | `test_three_games_guaranteed_and_pool_crossover` | Rank-major crossover from the pool standings, advancing N per pool. |
-| LGE-17 Competition list and public URL | P1 | partial | `/leagues/public`, `/leagues/public/{id}` | Vitest public page, e2e public scan | No list filters or embed code. |
 | LGE-07 Player stats and formula stats | P1 | done | `/sports/{id}/stat-tables`, `/stat-tables/{id}/stats`, `PUT /games/{id}/player-stats`, `/competitions/{id}/player-stats`; `/leagues/stats`, Player stats tab, per-game Stats dialog | `test_scorekeepers_reach_only_their_competitions_and_stats_roll_up`; Vitest stats; e2e | Stat tables are tenant-wide setup. Formulas `+ - * /` over entry stat codes, checked on save. |
 | LGE-10 Scheduling preferences | P1 | done | `PUT /competition-teams/{id}/preferences`; Teams tab "Preferences" | `test_venue_windows_book_every_court_and_preferences_are_checked`; e2e scan | Soft: they score slots, never block a game. |
 | LGE-13 Three games guaranteed | P1 | done | bracket type `three_games_guaranteed` (8 teams) | `test_three_games_guaranteed_and_pool_crossover` | |
@@ -38,10 +37,23 @@ Backend tests: `backend/app/modules/leagues/tests/` (`test_domain.py`, pure rule
 | REG-14 Publish a program as a competition | P1 | done | `POST /competitions/from-program-group`; "From a program" | `test_publish_a_program_group_as_a_league` | One-off copy; sub-groups become teams. |
 | REG-26 Captain roster and fee split | P1 | done | portal `/portal/league-teams`, "My teams"; `POST /competition-teams/{id}/fee-shares`, "Split fee" | `test_captain_manages_the_roster_in_the_portal`, `test_team_fee_split_bills_each_share_and_the_rest`; Vitest captain; e2e | Shares bill through `billing.service`. |
 | RPT-36 Game-card reports | P1 | done | reports `league_game_cards`, `league_manual_game_cards` | `reporting/tests/test_reporting.py` | |
-| LGE-18 to 25, 27, 29, 30, 32, 33 | P1/P2 | not built | | | Public site and the rest: chip B2 and later. |
+| LGE-17 Competition list filters, public URL and embed | P1 | done | `/public/competitions?sport_id&season_id&kind&status&q`; filters kept in the page URL; `?embed=1`; embed code on `/leagues/site` | `test_site.py` `test_competition_filters`; Vitest site; e2e league-site | The embed is an iframe of the public page without its chrome. |
+| LGE-18 Public league website | P1 | done | `/leagues/public` (site banner and sections), `/public/competitions/{id}/teams` `/brackets` `/player-stats` | `test_site.py` `test_public_teams_players_stats_and_brackets`; e2e | Teams, schedules, standings, brackets and results are public once the competition is; draft brackets stay hidden. Players and stats only with `show_players` (default off). |
+| LGE-19 Public-site options, branding and facility info | P1 | done | `GET/PUT /league-site`, `/public/league-site`; `/leagues/site` Options | `test_site.py` `test_site_options_gate_every_section` | Tenant singleton; tenant-wide key. Accent colour, title, tagline, about, section switches, board refresh. |
+| PLT-12 League public-site options | P1 | done | as LGE-19 | `test_site.py` | |
+| LGE-20 Links directory | P1 | done | `/league-links` CRUD, `/public/league-site/links`; Links tab | `test_site.py` `test_links_news_photos_and_sponsors` | No in-place edit on the screen (API PATCH only). |
+| LGE-21 Photo gallery | P2 | done | `POST /league-photos` (raw JPEG/PNG), PATCH, DELETE; `/public/league-site/photos/{id}/image`; Photos tab | `test_site.py` | Uploads only through `platform.files`; 900 KB cap. |
+| LGE-22 Classifieds board | P2 | done | portal `/portal/league-posts` (create, withdraw, contact); `/league-posts` approve and reject; `/public/league-site/posts?kind=classified` | `test_site.py` `test_posts_are_moderated_expire_and_relay_contact`, `test_post_limit_scope_and_erasure`; Vitest; e2e | Staff approve first, 30-day expiry, 5 live posts per client, contact relayed by email, no address shown. |
+| LGE-23 Pickup-game listings | P2 | done | as LGE-22 with `kind=pickup` and a future start time | `test_site.py` | |
+| LGE-24 TV display board | P2 | done | `/public/locations/{id}/league-board`; `/leagues/board/:locationId` | `test_site.py` `test_tv_board_shows_todays_public_games_at_one_location`; Vitest; e2e | Today in the location's zone, public competitions only, refreshes on the site's interval; works with the site off. |
+| LGE-33 Sponsor advertising | P2 | done | `/league-sponsors` CRUD, `PUT /league-sponsors/{id}/logo`, `/public/league-site/sponsors`; Sponsors tab | `test_site.py` | Own key (`leagues.sponsor.manage`); date window in UTC. No click tracking. |
+| MKT-18 News stories | P2 | done | `/league-news` (paginated) CRUD, `/public/league-site/news`; News tab | `test_site.py` | Drafts and future dates stay hidden; pinned first. |
+| CLS-07 Public class and clinic listing | P2 | done | `/public/league-site/classes` (reads `programs`) | `test_site.py` `test_classes_come_from_portal_published_programs` | Root program groups published to the portal; registration links to the portal. |
+| LGE-25, 27, 29, 30, 32 | P1/P2 | not built | | | Chip C2 and later. |
 
 Counts: **P0 11 features: 11 done.** Phase 14 B1 added LGE-07, 10, 11, 13, 16, 26, 28, PLT-11, RES-06, REG-14,
-REG-26 and RPT-36 (all done). P1 still partial: LGE-17; the rest of P1 and P2 not built.
+REG-26 and RPT-36 (all done). Phase 14 B2 (the public league site, `phase14-b2-public-site.md`) added LGE-17 to
+LGE-24, LGE-33, PLT-12, MKT-18 and CLS-07 (all done). Not built: LGE-25, 27, 29, 30, 32.
 
 ## Public schedule and standings (LGE-14 view)
 
