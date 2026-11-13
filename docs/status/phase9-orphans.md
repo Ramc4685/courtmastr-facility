@@ -29,6 +29,33 @@ Migrations 1801 and 1802 (1801 revises 1562).
   1000 and filtered to the requested location (others stored as `skipped`). Up to 25 subjects or a dry run run inline;
   larger ones run as a `chunked_actor` job. The Idempotency-Key is bound to a hash of the request body.
 
+## Second pass (branch `claude/phase9-orphans-2`, migrations 1803 and 1804)
+
+Review fixes before the remaining features; the features themselves (PAY-05 leftovers, PAY-10, PAY-03, POS-10/PKG-07,
+PAY-16) wait for the review of these.
+
+- **Risk review.** A release-then-refund that dies after the processor paid is reconciled by the sweep (the refund
+  row keeps `release_allocation_ids`, an `initiated` refund reserves its amount, each sweep item is a savepoint, billing
+  locks are `FOR NO KEY UPDATE`); a declined composite releases nothing; bulk invoicing skips clientless charges and a
+  chunk that selects nothing fails the rest; a removed POS tender's refund key carries an attempt number; the 1801
+  downgrade refuses while a refund is `initiated`. Bulk actions: the Idempotency-Key is required, each item stores the
+  amount it was priced at, a run names its preview and is refused (409 `bulk-preview-stale`) when anything changed,
+  email and render dry runs run the send checks, jobs run as the requester and are re-authorized every chunk, add-item
+  checks each client against the caller's locations. A lost key race on refunds or bulk actions is 409
+  `request-in-progress`.
+- **Opus review.** The charge dialogs keep a percentage discount as a percentage; bulk email, save-PDFs and add-item
+  screens, and a paged status view that every bulk dialog opens (progress, then each subject's result and reason); the
+  1,000 cap shows before the action starts; the bulk-action reads are pinned as location-bound; the Playwright bulk
+  specs choose their location; the bulk route contract lists its 404, item error codes, `only_mine`, `maxItems` and key
+  bounds.
+- **Left for the owner** (billing README): front desk can move the revenue date and category of a paid item with only
+  `billing.charge.update`; collections are scoped by the debtor's home location.
+- **Checks run.** `tests/`, `app/modules/billing`, `app/modules/pos`: 6,179 collected, exit 0. `make lint typecheck
+  boundaries`, `make web-check` clean; `make web-test` 299 passed (61 files). `make api-diff` 0 errors, 2 warnings
+  (`due_on`, `is_autopay` request properties removed by the first pass). `make contract`: 3 failures outside billing
+  (`POST /relationship-types`, `POST /products`, `POST /bookings/{id}/merge`: a 64-bit `booking_number` overflow), the
+  billing operations pass. Playwright specs were written but not run (no local Playwright).
+
 ## Not done inside built features
 
 - The refund dialog does not offer release-then-refund yet; the API does.
