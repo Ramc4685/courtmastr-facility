@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
+import { ConfirmDialog } from '../../components/Dialog'
 import { Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { formatDateTime } from '../../lib/format'
+import { feedUrl } from '../integrations/CalendarFeedsPanel'
+import { SecretDialog } from '../integrations/SecretDialog'
 import { programError, REASON_TEXT } from '../programs/queries'
 import { clientName, usePortalClients } from './shared'
 
@@ -68,6 +71,48 @@ export function PortalSessions() {
     onError: fail,
   })
 
+  // Join online shows on every booked place whose session has a meeting, until the session ends; the API refuses
+  // outside the join window (10 minutes before the start) and the refusal is shown.
+  const meetings = useQuery({ queryKey: ['portal', 'enrollment-meetings'], queryFn: () => api.get('/api/v1/portal/enrollment-meetings') })
+  const withMeeting = new Set((meetings.data ?? []).map((m) => m.enrollment_id))
+  const now = useNow()
+  const joinable = (e: { id: string; ends_at?: string | null }) => withMeeting.has(e.id) && !!e.ends_at && now < Date.parse(e.ends_at)
+  const online = useMutation({
+    mutationFn: (enrollmentId: string) => api.post('/api/v1/portal/enrollments/{enrollment_id}/join', { path: { enrollment_id: enrollmentId } }),
+    onMutate: () => window.open('', '_blank'), // opened in the click, so pop-up blockers allow it; pointed at the link once it arrives
+    onSuccess: (out, _id, tab) => {
+      if (tab) {
+        tab.opener = null
+        tab.location.href = out.join_url
+      } else window.location.assign(out.join_url)
+      if (out.passcode) toast('success', `Meeting opened in a new tab. Passcode: ${out.passcode}`)
+    },
+    onError: (e, _id, tab) => {
+      tab?.close()
+      toast('error', e.message)
+    },
+  })
+  const [stopping, setStopping] = useState(false)
+  const [feedToken, setFeedToken] = useState<string | null>(null)
+  const feeds = useQuery({ queryKey: ['portal', 'calendar-feeds'], queryFn: () => api.get('/api/v1/portal/calendar-feeds') })
+  const makeFeed = useMutation({
+    mutationFn: () => api.post('/api/v1/portal/calendar-feeds', { body: {} }),
+    onSuccess: (feed) => {
+      setFeedToken(feed.url_token)
+      void feeds.refetch()
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  const stopFeed = useMutation({
+    mutationFn: () => api.delete('/api/v1/portal/calendar-feeds'),
+    onSuccess: () => {
+      setStopping(false)
+      void feeds.refetch()
+      toast('success', 'Your calendar feed is stopped. Calendars subscribed to it no longer update.')
+    },
+    onError: (e) => toast('error', e.message),
+  })
+
   const mine = (enrollments.data?.data ?? []).filter((e) => e.status === 'enrolled' && e.target_kind === 'session')
   const queued = (waitlist.data ?? []).filter((w) => w.status === 'waiting' || w.status === 'offered')
   return (
@@ -123,12 +168,19 @@ export function PortalSessions() {
               {mine.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <span>
-                    <span className="block font-medium">{(e.session_id && titles.get(e.session_id)) || 'Session'}</span>
+                    <span className="block font-medium">{(e.session_id && titles.get(e.session_id)) || (e.starts_at ? `Session, ${formatDateTime(e.starts_at)}` : 'Session')}</span>
                     <span className="text-sm text-muted">{names.get(e.client_id)}</span>
                   </span>
-                  <Button size="sm" variant="secondary" aria-label={`Cancel booking for ${names.get(e.client_id) ?? 'client'}`} loading={cancel.isPending && cancel.variables === e.id} onClick={() => cancel.mutate(e.id)}>
-                    Cancel
-                  </Button>
+                  <span className="flex gap-2">
+                    {joinable(e) && (
+                      <Button size="sm" aria-label={`Join online for ${names.get(e.client_id) ?? 'client'}`} loading={online.isPending && online.variables === e.id} onClick={() => online.mutate(e.id)}>
+                        Join online
+                      </Button>
+                    )}
+                    <Button size="sm" variant="secondary" aria-label={`Cancel booking for ${names.get(e.client_id) ?? 'client'}`} loading={cancel.isPending && cancel.variables === e.id} onClick={() => cancel.mutate(e.id)}>
+                      Cancel
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -169,7 +221,35 @@ export function PortalSessions() {
             </ul>
           )}
         </Card>
+
+        <Card title="Your calendar">
+          <p className="text-muted">Add your household's bookings to Google Calendar, Outlook or Apple Calendar. A new address stops the old one.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" loading={makeFeed.isPending} onClick={() => makeFeed.mutate()}>
+              Get my calendar address
+            </Button>
+            {(feeds.data ?? []).length > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => setStopping(true)}>
+                Stop my calendar feed
+              </Button>
+            )}
+          </div>
+        </Card>
       </div>
+      {feedToken && <SecretDialog title="Your calendar address" secret={feedUrl(feedToken)} hint="Add it in your calendar app as a subscription by URL." onClose={() => setFeedToken(null)} />}
+      <ConfirmDialog open={stopping} title="Stop your calendar feed?" confirmLabel="Stop feed" danger busy={stopFeed.isPending} onConfirm={() => stopFeed.mutate()} onClose={() => setStopping(false)}>
+        Every address you have handed out stops working, and subscribed calendars no longer update. You can get a new address at any time.
+      </ConfirmDialog>
     </>
   )
+}
+
+/** The current time, refreshed every 30 seconds so time-window buttons appear and go without a reload. */
+function useNow() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  return now
 }

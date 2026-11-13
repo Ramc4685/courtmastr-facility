@@ -8,6 +8,7 @@ import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
+import { VideoMeetingPanel } from '../integrations/VideoMeetingPanel'
 import { CancelDialog } from '../programs/CancelDialog'
 import { SellPackageDialog } from '../packages/ClientPackagesTab'
 import { BatchBookDialog, MessageDialog, RebookDialog } from '../programs/SessionTools'
@@ -185,6 +186,8 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
           {can('scheduling.registration_link.create') && <DirectLinkControls sessionId={sessionId} active={s.is_direct_link_active} />}
         </div>
       )}
+
+      {can('scheduling.session.manage') && <VideoMeetingPanel sessionId={sessionId} />}
 
       {r.participants.length === 0 ? (
         <p className="text-muted">No one is registered yet.</p>

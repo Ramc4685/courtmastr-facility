@@ -545,6 +545,8 @@ class PortalEnrollmentOut(Out):
     enrolled_at: datetime | None
     cancelled_at: datetime | None
     cancel_kind: str | None
+    starts_at: datetime | None = Field(None, description="The session's start; none for a program registration")
+    ends_at: datetime | None = None
 
 
 class PortalWaitlistJoin(In):

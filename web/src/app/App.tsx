@@ -12,6 +12,7 @@ import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { OidcCallbackPage, OidcLinkPage } from '../features/auth/oidc'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
+import { QuickBooksCallbackPage } from '../features/integrations/QuickBooksCallbackPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
 import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
 import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
@@ -166,6 +167,7 @@ export function AppRoutes() {
         <Route path="roles/:id" element={<RequirePermission permission="platform.role.read"><RoleDetailPage /></RequirePermission>} />
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="integrations/quickbooks/callback" element={<RequirePermission permission="integrations.connection.manage"><QuickBooksCallbackPage /></RequirePermission>} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
         <Route path="account/security" element={<AccountSecurityPage />} />
         <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />

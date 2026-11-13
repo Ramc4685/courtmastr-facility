@@ -7,6 +7,7 @@ import { AppRoutes, makeQueryClient, ROUTER_FUTURE } from '../../app/App'
 import { ToastProvider } from '../../components/Toast'
 import { AuthProvider } from '../../lib/auth'
 import { mockFetch } from '../../test/fetchMock'
+import { VideoMeetingPanel } from './VideoMeetingPanel'
 
 const ALL = ['integrations.connection.manage', 'integrations.api_key.manage', 'integrations.webhook.manage', 'integrations.delivery.read', 'clients.client.read', 'billing.charge.create']
 const tenant = { id: 't1', name: 'Courtside Demo Club', slug: 'courtside-demo', status: 'active', currency: 'USD', default_time_zone: 'America/Chicago', locale: 'en-US', staff_mfa_policy: 'privileged', trial_ends_on: null, settings: {} }
@@ -24,7 +25,7 @@ const perm = (key: string, label: string, flags: string[] = []) => ({ key, conte
 const page = (data: unknown[]) => ({ data, page: { next_cursor: null, has_more: false } })
 const key = { id: 'k1', name: 'Door system', key_prefix: 'abcdef123456', scopes: ['clients.client.read'], location_ids: null, status: 'active', expires_at: null, last_used_at: null, rotated_at: null, previous_valid_until: null, revoked_at: null, created_by_staff_user_id: 's1', created_at: '2026-11-10T00:00:00Z' }
 
-function renderAt(permissions: string[], routes: Record<string, unknown>) {
+function renderAt(permissions: string[], routes: Record<string, unknown>, entry = '/integrations') {
   const calls = mockFetch({
     'GET /api/v1/auth/session': { status: 200, body: { csrf_token: 'c' } },
     'GET /api/v1/me': { status: 200, body: me(permissions) },
@@ -35,7 +36,7 @@ function renderAt(permissions: string[], routes: Record<string, unknown>) {
     <QueryClientProvider client={makeQueryClient()}>
       <AuthProvider>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/integrations']} future={ROUTER_FUTURE}>
+          <MemoryRouter initialEntries={[entry]} future={ROUTER_FUTURE}>
             <AppRoutes />
           </MemoryRouter>
         </ToastProvider>
@@ -53,6 +54,8 @@ describe('integrations settings', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Integrations' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Directory' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'API keys' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'API reference' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Calendar feeds' })).toBeInTheDocument()
     expect(await screen.findByText('Not configured')).toBeInTheDocument()
   })
 
@@ -122,5 +125,162 @@ describe('integrations settings', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Select all I may receive' }))
     expect(within(dialog).getByLabelText('clients.client.created')).toBeChecked()
     expect(within(dialog).getByLabelText('billing.charge.created')).not.toBeChecked()
+  })
+
+  it('connects Zoom with the tenant app and lists the connection', async () => {
+    const user = userEvent.setup()
+    let rows: unknown[] = []
+    const zoomRow = { id: 'c1', location_id: null, provider: 'zoom', status: 'active', external_account_id: 'acct-1', external_account_name: null, connected_at: '2026-11-10T00:00:00Z', last_sync_at: null, last_error: null, created_at: '2026-11-10T00:00:00Z' }
+    const calls = renderAt(ALL, {
+      'GET /api/v1/external-connections': () => ({ status: 200, body: page(rows) }),
+      'POST /api/v1/external-connections': () => {
+        rows = [zoomRow]
+        return { status: 201, body: { ...zoomRow, authorize_url: null } }
+      },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Connections' }))
+    await user.click(await screen.findByRole('button', { name: 'Connect a service' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Connect a service' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Service' }), 'zoom')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Account ID' }), 'acct-1')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Client ID' }), 'cid')
+    await user.type(within(dialog).getByLabelText('Client secret'), 'shh')
+    await user.click(within(dialog).getByRole('button', { name: 'Connect' }))
+    expect(await screen.findByRole('cell', { name: 'Zoom' })).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ provider: 'zoom', zoom: { account_id: 'acct-1', client_id: 'cid', client_secret: 'shh' } })
+  })
+
+  it('edits QuickBooks mappings, shows a field error, and queues a sync', async () => {
+    const user = userEvent.setup()
+    const qbo = { id: 'q1', location_id: 'l1', provider: 'quickbooks_online', status: 'active', external_account_id: '4620', external_account_name: 'Demo Co', connected_at: '2026-11-10T00:00:00Z', last_sync_at: null, last_error: null, created_at: '2026-11-10T00:00:00Z' }
+    const mappings = { mappings: [], unmapped: [{ local_key: 'revenue:court' }], external_options: { accounts: [{ id: '79', name: 'Court rental income' }], classes: [] } }
+    let attempt = 0
+    const calls = renderAt([...ALL, 'integrations.sync.run'], {
+      'GET /api/v1/external-connections': { status: 200, body: page([qbo]) },
+      'GET /api/v1/external-connections/q1/sync-mappings': { status: 200, body: mappings },
+      'PUT /api/v1/external-connections/q1/sync-mappings': () =>
+        ++attempt === 1
+          ? { status: 422, body: { status: 422, code: 'validation-failed', detail: 'Invalid', errors: [{ pointer: '/mappings/0/local_key', code: 'invalid', detail: 'Each key is mapped once' }] } }
+          : { status: 200, body: mappings },
+      'POST /api/v1/external-connections/q1/sync': { status: 202, body: { status: 'running', status_url: '/x', counts: {} } },
+      'GET /api/v1/external-connections/q1/sync': { status: 200, body: { status: 'idle', counts: {}, location_id: null, next_on: null, last_on: null, retries_failed: false, beat_at: null, is_stale: false } },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Connections' }))
+    await user.click(await screen.findByRole('button', { name: 'Mappings for QuickBooks Online' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Accounting mappings' })
+    await user.click(within(dialog).getByRole('button', { name: 'Map revenue:court' }))
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Maps to 1' }), '79')
+    await user.click(within(dialog).getByRole('button', { name: 'Save mappings' }))
+    expect(await within(dialog).findByText('Each key is mapped once')).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ mappings: [{ kind: 'revenue_account', local_key: 'revenue:court', external_id: '79', external_name: 'Court rental income' }] })
+    await user.click(within(dialog).getByRole('button', { name: 'Save mappings' }))
+    expect(await screen.findByText(/Mappings saved/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sync QuickBooks Online' }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'Sync to QuickBooks' })).getByRole('button', { name: 'Queue sync' }))
+    expect(await screen.findByText(/Sync queued/)).toBeInTheDocument()
+    // failed days (an unmapped key, now mapped) are tried again by default
+    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/sync'))?.body).toEqual({ location_id: null, from: null, to: null, retries_failed: true })
+  })
+
+  it('shows a stuck sync and stops it', async () => {
+    const user = userEvent.setup()
+    const qbo = { id: 'q1', location_id: 'l1', provider: 'quickbooks_online', status: 'active', external_account_id: '4620', external_account_name: 'Demo Co', connected_at: '2026-11-10T00:00:00Z', last_sync_at: null, last_error: null, created_at: '2026-11-10T00:00:00Z' }
+    const stuck = { status: 'running', counts: { posted: 2 }, location_id: 'l1', next_on: '2026-11-08', last_on: '2026-11-09', retries_failed: true, beat_at: '2026-11-10T00:00:00Z', is_stale: true }
+    const calls = renderAt([...ALL, 'integrations.sync.run'], {
+      'GET /api/v1/external-connections': { status: 200, body: page([qbo]) },
+      'GET /api/v1/external-connections/q1/sync': { status: 200, body: stuck },
+      'POST /api/v1/external-connections/q1/sync/reset': { status: 200, body: { ...stuck, status: 'failed', is_stale: false } },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Connections' }))
+    await user.click(await screen.findByRole('button', { name: 'Sync QuickBooks Online' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sync to QuickBooks' })
+    expect(await within(dialog).findByText(/stopped answering \(2 posted\)/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Stop the stuck sync' }))
+    expect(await within(dialog).findByText(/Last sync: failed/)).toBeInTheDocument()
+    expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/sync/reset'))).toBe(true)
+  })
+
+  it('publishes a location schedule and offers the embed snippet with its proxy caveat', async () => {
+    const user = userEvent.setup()
+    const settings = { location_id: 'l1', is_enabled: false, show_sessions: true, show_busy: false, days_ahead: 14 }
+    const calls = renderAt(['scheduling.public_schedule.manage'], {
+      'GET /api/v1/public-schedule-settings': { status: 200, body: settings },
+      'PATCH /api/v1/public-schedule-settings': ({ body }: { body: unknown }) => ({ status: 200, body }),
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Public schedule' }))
+    await user.click(await screen.findByLabelText("Publish this location's schedule"))
+    await user.click(screen.getByRole('button', { name: 'Save settings' }))
+    expect(await screen.findByText('Public schedule saved and published.')).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ ...settings, is_enabled: true })
+    const snippet = screen.getByRole('textbox', { name: 'Embed snippet' })
+    expect((snippet as HTMLTextAreaElement).value).toContain('/api/v1/public/schedule?location_id=l1')
+    expect((snippet as HTMLTextAreaElement).value).toContain("'X-Tenant-Slug': 'courtside-demo'")
+    expect(snippet).toHaveAccessibleDescription(/not turned on at our proxy yet/)
+  })
+
+  it('a session with no meeting offers one, and a pasted link replaces the empty state', async () => {
+    const user = userEvent.setup()
+    const meeting = { id: 'm1', session_id: 'ss1', provider: 'manual', status: 'scheduled', join_url: 'https://meet.example.com/abc', has_passcode: false, last_error: null, external_connection_id: null, created_at: '2026-11-10T00:00:00Z', updated_at: '2026-11-10T00:00:00Z' }
+    let attempt = 0
+    const calls = mockFetch({
+      'PUT /api/v1/sessions/ss1/video-meeting': () =>
+        ++attempt === 1
+          ? { status: 422, body: { status: 422, code: 'validation-failed', detail: 'Invalid', errors: [{ pointer: '/join_url', code: 'invalid', detail: 'Use an https link' }] } }
+          : { status: 200, body: meeting },
+    }) // GET answers 404: no meeting yet
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <ToastProvider>
+          <VideoMeetingPanel sessionId="ss1" />
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Add a meeting' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Online meeting' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Meeting link' }), 'http://meet.example.com/abc')
+    await user.click(within(dialog).getByRole('button', { name: 'Save meeting' }))
+    expect(await within(dialog).findByText('Use an https link')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Save meeting' }))
+    expect(await screen.findByRole('link', { name: 'https://meet.example.com/abc' })).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ provider: 'manual', join_url: 'http://meet.example.com/abc', passcode: null })
+  })
+
+  it('lists the API reference to key managers and filters it', async () => {
+    const user = userEvent.setup()
+    const op = (method: string, path: string, scopes: string[], summary: string) => ({ method, path, scopes, summary, operation_id: `${method}${path}`, tag: path.split('/')[3] })
+    renderAt(['integrations.api_key.manage'], {
+      'GET /api/v1/api-reference': { status: 200, body: [op('get', '/api/v1/clients', ['clients.client.read'], 'List clients'), op('post', '/api/v1/charges', ['billing.charge.create'], 'Post a charge')] },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'API reference' }))
+    const table = await screen.findByRole('table', { name: 'API operations and their scopes' })
+    expect(within(table).getAllByRole('row')).toHaveLength(3)
+    await user.type(screen.getByRole('searchbox', { name: 'Filter' }), 'billing')
+    expect(within(table).getAllByRole('row')).toHaveLength(2)
+    expect(within(table).getByRole('cell', { name: '/api/v1/charges' })).toBeInTheDocument()
+  })
+
+  it('shows a new calendar feed address once, to any staff member', async () => {
+    const user = userEvent.setup()
+    const feed = { id: 'f1', kind: 'staff_schedule', name: 'My bookings', status: 'active', owner_staff_user_id: 's1', location_id: null, competition_team_id: null, include_shifts: false, last_fetched_at: null, created_at: '2026-11-10T00:00:00Z' }
+    renderAt([], {
+      'GET /api/v1/calendar-feeds': { status: 200, body: page([]) },
+      'POST /api/v1/calendar-feeds': { status: 201, body: { ...feed, url_token: 'tok123' } },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Calendar feeds' }))
+    await user.click(await screen.findByRole('button', { name: 'New feed' }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'New calendar feed' })).getByRole('button', { name: 'Create feed' }))
+    const secret = await screen.findByRole('dialog', { name: 'Your feed address' })
+    expect(within(secret).getByRole('textbox', { name: 'Secret' })).toHaveValue(`${window.location.origin}/api/v1/public/calendar-feeds/tok123`)
+  })
+
+  it('posts the QuickBooks callback once, in the signed-in session, and shows a refusal', async () => {
+    const calls = renderAt(ALL, {
+      'POST /api/v1/external-connections/oauth/callback': { status: 403, body: { status: 403, code: 'state-invalid', detail: 'This connection link has expired.' } },
+    }, '/integrations/quickbooks/callback?state=abc&code=xyz&realmId=4620816365')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Back to Integrations')
+    const posts = calls.filter((c) => c.url.endsWith('/oauth/callback'))
+    expect(posts).toHaveLength(1)
+    expect(posts[0]?.body).toEqual({ state: 'abc', code: 'xyz', realm_id: '4620816365', error: null })
   })
 })

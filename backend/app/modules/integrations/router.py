@@ -1,24 +1,36 @@
 """integrations HTTP surface (docs/api/openapi-programs.yaml, tag integrations): API keys, webhooks, provider
-connections, the accounting export and the adapter directory. Every route is require()-gated, so API keys may
-call them too, but minting credentials and subscribing need a signed-in person (service._require_person)."""
+connections, the accounting export and the adapter directory. Staff routes are require()-gated, so API keys may
+call them too, but minting credentials and subscribing need a signed-in person (service._require_person).
+`inbound` routes are anonymous: provider webhooks and the OAuth callback (verified by signature or sealed
+state) and the public calendar feed and schedule."""
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session as Db
 
+from app.core import context, ratelimit
 from app.core.api import TxRoute, camel_id
-from app.core.auth.deps import Ctx, require
+from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
+from app.core.auth.principal import system_principal
+from app.core.errors import NotFound
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
+from app.core.ratelimit import rate_limit
+from app.modules.integrations import analytics, feeds, meetings, quickbooks, service
 from app.modules.integrations import schemas as s
-from app.modules.integrations import service
 from app.modules.integrations.domain.webhooks import redact
 
 router = APIRouter(
     route_class=TxRoute, tags=["integrations"], generate_unique_id_function=camel_id,
     dependencies=[Depends(idempotency)],
 )  # fmt: skip
+# Inbound provider webhooks: authenticated by the provider's signature, registered before billing's
+# /webhooks/{provider} so these static paths win (app.main).
+inbound = APIRouter(route_class=TxRoute, tags=["integrations"], generate_unique_id_function=camel_id)
 Lists = Annotated[ListQuery, Depends(list_query)]
 KEYS, HOOKS = "integrations.api_key.manage", "integrations.webhook.manage"
 
@@ -134,12 +146,92 @@ def list_external_connections(query: Lists, ctx: Ctx = Depends(require("integrat
     return service.list_external_connections(ctx.session, ctx.principal, query)
 
 
-@router.post("/external-connections", response_model=s.ExternalConnectionOut, status_code=201)
+@router.post("/external-connections", response_model=s.ExternalConnectionCreated, status_code=201)
 def create_external_connection(
     body: s.ExternalConnectionCreate, ctx: Ctx = Depends(require("integrations.connection.manage"))
 ):
-    """Connect the accounting export. Errors: provider-not-configured (QuickBooks needs an Intuit app)."""
-    return service.create_external_connection(ctx.session, ctx.principal, body.model_dump())
+    """Connect the accounting export, or start connecting QuickBooks (pending, with `authorize_url`).
+    Errors: provider-not-configured (QuickBooks is switched off), staff-session-required."""
+    row, authorize_url = service.create_external_connection(ctx.session, ctx.principal, body.model_dump())
+    return s.ExternalConnectionOut.model_validate(row).model_dump() | {"authorize_url": authorize_url}
+
+
+@router.post("/external-connections/oauth/callback", response_model=s.OAuthCallbackOut)
+def complete_external_connection_o_auth(
+    body: s.OAuthCallbackIn, ctx: Ctx = Depends(require("integrations.connection.manage"))
+):
+    """Posted by the web app's callback page, in the signed-in session of the staff user who started the
+    connection; the sealed state (tenant, connection, that user, ten-minute expiry) must match them and works
+    once. Errors: state-invalid, account-in-use."""
+    service._require_person(ctx.principal)
+    return quickbooks.complete(ctx.session, ctx.principal, body.state, body.code, body.realm_id, body.error)
+
+
+@router.get("/external-connections/{external_connection_id}", response_model=s.ExternalConnectionOut)
+def get_external_connection(
+    external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.connection.manage"))
+):
+    return quickbooks.get_connection(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.patch("/external-connections/{external_connection_id}", response_model=s.ExternalConnectionOut)
+def update_external_connection(
+    external_connection_id: UUID, body: s.ExternalConnectionUpdate,
+    ctx: Ctx = Depends(require("integrations.connection.manage")),
+):  # fmt: skip
+    """Merge-patch the provider settings. Errors: validation-failed (unknown setting)."""
+    return quickbooks.update_settings(ctx.session, ctx.principal, external_connection_id, body.settings)
+
+
+@router.get("/external-connections/{external_connection_id}/sync-mappings", response_model=s.SyncMappingsOut)
+def get_sync_mappings(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.connection.manage"))):
+    """The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts
+    and classes fetched live; `options_unavailable` when the provider did not answer."""
+    return quickbooks.get_mappings(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.put("/external-connections/{external_connection_id}/sync-mappings", response_model=s.SyncMappingsOut)
+def put_sync_mappings(
+    external_connection_id: UUID, body: s.SyncMappingsIn, ctx: Ctx = Depends(require("integrations.connection.manage"))
+):
+    """Replace every mapping; the daily export reads them from the next run."""
+    mappings = [m.model_dump() for m in body.mappings]
+    return quickbooks.put_mappings(ctx.session, ctx.principal, external_connection_id, mappings)
+
+
+@router.post("/external-connections/{external_connection_id}/sync", response_model=s.SyncRunOut, status_code=202)
+def run_sync(external_connection_id: UUID, body: s.SyncRun, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """Queue the export of each finished day in the range (the location's own dates; default its yesterday, at
+    most 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.
+    Errors: invalid-state-transition, sync-in-progress, validation-failed."""
+    return quickbooks.run_sync(ctx.session, ctx.principal, external_connection_id, body.model_dump(by_alias=True))
+
+
+@router.get("/external-connections/{external_connection_id}/sync", response_model=s.SyncStatusOut)
+def get_sync_status(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """The connection's latest sync: status (idle, running, completed, failed), cursor, counts, last chunk time,
+    and whether a running one has gone stale (no chunk for ten minutes)."""
+    return quickbooks.get_sync_status(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.post("/external-connections/{external_connection_id}/sync/reset", response_model=s.SyncStatusOut)
+def reset_sync(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """Mark a stale sync failed so a new one can start. Errors: sync-in-progress, invalid-state-transition."""
+    return quickbooks.reset_sync(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.post("/accounting-exports/{accounting_export_id}/retry", response_model=s.AccountingExportOut, status_code=202)
+def retry_accounting_export(accounting_export_id: UUID, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """Retry one failed day with the same provider request id. Errors: invalid-state-transition."""
+    return quickbooks.retry_export(ctx.session, ctx.principal, accounting_export_id)
+
+
+@inbound.post("/webhooks/quickbooks", status_code=200, response_model=s.InboundAck)
+async def receive_quick_books_events(request: Request):
+    """Signed QuickBooks notifications, verified (`intuit-signature`) and stored once. Errors: invalid-signature."""
+    body = await request.body()
+    stored = await run_in_threadpool(quickbooks.receive_webhook, body, request.headers.get("intuit-signature", ""))
+    return {"stored": stored}
 
 
 @router.post("/external-connections/{external_connection_id}/disconnect", response_model=s.ExternalConnectionOut)
@@ -169,7 +261,205 @@ def list_integration_adapters(ctx: Ctx = Depends(require("integrations.connectio
     return service.list_adapters(ctx.session, ctx.principal)
 
 
+@router.get("/api-reference", response_model=list[s.ApiOperationOut])
+def list_api_operations(request: Request, ctx: Ctx = Depends(require(KEYS))):
+    """Every operation an API key may call and the scopes that open it, generated from the routes (INT-01)."""
+    from app.modules.integrations import reference
+
+    return reference.operations(request.app.openapi())
+
+
 @router.get("/adapter-commands", response_model=s.Page[s.AdapterCommandOut])
 def list_adapter_commands(query: Lists, ctx: Ctx = Depends(require("integrations.connection.manage"))):
     """What simulated adapters were asked to do. Filters: port, location_id. Sort: occurred_at."""
     return service.list_adapter_commands(ctx.session, ctx.principal, query)
+
+
+# --- calendar feeds (INT-08, SCH-19, STF-13, LGE-25, SSP-19) and the public schedule (SCH-20) -----------------
+
+
+def _feed_created(row, token: str | None) -> dict:
+    return s.CalendarFeedOut.model_validate(row).model_dump() | {"url_token": token}
+
+
+@router.get("/calendar-feeds", response_model=s.Page[s.CalendarFeedOut])
+def list_calendar_feeds(query: Lists, ctx: Ctx = Depends(require())):
+    """Your feeds; with integrations.calendar_feed.revoke_any, every staff feed in your locations.
+    Filters: kind, status, owner_staff_user_id. Sort: created_at, name. URLs are never listed."""
+    return feeds.list_feeds(ctx.session, ctx.principal, query)
+
+
+@router.post("/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
+@secret_response
+def create_calendar_feed(body: s.CalendarFeedCreate, ctx: Ctx = Depends(require())):
+    """A staff schedule (bookings you can read, optionally your shifts) or one team's games. The URL token is in
+    this response only. Errors: staff-session-required, permission-denied."""
+    row, token = feeds.create_feed(ctx.session, ctx.principal, body.model_dump())
+    return _feed_created(row, token)
+
+
+@router.patch("/calendar-feeds/{calendar_feed_id}", response_model=s.CalendarFeedCreated)
+@secret_response
+def update_calendar_feed(calendar_feed_id: UUID, body: s.CalendarFeedUpdate, ctx: Ctx = Depends(require())):
+    """Rename, change shifts, disable, or re-enable with a new URL (`url_token` is set only then). Someone
+    else's feed may only be disabled, under revoke_any."""
+    row, token = feeds.update_feed(ctx.session, ctx.principal, calendar_feed_id, body.model_dump(exclude_unset=True))
+    return _feed_created(row, token)
+
+
+@router.delete("/calendar-feeds/{calendar_feed_id}", status_code=204)
+def delete_calendar_feed(calendar_feed_id: UUID, ctx: Ctx = Depends(require())) -> None:
+    feeds.delete_feed(ctx.session, ctx.principal, calendar_feed_id)
+
+
+@router.get("/sessions/{schedule_session_id}/video-meeting", response_model=s.VideoMeetingOut)
+def get_session_video_meeting(schedule_session_id: UUID, ctx: Ctx = Depends(require(meetings.MANAGE))):
+    return meetings.get_meeting(ctx.session, ctx.principal, schedule_session_id)
+
+
+@router.put("/sessions/{schedule_session_id}/video-meeting", response_model=s.VideoMeetingOut)
+@secret_response
+def put_session_video_meeting(
+    schedule_session_id: UUID, body: s.VideoMeetingIn, ctx: Ctx = Depends(require(meetings.MANAGE))
+):
+    """Attach or replace the session's online meeting: a pasted link, or a Zoom meeting created through the
+    location's Zoom connection. Errors: provider-unavailable."""
+    return meetings.put_meeting(ctx.session, ctx.principal, schedule_session_id, body.model_dump())
+
+
+@router.delete("/sessions/{schedule_session_id}/video-meeting", status_code=204)
+def delete_session_video_meeting(schedule_session_id: UUID, ctx: Ctx = Depends(require(meetings.MANAGE))):
+    meetings.delete_meeting(ctx.session, ctx.principal, schedule_session_id)
+    return Response(status_code=204)
+
+
+@router.post("/portal/enrollments/{enrollment_id}/join", response_model=s.JoinOut)
+@secret_response
+def join_portal_virtual_session(enrollment_id: UUID, ctx: Ctx = Depends(current_ctx)):
+    """The meeting link of one's own booked place, from 10 minutes before the start, at click time only; joining
+    marks the place attended. A POST, not a redirecting GET, because it marks attendance. Errors:
+    invalid-state-transition, policy-violation."""
+    return meetings.join(ctx.session, ctx.principal, enrollment_id)
+
+
+@router.get("/portal/enrollment-meetings", response_model=list[s.PortalEnrollmentMeetingOut])
+def list_portal_enrollment_meetings(ctx: Ctx = Depends(current_ctx)):
+    """My booked session places whose session has a scheduled online meeting, so the portal can offer Join
+    online until the session ends. Never the link: that comes only from the join command."""
+    return meetings.portal_meetings(ctx.session, ctx.principal)
+
+
+@router.get("/portal/calendar-feeds", response_model=list[s.PortalCalendarFeedOut])
+def list_portal_calendar_feeds(ctx: Ctx = Depends(current_ctx)):
+    """My schedule feed, if I have one (never its address). Members only."""
+    return feeds.list_member_feeds(ctx.session, ctx.principal)
+
+
+@router.post("/portal/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
+@secret_response
+def create_portal_calendar_feed(body: s.PortalCalendarFeedCreate, ctx: Ctx = Depends(current_ctx)):
+    """My schedule: the sessions I and my household are enrolled in. The URL token is in this response only."""
+    row, token = feeds.create_member_feed(ctx.session, ctx.principal, body.model_dump())
+    return _feed_created(row, token)
+
+
+@router.delete("/portal/calendar-feeds", status_code=204)
+def revoke_portal_calendar_feeds(ctx: Ctx = Depends(current_ctx)):
+    """Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old."""
+    feeds.revoke_member_feeds(ctx.session, ctx.principal)
+    return Response(status_code=204)
+
+
+def _redact(request: Request, token: str) -> None:
+    """The token is a credential: keep it out of the access log and error bodies from here on."""
+    request.scope["path"] = request.scope["path"].replace(token, "[redacted]")
+    request.scope["raw_path"] = request.scope["path"].encode()
+
+
+def _calendar_feed(token: str, request: Request, response: Response) -> Response:
+    _redact(request, token)
+    ratelimit.hit("calendar-feed-ip", context.client_ip.get() or "unknown", response)
+    tenant_id = feeds.tenant_of(token)
+    if tenant_id is None:
+        raise NotFound()
+    session = request_session(request, tenant_id)
+    session.info["actor"] = system_principal("calendar feed")
+    feed = feeds.live_feed(session, token)  # validated before it counts against the feed's own bucket
+    ratelimit.hit("calendar-feed", str(feed.id), response, tenant=tenant_id)
+    body = feeds.render(session, token)
+    return Response(
+        b"" if request.method == "HEAD" else body,
+        media_type="text/calendar; charset=utf-8",
+        headers=dict(response.headers) | {"Cache-Control": "private, max-age=900"},
+    )
+
+
+@inbound.get(
+    "/public/calendar-feeds/{token}", response_class=Response, responses={200: {"content": {"text/calendar": {}}}}
+)
+def get_public_calendar_feed(token: str, request: Request, response: Response):
+    """iCalendar text, recomputed from the owner's current access on each fetch. 404 for any unusable URL."""
+    return _calendar_feed(token, request, response)
+
+
+# Every other method is answered here, so none reaches the framework's 405, which logs the full path before any
+# handler runs (handover: redact in core.api). Listed in tests/test_security.py HIDDEN.
+_FEED_METHODS = {"Allow": "GET, HEAD, OPTIONS"}
+
+
+@inbound.api_route(
+    "/public/calendar-feeds/{token}",
+    methods=["HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"],
+    include_in_schema=False,
+)
+def other_public_calendar_feed_methods(token: str, request: Request, response: Response):
+    if request.method == "HEAD":
+        return _calendar_feed(token, request, response)
+    _redact(request, token)
+    if request.method == "OPTIONS":
+        return Response(status_code=204, headers=_FEED_METHODS)
+    if request.method == "PROPFIND":
+        raise NotFound()  # no WebDAV: a read-only feed, never a CalDAV collection
+    return Response(status_code=405, headers=_FEED_METHODS)
+
+
+@router.get("/public-schedule-settings", response_model=s.PublicScheduleSettingsOut, tags=["scheduling"])
+def get_public_schedule_settings(location_id: UUID, ctx: Ctx = Depends(require("scheduling.public_schedule.manage"))):
+    """What the location's public schedule shows. A location never configured is unpublished."""
+    return feeds.get_public_schedule_settings(ctx.session, ctx.principal, location_id)
+
+
+@router.patch("/public-schedule-settings", response_model=s.PublicScheduleSettingsOut, tags=["scheduling"])
+def update_public_schedule_settings(
+    body: s.PublicScheduleSettingsUpdate, ctx: Ctx = Depends(require("scheduling.public_schedule.manage"))
+):
+    """Publish or hide a location's schedule and choose what it shows; omitted fields keep their value."""
+    return feeds.update_public_schedule_settings(ctx.session, ctx.principal, body.model_dump())
+
+
+@inbound.get(
+    "/public/schedule", response_model=s.PublicScheduleOut, tags=["scheduling"],
+    dependencies=[Depends(rate_limit("public-schedule"))],
+)  # fmt: skip
+def get_public_schedule(
+    location_id: UUID, response: Response, session: Annotated[Db, Depends(public_session)],
+    from_on: date | None = None, days: Annotated[int | None, Query(ge=1, le=31)] = None,
+):  # fmt: skip
+    """Embeddable: a published location's sessions with seats left and, if shown, busy times with no names.
+    Tenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule."""
+    response.headers["Cache-Control"] = "public, max-age=60"
+    response.headers["Vary"] = "X-Tenant-Slug"  # the tenant may come from this header: never share across it
+    return feeds.public_schedule(session, location_id, from_on, days)
+
+
+# shortcut: shares the public-schedule per-IP bucket; give it its own in config/app.yaml if traffic differs
+@inbound.get(
+    "/public/analytics-config", response_model=s.AnalyticsConfigOut, tags=["integrations"],
+    dependencies=[Depends(rate_limit("public-schedule"))],
+)  # fmt: skip
+def get_public_analytics_config(response: Response, session: Annotated[Db, Depends(public_session)]):
+    """The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
+    X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent."""
+    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["Vary"] = "X-Tenant-Slug"
+    return analytics.public_config(session)

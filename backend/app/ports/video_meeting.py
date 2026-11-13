@@ -1,5 +1,5 @@
-"""VideoMeeting port (ADR 0012 section 5). v1 ships the simulated adapter only; `zoom` replaces it behind this
-interface once a Zoom app is approved. Callers never email the join URL (members go through our redirect)."""
+"""VideoMeeting port (ADR 0012 section 5): `fake_video` (simulated) and `zoom` (a tenant's Server-to-Server
+OAuth app). Callers never email or list the join URL: members go through the join route."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,11 +11,16 @@ class Meeting:
     external_meeting_id: str
     join_url: str
     host_start_url: str
+    passcode: str | None = None
 
 
 class VideoMeeting(Protocol):
     name: str
     simulated: bool
+
+    def check_account(self) -> None:
+        """Raises unless the credentials really open the account they name."""
+        ...
 
     def create_meeting(self, *, topic: str, starts_at: datetime, minutes: int, host_user_id: str) -> Meeting: ...
 

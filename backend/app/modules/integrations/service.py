@@ -9,9 +9,9 @@ import json
 import secrets
 from datetime import date, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import Select, any_, func, literal, select, update
+from sqlalchemy import Select, any_, func, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -61,9 +61,18 @@ SECRET_ROTATION_GRACE = timedelta(hours=24)
 # --- shared rules ------------------------------------------------------------------------------------------
 
 
+# The documented public API resources (docs/status/phase15-api.md): only their contexts' keys may go on a key.
+# An allow-list, so a new context's keys reach machines only when someone adds it here. Platform (audit, staff
+# directory), reporting (person-bound runs and schedules), integrations (keys, sync), staff and engagement
+# (campaigns) stay with signed-in people.
+KEY_CONTEXTS = frozenset({
+    "access", "assessments", "billing", "clients", "documents", "leagues", "memberships", "packages", "pos",
+    "programs", "rentals", "resources", "scheduling",
+})  # fmt: skip
+
+
 def grantable_to_key(permission: Permission) -> bool:
-    flags = set(permission.flags)
-    return not flags & _NEVER_FOR_KEYS and not (permission.key.startswith("staff.") and "W" in flags)
+    return permission.context in KEY_CONTEXTS and not set(permission.flags) & _NEVER_FOR_KEYS
 
 
 def _require_person(principal: Principal) -> None:
@@ -642,9 +651,11 @@ def list_external_connections(session: Session, principal: Principal, query: Lis
     )  # fmt: skip
 
 
-def create_external_connection(session: Session, principal: Principal, data: dict) -> ExternalConnection:
-    """v1 connects the JSON-file accounting export. QuickBooks needs a registered Intuit app
-    (integrations.quickbooks_enabled) and its OAuth round trip, which are not built: 422 until then."""
+def create_external_connection(
+    session: Session, principal: Principal, data: dict
+) -> tuple[ExternalConnection, str | None]:
+    """The JSON-file accounting export connects at once. QuickBooks (only with integrations.quickbooks_enabled)
+    starts pending and returns the authorise URL; the OAuth callback activates it (quickbooks.complete)."""
     location_id = data.get("location_id")
     authorize(principal, "integrations.connection.manage", location_id=location_id)
     _require_person(principal)
@@ -653,41 +664,90 @@ def create_external_connection(session: Session, principal: Principal, data: dic
             "QuickBooks Online is not configured", pointer="/provider", code="provider-not-configured"
         )
     _check_locations(session, principal, [location_id] if location_id else None, "/location_id")
-    row = ExternalConnection(
-        provider=data["provider"], location_id=location_id, status=ConnectionStatus.ACTIVE,
-        settings=data.get("settings") or {}, connected_by_staff_user_id=principal.staff_user_id,
-        connected_at=clock.now(),
+    oauth = data["provider"] == Provider.QUICKBOOKS_ONLINE  # connected only once the OAuth round trip completes
+    fields = {
+        "status": ConnectionStatus.ACTIVE, "settings": data.get("settings") or {}, "credentials_ciphertext": None,
+        "connected_by_staff_user_id": principal.staff_user_id, "connected_at": None if oauth else clock.now(),
+        "external_account_id": None, "external_account_name": None, "last_error": None, "last_error_at": None,
+    }  # fmt: skip
+    # an abandoned or failed consent never blocks a new attempt: it takes over that row (uq_external_connection)
+    row = session.scalar(
+        select(ExternalConnection).where(
+            ExternalConnection.provider == data["provider"],
+            ExternalConnection.location_id.is_not_distinct_from(location_id),
+            ExternalConnection.status.in_([ConnectionStatus.PENDING, ConnectionStatus.ERROR]),
+        ).with_for_update()
     )  # fmt: skip
-    session.add(row)
+    if row is None:
+        row = ExternalConnection(provider=data["provider"], location_id=location_id)
+        session.add(row)
+    for name, value in fields.items():
+        setattr(row, name, value)
     session.flush()
+    authorize_url = None
+    if row.provider == Provider.QUICKBOOKS_ONLINE:
+        from app.modules.integrations import quickbooks
+
+        authorize_url = quickbooks.start(session, row, principal, data.get("return_url"))
+    elif row.provider == Provider.ZOOM:
+        from app.modules.integrations import meetings
+
+        meetings.connect_zoom(session, row, data.get("zoom"))
+    elif row.provider == Provider.GOOGLE_ANALYTICS:
+        from app.modules.integrations import analytics
+
+        analytics.connect(row)
     audit.record(session, "integrations.connection.create", row, location_id=location_id, changes=audit.diff(row))
-    return row
+    return row, authorize_url
 
 
 def disconnect_external_connection(session: Session, principal: Principal, connection_id: UUID) -> ExternalConnection:
+    from app.modules.integrations import quickbooks
+
     row = _load_connection(session, principal, connection_id)
     authorize(principal, "integrations.connection.manage", location_id=row.location_id)
+    if row.status == ConnectionStatus.DISCONNECTED:
+        raise Conflict("The connection is already disconnected")
+    quickbooks.revoke(session, row)
+    if row.provider == Provider.ZOOM:
+        from app.modules.integrations import meetings
+
+        meetings.on_disconnect(session, row)
     row.status, row.credentials_ciphertext = ConnectionStatus.DISCONNECTED, None
     audit.record(
         session, "integrations.connection.disconnect", row, location_id=row.location_id, changes=audit.diff(row)
     )
     session.flush()
+    if row.external_account_id:
+        release_account(session, row.provider, row.external_account_id)
     return row
 
 
-def _accounting_adapter(connection: ExternalConnection, tenant_id: UUID) -> Any:
-    from app.adapters.accounting import FakeAccounting, JsonFileAccounting, QuickBooksOnline
+def release_account(session: Session, provider: str, account_ref: str) -> None:
+    """Internal: give the provider account back to the platform routing table once no ACTIVE connection of this
+    tenant still holds it, so another tenant can connect it (app.release_provider_account only ever deletes the
+    current tenant's own row)."""
+    held = session.scalar(
+        select(ExternalConnection.id).where(
+            ExternalConnection.provider == provider, ExternalConnection.external_account_id == account_ref,
+            ExternalConnection.status == ConnectionStatus.ACTIVE,
+        ).limit(1)
+    )  # fmt: skip
+    if held is None:
+        session.execute(text("SELECT app.release_provider_account(:p, :r)"), {"p": provider, "r": account_ref})
+
+
+def _accounting_adapter(session: Session, connection: ExternalConnection) -> Any:
+    from app.adapters.accounting import FakeAccounting, JsonFileAccounting
+    from app.modules.integrations import quickbooks
 
     cfg = get_settings().integrations
     if connection.provider == Provider.ACCOUNTING_FILE:
         return JsonFileAccounting(cfg.accounting_file_dir)
-    if (
-        connection.provider == Provider.QUICKBOOKS_ONLINE
-        and cfg.quickbooks_enabled
-        and connection.credentials_ciphertext
-    ):
-        token = json.loads(crypto.decrypt(connection.credentials_ciphertext, tenant_id))["access_token"]
-        return QuickBooksOnline(realm_id=connection.external_account_id or "", access_token=token)
+    if connection.provider == Provider.QUICKBOOKS_ONLINE and cfg.quickbooks_enabled:
+        return quickbooks.journal_poster(session, connection)  # refreshes the tokens when they are due
+    if get_settings().env not in ("dev", "test"):  # a simulated post would mark the day posted with nothing sent
+        raise ValidationFailed("QuickBooks Online is not configured", code="provider-not-configured")
     return FakeAccounting()
 
 
@@ -715,6 +775,8 @@ def export_accounting_day(
         location = platform.service.get_location(session, principal, location_id)
     except NotFound:
         raise ValidationFailed("Unknown location", pointer="/location_id") from None
+    if business_on >= platform.service.location_today(session, location_id):
+        raise ValidationFailed("Only a finished day can be exported", pointer="/business_on")
     export = session.scalar(
         select(AccountingExport).where(
             AccountingExport.external_connection_id == connection.id,
@@ -758,6 +820,7 @@ def _post_journal(
     from app.ports.accounting import Journal, JournalLine
 
     account_map: dict[str, str] = connection.settings.get("account_map", {})
+    class_map: dict[str, str] = connection.settings.get("class_map", {})
     default_income = connection.settings.get("default_income_account")
     unmapped, out = [], []
     for line in lines:
@@ -768,16 +831,22 @@ def _post_journal(
         if ref is None and connection.provider == Provider.QUICKBOOKS_ONLINE:
             raise ValidationFailed(f"No QuickBooks account mapped for {line.posting_key}")
         out.append(
-            JournalLine(ref or line.posting_key, line.debit_minor, line.credit_minor, description=line.posting_key)
+            JournalLine(
+                ref or line.posting_key,
+                line.debit_minor,
+                line.credit_minor,
+                class_ref=class_map.get(line.posting_key),
+                description=line.posting_key,
+            )
         )
     entry = Journal(
         doc_number=export.doc_number, business_on=export.business_on.isoformat(), currency=currency,
         memo=f"FacilityHub daily summary {export.business_on.isoformat()}", lines=out,
     )  # fmt: skip
-    adapter = adapter_for(
-        session, _accounting_adapter(connection, session.info["tenant_id"]), "accounting", location_id
-    )
-    return adapter.post_journal(entry, request_id=f"{session.info['tenant_id']}:qbo_je:{export.id}"), unmapped
+    adapter = adapter_for(session, _accounting_adapter(session, connection), "accounting", location_id)
+    # derived from the day, not the row id: a rolled-back attempt mints a new row, and the provider must still dedupe
+    request_id = str(uuid5(NAMESPACE_URL, f"qbo_je:{connection.id}:{location_id}:{export.business_on.isoformat()}"))
+    return adapter.post_journal(entry, request_id=request_id), unmapped
 
 
 def list_accounting_exports(session: Session, principal: Principal, query: ListQuery) -> dict:
@@ -841,7 +910,10 @@ def list_adapters(session: Session, principal: Principal) -> list[dict]:
                 adapter, status = "fake_accounting", "simulated"
                 detail = "Simulated. QuickBooks Online is built behind the port but switched off."
         elif port == "video_meeting":
-            adapter, status, detail = "fake_video", "simulated", "Simulated meetings; no Zoom app is registered."
+            if Provider.ZOOM in active:
+                adapter, status, detail = "zoom", "connected", "Zoom meetings through your own Server-to-Server app."
+            else:
+                adapter, status, detail = None, "not_configured", "Paste meeting links, or connect a Zoom app."
         elif port == "payment_provider":
             simulated = settings.payments.provider == "fake"
             adapter, status = settings.payments.provider, "simulated" if simulated else "not_configured"
