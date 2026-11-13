@@ -342,3 +342,31 @@ def test_one_address_holds_at_most_four_unpaid_places_in_a_program(client, owner
                    json={"guest_token": first["guest_token"]}), 200)  # fmt: skip
     again = ok(basket(camp, fee["id"], [None]))  # released places no longer count
     assert details_of(tenant, again["id"])["ip_digest"]  # hashed, and cleared with the other details
+
+
+def test_the_hold_cap_counts_every_week_of_a_program(client, owner, tenant, f):
+    """Places held in sibling weeks count against their shared program, so splitting across weeks gains nothing."""
+    camp, _ = online(client, owner, f, "immediate_card_payment")
+    allow_guests(client, owner, camp["id"])
+    weeks = []
+    for n in range(3):
+        week = ok(
+            client.post(f"{API}/program-groups", headers=owner, json={"parent_id": camp["id"], "name": f"Wk {n}"})
+        )
+        body = {"is_enabled": True, "payment_requirement": "immediate_card_payment", "allows_guest_checkout": True}
+        ok(client.put(f"{API}/program-groups/{week['id']}/registration-config", headers=owner, json=body), 200)
+        fee = ok(client.post(f"{API}/program-groups/{week['id']}/fees", headers=owner,
+                             json={"description": "Week", "amount_minor": 2000}))  # fmt: skip
+        weeks.append((week, fee))
+    payer = {"first_name": "Gale", "last_name": "Guest", "email": "split@example.com", "birth_on": "1985-02-03"}
+    kids = [{"first_name": f"K{n}", "last_name": "Guest", "birth_on": "2015-04-01"} for n in range(4)]
+
+    def basket(week, fee, people):
+        items = [{"program_group_id": week["id"], "program_fee_id": fee["id"], "participant": p} for p in people]
+        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        return client.post(GUEST, headers=public(tenant), json=body)
+
+    ok(basket(*weeks[0], [0, 1]))
+    ok(basket(*weeks[1], [2, 3]))  # four held across the camp
+    over = basket(*weeks[2], [None])
+    assert (over.status_code, over.json()["code"]) == (409, "too-many-held-places")

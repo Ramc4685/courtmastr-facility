@@ -209,7 +209,8 @@ captain rosters (REG-26).
   `guest-checkout-email` (5 per hour per lowercased payer address, counted only for a valid basket: its 429 rolls
   the holds back) on create; `guest-checkout` (20 per 15 minutes per IP) on confirm and abandon. A basket names at
   most 4 participants and 4 places, and one IP holds at most 4 unpaid places of one program at a time across its
-  open baskets (409 `too-many-held-places`). The IP is kept only as a tenant-salted SHA-256 digest in
+  open baskets, counted against the group and every ancestor so sibling weeks share the cap (409
+  `too-many-held-places`); a per-IP advisory lock serialises the count and the insert. The IP is kept only as a tenant-salted SHA-256 digest in
   `guest_details.ip_digest`, so it is cleared with the other details when the basket completes, is abandoned or
   expires (no separate retention or erasure step).
 - A guest's held place has no roster row, so confirm checks each program again before any client or charge exists:

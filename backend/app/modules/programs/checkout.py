@@ -12,7 +12,7 @@ import json
 from datetime import date, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, context
@@ -506,22 +506,25 @@ GUEST_HOLDS_PER_GROUP = 4  # unpaid places one IP may hold in one program at a t
 
 def _check_ip_holds(session: Db, ip_digest: str, chosen: list[ProgramGroup]) -> None:
     """409 too-many-held-places when this IP's unexpired guest baskets plus this one would hold more than
-    GUEST_HOLDS_PER_GROUP places in one program."""
-    held: dict[str, int] = {}
-    for details in session.scalars(
+    GUEST_HOLDS_PER_GROUP places in one program (a place counts against its group and every ancestor). The
+    advisory lock holds to commit, so two baskets from one IP cannot both pass before either is written."""
+    tenant = str(session.info["tenant_id"])
+    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(f"guest-holds:{tenant}:{ip_digest}", 0))))
+    ids = [UUID(item["program_group_id"]) for details in session.scalars(
         select(RegistrationCheckout.guest_details).where(
             RegistrationCheckout.channel == "guest", RegistrationCheckout.status == "open",
             RegistrationCheckout.expires_at > clock.now(),
             RegistrationCheckout.guest_details["ip_digest"].astext == ip_digest,
         )
-    ):  # fmt: skip
-        for item in details["items"]:
-            held[item["program_group_id"]] = held.get(item["program_group_id"], 0) + 1
-    for group in chosen:
-        held[str(group.id)] = held.get(str(group.id), 0) + 1
-        if held[str(group.id)] > GUEST_HOLDS_PER_GROUP:
-            raise Conflict("Too many unpaid places are held in this program; pay for or release them first.",
-                           code="too-many-held-places", program_group_id=str(group.id))  # fmt: skip
+    ) for item in details["items"]] + [group.id for group in chosen]  # fmt: skip
+    held: dict[UUID, int] = {}
+    for group_id in ids:
+        group = session.get(ProgramGroup, group_id)
+        for node in groups._chain(session, group) if group else []:
+            held[node.id] = held.get(node.id, 0) + 1
+            if held[node.id] > GUEST_HOLDS_PER_GROUP:
+                raise Conflict("Too many unpaid places are held in this program; pay for or release them first.",
+                               code="too-many-held-places", program_group_id=str(node.id))  # fmt: skip
 
 
 def _guest(session: Db, checkout_id: UUID, token: str) -> RegistrationCheckout:
