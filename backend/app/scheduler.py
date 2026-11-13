@@ -50,8 +50,12 @@ def active_tenants() -> list[str]:
 def tick_hour() -> int:
     """The hourly round: every dated job for active tenants, the retention jobs for suspended ones, and the
     retention of the global inbound-webhook table, which belongs to no tenant."""
-    inbound_webhooks.purge_payloads()
-    return enqueue(EVERY_HOUR, tenants("active")) + enqueue(RETENTION, tenants("suspended"))
+    sent = enqueue(EVERY_HOUR, tenants("active")) + enqueue(RETENTION, tenants("suspended"))
+    try:  # last and guarded: a failed purge must not cost the tenants their hourly jobs; the next tick retries it
+        inbound_webhooks.purge_payloads()
+    except Exception:
+        log.exception("inbound payload purge failed")
+    return sent
 
 
 def enqueue(actor_names: Iterable[str], tenant_ids: Iterable[str]) -> int:

@@ -105,10 +105,12 @@ def stale(tenant_id: UUID, before: datetime, max_attempts: int) -> list[UUID]:
 
 
 def purge_payloads() -> int:
-    """Retention (security-baseline 2.3): empty the payload of events processed or ignored more than
-    `retention.inbound_payload_days` ago, at most `retention.batch_rows` per call. The row stays so a late
-    redelivery is still a duplicate; events still awaiting a retry keep theirs. Idempotent. Run hourly by the
-    clock (app.scheduler.tick_hour) as fh_platform: the table is global, and ignored events have no tenant."""
+    """Retention (security-baseline 2.3): empty the payload and error text of events processed, ignored or failed
+    more than `retention.inbound_payload_days` ago, at most `retention.batch_rows` per call. A failed event's
+    retries run minutes apart (billing.webhooks), so by then they are long exhausted. The row stays so a late
+    redelivery is still a duplicate; a recent failure keeps its payload for the retry sweep. Idempotent. Run
+    hourly by the clock (app.scheduler.tick_hour) as fh_platform: the table is global, and ignored events have no
+    tenant."""
     cfg = get_settings().retention
     before = clock.now() - timedelta(days=cfg.inbound_payload_days)
     with platform_engine().begin() as conn:
@@ -116,8 +118,9 @@ def purge_payloads() -> int:
         # COALESCE(processed_at, received_at) WHERE payload <> '{}' when this shows up in the slow-query log.
         return conn.execute(
             text(
-                "UPDATE inbound_webhook_event SET payload = '{}'::jsonb WHERE id IN (SELECT id FROM "
-                "inbound_webhook_event WHERE status IN ('processed', 'ignored') AND payload <> '{}'::jsonb AND "
+                "UPDATE inbound_webhook_event SET payload = '{}'::jsonb, error = NULL WHERE id IN (SELECT id FROM "
+                "inbound_webhook_event WHERE status IN ('processed', 'ignored', 'failed') "
+                "AND (payload <> '{}'::jsonb OR error IS NOT NULL) AND "
                 "COALESCE(processed_at, received_at) < :before LIMIT :n "
                 "FOR UPDATE SKIP LOCKED)"
             ),

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from sqlalchemy import select, text
 
+from app import scheduler
 from app.core import clock, inbound_webhooks
 from app.core.db.platform import platform_engine
 from app.core.db.session import tenant_session
@@ -60,14 +61,25 @@ def _payload(row_id):
     return value if isinstance(value, dict) else json.loads(value)
 
 
-def test_processed_inbound_payloads_are_emptied_after_90_days(tenant):
-    processed, ignored, recent, failed = (
+def _error(row_id):
+    with platform_engine().connect() as conn:
+        return conn.execute(text("SELECT error FROM inbound_webhook_event WHERE id = :id"), {"id": row_id}).scalar()
+
+
+def test_finished_inbound_payloads_are_emptied_after_90_days(tenant):
+    """Processed, ignored and failed alike: a failed event's retries (minutes apart) ended long before 90 days,
+    so its payload and error text go too; a recent failure keeps both for the retry sweep and the operator."""
+    processed, ignored, recent, failed, recent_failed = (
         _event("processed", 91, tenant.id), _event("ignored", 91), _event("processed", 89, tenant.id),
-        _event("failed", 91, tenant.id),
+        _event("failed", 91, tenant.id), _event("failed", 1, tenant.id),
     )  # fmt: skip
-    assert inbound_webhooks.purge_payloads() >= 2
-    assert _payload(processed) == {} and _payload(ignored) == {}
-    assert _payload(recent) and _payload(failed)  # recent, or still waiting for a retry
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET error = 'card declined for j@x.io' WHERE id IN (:a, :b)"),
+                     {"a": failed, "b": recent_failed})  # fmt: skip
+    assert inbound_webhooks.purge_payloads() >= 3
+    assert _payload(processed) == {} and _payload(ignored) == {} and _payload(failed) == {}
+    assert _error(failed) is None
+    assert _payload(recent) and _payload(recent_failed) and _error(recent_failed)
     assert inbound_webhooks.purge_payloads() == 0  # idempotent
     with platform_engine().connect() as conn:
         event_id = conn.execute(text("SELECT provider_event_id FROM inbound_webhook_event WHERE id = :id"),
@@ -78,5 +90,18 @@ def test_processed_inbound_payloads_are_emptied_after_90_days(tenant):
 def test_the_hourly_tick_runs_the_inbound_purge(tenant, monkeypatch):
     calls = []
     monkeypatch.setattr(inbound_webhooks, "purge_payloads", lambda: calls.append(1) or 0)
+    monkeypatch.setattr(scheduler, "enqueue", lambda names, tenant_ids: 0)  # nothing left in the shared broker
     tick_hour()
     assert calls == [1]
+
+
+def test_a_failing_inbound_purge_does_not_skip_the_hour(tenant, monkeypatch, caplog):
+    def boom():
+        raise RuntimeError("database gone")
+
+    sent = []
+    monkeypatch.setattr(inbound_webhooks, "purge_payloads", boom)
+    monkeypatch.setattr(scheduler, "enqueue", lambda names, tenant_ids: sent.append(tuple(names)) or 0)
+    tick_hour()
+    assert scheduler.EVERY_HOUR in sent  # the tenants' jobs still went out
+    assert "inbound payload purge failed" in caplog.text
