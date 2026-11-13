@@ -12,7 +12,8 @@ import { useToast } from '../../components/Toast'
 import { formatDate, todayIn } from '../../lib/format'
 import { FormError, ListTable } from '../billing/shared'
 import { PortalPage } from './PortalApp'
-import { CONTRACT_TONE, CouponField, label, LocationPicker, NewCardField, PaymentOutcome, useAttemptKey, usePortal } from './shared'
+import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { CONTRACT_TONE, CouponField, label, LocationPicker, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
 type Contract = Schemas['PortalContractOut']
 type Plan = Schemas['PublicPlanOut']
@@ -25,7 +26,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '')
   const [startOn, setStartOn] = useState(() => todayIn(zoneOf(locationId)))
   const [autoRenew, setAutoRenew] = useState(true)
-  const [token, setToken] = useState('')
+  const pay = usePaymentChoice(actingFor.id)
   const [coupon, setCoupon] = useState('')
   const [saveCard, setSaveCard] = useState(false)
   const attempt = useAttemptKey()
@@ -33,7 +34,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const terms = { client_id: actingFor.id, membership_plan_id: plan.id, location_id: locationId, start_on: startOn || null, is_auto_renew: autoRenew, tender_kind: 'card' as const }
   const quote = useQuery({ queryKey: ['portal', 'membership-quote', terms], queryFn: () => api.post('/api/v1/portal/membership-contracts/quote', { body: terms }), retry: false })
   const buy = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, method_token: token || null, coupon_code: coupon || null, save_method: saveCard, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
+    mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, ...pay.body, coupon_code: coupon || null, save_method: pay.isNew && saveCard, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
     onError: (error) => {
       attempt.settle(error)
@@ -60,7 +61,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={buy.isPending} disabled={!q || (needsCard && !token) || !gate.ready} onClick={() => buy.mutate()}>
+            <Button loading={buy.isPending} disabled={!q || (needsCard && !pay.ready) || !gate.ready} onClick={() => buy.mutate()}>
               {q && q.due_now_minor > 0 ? `Pay ${money(q.due_now_minor)} and buy` : 'Buy'}
             </Button>
           </>
@@ -118,11 +119,14 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
           )}
           {q && q.due_now_minor > 0 && <CouponField subtotalMinor={q.due_now_minor} onChange={setCoupon} />}
           <FormError error={buy.error} />
-          {needsCard && <NewCardField value={token} onChange={setToken} />}
-          {needsCard && q && q.due_now_minor > 0 && q.card_save_mode === 'ask' && !q.is_autopay && (
-            <Checkbox label="Save this card for future payments" hint="It becomes your card on file; you can remove it under payment methods." checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} />
+          {needsCard && (
+            <PaymentChoice choice={pay}>
+              {q && q.due_now_minor > 0 && q.card_save_mode === 'ask' && !q.is_autopay && (
+                <Checkbox label="Save this card for future payments" hint="It becomes your card on file; you can remove it under payment methods." checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} />
+              )}
+              {q && q.due_now_minor > 0 && (q.card_save_mode === 'always' || q.is_autopay) && <p className="text-sm text-muted">The club keeps this card on file for future payments.</p>}
+            </PaymentChoice>
           )}
-          {needsCard && q && q.due_now_minor > 0 && (q.card_save_mode === 'always' || q.is_autopay) && <p className="text-sm text-muted">The club keeps this card on file for future payments.</p>}
           {errors.method_token && (
             <p role="alert" className="text-sm text-danger">
               {errors.method_token}

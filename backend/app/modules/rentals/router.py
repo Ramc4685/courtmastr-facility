@@ -28,6 +28,7 @@ Sell = Depends(require(service.SELL))
 Share = Depends(require(service.SHARE))
 Lockers = Depends(require(service.LOCKER_RENT))
 ActFor = Annotated[UUID | None, Query(alias="client_id")]
+PortalSettings = Depends(require(service.PORTAL_SETTINGS))
 Public = Annotated[Session, Depends(public_session)]
 Client = Annotated[Ctx, Depends(current_ctx)]
 # The parameter must be called idempotency_key: it then merges with the router-level optional header in OpenAPI.
@@ -156,6 +157,17 @@ def search_rental_availability(
     return {"data": slots[:limit], "page": {"next_cursor": None, "has_more": len(slots) > limit}}
 
 
+@staff.get("/locations/{location_id}/rental-portal-settings", response_model=s.RentalPortalSettingsOut)
+def get_rental_portal_settings(location_id: UUID, ctx: Ctx = PortalSettings):
+    return service.get_portal_settings(ctx.session, ctx.principal, location_id)
+
+
+@staff.put("/locations/{location_id}/rental-portal-settings", response_model=s.RentalPortalSettingsOut)
+def put_rental_portal_settings(location_id: UUID, body: s.RentalPortalSettings, ctx: Ctx = PortalSettings):
+    """SSP-04: whether the portal books rentals at this location, and limits for every self-service type."""
+    return service.put_portal_settings(ctx.session, ctx.principal, location_id, body.model_dump())
+
+
 @staff.get("/portal/rentals", response_model=s.Page[s.PortalRentalOut])
 def list_portal_rentals(query: Lists, ctx: Client):
     return service.list_portal_rentals(ctx.session, ctx.principal, query)
@@ -169,7 +181,8 @@ def create_portal_rental(body: s.PortalRentalCreate, ctx: Client):
 
 @staff.post("/portal/rentals/{rental_id}/confirm", response_model=s.PortalRentalCheckout)
 def confirm_portal_rental(rental_id: UUID, body: s.PortalRentalConfirm, idempotency_key: RequiredKey, ctx: Client):
-    """Errors: hold-expired, payment-declined."""
+    """Pays through secure_online_checkout. Errors: hold-expired, payment-failed, payment-method-required,
+    payment-method-not-usable, provider-unavailable (503, retry with the same key)."""
     return service.confirm_portal_rental(ctx.session, ctx.principal, rental_id, body.model_dump(), idempotency_key)
 
 

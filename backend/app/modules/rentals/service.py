@@ -38,6 +38,7 @@ from app.modules.rentals.models import (
     RentalPlanLedgerEntry,
     RentalPlanPurchase,
     RentalPlanShare,
+    RentalPortalSetting,
     RentalRate,
     RentalRateRule,
     RentalRateTax,
@@ -58,6 +59,7 @@ TYPES, PLANS, SELL, REMOVE = (
 )
 PUBLISH = "rentals.public_listing.publish"
 SHARE, LOCKER_RENT = "rentals.rental_plan.share", "rentals.locker_rental.manage"
+PORTAL_SETTINGS = "rentals.portal_setting.manage"
 SOURCE = ("rentals", "rental_booking")
 CONSTRAINT_CODES["uq_rental_type_name"] = "already-exists"
 CONSTRAINT_CODES["uq_rental_rate_name"] = "already-exists"
@@ -1162,22 +1164,72 @@ def _rows_on_invoice(session: Db, invoice_id: UUID) -> list[RentalBooking]:
 # --- online: public listing, availability, portal checkout ------------------------------------------------
 
 
+# --- per-location portal defaults (SSP-04) --------------------------------------------------------------------
+
+_PORTAL_FIELDS = ("is_online_enabled", "min_lead_min", "max_length_min", "horizon_days")
+_PORTAL_DEFAULTS = {"is_online_enabled": True, "min_lead_min": None, "max_length_min": None, "horizon_days": None}
+
+
+def _portal_setting(session: Db, location_id: UUID) -> dict:
+    row = session.scalar(select(RentalPortalSetting).where(RentalPortalSetting.location_id == location_id))
+    return {k: getattr(row, k) for k in _PORTAL_FIELDS} if row else dict(_PORTAL_DEFAULTS)
+
+
+def get_portal_settings(session: Db, principal: Principal, location_id: UUID) -> dict:
+    platform.service.get_location(session, principal, location_id)  # unknown or out of scope: 404
+    authorize(principal, PORTAL_SETTINGS, location_id=location_id)
+    return {"location_id": location_id} | _portal_setting(session, location_id)
+
+
+def put_portal_settings(session: Db, principal: Principal, location_id: UUID, data: dict) -> dict:
+    """Replace the location's online rental defaults. Each limit tightens every self-service type there."""
+    platform.service.get_location(session, principal, location_id)
+    authorize(principal, PORTAL_SETTINGS, location_id=location_id)
+    row = session.scalar(
+        select(RentalPortalSetting).where(RentalPortalSetting.location_id == location_id).with_for_update()
+    )
+    if row is None:
+        row = RentalPortalSetting(location_id=location_id)
+        session.add(row)
+    for key in _PORTAL_FIELDS:
+        setattr(row, key, data[key])
+    changes = audit.diff(row)
+    session.flush()
+    audit.record(session, PORTAL_SETTINGS, row, location_id=location_id, changes=changes)
+    return {"location_id": location_id} | _portal_setting(session, location_id)
+
+
+def _limits(session: Db, rtype: RentalType) -> dict:
+    """The online limits a type runs under: the stricter of the type's and its location's."""
+    loc = _portal_setting(session, rtype.location_id)
+    maxes = [m for m in (rtype.max_length_min, loc["max_length_min"]) if m]
+    return {
+        "min_lead_min": max(rtype.min_lead_min, loc["min_lead_min"] or 0),
+        "max_length_min": min(maxes) if maxes else None,
+        "horizon_days": loc["horizon_days"],
+    }
+
+
 def list_public_types(session: Db) -> list[dict]:
-    """RNT-05/RNT-06: self-service types with their resources and the online rate's base price."""
+    """RNT-05/RNT-06: self-service types with their resources and the online rate's base price, at locations
+    whose portal books rentals; the limits are the effective ones (type and location defaults)."""
     out = []
     for row in session.scalars(
         select(RentalType)
         .where(RentalType.is_active, RentalType.access == "self_service")
         .order_by(RentalType.sort_order, RentalType.name)
     ):
+        if not _portal_setting(session, row.location_id)["is_online_enabled"]:
+            continue
         rate = session.get(RentalRate, row.online_rental_rate_id)
         found = resources.service.get_many(session, _type_resources(session, row.id))
         out.append(
             {c: getattr(row, c) for c in (
-                "id", "location_id", "name", "online_description", "eligibility", "online_payment_mode", "min_lead_min",
-                "default_length_min", "min_length_min", "max_length_min", "slot_granularity_min", "deposit_pct",
+                "id", "location_id", "name", "online_description", "eligibility", "online_payment_mode",
+                "default_length_min", "min_length_min", "slot_granularity_min", "deposit_pct",
                 "cancel_cutoff_hours", "late_cancel_fee_pct",
             )}
+            | _limits(session, row)
             | {
                 "resources": [{"id": r.id, "name": r.name} for r in sorted(found, key=lambda r: (r.sort_order, r.name)) if r.status == "active"],
                 "from_price_minor": rate.amount_minor if rate else 0,
@@ -1190,20 +1242,26 @@ def _online_type(session: Db, type_id: UUID) -> RentalType:
     row = session.get(RentalType, type_id)
     if row is None or not row.is_active or row.access != "self_service":
         raise NotFound()
+    if not _portal_setting(session, row.location_id)["is_online_enabled"]:
+        raise NotFound()
     return row
 
 
 def _check_online_slot(session: Db, rtype: RentalType, starts_at: datetime, ends_at: datetime) -> None:
-    """Online rules: length within min/max, start on the granularity grid, lead time respected."""
+    """Online rules: length within min/max, start on the granularity grid, lead time and booking horizon
+    respected (the stricter of the type and the location defaults, SSP-04)."""
     zone = _zone(session, rtype.location_id)
     local = starts_at.astimezone(zone)
     minutes = int((ends_at - starts_at).total_seconds() // 60)
-    if minutes < rtype.min_length_min or (rtype.max_length_min and minutes > rtype.max_length_min):
+    limits = _limits(session, rtype)
+    if minutes < rtype.min_length_min or (limits["max_length_min"] and minutes > limits["max_length_min"]):
         raise ValidationFailed("That length is not offered online.", pointer="/ends_at", code="length-not-allowed")
     if (local.hour * 60 + local.minute) % rtype.slot_granularity_min or starts_at.second:
         raise ValidationFailed("Start on the booking grid.", pointer="/starts_at", code="off-grid")
-    if starts_at < clock.now() + timedelta(minutes=rtype.min_lead_min):
+    if starts_at < clock.now() + timedelta(minutes=limits["min_lead_min"]):
         raise ValidationFailed("Too close to the start to book online.", pointer="/starts_at", code="lead-time")
+    if limits["horizon_days"] and starts_at >= clock.now() + timedelta(days=limits["horizon_days"]):
+        raise ValidationFailed("That is too far ahead to book online.", pointer="/starts_at", code="beyond-horizon")
 
 
 def search_availability(
@@ -1212,8 +1270,9 @@ def search_availability(
     """Advisory slots (RNT-06): free ranges of the type's resources on a local date, snapped to the grid,
     with room for the type's buffers, priced with the online rate. The hold insert at checkout decides."""
     rtype = _online_type(session, type_id)
+    limits = _limits(session, rtype)
     length = length_min or rtype.default_length_min or rtype.min_length_min
-    if length < rtype.min_length_min or (rtype.max_length_min and length > rtype.max_length_min):
+    if length < rtype.min_length_min or (limits["max_length_min"] and length > limits["max_length_min"]):
         raise ValidationFailed("That length is not offered online.", pointer="/length_min", code="length-not-allowed")
     allowed = _type_resources(session, rtype.id)
     ids = [resource_id] if resource_id else sorted(allowed)
@@ -1226,7 +1285,11 @@ def search_availability(
     names = {r.id: r.name for r in resources.service.get_many(session, ids)}
     rate = _rate_input(session, session.get(RentalRate, rtype.online_rental_rate_id))
     before, after = timedelta(minutes=rtype.buffer_before_min), timedelta(minutes=rtype.buffer_after_min)
-    earliest, step = clock.now() + timedelta(minutes=rtype.min_lead_min), timedelta(minutes=rtype.slot_granularity_min)
+    earliest, step = (
+        clock.now() + timedelta(minutes=limits["min_lead_min"]),
+        timedelta(minutes=rtype.slot_granularity_min),
+    )
+    latest = clock.now() + timedelta(days=limits["horizon_days"]) if limits["horizon_days"] else None
     slots = []
     for column in free["resources"]:
         for gap in column["free"]:
@@ -1234,7 +1297,7 @@ def search_availability(
             while cursor < gap["starts_at"] + before:
                 cursor += step
             while cursor + timedelta(minutes=length) + after <= gap["ends_at"]:
-                if cursor >= earliest:
+                if cursor >= earliest and (latest is None or cursor < latest):
                     finish = cursor + timedelta(minutes=length)
                     lines = pricing.price(rate, [pricing.Occurrence(0, cursor, finish, (column["resource_id"],))])
                     slots.append(
@@ -1374,9 +1437,9 @@ def _checkout_quote(session: Db, row: RentalBooking) -> tuple[dict, UUID | None]
 
 
 def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, data: dict, idempotency_key: str) -> dict:
-    """Pay the checkout (the deposit when the type asks one, else the total) by card through the payment
-    provider and confirm the hold. A decline leaves the hold to run out; `unknown` keeps it tentative until
-    the provider answers (billing.invoice.paid then confirms a pay-in-full checkout)."""
+    """Pay the checkout (the deposit when the type asks one, else the total) with a new card token or a stored
+    method of the client, through `billing.checkout.secure_online_checkout`, and confirm the hold. A decline
+    rolls the payment back and leaves the hold to run out; `unknown` is a 503 to retry with the same key."""
     row, booking = _portal_rental(session, principal, rental_id, lock=True)
     quote, invoice_id = _checkout_quote(session, row)
     if booking.status == "confirmed":  # an idempotent replay of a paid confirm: already acknowledged
@@ -1385,17 +1448,19 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
         raise Conflict("The hold on this time has expired.", code="hold-expired")
     clients.terms.acknowledge(session, client_id=booking.client_id, terms_version_id=data.get("terms_version_id"),
                               sale_kind="rental", subject_id=row.id)  # fmt: skip
-    payment = billing.service.take_payment(
-        session, client_id=booking.client_id, location_id=row.location_id, amount_minor=_amount_due(quote),
-        tender_kind="card", idempotency_key=f"rental:{row.id}:{idempotency_key}",
-        method_token=data["provider_payment_token"], origin="portal", invoice_id=invoice_id,
+    token, method_id = data.get("provider_payment_token"), data.get("payment_method_id")
+    if bool(token) == bool(method_id):
+        raise ValidationFailed("Give a new card token or a stored payment method, not both.",
+                               pointer="/payment_method_id", code="payment-method-required")  # fmt: skip
+    invoice = billing.service.get_invoice_row(session, invoice_id) if invoice_id else None
+    payment = billing.checkout.secure_online_checkout(
+        session, client_id=booking.client_id, location_id=row.location_id, total_minor=quote["total_minor"],
+        invoice=invoice, idempotency_key=f"rental:{row.id}:{idempotency_key}", method_token=token,
+        payment_method_id=method_id, amount_minor=_amount_due(quote), save_method=bool(data.get("save_method")),
     )  # fmt: skip
-    if payment.status == "failed":
-        raise Conflict("The payment was declined.", code="payment-declined")
-    if billing.checkout.is_secured(payment):
-        booking = scheduling.service.confirm_booking(session, booking.id)
-        audit.record(session, UPDATE, row, location_id=row.location_id, changes={"status": ["tentative", "confirmed"]})
-    return _checkout(session, row, booking, quote, invoice_id, booking.status == "tentative", payment.status)
+    booking = scheduling.service.confirm_booking(session, booking.id)
+    audit.record(session, UPDATE, row, location_id=row.location_id, changes={"status": ["tentative", "confirmed"]})
+    return _checkout(session, row, booking, quote, invoice_id, False, payment.status if payment else None)
 
 
 def abandon_portal_rental(session: Db, principal: Principal, rental_id: UUID) -> None:

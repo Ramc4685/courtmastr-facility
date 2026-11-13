@@ -18,7 +18,7 @@ from app.core.auth import system_principal
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.events import handles
 from app.modules.billing import catalogue, documents, methods, service
-from app.modules.billing.models import Charge, CouponRedemption, Invoice, InvoicePayLink, Payment
+from app.modules.billing.models import Charge, CouponRedemption, Invoice, InvoicePayLink, Payment, PaymentMethod
 
 SECURED = ("succeeded", "processing")
 
@@ -50,6 +50,7 @@ def secure_online_checkout(
     coupon_code: str | None = None,
     save_method: bool = False,
     save_as_autopay: bool | None = None,
+    amount_minor: int | None = None,
 ) -> Payment | None:
     """Pay what is due now, or prove a chargeable method is on file for what falls due later.
 
@@ -59,6 +60,8 @@ def secure_online_checkout(
     A `coupon_code` comes off what is invoiced now before anything is charged. `save_method` keeps the card or
     bank account that pays now on the payer's file, saved by the processor with the charge (industry "save
     during payment"), never attached before it; `save_as_autopay` is passed to `methods.attach_method`.
+    `amount_minor` pays only that part of the invoice now (a deposit or a first instalment, REG-10 and RNT-06);
+    the rest stays on the invoice for its schedule and autopay. None pays the whole balance.
     """
     if coupon_code:
         if invoice is None:
@@ -80,6 +83,8 @@ def secure_online_checkout(
                 "A payment method is needed for what is due now.", pointer="/method_token",
                 code="payment-method-required",
             )  # fmt: skip
+        due_now = invoice.balance_minor if amount_minor is None else min(amount_minor, invoice.balance_minor)
+        partial = due_now < invoice.balance_minor
         earlier = service.find_payment(session, idempotency_key)
         if earlier is not None:
             if earlier.client_id != client_id:
@@ -88,18 +93,20 @@ def secure_online_checkout(
                 # a retry after a timeout: ask the processor first, so the card is never charged twice
                 earlier = service.confirm_payment(session, earlier.id)
             if is_secured(earlier):  # a replay: the key's money secures this sale only if it covers it
-                covered = _covering(session, invoice, service.allocate(session, earlier.id, invoice_id=invoice.id))
+                allocated = service.allocate(session, earlier.id, invoice_id=invoice.id)
+                covered = _covering(session, invoice, allocated, due_now if partial else None)
                 return _saved(session, client_id, covered, save_method, save_as_autopay)
         saving = save_method and bool(method_token) and payment_method_id is None
         if saving:
             methods.ensure_customer(session, client_id)
         payment = service.take_payment(
-            session, client_id=client_id, location_id=location_id, amount_minor=invoice.balance_minor,
+            session, client_id=client_id, location_id=location_id, amount_minor=due_now,
             tender_kind=tender_kind, method_token=method_token, payment_method_id=payment_method_id,
             idempotency_key=idempotency_key, origin="portal", invoice_id=invoice.id, save_method=saving,
         )  # fmt: skip
         if is_secured(payment):
-            return _saved(session, client_id, _covering(session, invoice, payment), save_method, save_as_autopay)
+            covered = _covering(session, invoice, payment, due_now if partial else None)
+            return _saved(session, client_id, covered, save_method, save_as_autopay)
         if payment.status in ("unknown", "initiated"):
             raise DomainError(
                 "The card processor did not answer; retry with the same Idempotency-Key.", status=503,
@@ -113,6 +120,11 @@ def secure_online_checkout(
         raise Conflict("The payment did not go through, so nothing was bought.", code="payment-failed")
     if method_token:
         method = methods.attach_method(session, client_id, method_token, is_autopay=True)
+    elif payment_method_id is not None:  # a stored method the payer chose (MEM-09, PKG-09, REG-10)
+        method = session.get(PaymentMethod, payment_method_id)
+        if method is None or method.client_id != client_id:
+            raise ValidationFailed("This stored payment method cannot be used for this payment.",
+                                   pointer="/payment_method_id", code="payment-method-not-usable")  # fmt: skip
     else:
         method = methods.autopay_method(session, client_id)
     if method is None or method.status != "active":
@@ -127,11 +139,13 @@ def _key_reused() -> ValidationFailed:
     return ValidationFailed("This Idempotency-Key was used for another payment.", code="idempotency-key-reused")
 
 
-def _covering(session: Session, invoice: Invoice, payment: Payment) -> Payment:
-    """The payment, once the invoice is covered (settled or pending); a key whose money is spent buys nothing."""
+def _covering(session: Session, invoice: Invoice, payment: Payment, part_minor: int | None = None) -> Payment:
+    """The payment, once the invoice is covered (settled or pending), or for a part payment once the payment
+    is at least that part and landed on the invoice; a key whose money is spent buys nothing."""
     session.flush()
     session.refresh(invoice)
-    if invoice.status not in ("paid", "payment_pending"):
+    covered = ("paid", "payment_pending") if part_minor is None else ("paid", "payment_pending", "partially_paid")
+    if invoice.status not in covered or (part_minor is not None and payment.amount_minor < part_minor):
         raise _key_reused()
     return payment
 

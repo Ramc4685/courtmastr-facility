@@ -88,3 +88,8 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
 ## Removal override (question 16, phase 10 chip E)
 
 Reversing the billing of a package after sessions were used is refused (409 `package-in-use`) unless the caller holds `packages.package.remove_override`. The key is per location and goes by default to Admin and Manager. The caller must also give an `override_reason`. The reason is stored on the audit record. The removal quote reports `needs_override_reason`. No billing change was needed: `reverse()` already turns paid money into account credit.
+
+## Stored method on portal buys (phase 11 B, PKG-09)
+
+`PortalPackageBuy.payment_method_id` pays with a card already on file; it must belong to the buyer (otherwise 422
+`payment-method-not-usable`). The sale still ends in `secure_online_checkout`.

@@ -117,3 +117,8 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
 - `waiver_missing` (`documents.document.read`): only when the documents settings require a waiver for check-in or booking.
 
 "Today" is the client's home-location day. Assumption: 14 days counts as "expiring soon" (`EXPIRING_SOON_DAYS`).
+
+## Stored method on portal buys (phase 11 B, MEM-09)
+
+`PortalContractBuy.payment_method_id` pays what is due now with a card already on file (the owner's own; otherwise
+422 `payment-method-not-usable`), through `secure_online_checkout`.

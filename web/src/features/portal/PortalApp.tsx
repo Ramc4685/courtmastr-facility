@@ -19,6 +19,7 @@ import { PortalFormPage } from '../programs/PublicFormPage'
 import { PortalSessions } from './PortalSessions'
 import { ProfilePage } from './ProfilePage'
 import { RentalPlansPage } from './RentalPlansPage'
+import { ProgressPage } from './ProgressPage'
 import { StatementPage } from './StatementPage'
 import { CaptainPage } from '../leagues/CaptainPage'
 import { displayName, makePortalValue, PortalProvider, usePortal } from './shared'
@@ -30,6 +31,7 @@ const NAV = [
   { key: 'sessions', to: '/portal/sessions', label: 'Book a session' },
   { key: 'memberships', to: '/portal/memberships', label: 'Memberships' },
   { key: 'packages', to: '/portal/packages', label: 'Packages' },
+  { key: 'progress', to: '/portal/progress', label: 'Progress' },
   { key: 'rental_plans', to: '/portal/rental-plans', label: 'Rental plans' },
   { key: 'invoices', to: '/portal/invoices', label: 'Invoices' },
   { key: 'statement', to: '/portal/statement', label: 'Statement' },
@@ -183,6 +185,7 @@ export function PortalApp() {
           <Route path="memberships" element={<MembershipsPage />} />
           <Route path="packages" element={<PackagesPage />} />
           <Route path="rental-plans" element={<RentalPlansPage />} />
+          <Route path="progress" element={<ProgressPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="statement" element={<StatementPage />} />
           <Route path="teams" element={<CaptainPage />} />

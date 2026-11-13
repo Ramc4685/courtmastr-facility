@@ -118,3 +118,22 @@ class AssessmentSettings(TenantOwned, Timestamps, Base):
 
     is_portal_sharing_enabled: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
     summary_max_age_days_default: Mapped[int] = mapped_column(server_default=text("90"), info={"audit": "value"})
+
+
+class ProgressShareLink(TenantOwned, Timestamps, Base):
+    """A revocable, read-only link to one client's progress (FIT-05). Only the token's SHA-256 is stored; the
+    token rides in the URL fragment. It works while the tenant's sharing setting is on, until it expires or is
+    revoked."""
+
+    __tablename__ = "progress_share_link"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client", ondelete="CASCADE"),
+        UniqueConstraint("tenant_id", "token_hash", name="uq_progress_share_link_token"),
+    )
+
+    client_id: Mapped[UUID]
+    token_hash: Mapped[str] = mapped_column(Text, info={"audit": "never"})
+    label: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    created_by_identity_id: Mapped[UUID | None]
+    expires_at: Mapped[datetime]
+    revoked_at: Mapped[datetime | None]

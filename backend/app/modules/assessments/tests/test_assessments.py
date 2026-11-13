@@ -1,6 +1,7 @@
 """assessments (build module 13): categories and fields, recording results per client, per-field history, the
 portal progress view, and the merge and erasure handlers, each through the API with both permission gates."""
 
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -244,3 +245,40 @@ def test_w2_09_an_out_of_reach_client_is_404_before_any_422(client, tenant, owne
         when, values = "2031-01-06T15:00:00Z", [(weight["id"], 70)]
         assert _record(client, coach, person, location_id, when, values, 404)["code"] == "not-found"
     assert _record(client, owner, theirs, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 70)], 422)
+
+
+def test_fit_05_share_link_is_revocable_and_expires(client, tenant, owner, location_id):
+    """FIT-05 (phase 11 B): a client shares a read-only progress view through a fragment-token link."""
+    _, weight, plank = _setup(client, owner)
+    me, portal = _portal(client, owner, tenant, location_id)
+    _record(client, owner, me, location_id, "2031-01-01T15:00:00Z", [(weight["id"], "82"), (plank["id"], 50)])
+    links = f"{API}/portal/progress-share-links"
+    lookup = f"{API}/public/progress-shares/lookup"
+    public = {"X-Tenant-Slug": tenant.slug}
+    assert client.post(links, headers=portal, json={}).status_code == 404  # sharing off
+    ok(client.patch(f"{API}/assessment-settings", headers=owner, json={"is_portal_sharing_enabled": True}))
+    made = ok(client.post(links, headers=portal, json={"label": "Coach Sam", "expires_in_days": 7}), 201)
+    token = made["token"]
+    assert made["url"].endswith(f"/progress#token={token}") and made["is_active"]
+    [listed] = ok(client.get(links, headers=portal))
+    assert listed["id"] == made["id"] and "token" not in listed
+    shared = ok(client.post(lookup, headers=public, json={"token": token}))
+    assert shared["first_name"] and len(shared["results"]) == 1 and len(shared["results"][0]["values"]) == 1
+    assert "last_name" not in shared and "client_id" not in shared
+    with tenant_session(tenant.id) as session:
+        trail = session.scalars(select(AuditEvent).where(AuditEvent.entity_type == "progress_share_link")).all()
+        assert trail and all(token not in str(e.changes) for e in trail)
+    with clock.freeze(clock.now() + timedelta(days=8)):
+        assert client.post(lookup, headers=public, json={"token": token}).status_code == 404  # expired
+    assert client.post(lookup, headers=public, json={"token": "x" * 43}).status_code == 404
+    stranger = new_client(client, owner, location_id)["id"]
+    assert client.post(links, headers=portal, json={"client_id": stranger}).status_code == 404
+    revoke = f"{links}/{made['id']}/revoke"
+    assert client.post(revoke, headers=portal).status_code == 204
+    assert client.post(revoke, headers=portal).status_code == 204  # idempotent
+    [gone] = [row for row in ok(client.get(links, headers=portal)) if row["id"] == made["id"]]
+    assert gone["is_active"] is False and gone["revoked_at"]
+    assert client.post(lookup, headers=public, json={"token": token}).status_code == 404
+    again = ok(client.post(links, headers=portal, json={}), 201)
+    ok(client.patch(f"{API}/assessment-settings", headers=owner, json={"is_portal_sharing_enabled": False}))
+    assert client.post(lookup, headers=public, json={"token": again["token"]}).status_code == 404

@@ -588,6 +588,7 @@ def chosen_fees(
 _CONFIG_FIELDS = (
     "is_enabled", "opens_on", "closes_on", "payment_requirement", "displays_openings", "online_description",
     "closed_message", "confirmation_message", "public_slug", "portal_publish_name", "allows_guest_checkout",
+    "payment_plan", "balance_due_on", "instalment_count", "instalment_unit",
 )  # fmt: skip
 _CONFIG_HIDDEN = ("id", "tenant_id", "created_at", "updated_at")
 _DEFAULTED = (
@@ -613,6 +614,7 @@ def _config_view(group: ProgramGroup, config: RegistrationConfig | None) -> dict
             "payment_requirement": "immediate_card_payment", "displays_openings": False, "online_description": None,
             "closed_message": None, "confirmation_message": None, "public_slug": None, "is_portal_visible": False,
             "portal_publish_name": None, "portal_published_at": None, "allows_guest_checkout": False,
+            "payment_plan": "pay_in_full", "balance_due_on": None, "instalment_count": None, "instalment_unit": None,
         }  # fmt: skip
     return {c.key: getattr(config, c.key) for c in RegistrationConfig.__table__.columns if c.key not in _CONFIG_HIDDEN}
 
@@ -644,13 +646,35 @@ def put_config(session: Db, principal: Principal, group_id: UUID, data: dict) ->
         session.add(config)
     for key in _CONFIG_FIELDS:
         if key in data and not (
-            key in ("public_slug", "payment_requirement", "is_enabled", "displays_openings") and data[key] is None
+            key in ("public_slug", "payment_requirement", "is_enabled", "displays_openings", "payment_plan")
+            and data[key] is None
         ):
             setattr(config, key, data[key])
+    _check_plan(config)
     changes = audit.diff(config)
     session.flush()  # uq_registration_config_public_slug
     audit.record(session, CONFIG, config, location_id=group.location_id, changes=changes)
     return _config_view(group, config)
+
+
+def _check_plan(config: RegistrationConfig) -> None:
+    """REG-10 payment plans (decision Q5): a deposit plan needs a balance date, an instalment plan a count and an
+    interval too, and both are pay-now programs (the card that pays the deposit stays on file for autopay)."""
+    plan = config.payment_plan or "pay_in_full"
+    if plan == "pay_in_full":
+        config.balance_due_on = config.instalment_count = config.instalment_unit = None
+        return
+    if config.payment_requirement not in (None, "immediate_card_payment"):
+        raise ValidationFailed("A payment plan needs immediate card payment.", pointer="/payment_plan",
+                               code="payment-plan-invalid")  # fmt: skip
+    if config.balance_due_on is None:
+        raise ValidationFailed("Give the date the balance falls due.", pointer="/balance_due_on",
+                               code="payment-plan-invalid")  # fmt: skip
+    if plan == "deposit":
+        config.instalment_count = config.instalment_unit = None
+    elif config.instalment_count is None or config.instalment_unit is None:
+        raise ValidationFailed("Give the number of instalments and how often.", pointer="/instalment_count",
+                               code="payment-plan-invalid")  # fmt: skip
 
 
 def set_published(session: Db, principal: Principal, group_id: UUID, visible: bool) -> dict:
@@ -705,8 +729,11 @@ def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *
         "registration_state": registration_state(session, group, config),
         "payment_requirement": config.payment_requirement, "confirmation_message": config.confirmation_message,
         "closed_message": config.closed_message, "allows_guest_checkout": config.allows_guest_checkout,
+        "payment_plan": config.payment_plan, "balance_due_on": config.balance_due_on,
+        "instalment_count": config.instalment_count, "instalment_unit": config.instalment_unit,
         "fees": [
-            {"id": f.id, "fee_kind": f.fee_kind, "description": f.description, "amount_minor": f.amount_minor}
+            {"id": f.id, "fee_kind": f.fee_kind, "description": f.description, "amount_minor": f.amount_minor,
+             "deposit_minor": f.deposit_minor if config.payment_plan != "pay_in_full" else None}
             for f in active_fees(session, group, online=True)
         ],
         "children": [],

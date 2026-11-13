@@ -240,6 +240,7 @@ class PortalContractBuy(In):
     is_auto_renew: bool | None = None
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    payment_method_id: UUID | None = None  # one of the payer's stored methods, instead of a new token
     save_method: bool | None = None  # MEM-05: the buyer's answer when the card-save mode is `ask`
     terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (

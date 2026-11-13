@@ -165,6 +165,11 @@ def list_invoices(session: Session, principal: Principal, query: ListQuery) -> d
     )  # fmt: skip
 
 
+def get_invoice_row(session: Session, invoice_id: UUID) -> Invoice:
+    """Internal (ADR 0009 section 9): the invoice row a sale raised, for `checkout.secure_online_checkout`."""
+    return _get(session, Invoice, invoice_id)
+
+
 def get_invoice(session: Session, principal: Principal, invoice_id: UUID) -> dict:
     authorize(principal, "billing.invoice.read")
     return _invoice_detail(session, _get(session, Invoice, invoice_id))
@@ -1532,6 +1537,11 @@ def schedule_of(session: Session, invoice_id: UUID) -> list[PaymentSchedule]:
             .order_by(PaymentSchedule.due_on, PaymentSchedule.seq)
         )
     )
+
+
+def equal_instalments(total_minor: int, start_on: date, unit: str, count: int) -> list[tuple[date, int]]:
+    """Internal: `count` equal instalments of a total, one per `unit` from `start_on` (REG-10 payment plans)."""
+    return plans.generate(total_minor, start_on, 1, unit, count)
 
 
 def set_schedule(session: Session, invoice_id: UUID, rows: Sequence[tuple[date, int]], *, basis: dict) -> Invoice:

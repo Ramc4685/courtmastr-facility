@@ -40,6 +40,7 @@ from app.modules.scheduling.models import (
     SchedulingSettings,
     Session,
 )
+from app.ports import video_meeting
 
 READ, CREATE, UPDATE, DELETE = (f"scheduling.booking.{verb}" for verb in ("read", "create", "update", "delete"))
 UPDATE_SERIES, DELETE_SERIES = "scheduling.booking.update_series", "scheduling.booking.delete_series"
@@ -720,6 +721,7 @@ def cancel_booking(session: Db, booking: Booking, *, reason: str = "staff") -> B
     seat = session.scalar(select(Session).where(Session.booking_id == booking.id))
     if seat is not None:
         seat.slot_offer_id = seat.slot_starts_at = None  # uq_session_slot: a cancelled slot can be taken again
+        _drop_meeting(seat)  # CLS-08: a cancelled session's meeting is deleted at the provider
         events.publish(
             session,
             ev.SessionCancelled(session_id=seat.id, booking_id=booking.id, location_id=booking.location_id),
@@ -859,6 +861,7 @@ def _session_view(seat: Session) -> dict:
         "id": seat.id, "location_id": seat.location_id, "booking_id": seat.booking_id, "capacity": seat.capacity,
         "booked_count": seat.booked_count, "fill": _fill(seat.capacity, seat.booked_count),
         "is_self_bookable": seat.is_self_bookable, "allows_free_booking": seat.allows_free_booking,
+        "is_virtual": seat.meeting_external_id is not None,
     }  # fmt: skip
 
 
@@ -1907,6 +1910,76 @@ def update_session(session: Db, principal: Principal, session_id: UUID, data: di
     audit.record(session, SESSION, seat, location_id=seat.location_id, changes=audit.diff(seat))
     session.flush()
     return _session_views(session, [seat])[0]
+
+
+# --- virtual sessions (CLS-08, SSP-18) ----------------------------------------------------------------------
+
+JOIN_EARLY = timedelta(minutes=15)
+
+
+def _meeting_view(seat: Session, booking: Booking) -> dict:
+    return {
+        "session_id": seat.id, "is_virtual": seat.meeting_external_id is not None, "provider": seat.meeting_provider,
+        "join_url": seat.meeting_join_url, "host_url": seat.meeting_host_url, "opens_at": booking.starts_at - JOIN_EARLY,
+        "closes_at": booking.ends_at,
+    }  # fmt: skip
+
+
+def get_session_meeting(session: Db, principal: Principal, session_id: UUID) -> dict:
+    """Staff see the meeting links on the session; they never appear in listing or public responses."""
+    seat = _load(session, principal, Session, session_id)
+    authorize(principal, READ, location_id=seat.location_id)
+    return _meeting_view(seat, session.get(Booking, seat.booking_id))
+
+
+def create_session_meeting(session: Db, principal: Principal, session_id: UUID) -> dict:
+    """Make a session virtual: a meeting through the video port (the simulated adapter in v1). Idempotent."""
+    seat = _load(session, principal, Session, session_id, lock=True)
+    booking = session.get(Booking, seat.booking_id)
+    _authorize(
+        session, principal, SESSION, seat.location_id, _resource_ids(session, booking), booking.reservation_type_id
+    )
+    if booking.status == "cancelled":
+        raise Conflict("A cancelled session cannot get a meeting.", code="invalid-state-transition")
+    if seat.meeting_external_id is None:
+        adapter = video_meeting.get()
+        minutes = int((booking.ends_at - booking.starts_at).total_seconds() // 60)
+        meeting = adapter.create_meeting(
+            topic=booking.public_title or booking.title, starts_at=booking.starts_at, minutes=minutes,
+            host_user_id=str(principal.staff_user_id or ""),
+        )  # fmt: skip
+        seat.meeting_provider, seat.meeting_external_id = adapter.name, meeting.external_meeting_id
+        seat.meeting_join_url, seat.meeting_host_url = meeting.join_url, meeting.host_start_url
+        audit.record(session, SESSION, seat, location_id=seat.location_id, changes={"is_virtual": [False, True]})
+        session.flush()
+    return _meeting_view(seat, booking)
+
+
+def _drop_meeting(seat: Session) -> None:
+    if seat.meeting_external_id is not None:
+        video_meeting.get().delete_meeting(seat.meeting_external_id)
+        seat.meeting_provider = seat.meeting_external_id = seat.meeting_join_url = seat.meeting_host_url = None
+
+
+def delete_session_meeting(session: Db, principal: Principal, session_id: UUID) -> None:
+    seat = _load(session, principal, Session, session_id, lock=True)
+    booking = session.get(Booking, seat.booking_id)
+    _authorize(
+        session, principal, SESSION, seat.location_id, _resource_ids(session, booking), booking.reservation_type_id
+    )
+    if seat.meeting_external_id is not None:
+        _drop_meeting(seat)
+        audit.record(session, SESSION, seat, location_id=seat.location_id, changes={"is_virtual": [True, False]})
+        session.flush()
+
+
+def meeting_for(session: Db, session_id: UUID) -> dict | None:
+    """Internal (programs' portal join route): the meeting of a live virtual session, with its join window."""
+    seat = session.get(Session, session_id)
+    if seat is None or seat.meeting_external_id is None:
+        return None
+    booking = session.get(Booking, seat.booking_id)
+    return _meeting_view(seat, booking) | {"status": booking.status}
 
 
 def change_capacity(session: Db, principal: Principal, session_ids: list[UUID], capacity: int) -> dict:

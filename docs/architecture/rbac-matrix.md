@@ -281,6 +281,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `rentals.rental_plan.share` | L | | | Y | Y | - | - | - | - | - | RNT-10, FAM-06 |
 | `rentals.rental_plan.remove` | L | D | | Y | Y | - | - | - | - | - | RNT-11 |
 | `rentals.locker_rental.manage` | L | | | Y | Y | Y | - | - | - | - | RNT-17, RNT-18 |
+| `rentals.portal_setting.manage` | L | | | Y | Y | - | - | - | - | - | SSP-04 |
 | `rentals.public_listing.publish` | L | | | Y | Y | - | - | Y | - | - | RNT-13 |
 
 ### 6.5 clients

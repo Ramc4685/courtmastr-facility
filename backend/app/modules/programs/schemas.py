@@ -322,6 +322,11 @@ class RegistrationConfigPut(In):
     public_slug: Annotated[str, StringConstraints(max_length=80)] | None = None
     portal_publish_name: Name | None = None
     allows_guest_checkout: bool | None = None  # REG-12: off by default
+    # REG-10 (decision Q5): deposit now (each fee's deposit_minor), balance on a date or in equal instalments
+    payment_plan: Literal["pay_in_full", "deposit", "instalments"] | None = None
+    balance_due_on: date | None = None
+    instalment_count: Annotated[int, Field(ge=2, le=24)] | None = None
+    instalment_unit: Literal["week", "half_month", "month"] | None = None
 
 
 class RegistrationConfigOut(Out):
@@ -339,6 +344,10 @@ class RegistrationConfigOut(Out):
     portal_publish_name: str | None
     portal_published_at: datetime | None
     allows_guest_checkout: bool
+    payment_plan: str
+    balance_due_on: date | None
+    instalment_count: int | None
+    instalment_unit: str | None
 
 
 # --- public listing (anonymous) -----------------------------------------------------------------------------
@@ -349,6 +358,7 @@ class PublicFee(Out):
     fee_kind: str
     description: str
     amount_minor: int
+    deposit_minor: int | None = None  # REG-10: paid at checkout when the group has a payment plan
 
 
 class PublicProgramGroup(Out):
@@ -364,6 +374,10 @@ class PublicProgramGroup(Out):
     confirmation_message: str | None
     closed_message: str | None
     allows_guest_checkout: bool  # REG-12: a guest may check out without an account
+    payment_plan: str = "pay_in_full"
+    balance_due_on: date | None = None
+    instalment_count: int | None = None
+    instalment_unit: str | None = None
     fees: list[PublicFee]
     children: list["PublicProgramGroup"]
 
@@ -472,6 +486,13 @@ class PortalCheckoutOut(Out):
     completed_at: datetime | None
     missing_documents: list[PortalMissingDocument]
     items: list[PortalCheckoutItem]
+    due_now_minor: int = 0  # REG-10: what checkout charges (before tax) when a group has a payment plan
+    instalments: list["PortalInstalment"] = []
+
+
+class PortalInstalment(Out):
+    due_on: date
+    amount_minor: int
 
 
 # --- guest checkout (REG-12, phase-11 Q6): anonymous, its own schemas ------------------------------------------
@@ -602,6 +623,17 @@ class PortalSessionListing(Out):
     is_bookable: bool
     can_join_waitlist: bool
     reason: str | None
+    reservation_type_id: UUID | None = None  # SSP-08: which online package plans cover it
+    is_virtual: bool = False  # SSP-18: the join link comes from getPortalSessionJoinLink, never from here
+
+
+class PortalJoinLinkOut(Out):
+    """SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one."""
+
+    session_id: UUID
+    join_url: str
+    opens_at: datetime
+    closes_at: datetime
 
 
 class PortalEnrollmentCreate(In):

@@ -169,3 +169,19 @@ captain rosters (REG-26).
   group with a blocking online document refuses guests (409 `guest-documents-required`). **Limit:** 3-D Secure
   cards fail for guests, since `secure_online_checkout` cancels a payment that needs action.
 - Rate limit bucket `guest-checkout` (20 per 15 minutes per IP, closed on Redis failure).
+## Phase 11 B: virtual sessions, buy and book, deposits and instalments
+
+- Join link (SSP-18): `GET /portal/sessions/{id}/join-link` returns the meeting link only to the identity's own
+  enrolment or one it acts for (household guardian), from 15 minutes before the start to the end. Not virtual, not
+  enrolled or not confirmed: 404; outside the window: 409 `join-not-open` with `opens_at` and `closes_at`. Listings
+  carry `is_virtual` and `reservation_type_id` but never the link.
+- Buy and book (SSP-08): the web flow buys an online-sellable package plan whose `reservation_type_id` matches the
+  session's, then books the session with it. Assumption: "covering" means that match; the plans' own online flags
+  decide what is offered. Two calls, each idempotent; a failed booking leaves the bought package in place.
+- Payment plans (REG-10, decision Q5): a group's registration config may set `payment_plan` = `deposit` (each fee's
+  `deposit_minor` now, the rest on `balance_due_on`) or `instalments` (the rest in `instalment_count` equal parts
+  every `instalment_unit` from `balance_due_on`). Rules we chose: a plan needs `immediate_card_payment`; the deposit
+  is the first row of the invoice's payment schedule and tax is paid with it; dates already past fall due today;
+  no pay-later and no coupon with a plan; the card is saved as the autopay method so billing's autopay collects the
+  instalments, and a payer without a new card must already have an autopay method. Staff checkout ignores plans
+  (staff invoice in full and may set a schedule by hand).

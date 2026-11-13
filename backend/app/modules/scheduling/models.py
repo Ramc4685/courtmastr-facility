@@ -449,6 +449,11 @@ class Session(TenantOwned, Timestamps, Base):
         CheckConstraint("booked_count >= 0 AND booked_count <= capacity", name="booked_within_capacity"),
         CheckConstraint("capacity >= 0", name="capacity"),
         CheckConstraint("(slot_offer_id IS NULL) = (slot_starts_at IS NULL)", name="slot"),
+        CheckConstraint(
+            "(meeting_external_id IS NULL) = (meeting_provider IS NULL) AND (meeting_external_id IS NULL) = "
+            "(meeting_join_url IS NULL) AND (meeting_external_id IS NULL) = (meeting_host_url IS NULL)",
+            name="meeting",
+        ),
         Index(
             "uq_session_slot", "tenant_id", "slot_offer_id", "slot_starts_at", unique=True,
             postgresql_where=text("slot_offer_id IS NOT NULL"),
@@ -468,6 +473,11 @@ class Session(TenantOwned, Timestamps, Base):
     direct_link_token: Mapped[str] = mapped_column(info={"audit": "never"})
     slot_offer_id: Mapped[UUID | None]
     slot_starts_at: Mapped[datetime | None]
+    # CLS-08: a virtual session's meeting (ports.video_meeting). The links are credentials: never audited by value.
+    meeting_provider: Mapped[str | None]
+    meeting_external_id: Mapped[str | None] = mapped_column(info={"audit": "never"})
+    meeting_join_url: Mapped[str | None] = mapped_column(info={"audit": "never"})
+    meeting_host_url: Mapped[str | None] = mapped_column(info={"audit": "never"})
 
 
 class ReservationTypeGrant(TenantOwned, Timestamps, Base):

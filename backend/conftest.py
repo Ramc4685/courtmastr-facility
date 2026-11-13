@@ -285,6 +285,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
+    space |= _populate_share_link(tenant, person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_program_forms(client, headers, post, tenant, location["id"])
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
@@ -408,6 +409,20 @@ def _populate_reporting(post, location_id) -> dict:
     run = post("/report-runs", {"report_key": "deposits", "saved_report_id": saved["id"]})
     export = post("/export-jobs", {"report_run_id": run["id"], "format": "csv"})
     return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"]}
+
+
+def _populate_share_link(tenant, client_id) -> dict:
+    """Phase 11 B (FIT-05): a progress share link. Portal-only to create, so written directly."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.modules.assessments.models import ProgressShareLink
+
+    with tenant_session(tenant.id) as session:
+        expires = datetime.now(UTC) + timedelta(days=7)
+        link = ProgressShareLink(client_id=client_id, token_hash=uuid4().hex, expires_at=expires)
+        session.add(link)
+        session.flush()
+        return {"progress_share_link_id": str(link.id)}
 
 
 def _populate_assessments(client, headers, post, location_id, client_id) -> dict:
@@ -937,6 +952,9 @@ def _populate_rentals(client, headers, post, location_id, client_id, court_id, c
     })  # fmt: skip
     put = client.patch(f"/api/v1/rental-types/{rtype['id']}", headers=headers, json={"rental_plan_ids": [plan["id"]]})
     assert put.status_code == 200, put.text
+    settings = {"is_online_enabled": True, "min_lead_min": 60, "max_length_min": 240, "horizon_days": 60}
+    put = client.put(f"/api/v1/locations/{location_id}/rental-portal-settings", headers=headers, json=settings)
+    assert put.status_code == 200, put.text  # Phase 11 B (SSP-04)
     other = new_client(client, headers, location_id)
     rental = post("/rentals", {
         "location_id": location_id, "rental_type_id": rtype["id"], "client_id": client_id,

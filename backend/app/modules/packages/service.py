@@ -1220,6 +1220,7 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     clients.terms.acknowledge(session, client_id=subject, terms_version_id=data.pop("terms_version_id", None),
                               sale_kind="package", subject_id=data["package_plan_id"])  # fmt: skip
     token = data.pop("method_token", None)
+    method_id = data.pop("payment_method_id", None)
     tender = data.pop("tender_kind", "card")
     coupon = data.pop("coupon_code", None)
     plan = session.get(PackagePlan, data["package_plan_id"])
@@ -1229,8 +1230,9 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     package, invoice = sold["package"], sold["invoice"]
     sold["payment"] = billing.checkout.secure_online_checkout(
         session, client_id=subject, location_id=package.location_id, total_minor=package.price_minor,
-        invoice=invoice, idempotency_key=idempotency_key, method_token=token, tender_kind=tender,
-        must_pay_now=True, on_account_ok=plan.online_sale_mode == "balance_allowed", coupon_code=coupon,
+        invoice=invoice, idempotency_key=idempotency_key, method_token=token, payment_method_id=method_id,
+        tender_kind=tender, must_pay_now=True, on_account_ok=plan.online_sale_mode == "balance_allowed",
+        coupon_code=coupon,
     )  # fmt: skip
     return _sale_view(session, sold)
 

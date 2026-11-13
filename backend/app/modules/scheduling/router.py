@@ -292,6 +292,24 @@ def update_session(schedule_session_id: UUID, body: s.SessionUpdate, ctx: Ctx = 
     return service.update_session(ctx.session, ctx.principal, schedule_session_id, body.model_dump(exclude_none=True))
 
 
+@router.get("/sessions/{schedule_session_id}/meeting", response_model=s.SessionMeetingOut)
+def get_session_meeting(schedule_session_id: UUID, ctx: Ctx = Read):
+    """CLS-08: the meeting links of a virtual session (staff only)."""
+    return service.get_session_meeting(ctx.session, ctx.principal, schedule_session_id)
+
+
+@router.put("/sessions/{schedule_session_id}/meeting", response_model=s.SessionMeetingOut)
+def create_session_meeting(schedule_session_id: UUID, ctx: Ctx = Depends(require(service.SESSION))):
+    """Make the session virtual (a meeting through the video port). Idempotent."""
+    return service.create_session_meeting(ctx.session, ctx.principal, schedule_session_id)
+
+
+@router.delete("/sessions/{schedule_session_id}/meeting", status_code=204)
+def delete_session_meeting(schedule_session_id: UUID, ctx: Ctx = Depends(require(service.SESSION))):
+    service.delete_session_meeting(ctx.session, ctx.principal, schedule_session_id)
+    return Response(status_code=204)
+
+
 # --- slot offers -------------------------------------------------------------------------------------------
 
 

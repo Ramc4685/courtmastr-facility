@@ -1,39 +1,241 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { api } from '../../api/client'
+import { api, ApiError, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
+import { Dialog } from '../../components/Dialog'
 import { Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { formatDateTime } from '../../lib/format'
 import { programError, REASON_TEXT } from '../programs/queries'
-import { clientName, usePortalClients } from './shared'
+import { addDays, addMonths, formatDay, formatMonth, formatTime, startOfMonth, startOfWeek, toInstant, today, zoned, zoneLabel } from '../scheduling/time'
+import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { clientName, LocationPicker, PaymentOutcome, useAttemptKey, usePortal, usePortalClients } from './shared'
 
-/** Bookable sessions with the reason when one is not, plus the client's own bookings and waitlists. */
+type Listing = Schemas['PortalSessionListing']
+type View = 'list' | 'week' | 'month'
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+/** The days a week or month view covers: whole weeks, Monday first, from `from` up to (not including) `to`. */
+function period(view: View, anchor: string) {
+  if (view === 'week') {
+    const from = startOfWeek(anchor)
+    return { from, to: addDays(from, 7), title: `${formatDay(from, 'short')} to ${formatDay(addDays(from, 6), 'short')}` }
+  }
+  const first = startOfMonth(anchor)
+  return { from: startOfWeek(first), to: addDays(startOfWeek(addDays(addMonths(first, 1), -1)), 7), title: formatMonth(first) }
+}
+
+const days = (from: string, to: string) => {
+  const out: string[] = []
+  for (let d = from; d < to; d = addDays(d, 1)) out.push(d)
+  return out
+}
+
+/** Week and month views (SSP-12): a table of days, one button per session, times in the location's zone. Every
+ * session is a real button in reading order, so Tab and Enter reach all of them. */
+function Calendar({ view, anchor, zone, listings, onPick }: { view: 'week' | 'month'; anchor: string; zone: string; listings: Listing[]; onPick: (l: Listing) => void }) {
+  const p = period(view, anchor)
+  const all = days(p.from, p.to)
+  const byDay = new Map<string, Listing[]>()
+  for (const l of listings) {
+    const d = zoned(l.starts_at, zone).date
+    byDay.set(d, [...(byDay.get(d) ?? []), l])
+  }
+  const now = today(zone)
+  const month = anchor.slice(0, 7)
+  const weeks: string[][] = []
+  for (let i = 0; i < all.length; i += 7) weeks.push(all.slice(i, i + 7))
+  const cell = (d: string) => (
+    <td key={d} className={`h-24 min-w-[7rem] border border-border p-1.5 align-top ${view === 'month' && d.slice(0, 7) !== month ? 'bg-surface-2' : ''}`} aria-current={d === now ? 'date' : undefined}>
+      {view === 'month' && <span className={`block text-xs ${d === now ? 'font-semibold text-primary' : 'text-muted'}`}>{Number(d.slice(8))}</span>}
+      <ul className="mt-1 space-y-1">
+        {(byDay.get(d) ?? []).map((l) => (
+          <li key={l.session_id}>
+            <Button
+              size="sm"
+              variant={l.is_bookable ? 'secondary' : 'ghost'}
+              className="w-full justify-start text-left"
+              aria-label={`${formatTime(l.starts_at, zone)} ${l.title ?? 'Session'}, ${formatDay(d)}${l.is_virtual ? ', virtual' : ''}${l.is_bookable ? '' : ', not bookable'}`}
+              onClick={() => onPick(l)}
+            >
+              <span className="truncate">
+                {formatTime(l.starts_at, zone)} {l.title ?? 'Session'}
+              </span>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </td>
+  )
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full table-fixed border-collapse text-sm">
+        <caption className="sr-only">
+          Sessions, {p.title}, times in {zoneLabel(zone)}
+        </caption>
+        <thead>
+          <tr>
+            {(view === 'week' ? all : WEEKDAYS).map((d) => (
+              <th key={d} scope="col" className="border border-border p-1.5 text-left text-xs font-medium text-muted">
+                {view === 'week' ? formatDay(d, 'short') : d}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((w) => (
+            <tr key={w[0]}>{w.map(cell)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** SSP-08: the online-sellable package plans that cover the session; buy one, then book with it. A booking that
+ * fails after the sale leaves the package with the client, and the screen says so. */
+function BuyAndBookDialog({ listing, clientId, onClose }: { listing: Listing; clientId: string; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { money, zoneOf } = usePortal()
+  const plans = useQuery({ queryKey: ['portal', 'package-plans', clientId], queryFn: () => api.get('/api/v1/portal/package-plans', { query: { client_id: clientId, limit: 100 } }) })
+  const covering = (plans.data?.data ?? []).filter((p) => p.is_purchasable && p.reservation_type_id === listing.reservation_type_id)
+  const [planId, setPlanId] = useState('')
+  const plan = covering.find((p) => p.id === planId) ?? covering[0]
+  const pay = usePaymentChoice(clientId)
+  const attempt = useAttemptKey()
+  const paid = (plan?.fee_minor ?? 0) > 0
+  const run = useMutation({
+    mutationFn: async () => {
+      const sale = await api.post('/api/v1/portal/client-packages', {
+        body: { client_id: clientId, package_plan_id: plan?.id ?? '', location_id: listing.location_id, ...(paid ? pay.body : {}), tender_kind: 'card' },
+        idempotencyKey: attempt.key,
+      })
+      try {
+        await api.post('/api/v1/portal/enrollments', { body: { client_id: clientId, session_id: listing.session_id, client_package_id: sale.id } })
+        return { sale, failure: null }
+      } catch (e) {
+        return { sale, failure: programError(e) }
+      }
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
+    onError: attempt.settle,
+  })
+  const when = formatDateTime(listing.starts_at, zoneOf(listing.location_id))
+  const out = run.data
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Buy a package and book"
+      description={`${listing.title ?? 'Session'}, ${when}.`}
+      footer={
+        out ? (
+          <Button onClick={onClose}>Done</Button>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button disabled={!plan || (paid && !pay.ready)} loading={run.isPending} onClick={() => run.mutate()}>
+              {plan && paid ? `Pay ${money(plan.fee_minor)} and book` : 'Get it and book'}
+            </Button>
+          </>
+        )
+      }
+    >
+      {out ? (
+        <div className="space-y-3">
+          <PaymentOutcome status={out.sale.payment_status} done={`${out.sale.name} is yours.`} />
+          {out.failure ? (
+            <p role="alert" className="rounded border border-warning/40 bg-warning/10 px-3 py-2">
+              Your package was bought, but the booking did not go through: {out.failure} The package is yours to use.
+            </p>
+          ) : (
+            <p role="status">Booked: {listing.title ?? 'Session'} on {when}.</p>
+          )}
+        </div>
+      ) : plans.isPending ? (
+        <LoadingState />
+      ) : plans.isError ? (
+        <ErrorState error={plans.error} />
+      ) : !plan ? (
+        <EmptyState title="No package for this session is sold online">Ask the front desk to book it for you.</EmptyState>
+      ) : (
+        <div className="space-y-4">
+          <p>This session is paid for with a package. Buy one and we book the session with it straight away.</p>
+          <Select label="Package" value={plan.id} onChange={(e) => setPlanId(e.target.value)} options={covering.map((p) => ({ value: p.id, label: `${p.name}, ${(p.fee_minor ?? 0) > 0 ? money(p.fee_minor) : 'free'}` }))} />
+          {run.error && (
+            <p role="alert" className="text-danger">
+              {programError(run.error)}
+            </p>
+          )}
+          {paid && <PaymentChoice choice={pay} />}
+        </div>
+      )}
+    </Dialog>
+  )
+}
+
+/** Bookable sessions as a list or a week or month calendar, with the reason when one is not bookable, plus the
+ * client's own bookings (with Join for virtual ones) and waitlists. */
 export function PortalSessions() {
   const qc = useQueryClient()
   const toast = useToast()
+  const { actingFor, zoneOf, locations } = usePortal()
   const clients = usePortalClients()
   const [picked, setPicked] = useState('')
   const people = clients.data?.data ?? []
-  const clientId = picked || people[0]?.id || ''
+  const clientId = picked || actingFor.id
   const names = new Map(people.map((c) => [c.id, clientName(c)]))
-  const listings = useQuery({ queryKey: ['portal', 'listings', clientId], queryFn: () => api.get('/api/v1/portal/session-listings', { query: { client_id: clientId } }), enabled: Boolean(clientId) })
+  const [view, setView] = useState<View>('list')
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? '')
+  const zone = zoneOf(locationId) ?? 'UTC'
+  const [anchor, setAnchor] = useState(() => today(zone))
+  const [selected, setSelected] = useState<Listing | null>(null)
+  const [buying, setBuying] = useState<Listing | null>(null)
+  const [joinNote, setJoinNote] = useState<Record<string, string>>({})
+  const range = view === 'list' ? null : period(view, anchor)
+  const listings = useQuery({ queryKey: ['portal', 'listings', clientId], queryFn: () => api.get('/api/v1/portal/session-listings', { query: { client_id: clientId } }) })
+  const calendar = useQuery({
+    queryKey: ['portal', 'listings', clientId, locationId, range?.from, range?.to],
+    queryFn: () =>
+      api.get('/api/v1/portal/session-listings', {
+        query: { client_id: clientId, location_id: locationId || undefined, 'starts_at[gte]': range ? toInstant(range.from, 0, zone) : undefined, 'starts_at[lt]': range ? toInstant(range.to, 0, zone) : undefined },
+      }),
+    enabled: Boolean(range),
+  })
+  const packages = useQuery({ queryKey: ['portal', 'session-packages', clientId], queryFn: () => api.get('/api/v1/portal/client-packages', { query: { client_id: clientId, limit: 100 } }) })
+  const plans = useQuery({ queryKey: ['portal', 'package-plans', clientId], queryFn: () => api.get('/api/v1/portal/package-plans', { query: { client_id: clientId, limit: 100 } }) })
   const enrollments = useQuery({ queryKey: ['portal', 'enrollments'], queryFn: () => api.get('/api/v1/portal/enrollments', { query: { limit: 100 } }) })
   const waitlist = useQuery({ queryKey: ['portal', 'waitlist'], queryFn: () => api.get('/api/v1/portal/waitlist-entries') })
-  const titles = new Map((listings.data ?? []).map((l) => [l.session_id, `${l.title ?? 'Session'}, ${formatDateTime(l.starts_at)}`]))
+  const known = new Map([...(listings.data ?? []), ...(calendar.data ?? [])].map((l) => [l.session_id, l]))
+  const titleOf = (id: string | null) => {
+    const l = id ? known.get(id) : undefined
+    return l ? `${l.title ?? 'Session'}, ${formatDateTime(l.starts_at, zoneOf(l.location_id))}` : 'Session'
+  }
   const refresh = () => void qc.invalidateQueries({ queryKey: ['portal'] })
   const fail = (e: unknown) => toast('error', programError(e))
+  // A package the client can spend on this kind of session; booking sends it, since a package-paid session refuses none.
+  const usable = (typeId: string | null | undefined) =>
+    (packages.data?.data ?? []).find((p) => p.status === 'active' && p.reservation_type_id === typeId && (p.is_unlimited || (p.sessions_available_count ?? 0) > 0))
+  const sellable = (typeId: string | null | undefined) => (plans.data?.data ?? []).some((p) => p.is_purchasable && p.reservation_type_id === typeId)
 
   const book = useMutation({
-    mutationFn: (sessionId: string) => api.post('/api/v1/portal/enrollments', { body: { client_id: clientId, session_id: sessionId } }),
+    mutationFn: (l: Listing) => api.post('/api/v1/portal/enrollments', { body: { client_id: clientId, session_id: l.session_id, client_package_id: usable(l.reservation_type_id)?.id ?? null } }),
     onSuccess: () => {
       refresh()
+      setSelected(null)
       toast('success', 'Booked.')
     },
-    onError: fail,
+    onError: (e, l) => {
+      if (e instanceof ApiError && e.code === 'entitlement-not-eligible') {
+        setSelected(null)
+        setBuying(l)
+      } else fail(e)
+    },
   })
   const cancel = useMutation({
     mutationFn: (id: string) => api.post('/api/v1/portal/enrollments/{enrollment_id}/cancel', { path: { enrollment_id: id } }),
@@ -47,6 +249,7 @@ export function PortalSessions() {
     mutationFn: (sessionId: string) => api.post('/api/v1/portal/waitlist-entries', { body: { client_id: clientId, session_id: sessionId } }),
     onSuccess: () => {
       refresh()
+      setSelected(null)
       toast('success', 'You are on the waitlist.')
     },
     onError: fail,
@@ -67,6 +270,57 @@ export function PortalSessions() {
     },
     onError: fail,
   })
+  // SSP-18: the link is fetched on demand and opened, never shown on the page.
+  const meet = useMutation({
+    mutationFn: (sessionId: string) => api.get('/api/v1/portal/sessions/{schedule_session_id}/join-link', { path: { schedule_session_id: sessionId } }),
+    onSuccess: (link) => {
+      setJoinNote((n) => ({ ...n, [link.session_id]: '' }))
+      window.open(link.join_url, '_blank', 'noopener,noreferrer')
+    },
+    onError: (e, sessionId) => {
+      const l = known.get(sessionId)
+      const opens = e instanceof ApiError && e.code === 'join-not-open' && typeof e.problem.opens_at === 'string' ? e.problem.opens_at : null
+      setJoinNote((n) => ({ ...n, [sessionId]: opens ? `Opens at ${formatDateTime(opens, zoneOf(l?.location_id))}.` : programError(e) }))
+    },
+  })
+
+  const actions = (l: Listing) => {
+    const when = formatDateTime(l.starts_at, zoneOf(l.location_id))
+    const offerPackage = l.is_bookable && !usable(l.reservation_type_id) && sellable(l.reservation_type_id)
+    return (
+      <span className="flex flex-wrap gap-2">
+        {l.is_bookable && (
+          <Button size="sm" aria-label={`Book ${l.title ?? 'session'} on ${when}`} loading={book.isPending && book.variables?.session_id === l.session_id} onClick={() => book.mutate(l)}>
+            Book
+          </Button>
+        )}
+        {offerPackage && (
+          <Button size="sm" variant="secondary" aria-label={`Buy a package and book ${l.title ?? 'session'} on ${when}`} onClick={() => setBuying(l)}>
+            Buy a package and book
+          </Button>
+        )}
+        {l.can_join_waitlist && (
+          <Button size="sm" variant="secondary" aria-label={`Join the waitlist for ${l.title ?? 'session'} on ${when}`} loading={join.isPending && join.variables === l.session_id} onClick={() => join.mutate(l.session_id)}>
+            Join waitlist
+          </Button>
+        )}
+      </span>
+    )
+  }
+  const summary = (l: Listing) => (
+    <span>
+      <span className="flex flex-wrap items-center gap-2 font-medium">
+        {l.title ?? 'Session'} {l.is_virtual && <Badge tone="info">Virtual</Badge>}
+      </span>
+      <span className="text-sm text-muted">
+        {formatDateTime(l.starts_at, zoneOf(l.location_id))}
+        {l.spots_left !== null && ` · ${l.spots_left} left`}
+      </span>
+      {l.reason && <span className="block text-sm text-muted">{REASON_TEXT[l.reason] ?? l.reason}</span>}
+    </span>
+  )
+  const shown = view === 'list' ? listings : calendar
+  const step = (n: number) => setAnchor(view === 'week' ? addDays(anchor, 7 * n) : addMonths(anchor, n))
 
   const mine = (enrollments.data?.data ?? []).filter((e) => e.status === 'enrolled' && e.target_kind === 'session')
   const queued = (waitlist.data ?? []).filter((w) => w.status === 'waiting' || w.status === 'offered')
@@ -77,36 +331,48 @@ export function PortalSessions() {
         {people.length > 1 && <Select className="w-64" label="Booking for" value={clientId} onChange={(e) => setPicked(e.target.value)} options={people.map((c) => ({ value: c.id, label: clientName(c) }))} />}
 
         <Card title="Available sessions">
-          {listings.isPending && clientId ? (
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div role="group" aria-label="View" className="flex gap-1">
+              {(['list', 'week', 'month'] as const).map((v) => (
+                <Button key={v} size="sm" variant={view === v ? 'primary' : 'secondary'} aria-pressed={view === v} onClick={() => setView(v)}>
+                  {v === 'list' ? 'List' : v === 'week' ? 'Week' : 'Month'}
+                </Button>
+              ))}
+            </div>
+            {range && (
+              <div className="flex flex-wrap items-end gap-2">
+                <LocationPicker value={locationId} onChange={setLocationId} />
+                <Button size="sm" variant="secondary" aria-label={view === 'week' ? 'Previous week' : 'Previous month'} onClick={() => step(-1)}>
+                  Previous
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setAnchor(today(zone))}>
+                  Today
+                </Button>
+                <Button size="sm" variant="secondary" aria-label={view === 'week' ? 'Next week' : 'Next month'} onClick={() => step(1)}>
+                  Next
+                </Button>
+              </div>
+            )}
+          </div>
+          {range && (
+            <h3 className="mb-2 font-semibold" aria-live="polite">
+              {range.title} <span className="text-sm font-normal text-muted">· times in {zoneLabel(zone)}</span>
+            </h3>
+          )}
+          {shown.isPending ? (
             <LoadingState />
-          ) : listings.isError ? (
-            <ErrorState error={listings.error} onRetry={() => void listings.refetch()} />
-          ) : (listings.data ?? []).length === 0 ? (
+          ) : shown.isError ? (
+            <ErrorState error={shown.error} onRetry={() => void shown.refetch()} />
+          ) : view !== 'list' ? (
+            <Calendar view={view} anchor={anchor} zone={zone} listings={shown.data} onPick={setSelected} />
+          ) : shown.data.length === 0 ? (
             <EmptyState title="No sessions are open for booking">New sessions appear here when they are scheduled.</EmptyState>
           ) : (
             <ul className="divide-y divide-border" aria-label="Available sessions">
-              {(listings.data ?? []).map((l) => (
+              {shown.data.map((l) => (
                 <li key={l.session_id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span>
-                    <span className="block font-medium">{l.title ?? 'Session'}</span>
-                    <span className="text-sm text-muted">
-                      {formatDateTime(l.starts_at)}
-                      {l.spots_left !== null && ` · ${l.spots_left} left`}
-                    </span>
-                    {l.reason && <span className="block text-sm text-muted">{REASON_TEXT[l.reason] ?? l.reason}</span>}
-                  </span>
-                  <span className="flex gap-2">
-                    {l.is_bookable && (
-                      <Button size="sm" aria-label={`Book ${l.title ?? 'session'} on ${formatDateTime(l.starts_at)}`} loading={book.isPending && book.variables === l.session_id} onClick={() => book.mutate(l.session_id)}>
-                        Book
-                      </Button>
-                    )}
-                    {l.can_join_waitlist && (
-                      <Button size="sm" variant="secondary" aria-label={`Join the waitlist for ${l.title ?? 'session'} on ${formatDateTime(l.starts_at)}`} loading={join.isPending && join.variables === l.session_id} onClick={() => join.mutate(l.session_id)}>
-                        Join waitlist
-                      </Button>
-                    )}
-                  </span>
+                  {summary(l)}
+                  {actions(l)}
                 </li>
               ))}
             </ul>
@@ -120,17 +386,35 @@ export function PortalSessions() {
             <p className="text-muted">You have no upcoming bookings.</p>
           ) : (
             <ul className="divide-y divide-border" aria-label="Your bookings">
-              {mine.map((e) => (
-                <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <span>
-                    <span className="block font-medium">{(e.session_id && titles.get(e.session_id)) || 'Session'}</span>
-                    <span className="text-sm text-muted">{names.get(e.client_id)}</span>
-                  </span>
-                  <Button size="sm" variant="secondary" aria-label={`Cancel booking for ${names.get(e.client_id) ?? 'client'}`} loading={cancel.isPending && cancel.variables === e.id} onClick={() => cancel.mutate(e.id)}>
-                    Cancel
-                  </Button>
-                </li>
-              ))}
+              {mine.map((e) => {
+                const l = e.session_id ? known.get(e.session_id) : undefined
+                const note = e.session_id ? joinNote[e.session_id] : ''
+                return (
+                  <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span>
+                      <span className="flex flex-wrap items-center gap-2 font-medium">
+                        {titleOf(e.session_id)} {l?.is_virtual && <Badge tone="info">Virtual</Badge>}
+                      </span>
+                      <span className="text-sm text-muted">{names.get(e.client_id)}</span>
+                      {note && (
+                        <span role="status" className="block text-sm">
+                          {note}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex gap-2">
+                      {l?.is_virtual && e.session_id && (
+                        <Button size="sm" aria-label={`Join ${l.title ?? 'session'} online`} loading={meet.isPending && meet.variables === e.session_id} onClick={() => meet.mutate(e.session_id ?? '')}>
+                          Join
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" aria-label={`Cancel booking for ${names.get(e.client_id) ?? 'client'}`} loading={cancel.isPending && cancel.variables === e.id} onClick={() => cancel.mutate(e.id)}>
+                        Cancel
+                      </Button>
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Card>
@@ -146,7 +430,7 @@ export function PortalSessions() {
                 <li key={w.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <span>
                     <span className="block font-medium">
-                      {(w.session_id && titles.get(w.session_id)) || 'Program waitlist'} {w.status === 'offered' && <Badge tone="success">A place is offered</Badge>}
+                      {w.session_id ? titleOf(w.session_id) : 'Program waitlist'} {w.status === 'offered' && <Badge tone="success">A place is offered</Badge>}
                     </span>
                     <span className="text-sm text-muted">
                       {names.get(w.client_id)}
@@ -170,6 +454,15 @@ export function PortalSessions() {
           )}
         </Card>
       </div>
+      {selected && (
+        <Dialog open onClose={() => setSelected(null)} title={selected.title ?? 'Session'} footer={<Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>}>
+          <div className="space-y-4">
+            {summary(selected)}
+            {actions(selected)}
+          </div>
+        </Dialog>
+      )}
+      {buying && <BuyAndBookDialog listing={buying} clientId={clientId} onClose={() => setBuying(null)} />}
     </>
   )
 }

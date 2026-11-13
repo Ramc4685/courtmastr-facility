@@ -191,3 +191,51 @@ def test_portal_group_waitlist_needs_a_full_program_and_a_fee_and_is_not_auto_pr
     waiting = ok(client.get(join, headers=portal), 200)
     assert [(e["id"], e["status"]) for e in waiting] == [(entry["id"], "waiting")]  # staff promote it by hand
     assert group_of(client, owner, camp["id"])["enrolled_count"] == 0
+
+
+def test_reg_10_deposit_and_instalment_plans(client, owner, tenant, f, mailbox):
+    """REG-10 (phase 11 B, decision Q5): a group's plan takes the deposit now and schedules the rest on the
+    invoice, so autopay collects it; coupons and pay-later are refused, and a stored payer needs autopay."""
+    camp = program(client, owner, f)
+    fee = ok(client.post(f"{API}/program-groups/{camp['id']}/fees", headers=owner,
+                         json={"description": "Camp", "amount_minor": 9000, "deposit_minor": 3000}))  # fmt: skip
+    config = f"{API}/program-groups/{camp['id']}/registration-config"
+    base = {"is_enabled": True, "payment_requirement": "immediate_card_payment"}
+    bad = client.put(config, headers=owner, json=base | {"payment_plan": "instalments", "balance_due_on": "2031-06-01"})
+    assert (bad.status_code, bad.json()["code"]) == (422, "payment-plan-invalid")  # no count or unit
+    lax = client.put(config, headers=owner, json=base | {"payment_requirement": "pay_later_allowed",
+                                                         "payment_plan": "deposit", "balance_due_on": "2031-06-01"})  # fmt: skip
+    assert lax.status_code == 422
+    plan = {
+        "payment_plan": "instalments",
+        "balance_due_on": "2031-06-01",
+        "instalment_count": 3,
+        "instalment_unit": "month",
+    }
+    saved = ok(client.put(config, headers=owner, json=base | plan), 200)
+    assert saved["instalment_count"] == 3
+    ok(client.post(f"{API}/program-groups/{camp['id']}/publish", headers=owner), 200)
+    public = ok(client.get(f"{API}/public/program-groups", headers={"X-Tenant-Slug": tenant.slug}), 200)
+    [listed] = [g for g in public if g["id"] == camp["id"]]
+    assert listed["payment_plan"] == "instalments" and listed["fees"][0]["deposit_minor"] == 3000
+
+    person, portal = member(client, tenant, owner, f, mailbox)
+    cart = basket(client, portal, f, PORTAL)
+    cart = ok(add(client, portal, cart["id"], camp["id"], person["id"], PORTAL, program_fee_id=fee["id"]), 200)
+    assert cart["due_now_minor"] == 3000
+    assert [(i["due_on"], i["amount_minor"]) for i in cart["instalments"]] == [
+        ("2031-06-01", 2000), ("2031-07-01", 2000), ("2031-08-01", 2000)]  # fmt: skip
+    confirm = f"{API}/{PORTAL}/{cart['id']}/confirm"
+    later = client.post(confirm, headers=keyed(portal), json={"pay_later": True})
+    assert (later.status_code, later.json()["code"]) == (422, "pay-now-required")
+    stored = client.post(confirm, headers=keyed(portal), json={})  # no card given and no autopay method
+    assert stored.status_code == 422
+    paid = ok(client.post(confirm, headers=keyed(portal), json={"method_token": "tok_card_ok"}), 200)
+    assert paid["status"] == "completed"
+    bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
+    assert (bill["total_minor"], bill["balance_minor"], bill["status"]) == (9000, 6000, "partially_paid")
+    schedule = ok(client.get(f"{API}/invoices/{paid['invoice_id']}/payment-schedule", headers=owner), 200)
+    assert [(i["amount_minor"], i["covered_minor"]) for i in schedule["instalments"]] == [
+        (3000, 3000), (2000, 0), (2000, 0), (2000, 0)]  # fmt: skip
+    methods = ok(client.get(f"{API}/portal/payment-methods", headers=portal), 200)
+    assert any(m["is_autopay"] for m in methods)  # the card stays on file for the instalments

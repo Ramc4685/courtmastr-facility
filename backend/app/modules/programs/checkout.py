@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session as Db
 from app.core import audit, clock
 from app.core.auth import Principal, authorize, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
-from app.modules import billing, clients, documents
+from app.modules import billing, clients, documents, platform
 from app.modules.programs import groups
 from app.modules.programs.models import Enrollment, ProgramFee, ProgramGroup, RegistrationCheckout
 
@@ -63,6 +63,30 @@ def _missing(session: Db, checkout: RegistrationCheckout, items: list[Enrollment
     return missing
 
 
+def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment]) -> list[tuple]:
+    """REG-10 (decision Q5): what falls due after checkout under each group's payment plan, as (due_on, amount)
+    rows merged by date. A deposit plan leaves each fee's balance (fee less its deposit) on the balance date; an
+    instalment plan splits it into equal instalments from that date. Dates already passed fall due today."""
+    today = platform.service.location_today(session, checkout.location_id)
+    later: dict = {}
+    for row in items:
+        config = groups.config_for(session, row.program_group_id)
+        fee = session.get(ProgramFee, row.program_fee_id) if row.program_fee_id else None
+        if config is None or config.payment_plan == "pay_in_full" or fee is None:
+            continue
+        balance = fee.amount_minor - (fee.deposit_minor or 0)
+        if balance <= 0:
+            continue
+        start = max(config.balance_due_on, today)
+        if config.payment_plan == "deposit":
+            rows = [(start, balance)]
+        else:
+            rows = billing.service.equal_instalments(balance, start, config.instalment_unit, config.instalment_count)
+        for due_on, amount in rows:
+            later[due_on] = later.get(due_on, 0) + amount
+    return sorted(later.items())
+
+
 def view(session: Db, checkout: RegistrationCheckout) -> dict:
     items = _items(session, checkout, live=checkout.status != "completed")
     if checkout.status == "completed":
@@ -80,9 +104,13 @@ def view(session: Db, checkout: RegistrationCheckout) -> dict:
         }
         for r in items
     ]  # fmt: skip
+    later = _later(session, checkout, items) if checkout.status == "open" else []
+    total = sum(r["amount_minor"] for r in rows)
     return {c.key: getattr(checkout, c.key) for c in RegistrationCheckout.__table__.columns} | {
         "items": rows,
-        "total_minor": sum(r["amount_minor"] for r in rows),
+        "total_minor": total,
+        "due_now_minor": total - sum(amount for _, amount in later),  # before tax; tax is paid now
+        "instalments": [{"due_on": due_on, "amount_minor": amount} for due_on, amount in later],
         "missing_documents": _missing(session, checkout, items) if checkout.status == "open" else [],
     }
 
@@ -349,8 +377,17 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
     pay_later = bool(data.get("pay_later"))
     if pay_later and requirement in ("immediate_card_payment",):
         raise ValidationFailed("This program must be paid now.", pointer="/pay_later", code="pay-now-required")
+    later = _later(session, checkout, items)
+    if later:
+        _check_plan_checkout(session, checkout, data)
     found = _bill(session, checkout, items)
     checkout.invoice_id = found.id if found is not None else None
+    if later and found is not None:
+        _secure_plan(session, checkout, found, later, data, idempotency_key)
+        _complete(session, checkout, items, accepted)
+        audit.record(session, groups.ENROLL, checkout, location_id=checkout.location_id,
+                     changes={"status": ["open", "completed"], "instalments": [None, len(later)]})  # fmt: skip
+        return view(session, checkout)
     defer_charge = requirement == "card_required_no_charge" or (
         pay_later and requirement == "card_required_charge_optional"
     )
@@ -369,6 +406,41 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
         session, groups.ENROLL, checkout, location_id=checkout.location_id, changes={"status": ["open", "completed"]}
     )
     return view(session, checkout)
+
+
+def _check_plan_checkout(session: Db, checkout: RegistrationCheckout, data: dict) -> None:
+    """Before anything is billed: a payment plan is paid now (no pay later, no coupon) and later instalments
+    need a method autopay can collect from: a new card (saved as autopay) or an autopay method on file."""
+    if data.get("pay_later"):
+        raise ValidationFailed("This program must be paid now.", pointer="/pay_later", code="pay-now-required")
+    if data.get("coupon_code"):
+        raise ValidationFailed("A coupon cannot be used with a payment plan.", pointer="/coupon_code",
+                               code="coupon-not-applicable")  # fmt: skip
+    if not data.get("method_token") and billing.methods.autopay_method(session, checkout.payer_client_id) is None:
+        raise ValidationFailed("A payment plan needs a card on file for autopay; add a new card.",
+                               pointer="/method_token", code="payment-method-required")  # fmt: skip
+
+
+def _secure_plan(session: Db, checkout: RegistrationCheckout, invoice, later: list[tuple], data: dict, key: str):
+    """Write the invoice's schedule (what is due now, then the later rows) and pay only what is due now through
+    secure_online_checkout; the card paying now is kept as the autopay method that collects the rest."""
+    today = platform.service.location_today(session, checkout.location_id)
+    due_now = invoice.total_minor - sum(amount for _, amount in later)
+    rows = ([(today, due_now)] if due_now > 0 else []) + later
+    billing.service.set_schedule(session, invoice.id, rows, basis={"payment_plan": "registration", "rows": len(rows)})
+    token, method_id = data.get("method_token"), data.get("payment_method_id")
+    if due_now > 0:
+        billing.checkout.secure_online_checkout(
+            session, client_id=checkout.payer_client_id, location_id=checkout.location_id,
+            total_minor=invoice.total_minor, invoice=invoice, idempotency_key=key, method_token=token,
+            payment_method_id=method_id, amount_minor=due_now, save_method=bool(token), save_as_autopay=True,
+        )  # fmt: skip
+    else:  # nothing due now: prove the method autopay will charge
+        billing.checkout.secure_online_checkout(
+            session, client_id=checkout.payer_client_id, location_id=checkout.location_id,
+            total_minor=invoice.total_minor, invoice=None, idempotency_key=key, method_token=token,
+            must_pay_now=False,
+        )  # fmt: skip
 
 
 def portal_abandon(session: Db, principal: Principal, checkout_id: UUID) -> dict:

@@ -30,6 +30,7 @@ import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalApp } from '../features/portal/PortalApp'
+import { PublicProgressPage } from '../features/portal/PublicProgressPage'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
 import { WhatsNewPage } from '../features/platform/WhatsNewPage'
@@ -122,6 +123,7 @@ export function AppRoutes() {
       <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
       <Route path="/auth/oidc/link" element={<OidcLinkPage />} />
       <Route path="/pay" element={<PayLinkPage />} />
+      <Route path="/progress" element={<PublicProgressPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
