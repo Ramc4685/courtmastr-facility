@@ -148,6 +148,37 @@ describe('integrations settings', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ provider: 'zoom', zoom: { account_id: 'acct-1', client_id: 'cid', client_secret: 'shh' } })
   })
 
+  it('edits QuickBooks mappings, shows a field error, and queues a sync', async () => {
+    const user = userEvent.setup()
+    const qbo = { id: 'q1', location_id: 'l1', provider: 'quickbooks_online', status: 'active', external_account_id: '4620', external_account_name: 'Demo Co', connected_at: '2026-11-10T00:00:00Z', last_sync_at: null, last_error: null, created_at: '2026-11-10T00:00:00Z' }
+    const mappings = { mappings: [], unmapped: [{ local_key: 'revenue:court' }], external_options: { accounts: [{ id: '79', name: 'Court rental income' }], classes: [] } }
+    let attempt = 0
+    const calls = renderAt([...ALL, 'integrations.sync.run'], {
+      'GET /api/v1/external-connections': { status: 200, body: page([qbo]) },
+      'GET /api/v1/external-connections/q1/sync-mappings': { status: 200, body: mappings },
+      'PUT /api/v1/external-connections/q1/sync-mappings': () =>
+        ++attempt === 1
+          ? { status: 422, body: { status: 422, code: 'validation-failed', detail: 'Invalid', errors: [{ pointer: '/mappings/0/local_key', code: 'invalid', detail: 'Each key is mapped once' }] } }
+          : { status: 200, body: mappings },
+      'POST /api/v1/external-connections/q1/sync': { status: 202, body: { status: 'running', status_url: '/x', counts: {} } },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Connections' }))
+    await user.click(await screen.findByRole('button', { name: 'Mappings for QuickBooks Online' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Accounting mappings' })
+    await user.click(within(dialog).getByRole('button', { name: 'Map revenue:court' }))
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Maps to 1' }), '79')
+    await user.click(within(dialog).getByRole('button', { name: 'Save mappings' }))
+    expect(await within(dialog).findByText('Each key is mapped once')).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ mappings: [{ kind: 'revenue_account', local_key: 'revenue:court', external_id: '79', external_name: 'Court rental income' }] })
+    await user.click(within(dialog).getByRole('button', { name: 'Save mappings' }))
+    expect(await screen.findByText(/Mappings saved/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sync QuickBooks Online' }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'Sync to QuickBooks' })).getByRole('button', { name: 'Queue sync' }))
+    expect(await screen.findByText(/Sync queued/)).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/sync'))?.body).toEqual({ location_id: null, from: null, to: null, retries_failed: false })
+  })
+
   it('shows a new calendar feed address once, to any staff member', async () => {
     const user = userEvent.setup()
     const feed = { id: 'f1', kind: 'staff_schedule', name: 'My bookings', status: 'active', owner_staff_user_id: 's1', location_id: null, competition_team_id: null, include_shifts: false, last_fetched_at: null, created_at: '2026-11-10T00:00:00Z' }

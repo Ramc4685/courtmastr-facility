@@ -8,8 +8,9 @@ import { Input, Select } from '../../components/Field'
 import { EmptyState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { useToast } from '../../components/Toast'
-import { useMe } from '../../lib/auth'
+import { useAuth, useMe } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
+import { SyncDialog, SyncMappingsDialog } from './SyncMappingsDialog'
 
 type Connection = Schemas['ExternalConnectionOut']
 type Provider = Schemas['ExternalConnectionCreate']['provider']
@@ -20,7 +21,8 @@ export const PROVIDERS: Record<Provider, string> = {
   zoom: 'Zoom',
   google_analytics: 'Google Analytics',
 }
-const STATUS_TONE = { active: 'success', pending: 'warning', error: 'danger', disconnected: 'neutral' } as const
+const ACCOUNTING = ['quickbooks_online', 'accounting_file']
+const STATUS_TONE ={ active: 'success', pending: 'warning', error: 'danger', disconnected: 'neutral' } as const
 
 function ConnectDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
@@ -98,10 +100,13 @@ function ConnectDialog({ onClose }: { onClose: () => void }) {
 
 export function ConnectionsPanel() {
   const me = useMe()
+  const { can } = useAuth()
   const qc = useQueryClient()
   const toast = useToast()
   const [connecting, setConnecting] = useState(false)
   const [leaving, setLeaving] = useState<Connection | null>(null)
+  const [mapping, setMapping] = useState<Connection | null>(null)
+  const [syncing, setSyncing] = useState<Connection | null>(null)
   const paging = useKeysetQuery(['external-connections'], (cursor) => api.get('/api/v1/external-connections', { query: { cursor } }))
   const disconnect = useMutation({
     mutationFn: (c: Connection) => api.post('/api/v1/external-connections/{external_connection_id}/disconnect', { path: { external_connection_id: c.id } }),
@@ -123,9 +128,21 @@ export function ConnectionsPanel() {
       className: 'text-right',
       cell: (c) =>
         c.status !== 'disconnected' && (
-          <Button size="sm" variant="ghost" onClick={() => setLeaving(c)} aria-label={`Disconnect ${PROVIDERS[c.provider as Provider] ?? c.provider}`}>
-            Disconnect
-          </Button>
+          <div className="flex justify-end gap-1">
+            {ACCOUNTING.includes(c.provider) && (
+              <Button size="sm" variant="ghost" onClick={() => setMapping(c)} aria-label={`Mappings for ${PROVIDERS[c.provider as Provider]}`}>
+                Mappings
+              </Button>
+            )}
+            {c.provider === 'quickbooks_online' && c.status === 'active' && can('integrations.sync.run') && (
+              <Button size="sm" variant="ghost" onClick={() => setSyncing(c)} aria-label="Sync QuickBooks Online">
+                Sync
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setLeaving(c)} aria-label={`Disconnect ${PROVIDERS[c.provider as Provider] ?? c.provider}`}>
+              Disconnect
+            </Button>
+          </div>
         ),
     },
   ]
@@ -142,6 +159,8 @@ export function ConnectionsPanel() {
       </div>
       <Table caption="Connections" columns={columns} rowKey={(c) => c.id} paging={paging} empty={<EmptyState title="Nothing connected yet" />} />
       {connecting && <ConnectDialog onClose={() => setConnecting(false)} />}
+      {mapping && <SyncMappingsDialog connectionId={mapping.id} onClose={() => setMapping(null)} />}
+      {syncing && <SyncDialog connection={syncing} onClose={() => setSyncing(null)} />}
       <ConfirmDialog
         open={leaving !== null}
         title={`Disconnect ${leaving ? (PROVIDERS[leaving.provider as Provider] ?? leaving.provider) : ''}?`}

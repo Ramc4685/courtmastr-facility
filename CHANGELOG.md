@@ -13,6 +13,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Online sessions: attach a meeting link or a Zoom meeting through your own Zoom app; members join from 10 minutes before the start and are marked attended.
 - The Integrations screen gains Connections and Calendar feeds tabs.
 - The API reference lists the key scopes each operation needs.
+- Connections: edit an accounting connection's account and class mappings, and queue a QuickBooks sync.
 
 ### Security
 - The public schedule leaves out hidden, unlisted and out-of-range sessions, and busy times show only that location's.

@@ -114,3 +114,16 @@ test('a calendar feed shows its address once and the connection screens pass axe
   await page.emulateMedia({ colorScheme: 'dark' })
   await scan(page, 'connections dark')
 })
+
+test('the accounting mappings dialog of the seeded connection passes axe', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('tab', { name: 'Connections' }).click()
+  await page.getByRole('button', { name: 'Mappings for Accounting file (daily journal)' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Accounting mappings' })
+  await dialog.getByRole('button', { name: 'Add mapping' }).click()
+  await expect(dialog.getByRole('textbox', { name: /^Posting key/ }).last()).toBeVisible()
+  await scan(page, 'mappings dialog')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await scan(page, 'mappings dialog dark')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+})
