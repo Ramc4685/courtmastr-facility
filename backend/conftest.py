@@ -284,6 +284,7 @@ def populate(client, tenant) -> SimpleNamespace:
     )  # fmt: skip
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
+    space |= _populate_shared_post_billed(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_program_forms(client, headers, post, tenant, location["id"])
@@ -816,6 +817,35 @@ def _populate_space(client, tenant, headers, post, location_id, client_id) -> di
         "run_id": long_pass["status_url"].rsplit("/", 1)[1], "schedule_session_id": seat,
         "enrollment_id": enrollment["id"], "waitlist_entry_id": waiting["id"],
     }  # fmt: skip
+
+
+def _populate_shared_post_billed(client, headers, post, tenant, location_id, client_id, space) -> dict:
+    """Phase 14 C2: a participant on a shared booking (SCH-17), and a post-billed package (PKG-11) with one used
+    credit billed by a period close (BIL-18), which writes its line and usage rows."""
+    from uuid import UUID
+    from zoneinfo import ZoneInfo
+
+    from app.modules import packages
+    from app.modules.scheduling.models import Booking
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # a client's own reservation
+        session.get(Booking, UUID(space["booking_id"])).client_id = UUID(client_id)
+    participant = post(f"/bookings/{space['booking_id']}/participants", {"client_id": client_id})[0]
+    rate = post("/post-billed-rates", {"reservation_type_id": space["reservation_type_id"], "per_session_minor": 1500})
+    package = post("/client-packages/post-billed", {
+        "client_id": client_id, "location_id": location_id, "reservation_type_id": space["reservation_type_id"],
+    })  # fmt: skip
+    today = clock.now().astimezone(ZoneInfo("America/Chicago")).date()
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        source = {"source_type": "booking", "source_id": uuid4()}
+        packages.service.reserve_credit(
+            session, client_package_id=UUID(package["id"]), client_id=UUID(client_id), session_on=today,
+            reservation_type_id=UUID(space["reservation_type_id"]), **source,
+        )  # fmt: skip
+        packages.service.settle_credit(session, outcome="attended", **source)
+    close = post("/post-billed-closes", {"location_id": location_id, "closing_on": today.isoformat()})
+    assert close["lines"], close
+    return {"participant_id": participant["id"], "post_billed_rate_id": rate["id"], "post_billed_close_id": close["id"]}
 
 
 def _populate_slots(client, headers, post, location_id, staff_user_id, space) -> dict:

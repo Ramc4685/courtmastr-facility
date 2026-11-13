@@ -97,6 +97,12 @@ class DragDropDefault(StrEnum):
     MOVE_ENROLLMENT = "move_enrollment"
 
 
+class Attendance(StrEnum):
+    SCHEDULED = "scheduled"
+    ATTENDED = "attended"
+    NO_SHOW = "no_show"
+
+
 class BlackoutScope(StrEnum):
     ALL = "all"
     ONLINE_ONLY = "online_only"
@@ -367,6 +373,29 @@ class Booking(TenantOwned, Timestamps, Base):
     version: Mapped[int] = _int(1)
 
 
+class BookingParticipant(TenantOwned, Timestamps, Base):
+    """SCH-17, SSP-09: one client on a shared booking (a couple, a team, invitees), with their own attendance.
+    The booking's client is the organiser and pays; participants never move package credits here."""
+
+    __tablename__ = "booking_participant"
+    __table_args__ = tenant_args(
+        *tfk("booking_id", "booking", ondelete="CASCADE", index=False),
+        *tfk("location_id", "location", index=False),
+        *tfk("client_id", "client", index=False),
+        *tfk("added_by_staff_user_id", "staff_user"),
+        UniqueConstraint("tenant_id", "booking_id", "client_id", name="uq_booking_participant"),
+        enum_check("attendance", Attendance),
+        Index("ix_booking_participant_client", "tenant_id", "client_id"),
+    )
+
+    booking_id: Mapped[UUID]
+    location_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    attendance: Mapped[str] = enum_column(server_default=text("'scheduled'"))
+    attendance_marked_at: Mapped[datetime | None]
+    added_by_staff_user_id: Mapped[UUID | None]
+
+
 class BookingResource(TenantOwned, Timestamps, Base):
     """The resources a booking was made on, as chosen. Survives cancellation (holds do not)."""
 
@@ -466,6 +495,7 @@ class Session(TenantOwned, Timestamps, Base):
     is_self_bookable: Mapped[bool]
     allows_free_booking: Mapped[bool] = _flag(False)
     direct_link_token: Mapped[str] = mapped_column(info={"audit": "never"})
+    is_direct_link_active: Mapped[bool] = _flag(False)  # SCH-16: the token resolves only while this is on
     slot_offer_id: Mapped[UUID | None]
     slot_starts_at: Mapped[datetime | None]
 

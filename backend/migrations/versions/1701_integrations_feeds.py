@@ -2,7 +2,7 @@
 public_schedule_setting (SCH-20). Generated from the models, then enable_rls() per table.
 
 Revision ID: 1701
-Revises: 1661
+Revises: 1481
 """
 import sqlalchemy as sa
 from alembic import op
@@ -11,7 +11,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = '1701'
-down_revision = '1661'
+down_revision = '1481'
 
 
 def upgrade() -> None:

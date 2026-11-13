@@ -532,6 +532,7 @@ class PortalEnrollmentCreate(In):
     client_id: UUID
     session_id: UUID
     client_package_id: UUID | None = None
+    direct_link_token: Annotated[str, Field(max_length=200)] | None = None  # SCH-16: books an unlisted session
 
 
 class PortalEnrollmentOut(Out):

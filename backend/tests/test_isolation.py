@@ -392,6 +392,12 @@ _BODIES = {
     "replaceGamePlayerStats": {"stats": []},
     "splitTeamFee": lambda ids: {"shares": [{"roster_entry_id": ids.roster_entry_id, "amount_minor": 1}]},
     "createPortalRosterEntry": {"first_name": "Walk", "last_name": "On"},
+    # Phase 14 C2: shared bookings, series merge, post-billed rates, agreement binding
+    "addBookingParticipant": "share",
+    "updateBookingParticipant": {"attendance": "attended"},
+    "mergeBookingSeries": {"booking_number": 1},
+    "updatePostBilledRate": {"per_session_minor": 1},
+    "bindMembershipContractAgreement": lambda ids: {"client_document_id": ids.document_id},
     # public league site (Phase 14 chip B2)
     "updateLeagueLink": {"title": "Renamed"},
     "updateLeaguePhoto": {"caption": "Renamed"},

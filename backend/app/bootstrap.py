@@ -66,4 +66,6 @@ def bootstrap() -> None:
         staff,  # noqa: F401  (build module 12)
     )
 
+    # Neither may import the other: packages asks scheduling where a reservation type is used (PKG-11).
+    packages.postbilled.register_type_location(scheduling.service.reservation_type_location)
     _done = True

@@ -1030,6 +1030,21 @@
         "title": "AgeingTotals",
         "type": "object"
       },
+      "AgreementIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_document_id": {
+            "format": "uuid",
+            "title": "Client Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_document_id"
+        ],
+        "title": "AgreementIn",
+        "type": "object"
+      },
       "AlertIn": {
         "additionalProperties": false,
         "properties": {
@@ -19175,6 +19190,67 @@
           "created_at"
         ],
         "title": "DeliveryOut",
+        "type": "object"
+      },
+      "DirectLinkOut": {
+        "properties": {
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The web page with the token in the URL fragment; prefix the portal origin. Null with token.",
+            "title": "Path"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shown once, when the link is made; null when the link was already on.",
+            "title": "Token"
+          }
+        },
+        "required": [
+          "session_id",
+          "is_active",
+          "token",
+          "path"
+        ],
+        "title": "DirectLinkOut",
+        "type": "object"
+      },
+      "DirectLinkResolve": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "maxLength": 64,
+            "minLength": 8,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "DirectLinkResolve",
         "type": "object"
       },
       "DirectMessageCreate": {
@@ -37335,6 +37411,15 @@
             ],
             "title": "Auto Renew Lead Unit"
           },
+          "billing_mode": {
+            "default": "prepaid",
+            "enum": [
+              "prepaid",
+              "post_billed"
+            ],
+            "title": "Billing Mode",
+            "type": "string"
+          },
           "charge_id": {
             "anyOf": [
               {
@@ -39233,6 +39318,15 @@
               }
             ],
             "title": "Auto Renew Lead Unit"
+          },
+          "billing_mode": {
+            "default": "prepaid",
+            "enum": [
+              "prepaid",
+              "post_billed"
+            ],
+            "title": "Billing Mode",
+            "type": "string"
           },
           "charge_id": {
             "anyOf": [
@@ -42318,6 +42412,46 @@
         "title": "Page[PosSaleOut]",
         "type": "object"
       },
+      "Page_PostBilledCloseOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PostBilledCloseOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PostBilledCloseOut]",
+        "type": "object"
+      },
+      "Page_PostBilledRateOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PostBilledRateOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PostBilledRateOut]",
+        "type": "object"
+      },
       "Page_ProductCategoryOut_": {
         "properties": {
           "data": {
@@ -43350,6 +43484,112 @@
           "attendance"
         ],
         "title": "Participant",
+        "type": "object"
+      },
+      "ParticipantAdd": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "ParticipantAdd",
+        "type": "object"
+      },
+      "ParticipantOut": {
+        "properties": {
+          "attendance": {
+            "enum": [
+              "scheduled",
+              "attended",
+              "no_show"
+            ],
+            "title": "Attendance",
+            "type": "string"
+          },
+          "attendance_marked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendance Marked At"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_organiser": {
+            "title": "Is Organiser",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "booking_id",
+          "client_id",
+          "client_name",
+          "is_organiser",
+          "attendance",
+          "attendance_marked_at",
+          "created_at"
+        ],
+        "title": "ParticipantOut",
+        "type": "object"
+      },
+      "ParticipantUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "attendance": {
+            "enum": [
+              "scheduled",
+              "attended",
+              "no_show"
+            ],
+            "title": "Attendance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attendance"
+        ],
+        "title": "ParticipantUpdate",
         "type": "object"
       },
       "PartyInput": {
@@ -47714,6 +47954,18 @@
             ],
             "title": "Client Package Id"
           },
+          "direct_link_token": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Link Token"
+          },
           "session_id": {
             "format": "uuid",
             "title": "Session Id",
@@ -48441,6 +48693,15 @@
             "title": "Allows Booking After Expiry",
             "type": "boolean"
           },
+          "billing_mode": {
+            "default": "prepaid",
+            "enum": [
+              "prepaid",
+              "post_billed"
+            ],
+            "title": "Billing Mode",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -48819,6 +49080,15 @@
           "allows_booking_after_expiry": {
             "title": "Allows Booking After Expiry",
             "type": "boolean"
+          },
+          "billing_mode": {
+            "default": "prepaid",
+            "enum": [
+              "prepaid",
+              "post_billed"
+            ],
+            "title": "Billing Mode",
+            "type": "string"
           },
           "id": {
             "format": "uuid",
@@ -53117,6 +53387,523 @@
         "title": "PosTenderType",
         "type": "object"
       },
+      "PostBilledCloseFailure": {
+        "properties": {
+          "client_package_id": {
+            "format": "uuid",
+            "title": "Client Package Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_package_id",
+          "code"
+        ],
+        "title": "PostBilledCloseFailure",
+        "type": "object"
+      },
+      "PostBilledCloseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "closing_on": {
+            "format": "date",
+            "title": "Closing On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "closing_on"
+        ],
+        "title": "PostBilledCloseIn",
+        "type": "object"
+      },
+      "PostBilledCloseOut": {
+        "properties": {
+          "closed_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed By Staff User Id"
+          },
+          "closing_on": {
+            "format": "date",
+            "title": "Closing On",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failed": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PostBilledCloseFailure"
+            },
+            "title": "Failed",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PostBilledLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "package_count": {
+            "title": "Package Count",
+            "type": "integer"
+          },
+          "session_count": {
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "closing_on",
+          "closed_by_staff_user_id",
+          "package_count",
+          "session_count",
+          "total_minor",
+          "created_at",
+          "lines"
+        ],
+        "title": "PostBilledCloseOut",
+        "type": "object"
+      },
+      "PostBilledLineOut": {
+        "properties": {
+          "charge_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "client_package_id": {
+            "format": "uuid",
+            "title": "Client Package Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "per_session_minor": {
+            "title": "Per Session Minor",
+            "type": "integer"
+          },
+          "session_count": {
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "client_package_id",
+          "client_id",
+          "client_name",
+          "session_count",
+          "per_session_minor",
+          "total_minor",
+          "charge_id",
+          "invoice_id"
+        ],
+        "title": "PostBilledLineOut",
+        "type": "object"
+      },
+      "PostBilledPackageOpen": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "is_auto_renew": {
+            "default": true,
+            "title": "Is Auto Renew",
+            "type": "boolean"
+          },
+          "is_autopay": {
+            "default": false,
+            "title": "Is Autopay",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "reservation_type_id": {
+            "format": "uuid",
+            "title": "Reservation Type Id",
+            "type": "string"
+          },
+          "share_with_related": {
+            "default": false,
+            "title": "Share With Related",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "client_id",
+          "location_id",
+          "reservation_type_id"
+        ],
+        "title": "PostBilledPackageOpen",
+        "type": "object"
+      },
+      "PostBilledPreviewLine": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "client_package_id": {
+            "format": "uuid",
+            "title": "Client Package Id",
+            "type": "string"
+          },
+          "package_name": {
+            "title": "Package Name",
+            "type": "string"
+          },
+          "per_session_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Session Minor"
+          },
+          "session_count": {
+            "title": "Session Count",
+            "type": "integer"
+          },
+          "skipped_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no-usage",
+                  "no-rate"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Reason"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          },
+          "unsettled_count": {
+            "title": "Unsettled Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_package_id",
+          "client_id",
+          "client_name",
+          "package_name",
+          "session_count",
+          "unsettled_count",
+          "per_session_minor",
+          "total_minor",
+          "skipped_reason"
+        ],
+        "title": "PostBilledPreviewLine",
+        "type": "object"
+      },
+      "PostBilledPreviewOut": {
+        "properties": {
+          "closing_on": {
+            "format": "date",
+            "title": "Closing On",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PostBilledPreviewLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "post_billed_close_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this period is already closed.",
+            "title": "Post Billed Close Id"
+          }
+        },
+        "required": [
+          "location_id",
+          "closing_on",
+          "post_billed_close_id",
+          "lines"
+        ],
+        "title": "PostBilledPreviewOut",
+        "type": "object"
+      },
+      "PostBilledRateCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "min_sessions": {
+            "default": 1,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Min Sessions",
+            "type": "integer"
+          },
+          "per_session_minor": {
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Per Session Minor",
+            "type": "integer"
+          },
+          "reservation_type_id": {
+            "format": "uuid",
+            "title": "Reservation Type Id",
+            "type": "string"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          }
+        },
+        "required": [
+          "reservation_type_id",
+          "per_session_minor"
+        ],
+        "title": "PostBilledRateCreate",
+        "type": "object"
+      },
+      "PostBilledRateOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "min_sessions": {
+            "title": "Min Sessions",
+            "type": "integer"
+          },
+          "per_session_minor": {
+            "title": "Per Session Minor",
+            "type": "integer"
+          },
+          "reservation_type_id": {
+            "format": "uuid",
+            "title": "Reservation Type Id",
+            "type": "string"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          }
+        },
+        "required": [
+          "id",
+          "reservation_type_id",
+          "min_sessions",
+          "per_session_minor",
+          "revenue_category_id",
+          "is_active"
+        ],
+        "title": "PostBilledRateOut",
+        "type": "object"
+      },
+      "PostBilledRateUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "min_sessions": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Sessions"
+          },
+          "per_session_minor": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Session Minor"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          }
+        },
+        "title": "PostBilledRateUpdate",
+        "type": "object"
+      },
       "PreSessionOut": {
         "description": "The login-CSRF token: send it as X-CSRF-Token on sign-in, emailed-link and reset requests from a browser.",
         "properties": {
@@ -56850,6 +57637,52 @@
           "registration_url"
         ],
         "title": "PublicCompetitionOut",
+        "type": "object"
+      },
+      "PublicDirectLinkOut": {
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "location_name": {
+            "title": "Location Name",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "spots_left": {
+            "title": "Spots Left",
+            "type": "integer"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "title",
+          "starts_at",
+          "ends_at",
+          "location_name",
+          "time_zone",
+          "spots_left"
+        ],
+        "title": "PublicDirectLinkOut",
         "type": "object"
       },
       "PublicDocumentDecision": {
@@ -67680,6 +68513,21 @@
         "title": "SeriesEdit",
         "type": "object"
       },
+      "SeriesMerge": {
+        "additionalProperties": false,
+        "properties": {
+          "booking_number": {
+            "minimum": 1.0,
+            "title": "Booking Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "booking_number"
+        ],
+        "title": "SeriesMerge",
+        "type": "object"
+      },
       "SeriesOut": {
         "properties": {
           "id": {
@@ -68530,6 +69378,11 @@
             "title": "Id",
             "type": "string"
           },
+          "is_direct_link_active": {
+            "default": false,
+            "title": "Is Direct Link Active",
+            "type": "boolean"
+          },
           "is_self_bookable": {
             "title": "Is Self Bookable",
             "type": "boolean"
@@ -68679,6 +69532,11 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_direct_link_active": {
+            "default": false,
+            "title": "Is Direct Link Active",
+            "type": "boolean"
           },
           "is_self_bookable": {
             "title": "Is Self Bookable",
@@ -85488,6 +86346,381 @@
         ]
       }
     },
+    "/api/v1/bookings/{booking_id}/merge": {
+      "post": {
+        "description": "Link the booking with that number (or its whole series) into this booking's series. Errors:\nalready-linked, merge-mismatch (another location, kind or client).",
+        "operationId": "mergeBookingSeries",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesMerge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge Booking Series",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.update_series"
+        ]
+      }
+    },
+    "/api/v1/bookings/{booking_id}/participants": {
+      "get": {
+        "operationId": "listBookingParticipants",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantOut"
+                  },
+                  "title": "Response Listbookingparticipants",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Booking Participants",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.booking.read"
+        ]
+      },
+      "post": {
+        "description": "Share the booking with a related client of its organiser. Returns everyone on it. Errors: already-enrolled.",
+        "operationId": "addBookingParticipant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticipantAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantOut"
+                  },
+                  "title": "Response Addbookingparticipant",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Booking Participant",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.create"
+        ]
+      }
+    },
+    "/api/v1/bookings/{booking_id}/participants/{participant_id}": {
+      "delete": {
+        "operationId": "removeBookingParticipant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Participant Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Booking Participant",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.enrollment.cancel"
+        ]
+      },
+      "patch": {
+        "description": "Mark one participant's attendance (no-show needs scheduling.attendance.mark_exception).",
+        "operationId": "updateBookingParticipant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Participant Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticipantUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Booking Participant",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.attendance.mark"
+        ]
+      }
+    },
     "/api/v1/bookings/{booking_id}/reschedule": {
       "post": {
         "description": "Move, resize or change resources; linked resources move as one. Errors: version-conflict,\nbooking-conflict, resource-blacked-out.",
@@ -91625,6 +92858,72 @@
         ],
         "x-api-key-scopes": [
           "packages.package.grant_complimentary"
+        ]
+      }
+    },
+    "/api/v1/client-packages/post-billed": {
+      "post": {
+        "description": "Open a post-billed package (PKG-11): nothing is charged now; used sessions are billed at a period close.\nThe reservation type needs an active post-billed rate.",
+        "operationId": "openPostBilledPackage",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBilledPackageOpen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open Post Billed Package",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.package.sell"
         ]
       }
     },
@@ -117313,6 +118612,82 @@
         ]
       }
     },
+    "/api/v1/membership-contracts/{contract_id}/agreement": {
+      "put": {
+        "description": "Bind a signed agreement document of the owner's to the contract (DOC-11); a signed binding is not replaced.",
+        "operationId": "bindMembershipContractAgreement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contract_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contract Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgreementIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bind Membership Contract Agreement",
+        "tags": [
+          "memberships"
+        ],
+        "x-api-key-scopes": [
+          "memberships.contract.update"
+        ]
+      }
+    },
     "/api/v1/membership-contracts/{contract_id}/billing-schedule": {
       "get": {
         "operationId": "listMembershipBillingSchedule",
@@ -134990,6 +136365,690 @@
         ]
       }
     },
+    "/api/v1/post-billed-closes": {
+      "get": {
+        "description": "Past closes, newest first. Filters: location_id, closing_on.",
+        "operationId": "listPostBilledCloses",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PostBilledCloseOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Post Billed Closes",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.period.close"
+        ]
+      },
+      "post": {
+        "description": "Bill used sessions up to closing_on (one charge and invoice per package). Idempotent per location and\ndate: a repeat returns the first close, with the packages that failed (`failed`, retried by `/retry`).",
+        "operationId": "closePostBilledPeriod",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBilledCloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledCloseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Post Billed Period",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.period.close"
+        ]
+      }
+    },
+    "/api/v1/post-billed-closes/preview": {
+      "post": {
+        "description": "Every open post-billed package at the location with what a close on that date would bill.",
+        "operationId": "previewPostBilledClose",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBilledCloseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Post Billed Close",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.period.close"
+        ]
+      }
+    },
+    "/api/v1/post-billed-closes/{post_billed_close_id}": {
+      "get": {
+        "operationId": "getPostBilledClose",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_billed_close_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Billed Close Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledCloseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Post Billed Close",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.period.close"
+        ]
+      }
+    },
+    "/api/v1/post-billed-closes/{post_billed_close_id}/retry": {
+      "post": {
+        "description": "Re-run only the packages listed in `failed` for this close's period; nobody else is billed again.",
+        "operationId": "retryPostBilledClose",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_billed_close_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Billed Close Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledCloseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Post Billed Close",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.period.close"
+        ]
+      }
+    },
+    "/api/v1/post-billed-rates": {
+      "get": {
+        "description": "Filters: reservation_type_id, is_active.",
+        "operationId": "listPostBilledRates",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PostBilledRateOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Post Billed Rates",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.plan.manage"
+        ]
+      },
+      "post": {
+        "description": "One tier: every session of a close is billed at the tier with the highest min_sessions reached.",
+        "operationId": "createPostBilledRate",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBilledRateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Post Billed Rate",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.plan.manage"
+        ]
+      }
+    },
+    "/api/v1/post-billed-rates/{post_billed_rate_id}": {
+      "patch": {
+        "operationId": "updatePostBilledRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_billed_rate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Billed Rate Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBilledRateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Post Billed Rate",
+        "tags": [
+          "packages"
+        ],
+        "x-api-key-scopes": [
+          "packages.plan.manage"
+        ]
+      }
+    },
     "/api/v1/privacy-settings": {
       "get": {
         "operationId": "getPrivacySettings",
@@ -140052,6 +142111,48 @@
         "summary": "List Public Teams",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/public/direct-links/resolve": {
+      "post": {
+        "description": "The session a direct link names, listed or not. The token travels in the body, never the URL. Tenant from\nthe host or X-Tenant-Slug. Booking it is the portal's enrolment. Errors: link-invalid (404).",
+        "operationId": "resolveDirectLink",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectLinkResolve"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDirectLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Direct Link",
+        "tags": [
+          "scheduling"
         ]
       }
     },
@@ -152613,6 +154714,195 @@
         ],
         "x-api-key-scopes": [
           "scheduling.attendance.mark"
+        ]
+      }
+    },
+    "/api/v1/sessions/{schedule_session_id}/direct-link": {
+      "delete": {
+        "description": "Stop the link; every copy already sent stops working. A new link has a new token.",
+        "operationId": "revokeSessionDirectLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Session Direct Link",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.registration_link.create"
+        ]
+      },
+      "post": {
+        "description": "Turn the session's link on and show it once (share `path`, token in the fragment). When the link is\nalready on, returns its status only: the token cannot be shown again and links already sent keep working.",
+        "operationId": "createSessionDirectLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session Direct Link",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.registration_link.create"
+        ]
+      }
+    },
+    "/api/v1/sessions/{schedule_session_id}/direct-link/regenerate": {
+      "post": {
+        "description": "Issue a new link (shown once) and turn it on; the previous link stops working.",
+        "operationId": "regenerateSessionDirectLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Regenerate Session Direct Link",
+        "tags": [
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.registration_link.create"
         ]
       }
     },

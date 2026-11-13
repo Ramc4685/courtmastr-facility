@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session as Db
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal
+from app.core.auth.tokens import digest
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
@@ -839,6 +840,16 @@ def set_capacity(session: Db, session_ids: list[UUID], capacity: int) -> list[di
     return results
 
 
+def has_live_link(session: Db, session_id: UUID, token: str | None) -> bool:
+    """Internal (programs' portal enrolment): whether the token is this session's active direct link (SCH-16).
+    Only the token's digest is stored."""
+    if not token:
+        return False
+    s = Session
+    stmt = select(s.id).where(s.id == session_id, s.direct_link_token == digest(token), s.is_direct_link_active)
+    return session.scalar(stmt) is not None
+
+
 def get_session(session: Db, session_id: UUID) -> dict:
     """Internal read for programs: the seat row with its booking's times and status."""
     seat = session.get(Session, session_id)
@@ -865,6 +876,7 @@ def _session_view(seat: Session) -> dict:
         "id": seat.id, "location_id": seat.location_id, "booking_id": seat.booking_id, "capacity": seat.capacity,
         "booked_count": seat.booked_count, "fill": _fill(seat.capacity, seat.booked_count),
         "is_self_bookable": seat.is_self_bookable, "allows_free_booking": seat.allows_free_booking,
+        "is_direct_link_active": seat.is_direct_link_active,
     }  # fmt: skip
 
 
@@ -973,6 +985,11 @@ def series_sessions(session: Db, series_id: UUID, starts_from) -> list[UUID]:
             .order_by(Booking.starts_at, Session.id)
         )
     )
+
+
+def reservation_type_location(session: Db, reservation_type_id: UUID) -> UUID | None:
+    """Internal (packages, wired in bootstrap): the location a reservation type belongs to, or None."""
+    return session.scalar(select(ReservationType.location_id).where(ReservationType.id == reservation_type_id))
 
 
 def check_location_archive(session: Db, location_id: UUID) -> None:
@@ -2158,3 +2175,111 @@ def client_bookings_starting(
         Booking.client_id == client_id, Booking.location_id == location_id, Booking.status == "confirmed",
         Booking.kind.in_(("session", "rental")), Booking.starts_at >= start, Booking.starts_at <= end,
     ).order_by(Booking.starts_at)))  # fmt: skip
+
+
+# --- series merge (SCH-21) ---------------------------------------------------------------------------------
+
+
+def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict) -> dict:
+    """Join another booking, or the whole series it belongs to, into this booking's series, so the two are
+    mass-edited, cancelled and billed as one linked set. Times and holds do not change. Same location, kind and
+    client only; this booking gets a series of its own first when it has none. The other series' passes move
+    with their occurrences (renumbered after this series' passes) and the emptied series row goes."""
+    number = data["booking_number"]
+    other_id = session.scalar(select(Booking.id).where(Booking.booking_number == number))
+    # Every lock first, in one order (series ids, then booking ids), so opposite merges cannot deadlock.
+    pair = [booking_id] if other_id is None else sorted({booking_id, other_id})
+    seen = dict(session.execute(select(Booking.id, Booking.booking_series_id).where(Booking.id.in_(pair))).all())
+    series_ids = sorted({sid for sid in seen.values() if sid})
+    if series_ids:
+        stmt = select(BookingSeries.id).where(BookingSeries.id.in_(series_ids)).order_by(BookingSeries.id)
+        session.execute(stmt.with_for_update())
+    rows = select(Booking.id).where(Booking.id.in_(pair) | Booking.booking_series_id.in_(series_ids))
+    session.execute(rows.order_by(Booking.id).with_for_update())
+    booking = _own(session, principal, booking_id, UPDATE_SERIES)
+    other = session.get(Booking, other_id) if other_id is not None else None
+    if other is None or not (
+        principal.kind == "system" or principal.location_ids is None or other.location_id in principal.location_ids
+    ):
+        raise ValidationFailed("No booking has that number.", pointer="/booking_number")
+    _authorize(
+        session, principal, UPDATE_SERIES, other.location_id, _resource_ids(session, other), other.reservation_type_id
+    )
+    if other.id == booking.id or (booking.booking_series_id and other.booking_series_id == booking.booking_series_id):
+        raise Conflict("These bookings are already linked.", code="already-linked")
+    if (other.location_id, other.kind, other.client_id) != (booking.location_id, booking.kind, booking.client_id):
+        raise Conflict("Only bookings of the same location, kind and client can be linked.", code="merge-mismatch")
+    if booking.kind == "block" or "cancelled" in (booking.status, other.status):
+        raise Conflict("Only live reservations can be linked.", code="invalid-state-transition")
+    if {booking.id: booking.booking_series_id, other.id: other.booking_series_id} != seen:
+        raise Conflict("The bookings changed while linking; try again.", code="invalid-state-transition")
+    series = {sid for sid in (booking.booking_series_id, other.booking_series_id) if sid}
+    busy = select(BookingSeriesRun.id).where(
+        BookingSeriesRun.booking_series_id.in_(series), BookingSeriesRun.status.in_(("pending", "running"))
+    )
+    if series and session.scalar(busy.limit(1)):
+        raise Conflict("A series change is still running; link the bookings once it finishes.",
+                       code="series-run-in-progress")  # fmt: skip
+    target = (
+        session.get(BookingSeries, booking.booking_series_id, with_for_update=True)
+        if booking.booking_series_id
+        else None
+    )
+    if target is None:
+        target = BookingSeries(
+            location_id=booking.location_id, kind=booking.kind, label=booking.title or None,
+            created_by_staff_user_id=principal.staff_user_id if principal.kind == "staff" else None,
+            occurrence_count=1,
+        )  # fmt: skip
+        session.add(target)
+        session.flush()
+        booking.booking_series_id, booking.version = target.id, booking.version + 1
+        audit.record(session, UPDATE_SERIES, booking, location_id=booking.location_id,
+                     changes={"booking_series_id": [None, str(target.id)]})  # fmt: skip
+    source_id = other.booking_series_id
+    if source_id is None:
+        moved_rows = [other]
+    else:
+        stmt = select(Booking).where(Booking.booking_series_id == source_id).order_by(Booking.id).with_for_update()
+        moved_rows = list(session.scalars(stmt))
+        offset = session.scalar(
+            select(func.coalesce(func.max(BookingSeriesRule.sequence), 0)).where(
+                BookingSeriesRule.booking_series_id == target.id
+            )
+        )
+        rules = BookingSeriesRule.__table__
+        # Two steps so the unique (series, sequence) never sees a transient duplicate.
+        session.execute(rules.update().where(rules.c.booking_series_id == source_id).values(sequence=-rules.c.sequence))
+        session.execute(
+            rules.update().where(rules.c.booking_series_id == source_id)
+            .values(booking_series_id=target.id, sequence=offset - rules.c.sequence)
+        )  # fmt: skip
+        session.execute(
+            BookingSeriesRun.__table__.update().where(BookingSeriesRun.booking_series_id == source_id)
+            .values(booking_series_id=target.id)
+        )  # fmt: skip
+    moved = [row.id for row in moved_rows]
+    live = sum(row.status != "cancelled" for row in moved_rows)
+    for row in moved_rows:
+        changes = {"booking_series_id": [str(row.booking_series_id) if row.booking_series_id else None, str(target.id)]}
+        row.booking_series_id, row.version = target.id, row.version + 1
+        audit.record(session, UPDATE_SERIES, row, location_id=row.location_id, changes=changes)
+    session.flush()
+    _count(session, target.id, live)
+    if source_id is not None:
+        source = session.get(BookingSeries, source_id)
+        audit.record(
+            session, UPDATE_SERIES, source, location_id=source.location_id, changes={"merged_into": str(target.id)}
+        )
+        session.delete(source)
+    audit.record(
+        session, UPDATE_SERIES, target, location_id=target.location_id,
+        changes={"merged_booking_numbers": [number], "merged_count": len(moved)},
+    )  # fmt: skip
+    events.publish(
+        session, ev.SeriesMerged(booking_series_id=target.id, location_id=target.location_id, merged_booking_count=len(moved)),
+        target.id,
+    )  # fmt: skip
+    session.flush()
+    session.expire_all()
+    return get_series(session, principal, target.id)
