@@ -143,9 +143,14 @@ _STOCK = (Col("location_name", "Location"), Col("product_name", "Product"), Col(
 _STOCK_TOTALS = (Col("product_count", "Products", "count"), Col("on_hand_count", "On hand", "count"),
                  Col("stock_value_minor", "Stock value at cost", "money"))  # fmt: skip
 _RETURN_MONEY = (Col("quantity", "Units", "count"), Col("amount_minor", "Refunded", "money"))
-_PLAN_COUNTS = (Col("sold_count", "Sold", "count"), Col("staff_count", "By staff", "count"),
-                Col("self_service_count", "Self-service", "count"), Col("sales_minor", "Sales", "money"),
-                Col("units_sold", "Units sold", "number"), Col("units_remaining", "Units outstanding", "number"))
+_PLAN_COUNTS = (
+    Col("sold_count", "Sold", "count"),
+    Col("staff_count", "By staff", "count"),
+    Col("self_service_count", "Self-service", "count"),
+    Col("sales_minor", "Sales", "money"),
+    Col("units_sold", "Units sold", "number"),
+    Col("units_remaining", "Units outstanding", "number"),
+)
 
 SPECS = (
     ReportSpec(

@@ -1,4 +1,5 @@
 """Phase 12 chip C reports over two locations in different zones: Main (Chicago) and North (New York)."""
+# ruff: noqa: F811  (pytest fixtures imported from test_reporting are redefined as parameters)
 
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -21,8 +22,12 @@ CHIP_C = [s.key for family in (clients.SPECS, programs.SPECS, pos.SPECS) for s i
 
 def _params(definition: dict) -> dict:
     if definition["key"] == "client_retention":
-        return {"first_from_on": "2030-01-01", "first_to_on": "2030-12-31", "second_from_on": "2030-01-01",
-                "second_to_on": "2030-12-31"}  # fmt: skip (populate's sessions are in 2030)
+        return {
+            "first_from_on": "2030-01-01",
+            "first_to_on": "2030-12-31",
+            "second_from_on": "2030-01-01",
+            "second_to_on": "2030-12-31",
+        }  # fmt: skip (populate's sessions are in 2030)
     if "period" in definition["params_schema"]["properties"]:
         today = clock.now().date()
         return {"from_on": str(today - timedelta(days=180)), "to_on": str(today + timedelta(days=180))}

@@ -5,7 +5,12 @@ from app.modules.reporting.registry import SPECS, ReportSpec
 from app.modules.reporting.reports import clients, memberships, money, pos, programs
 
 FAMILIES: tuple[tuple[ReportSpec, ...], ...] = (
-    SPECS, money.SPECS, memberships.SPECS, clients.SPECS, programs.SPECS, pos.SPECS
+    SPECS,
+    money.SPECS,
+    memberships.SPECS,
+    clients.SPECS,
+    programs.SPECS,
+    pos.SPECS,
 )
 REGISTRY: dict[str, ReportSpec] = {spec.key: spec for family in FAMILIES for spec in family}
 assert len(REGISTRY) == sum(map(len, FAMILIES)), "duplicate report key"

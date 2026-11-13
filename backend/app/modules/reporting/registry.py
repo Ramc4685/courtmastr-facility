@@ -442,8 +442,16 @@ def _pos_sales(session: Session, p: PosSalesParams, scope: Scope) -> dict:
         .where(*where).order_by(s.sold_on, s.pos_sale_id, s.pos_sale_line_id),
         v.sale_line, scope,
     ))]  # fmt: skip
-    keys = ("quantity", "gross_minor", "discount_minor", "net_minor", "tax_minor", "total_minor", "cost_minor",
-            "margin_minor")
+    keys = (
+        "quantity",
+        "gross_minor",
+        "discount_minor",
+        "net_minor",
+        "tax_minor",
+        "total_minor",
+        "cost_minor",
+        "margin_minor",
+    )
     return {"rows": rows, "totals": {k: sum(r[k] for r in rows) for k in keys}, "details": details}
 
 
@@ -827,8 +835,13 @@ SPECS = (
             Col("cost_minor", "Buying price", "money"),
             Col("margin_minor", "Margin", "money"),
         ),
-        (Col("quantity", "Units", "number"), Col("gross_minor", "Gross", "money"), *_MONEY,
-         Col("cost_minor", "Buying price", "money"), Col("margin_minor", "Margin", "money")),
+        (
+            Col("quantity", "Units", "number"),
+            Col("gross_minor", "Gross", "money"),
+            *_MONEY,
+            Col("cost_minor", "Buying price", "money"),
+            Col("margin_minor", "Margin", "money"),
+        ),
         _pos_sales,
         (
             Col("sold_on", "Date", "date"),

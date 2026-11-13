@@ -109,14 +109,26 @@ def _campaigns(session: Session, p: CampaignParams, scope: Scope) -> dict:
 
 # --- the specs -----------------------------------------------------------------------------------------------
 
-_MONEY = (Col("fee_minor", "Fee", "money"), Col("paid_minor", "Paid", "money"), Col("balance_minor", "Balance", "money"))
-_COUNT_COLS = (Col("attempted_count", "Clients attempted", "count"), Col("duplicate_count", "Duplicates", "count"),
-               Col("invalid_count", "Invalid", "count"), Col("unverified_count", "Unverified", "count"),
-               Col("unsubscribed_skip_count", "Unsubscribed (skipped)", "count"),
-               Col("suppressed_count", "Suppressed", "count"), Col("sent_count", "Sent", "count"),
-               Col("delivered_count", "Delivered", "count"), Col("opened_count", "Opened", "count"),
-               Col("clicked_count", "Clicked", "count"), Col("bounced_count", "Bounced", "count"),
-               Col("complaint_count", "Spam reports", "count"), Col("unsubscribed_count", "Unsubscribed", "count"))
+_MONEY = (
+    Col("fee_minor", "Fee", "money"),
+    Col("paid_minor", "Paid", "money"),
+    Col("balance_minor", "Balance", "money"),
+)
+_COUNT_COLS = (
+    Col("attempted_count", "Clients attempted", "count"),
+    Col("duplicate_count", "Duplicates", "count"),
+    Col("invalid_count", "Invalid", "count"),
+    Col("unverified_count", "Unverified", "count"),
+    Col("unsubscribed_skip_count", "Unsubscribed (skipped)", "count"),
+    Col("suppressed_count", "Suppressed", "count"),
+    Col("sent_count", "Sent", "count"),
+    Col("delivered_count", "Delivered", "count"),
+    Col("opened_count", "Opened", "count"),
+    Col("clicked_count", "Clicked", "count"),
+    Col("bounced_count", "Bounced", "count"),
+    Col("complaint_count", "Spam reports", "count"),
+    Col("unsubscribed_count", "Unsubscribed", "count"),
+)
 
 SPECS = (
     ReportSpec(
