@@ -2008,6 +2008,7 @@ def create_locker_lease(session: Db, principal: Principal, data: dict) -> dict:
     term-ended."""
     locker = resources.service.get_locker(session, principal, data["locker_id"], lock=True)
     authorize(principal, LOCKER_RENT, location_id=locker.location_id)
+    clients.service.load(session, principal, data["client_id"], LOCKER_RENT)  # out of client reach is 404
     clients.service.require_active(session, data["client_id"])
     today = platform.service.location_today(session, locker.location_id)
     lease = _new_lease(session, principal, locker, data["client_id"], data, starts_default=today)

@@ -1,11 +1,14 @@
 """resources lockers (RES-07..09): rooms, bulk lockers, terms, and padlocks whose combination is encrypted,
 revealed only under its own key, and audited without the value."""
 
+import hashlib
+import json
 from uuid import UUID
 
 import pytest
 from sqlalchemy import select, text
 
+from app.core import crypto
 from app.core.audit import AuditEvent
 from app.core.db.session import tenant_session
 from app.modules.scheduling.tests.helpers import API, facility, ok
@@ -85,6 +88,28 @@ def test_padlock_combination_is_encrypted_revealed_and_audited(client, owner, f,
     assert client.post(f"{API}/padlocks/{lock['id']}/reveal", headers=owner).status_code == 404
     reused = client.post(f"{API}/padlocks", headers=owner, json={"location_id": f.location, "number": "A-7", "combination": "2"})  # fmt: skip
     assert reused.status_code == 201  # the number frees up once the padlock is deleted
+
+
+def test_reveal_response_is_never_stored_or_replayed(client, owner, f, tenant):
+    """A secret response is not kept in idempotency_key (plaintext at rest) and a replayed key gets 409, not the
+    combination; the stored request hash is keyed, so it cannot be brute-forced back to a short combination."""
+    body = json.dumps({"location_id": f.location, "number": "C-1", "combination": "1-2-3"}).encode()
+    create = owner | {"Idempotency-Key": "pad-create-1", "Content-Type": "application/json"}
+    lock = ok(client.post(f"{API}/padlocks", headers=create, content=body))
+    reveal = f"{API}/padlocks/{lock['id']}/reveal"
+    keyed = owner | {"Idempotency-Key": "reveal-once-1"}
+    assert ok(client.post(reveal, headers=keyed), 200)["combination"] == "1-2-3"
+    replay = client.post(reveal, headers=keyed)
+    assert replay.status_code == 409 and replay.json()["code"] == "response-not-stored"
+    assert "1-2-3" not in replay.text
+    with tenant_session(tenant.id) as session:
+        rows = session.execute(text(
+            "SELECT key, response_body::text, request_hash FROM idempotency_key WHERE key IN ('reveal-once-1', 'pad-create-1')"
+        )).all()  # fmt: skip
+    stored = {key: (response, digest) for key, response, digest in rows}
+    assert stored["reveal-once-1"][0] in (None, "null")  # JSONB None is stored as JSON null
+    raw = b"POST/api/v1/padlocks" + body
+    assert stored["pad-create-1"][1] == crypto.mac_bytes(raw) != hashlib.sha256(raw).hexdigest()
 
 
 def test_padlock_must_match_the_locker_location(client, owner, f):

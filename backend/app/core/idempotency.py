@@ -43,6 +43,17 @@ class IdempotencyKey(TenantOwned, Base):
     expires_at: Mapped[datetime]
 
 
+def secret_response(endpoint):
+    """Route decorator, placed below @router.post: the response carries a secret, so it is never stored, and a
+    replay of the key gets 409 instead of the body (no plaintext at rest, no ungated re-read)."""
+    endpoint.secret_response = True
+    return endpoint
+
+
+def is_secret(request: Request) -> bool:
+    return getattr(request.scope["route"].endpoint, "secret_response", False)
+
+
 class Replay(Exception):
     """Raised to short-circuit a request whose key already completed; TxRoute returns the stored response."""
 
@@ -111,5 +122,7 @@ def idempotency(
     scope = f"{ctx.principal.actor_id}:{request.scope['route'].path}"
     stored = begin(ctx.principal.tenant_id, scope, idempotency_key, request.state.body_hash)
     if stored is not None:
+        if is_secret(request):
+            raise Conflict("This request was already handled; its response is not kept.", code="response-not-stored")
         raise Replay(*stored)
     request.state.idempotency = (scope, idempotency_key)  # only once claimed, so only our own claim is released

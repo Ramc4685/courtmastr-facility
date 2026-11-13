@@ -47,6 +47,13 @@ def decrypt(ciphertext: str, tenant_id: UUID) -> str:
     return AESGCM(_key()).decrypt(raw[:12], raw[12:], tenant_id.bytes).decode()
 
 
+def mac_bytes(raw: bytes) -> str:
+    """HMAC-SHA256 of a request, so a stored Idempotency-Key hash cannot be brute-forced offline into a short
+    secret it carried (a padlock combination)."""
+    key = hmac.new(_key(), b"facilityhub-request-hash-v1", hashlib.sha256).digest()
+    return hmac.new(key, raw, hashlib.sha256).hexdigest()
+
+
 def mac(message: str) -> str:
     """HMAC-SHA256 under a key derived from FH_DATA_KEY: signs short-lived URLs such as file downloads."""
     key = hmac.new(_key(), b"facilityhub-url-mac-v1", hashlib.sha256).digest()

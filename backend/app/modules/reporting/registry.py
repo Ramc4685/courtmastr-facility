@@ -881,7 +881,7 @@ _SPECS = (
         "Game cards by sport",
         "Scheduled league games in the period by sport, in start order, ready to print as game cards (one card "
         "per game from the leagues screen).",
-        "league",
+        "leagues",
         LEAGUE,
         "game_date",
         LeagueCardParams,
@@ -904,7 +904,7 @@ _SPECS = (
         "league_manual_game_cards",
         "Manual game cards",
         "Active teams of each competition, for writing up game cards by hand (pickup and makeup games).",
-        "league",
+        "leagues",
         LEAGUE,
         "none",
         LeagueTeamParams,

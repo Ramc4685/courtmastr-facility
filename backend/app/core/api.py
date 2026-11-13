@@ -1,6 +1,5 @@
 """HTTP plumbing shared by every router: the request transaction, problem+json errors, request context."""
 
-import hashlib
 import ipaddress
 import json
 import logging
@@ -18,7 +17,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core import context, idempotency, networks
+from app.core import context, crypto, idempotency, networks
 from app.core.db.session import run_after_commit
 from app.core.errors import DomainError, PermissionDenied
 from app.core.ids import new_id
@@ -66,7 +65,8 @@ def _finish(request: Request, exc: BaseException | None, response=None) -> None:
     try:
         if exc is None or getattr(exc, "persist", False):
             if claim and exc is None:
-                body = json.loads(response.body) if response.body else None
+                secret = idempotency.is_secret(request)
+                body = json.loads(response.body) if response.body and not secret else None
                 idempotency.complete(session, *claim, response.status_code, body)
             session.commit()
             if exc is None:
@@ -114,7 +114,7 @@ class TxRoute(APIRoute):
             _check_origin(request)
             if "idempotency-key" in request.headers:
                 raw = request.method.encode() + request.url.path.encode() + await request.body()
-                request.state.body_hash = hashlib.sha256(raw).hexdigest()
+                request.state.body_hash = crypto.mac_bytes(raw)
             try:
                 response = await inner(request)
             except idempotency.Replay as replay:

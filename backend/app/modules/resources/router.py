@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, require
-from app.core.idempotency import idempotency
+from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.modules.resources import schemas as s
 from app.modules.resources import service
@@ -182,6 +182,7 @@ def delete_padlock(padlock_id: UUID, ctx: Ctx = Padlocks):
 
 
 @router.post("/padlocks/{padlock_id}/reveal", response_model=s.PadlockCombinationOut)
+@secret_response
 def reveal_padlock_combination(padlock_id: UUID, ctx: Ctx = Reveal):
     """A POST because each reveal is written to the audit log (who looked, never the value)."""
     return service.reveal_combination(ctx.session, ctx.principal, padlock_id)
