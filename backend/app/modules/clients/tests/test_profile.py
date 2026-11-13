@@ -89,6 +89,20 @@ def test_custom_fields_validate_and_merge(client, tenant, owner, location_id):
     assert merged["custom_values"] == {"joined": "2026-02-01"}
 
 
+def test_only_text_custom_fields_are_scanned_for_card_numbers(client, tenant, owner, location_id):
+    """A text custom field is free text; a number field (a fob or legacy id typed as a number) is not scanned."""
+    for key, data_type in (("remarks_x", "text"), ("fob", "number")):
+        body = {"key": key, "label": key, "data_type": data_type}
+        assert client.post(f"{API}/custom-fields", headers=owner, json=body).status_code == 201
+    person = new_client(client, owner, location_id)
+    url = f"{API}/clients/{person['id']}"
+    refused = client.patch(url, headers=owner, json={"custom_values": {"remarks_x": "card 4111 1111 1111 1111"}})
+    assert refused.status_code == 422 and refused.json()["code"] == "card-data-not-allowed"
+    assert refused.json()["errors"][0]["pointer"] == "/custom_values/remarks_x" and "4111" not in refused.text
+    kept = client.patch(url, headers=owner, json={"custom_values": {"fob": 4111111111111111, "remarks_x": "Locker 12"}})
+    assert kept.status_code == 200, kept.text
+
+
 def test_categories_tags_and_counts(client, tenant, owner, location_id):
     gold = client.post(f"{API}/client-categories", headers=owner, json={"name": "Gold"}).json()
     tags = client.get(f"{API}/tags", headers=owner).json()

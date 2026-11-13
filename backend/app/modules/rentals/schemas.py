@@ -517,6 +517,7 @@ class _PlanFields(In):
     is_shareable: bool | None = None
     is_auto_renew: bool | None = None
     is_autopay_default: bool | None = None
+    renewal_wait_days: Annotated[int, Field(ge=1, le=90)] | None = None
 
 
 class RentalPlanCreate(_PlanFields):
@@ -556,6 +557,7 @@ class RentalPlanOut(Out):
     is_shareable: bool
     is_auto_renew: bool
     is_autopay_default: bool
+    renewal_wait_days: int
     status: str
 
 

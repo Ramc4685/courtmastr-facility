@@ -21,6 +21,8 @@ from app.core.api import CONSTRAINT_CODES, CONSTRAINT_FIELDS
 from app.core.auth import Principal, authorize, scope_query, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.pan import contains_card_number
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL
 from app.core.settings import get_settings
 from app.modules import platform
 from app.modules.clients.events import ClientAgeConfirmed, ClientCreated, ClientDisabled, ClientUpdated
@@ -331,6 +333,8 @@ def _coerce_custom(field: CustomField, value: Any, pointer: str) -> Any:
     }[field.data_type]
     if not ok(value):
         raise ValidationFailed(f"Invalid value for {field.label}.", pointer=pointer)
+    if field.data_type == "text" and contains_card_number(value):  # free text; number fields hold ids and fobs
+        raise ValidationFailed(CARD_DATA_DETAIL, code=CARD_DATA, pointer=pointer)
     if field.data_type == "date":
         try:
             date.fromisoformat(value)

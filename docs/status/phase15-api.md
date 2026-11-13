@@ -24,7 +24,7 @@ Server-to-Server app, and run one connection end to end in a sandbox account of 
 | SCH-20 | partial | Public schedule per location under the portal listing rule (hidden, unlisted, out-of-range and hidden-when-full sessions left out), public titles only, busy times of that location only (with `show_busy` on, a hidden or unlisted session still shows as an untitled busy block, by design). Web: settings tab with a copyable embed snippet. Not enabled: cross-site embedding at the proxy (the UI says so). |
 | INT-07 | partial, simulated | OAuth per tenant or location, callback bound to the staff user and single-use state, realm verified against the token and claimed per tenant, released on disconnect; mappings, range sync as a chunked job (one committed day per chunk, the location's own dates, finished days only, request id per day), retry, signed webhook. Web: connect, disconnect, callback page, mappings dialog and a queued sync. Never run live. |
 | INT-09, SSP-18, CLS-08 | partial, simulated | Pasted link or Zoom meeting per session, sealed; member join from 10 minutes before the start, marks attendance; disconnect marks meetings failed; a rescheduled session moves its Zoom meeting and a cancelled one deletes it, after commit. Web: staff meeting panel on the session; portal Join online on every booked place with a meeting until the session ends (enrolments carry the session times, `GET /portal/enrollment-meetings` says which have a meeting), and Stop my calendar feed only while a feed exists (`GET /portal/calendar-feeds`). Not built: `/webhooks/zoom`, `virtual_room` holds. |
-| INT-13 | partial | Measurement id and linked domains, `GET /public/analytics-config`. The tag is not loaded: see below. |
+| INT-13 | dropped | Owner decision 2026-11-13 (question 6): no third-party analytics. Removed with migration 1951. |
 | BIL-24 | parked | Legacy outsourced collections; billing's collections queue and CSV export cover hand-off. |
 | PAY-19 | parked | Legacy magnetic swipe; raw card data never reaches us (ADR 0003). |
 
@@ -37,11 +37,8 @@ Server-to-Server app, and run one connection end to end in a sandbox account of 
 - Video-meeting paths name `{schedule_session_id}`; `VideoMeeting.status` is `scheduled` or `failed` only.
 - Zoom uses each tenant's Server-to-Server app, not ADR 0012 section 5's user OAuth; there is no browser step.
 - QuickBooks app credentials come from the environment (shortcut, as core settings were frozen this phase).
-- **INT-13 needs an owner decision.** ADR 0012 section 6 expects the GA4 tag on public and portal pages after
-  consent; security-baseline V10 and section 14 forbid third-party analytics in web and mobile (the portal
-  serves minors), and the proxy CSP is `script-src 'self'`. The consent-gated loader was written and then
-  removed. To ship it: amend the baseline for public registration pages, exclude minors' sessions, and allow
-  the tag hosts in `infra/proxy/Caddyfile`.
+- **INT-13 dropped by owner decision** (2026-11-13, question 6): the third-party analytics ban stands; the
+  connection kind, its settings and `GET /public/analytics-config` are removed (migration 1951).
 
 ## Read functions added to other modules
 

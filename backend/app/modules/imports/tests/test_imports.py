@@ -383,6 +383,21 @@ def test_opening_balances_post_through_billing_once(client, tenant, owner, locat
     assert counts(tenant)["charge"] == after["charge"] and counts(tenant)["payment"] == after["payment"]
 
 
+def test_a_card_number_in_imported_free_text_is_a_row_error(client, tenant, owner, location_id):
+    """CSV rows skip the request schemas, so the import checks free text itself (security-baseline section 3)."""
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        billing.service.create_revenue_category(session, code="GEN", label="General", tax_ids=[])
+    new_client(client, owner, location_id, member_number="C-1")
+    yesterday = (clock.now().date() - timedelta(days=1)).isoformat()
+    rows = [["client_member_number", "client_email", "amount", "as_of_date", "direction", "description"],
+            ["C-1", "", "10", yesterday, "owed", "Card 4111 1111 1111 1111"],
+            ["C-1", "", "12", yesterday, "owed", "Locker 4006381333931"]]  # fmt: skip
+    job = check(client, owner, start(client, owner, location_id, "balances", to_csv(rows)))
+    found = outcomes(tenant, job)
+    assert found[2] == ("invalid", ["card-data-not-allowed"]) and found[3][0] == "valid"
+    assert "4111" not in str(report(client, owner, job))
+
+
 # --- products ------------------------------------------------------------------------------------------------------
 
 

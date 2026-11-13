@@ -303,6 +303,7 @@ source_modules = ["app.modules.rentals"]
 forbidden_modules = ["app.modules.documents", "app.modules.packages", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
 allow_indirect_imports = true
 ignore_imports = [
+    "app.modules.rentals.service -> app.modules.documents",  # rental plan waivers (ADR 0013): requirements_for, ensure_pending, consume, top-level package only
     "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
 ]
 

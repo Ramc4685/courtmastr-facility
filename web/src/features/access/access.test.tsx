@@ -84,7 +84,7 @@ describe('CheckInPage', SCREEN, () => {
   })
 })
 
-const config = { kiosk_device_id: 'd1', location_id: 'l1', location_name: 'Courtside Downtown', time_zone: 'America/Chicago', settings: { location_id: 'l1', lookup_method: 'both', early_window_minutes: 60, late_window_minutes: 30, welcome_message: 'Hello!', displayed_alert_codes: ['balance_due'], confirmation_timeout_seconds: 10 } }
+const config = { kiosk_device_id: 'd1', location_id: 'l1', location_name: 'Courtside Downtown', time_zone: 'America/Chicago', settings: { location_id: 'l1', lookup_method: 'both', early_window_minutes: 60, late_window_minutes: 30, welcome_message: 'Hello!', displayed_alert_codes: ['balance_due'], confirmation_timeout_seconds: 10, visible_range_minutes: 240, is_auto_book: false, reservation_timeout_seconds: 30, is_name_search_booking_allowed: true, has_exit_pin: true } }
 
 function renderKiosk(routes: Parameters<typeof mockFetch>[0]) {
   const calls = mockFetch(routes)
@@ -120,7 +120,7 @@ describe('KioskPage', SCREEN, () => {
     const calls = renderKiosk({
       'GET /api/v1/kiosk/config': { status: 200, body: config },
       'POST /api/v1/kiosk/lookups': { status: 200, body: { matches: [{ match_token: 't1', first_name: 'Avery', last_initial: 'Z' }] } },
-      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: ['balance_due'], attended: [], welcome_message: 'Hello!' } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: ['balance_due'], attended: [], welcome_message: 'Hello!', sessions: [] } },
     })
     await userEvent.type(await screen.findByLabelText(/first letters of your last name/), 'Zep')
     await userEvent.click(screen.getByRole('button', { name: 'Find me' }))
@@ -130,10 +130,89 @@ describe('KioskPage', SCREEN, () => {
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ match_token: 't1' })
   })
 
+  it('lists classes starting soon, books one by the server rules and confirms', async () => {
+    const yoga = { target_type: 'session', target_id: 's1', title: 'Yoga', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: true }
+    const spin = { ...yoga, target_id: 's2', title: 'Spin', is_bookable: false }
+    const entered = { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [yoga, spin], visit_token: 'v1' }
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/lookups': { status: 200, body: { matches: [{ match_token: 't1', first_name: 'Avery', last_initial: 'Z' }] } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: entered },
+      'POST /api/v1/kiosk/check-ins/k1/attendances': { status: 200, body: { ...entered, sessions: [{ ...yoga, is_booked: true, is_bookable: false }, spin], visit_token: 'v2' } },
+    })
+    await userEvent.type(await screen.findByLabelText(/first letters of your last name/), 'Zep')
+    await userEvent.click(screen.getByRole('button', { name: 'Find me' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Avery Z.' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a class' }))
+    const list = screen.getByRole('list', { name: 'Classes starting soon' })
+    expect(within(list).getByText('Spin').closest('li')).toHaveTextContent('See the front desk') // no reason shown
+    await userEvent.click(within(list).getByRole('button', { name: /^Book Yoga at/ }))
+    expect(await screen.findByText("You're booked, Avery!")).toBeInTheDocument()
+    expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins/k1/attendances')?.body).toEqual({ target_type: 'session', target_id: 's1', visit_token: 'v1' })
+  })
+
+  it('while one booking is in flight the other buttons wait, so the visit token is not spent twice', async () => {
+    const yoga = { target_type: 'session', target_id: 's1', title: 'Yoga', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: true }
+    const spin = { ...yoga, target_id: 's2', title: 'Spin' }
+    renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/lookups': { status: 200, body: { matches: [{ match_token: 't1', first_name: 'Avery', last_initial: 'Z' }] } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [yoga, spin], visit_token: 'v1' } },
+    })
+    const served = globalThis.fetch
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).endsWith('/attendances') ? new Promise(() => {}) : served(input, init))
+    await userEvent.type(await screen.findByLabelText(/first letters of your last name/), 'Zep')
+    await userEvent.click(screen.getByRole('button', { name: 'Find me' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Avery Z.' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a class' }))
+    const list = screen.getByRole('list', { name: 'Classes starting soon' })
+    await userEvent.click(within(list).getByRole('button', { name: /^Book Yoga at/ }))
+    expect(within(list).getByRole('button', { name: /^Book Spin at/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
+  })
+
+  it('a client found by name cannot book a paid class from the screen, and leaving ends the visit', async () => {
+    // The server marks a session that would spend a package as not bookable for a name-search visit.
+    const paid = { target_type: 'session', target_id: 's2', title: 'Spin', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: false }
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/lookups': { status: 200, body: { matches: [{ match_token: 't1', first_name: 'Avery', last_initial: 'Z' }] } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [paid], visit_token: 'v1' } },
+      'POST /api/v1/kiosk/visits/end': { status: 204 },
+    })
+    await userEvent.type(await screen.findByLabelText(/first letters of your last name/), 'Zep')
+    await userEvent.click(screen.getByRole('button', { name: 'Find me' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Avery Z.' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a class' }))
+    const list = screen.getByRole('list', { name: 'Classes starting soon' })
+    expect(within(list).getByText('Spin').closest('li')).toHaveTextContent('See the front desk')
+    expect(within(list).queryByRole('button', { name: /^Book Spin at/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(calls.find((c) => c.url === '/api/v1/kiosk/visits/end')?.body).toEqual({ check_in_id: 'k1' }))
+    expect(calls.some((c) => c.url.endsWith('/attendances'))).toBe(false)
+  })
+
+  it('a refused booking sends the client to the desk without saying why', async () => {
+    const yoga = { target_type: 'session', target_id: 's1', title: 'Yoga', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: true }
+    renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [yoga] } },
+      'POST /api/v1/kiosk/check-ins/k1/attendances': { status: 409, body: { code: 'see-staff', status: 409, detail: 'Please see the front desk.' } },
+    })
+    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
+    const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
+    ;[...'fhq.abc.1.x', 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
+    clock.mockRestore()
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a class' }))
+    await userEvent.click(screen.getByRole('button', { name: /^Book Yoga at/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Please see the front desk to book this class.')
+  })
+
   it('a scanned app-card code checks in directly', async () => {
     const calls = renderKiosk({
       'GET /api/v1/kiosk/config': { status: 200, body: config },
-      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'see_staff', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'see_staff', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [] } },
     })
     await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
     const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000) // a burst, however slow the test runner
@@ -141,6 +220,45 @@ describe('KioskPage', SCREEN, () => {
     clock.mockRestore()
     expect(await screen.findByText('Please see the front desk, Kit.')).toBeInTheDocument()
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ card_payload: 'fhq.abc.1.x' })
+  })
+
+  it('a scanned fob is a card payload too, never a typed lookup', async () => {
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/check-ins': { status: 422, body: { code: 'card-invalid', status: 422, detail: 'This is not a member card.' } },
+    })
+    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
+    const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
+    ;[...'KC12345', 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
+    clock.mockRestore()
+    expect(await screen.findByText('We could not find you. Please see the front desk.')).toBeInTheDocument()
+    expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ card_payload: 'KC12345' })
+    expect(calls.some((c) => c.url === '/api/v1/kiosk/lookups')).toBe(false)
+  })
+
+  it('a new scan ends only the old visit, so a late end cannot kill the new visit token', async () => {
+    let n = 0
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/check-ins': () => {
+        n += 1
+        return { status: 201, body: { check_in_id: `k${n}`, status: 'admitted', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [], visit_token: `v${n}` } }
+      },
+      'POST /api/v1/kiosk/visits/end': { status: 204 },
+    })
+    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
+    const scan = (value: string) => {
+      const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
+      ;[...value, 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
+      clock.mockRestore()
+    }
+    scan('fhq.abc.1.x')
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/v1/kiosk/check-ins')).toHaveLength(1))
+    expect(await screen.findByRole('button', { name: 'Book a class' })).toBeInTheDocument()
+    scan('fhq.abc.2.y')
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/v1/kiosk/check-ins')).toHaveLength(2))
+    const ends = calls.filter((c) => c.url === '/api/v1/kiosk/visits/end')
+    expect(ends.map((c) => c.body)).toEqual([{ check_in_id: 'k1' }]) // names the old visit, never the new one
   })
 })
 

@@ -1,5 +1,5 @@
-# Non-secret settings for the container stack (overlay for FH_ENV=production; mounted by compose.stack.yml).
-# Host names are the Compose service names. For a cloud deployment copy this file and change the hosts, the
+# Non-secret settings for a deployment (overlay for FH_ENV=production). The local container stack uses
+# app.stack.yaml instead. Host names below are examples; copy this file and change the hosts, the
 # public URL and the bucket endpoint; provide it as a mounted file (Fly: [[files]]; AWS: a config volume or a
 # thin image layer). Secrets never go here: they arrive as environment variables.
 app:
@@ -13,8 +13,11 @@ db:
   host: postgres
   port: 5432
   name: facilityhub
+  sslmode: verify-full                     # with PGSSLROOTCERT=<CA bundle path> in the environment (security-baseline V9)
 redis:
-  url: redis://redis:6379/0
+  # TLS with the server's certificate and host name verified (refused otherwise). A private CA: set FH_REDIS_URL
+  # to rediss://<host>:6379/0?ssl_ca_certs=<CA bundle path>.
+  url: rediss://redis:6379/0
 email:
   adapter: smtp
   smtp_host: mailpit                       # only exists under `--profile mail`; set a real relay for a deployment

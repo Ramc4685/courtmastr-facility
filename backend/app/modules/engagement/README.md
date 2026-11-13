@@ -70,6 +70,10 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
 - **Editing a scheduled campaign** returns it to draft, so someone holding the send key schedules it again.
 - **API keys** (module 16) holding engagement scopes can create campaigns; the sender is then empty.
 - **The message log** shows location-less rows (transactional mail from other contexts) to tenant-wide staff only.
+- **Message bodies are kept 90 days** (security-baseline 2.3): the hourly retention purge (`subject._purge_bodies`,
+  registered with `platform.retention.register_purge`) nulls `body_text` of every message no longer queued (sent,
+  delivered, bounced, skipped and so on) older than
+  `retention.message_body_days`; the row, recipient, status and counts stay. Queued messages keep their body.
 
 ## Assumptions and deviations (written down, not guessed)
 

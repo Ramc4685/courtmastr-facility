@@ -20,6 +20,8 @@ from app.modules.clients.models import Client
 from app.modules.memberships.models import MembershipContract
 from app.modules.memberships.tests.support import membership_plan
 from app.modules.programs.tests.test_selfservice import SOON, policy
+from app.modules.documents.tests.support import sign
+from app.modules.rentals.tests.test_lockers_and_plans import bind_waiver, stopped_by_waiver
 from app.modules.rentals.tests.test_rentals import portal_client
 from app.modules.scheduling.tests.helpers import API, DAY, at, book, facility, ok
 from conftest import add_staff, login, new_client
@@ -442,12 +444,21 @@ def test_a_guardian_never_spends_a_grown_childs_plan(client, owner, f):
             "validation-failed")  # an adult's plan is shared only through plan sharing  # fmt: skip
 
 
-@pytest.mark.skip(reason="claude/owner-decisions-1 adds the share-holder waiver gate; enable once both branches merge")
 def test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate(client, owner, f):
-    """Once claude/owner-decisions-1 lands, a share-holder must have the plan's waiver signed before spending it.
-    The guardian path in `_purchase_for` (marked "hook: share-holder waiver gate") must pass the same gate: a
-    guardian without the signed waiver is refused with that branch's code, and signing it lets the booking through."""
-    raise NotImplementedError
+    """A guardian spending a child's plan is a holder spending someone else's plan, like a share-holder: the child's
+    signature does not cover them. Refused with document-required until they accept it, once per purchase."""
+    parent, kid = family(client, owner, f)
+    cover = _junior_plan(client, owner, f, kid)
+    plan_id = ok(client.get(f"{API}/rental-plan-purchases/{cover['rental_plan_purchase_id']}", headers=owner), 200)
+    bind_waiver(client, owner, {"id": plan_id["rental_plan_id"]})  # bound after the child's purchase was sold
+    document = stopped_by_waiver(client, owner, rent(client, owner, body(f, parent, 15, 16, charge=cover,
+                                                                         parties=[{"client_id": kid}])))  # fmt: skip
+    assert document["client_id"] == parent
+    assert sign(client, owner, document).status_code == 200
+    ok(rent(client, owner, body(f, parent, 15, 16, charge=cover, parties=[{"client_id": kid}])))
+    signed = ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)
+    assert (signed["source_type"], signed["source_id"]) == ("rental_plan_purchase", cover["rental_plan_purchase_id"])
+    ok(rent(client, owner, body(f, parent, 17, 18, charge=cover, parties=[{"client_id": kid}])))  # one per purchase
 
 
 def test_the_minor_age_is_the_tenant_setting(client, owner, f):
@@ -535,7 +546,10 @@ def test_portal_holder_needs_a_birth_date_and_a_first_one_is_flagged_for_staff(c
     ok(client.post(f"{API}/clients/{me}/age-confirmation", headers=owner, json={}), 200)  # the same date, confirmed
     me_seen = ok(client.get(f"{API}/portal/clients/{me}", headers=portal), 200)
     assert (me_seen["age_confirmed"], me_seen["entry_code_notice"]) == (True, None)
-    assert ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 16, 17)))["entry_code_notice"] is None
+    assert (
+        ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 16, 17)))["entry_code_notice"]
+        is None
+    )
 
 
 def test_a_self_declared_adult_pays_online_and_a_self_declared_minor_still_cannot_hold(client, owner, tenant, f):
@@ -561,7 +575,12 @@ def test_a_portal_dependant_needs_a_birth_date_and_never_holds_the_rental(client
                      if t["code"] == "parent_of")  # fmt: skip
     child = {"relationship_type_id": parent_of["id"], "first_name": "Kit", "last_name": "Pat"}
     assert client.post(f"{API}/portal/dependents", headers=portal, json=child).status_code == 422
-    kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json=child | {"birth_on": CHILD, "birth_on_declared": True}), 201)
+    kid = ok(
+        client.post(
+            f"{API}/portal/dependents", headers=portal, json=child | {"birth_on": CHILD, "birth_on_declared": True}
+        ),
+        201,
+    )
     assert (kid["authority"], kid["is_adult"], kid["is_my_ward"]) == ("manager", False, True)
     assert ok(client.get(f"{API}/clients/{kid['id']}", headers=owner), 200)["is_birth_on_unverified"] is True
     refused(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, kid["id"], 15, 16)), 422,

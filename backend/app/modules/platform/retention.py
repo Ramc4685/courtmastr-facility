@@ -7,8 +7,9 @@ deletes only what became eligible in between. Periods are in config `retention`;
 gets the shorter `gdpr_*` periods for sessions and sign-in links. Audit rows keep their fixed retain_until_on.
 
 Not purged here: unpublished outbox rows (never), report result bytes (`reporting.jobs.purge_expired_results`),
-tenant export bundles (`platform.tenant_export.purge_expired_exports`), webhook deliveries and inbound provider
-events (their owning contexts; not built yet).
+tenant export bundles (`platform.tenant_export.purge_expired_exports`), message bodies (engagement's
+`engagement_message_bodies` hook, 90 days), inbound provider payloads (global table, emptied after 90 days by
+`core.inbound_webhooks.purge_payloads` from the hourly clock), webhook deliveries (their owning context).
 """
 
 from collections.abc import Callable

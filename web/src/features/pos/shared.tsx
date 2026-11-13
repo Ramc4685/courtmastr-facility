@@ -45,7 +45,7 @@ const LINKS = [
   { to: '/pos/products', label: 'Products & stock', permission: 'pos.sale.read' },
   { to: '/pos/equipment', label: 'Equipment', permission: 'pos.equipment.rent' },
   { to: '/pos/drawers', label: 'Drawers', permission: 'pos.drawer.operate' },
-  { to: '/pos/reports', label: 'Reports', permission: 'pos.sale.read' },
+  { to: '/pos/reports', label: 'Reports', permission: 'reporting.pos.run' },
   { to: '/pos/setup', label: 'Set-up', permission: 'pos.register.manage' },
 ]
 

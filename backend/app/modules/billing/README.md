@@ -224,9 +224,11 @@ staff can also start an autopay run (`POST /autopay-runs`).
 (hourly; MEM-14) are `@tenant_actor` lines in `app/scheduler.py`, both idempotent.
 
 `webhooks.retry_provider_events` (hourly through `app/scheduler.py`, Phase 9 chip C): per tenant, provider
-events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times) and older than a few
-minutes are applied inline, each in a savepoint. Idempotent: an applied event is marked processed and the
-handlers re-read the object from the provider.
+events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times, defined in
+`core.inbound_webhooks` so the retention purge spares them) and older than a few minutes are applied inline, each
+in a savepoint. Idempotent: an applied event is marked processed and the handlers re-read the object from the
+provider. An event with an empty payload (purged or stored malformed) is never applied: both paths log an error
+and record a failed attempt ("payload missing").
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 
@@ -348,6 +350,8 @@ handlers re-read the object from the provider.
   same invoice never suspends that contract again. Staff can still suspend by hand at any time.
 - **The portal lockout covers buying and booking only (BIL-22).** A locked client can still sign in, see
   and pay invoices, edit their profile and sign documents; paying the past-due invoice unlocks at once.
+  Accepted by the owner 2026-11-13 (question 7): outside the lockout too are guest checkout (`/public/*`, never
+  matched to a client), joining an already-booked online class, and getting or stopping a calendar feed.
 - **The digest's "previous day" is the location's local day,** and payments count by `received_at`.
   The expiring-cards month is compared in UTC (cards carry a month, not a zone).
 - **A pending bank debit pauses the dunning clock; it does not restart it (MEM-14, BIL-22).** While a debit

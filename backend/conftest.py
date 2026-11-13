@@ -47,11 +47,13 @@ def client():
 @pytest.fixture
 def deploy_secrets(monkeypatch):
     """Generated-looking secrets for tests that build settings for a non-dev environment (FH_DATA_KEY and
-    FH_OPERATOR_TOKEN must not be dev or example values there)."""
+    FH_OPERATOR_TOKEN must not be dev or example values there), plus TLS to Postgres and Redis, required there."""
     import base64
 
     monkeypatch.setenv("FH_DATA_KEY", base64.b64encode(os.urandom(32)).decode())
     monkeypatch.setenv("FH_OPERATOR_TOKEN", "t" * 40)
+    monkeypatch.setenv("FH_DB_SSLMODE", "verify-full")
+    monkeypatch.setenv("FH_REDIS_URL", "rediss://cache.internal:6380/0")
 
 
 @pytest.fixture
@@ -1267,7 +1269,7 @@ def two_tenants():
 def _populate_access(client, headers, post, tenant, location_id, client_id, space) -> dict:
     """Module 10: a barcode, a staff check-in (its attendance row by hand: no session starts near now), kiosk
     settings and a registered kiosk device."""
-    from app.modules.access.models import CheckInAttendance, KioskMatch
+    from app.modules.access.models import CheckInAttendance, KioskMatch, KioskVisit
 
     credential = post(f"/clients/{client_id}/credentials", {"kind": "barcode", "value": f"POP-{uuid4().hex[:8]}"})
     checked = post("/check-ins", {"client_id": client_id, "location_id": location_id, "channel": "staff_window"})
@@ -1284,6 +1286,10 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
         session.add(KioskMatch(
             kiosk_device_id=device["kiosk_device_id"], client_id=client_id, token_hash=f"pop-{uuid4().hex}",
             expires_at=clock.now(),
+        ))  # fmt: skip
+        session.add(KioskVisit(
+            kiosk_device_id=device["kiosk_device_id"], check_in_id=checked["check_in"]["id"],
+            token_hash=f"pop-{uuid4().hex}", expires_at=clock.now(),
         ))  # fmt: skip
     # check-in desk (phase 10 chip C): a station and a location's ID card template
     station = post("/check-in-stations", {"location_id": location_id, "name": "Main desk"})

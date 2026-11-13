@@ -21,7 +21,6 @@ register(
     _p("result.enter", "Enter game results", "", {**_MG, "scorekeeper": "all"}),
     _p("result.amend_final", "Remove recorded results", "", _LM),
     _p("standings.adjust", "Adjust standings points", "", _LM),
-    _p("discipline.manage", "Manage discipline caps and suspensions", "", _LM),
     _p("official.manage", "Manage officials and game assignments", "", _MG),
     _p("game_card.print", "Print game cards", "", {**_MG, "scorekeeper": "all"}),
     _p("alert.send", "Send league alerts", "B", _MG),

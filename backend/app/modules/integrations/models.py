@@ -40,7 +40,6 @@ class Provider(StrEnum):
     QUICKBOOKS_ONLINE = "quickbooks_online"
     ACCOUNTING_FILE = "accounting_file"  # ours: the daily journal as a JSON file (no external account)
     ZOOM = "zoom"
-    GOOGLE_ANALYTICS = "google_analytics"  # INT-13: no credentials, only a public measurement id
 
 
 class ExportStatus(StrEnum):

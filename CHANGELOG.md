@@ -9,6 +9,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ### Added
 - Age checks: online sign-up, guest checkout and portal dependants ask for a date of birth declared true; staff confirm it once from the client record or the new Age checks queue, with a count on the dashboard.
 - A self-declared adult books and pays online at once and is told the entry code follows once staff have confirmed their age.
+- Kiosk: after checking in, members see the classes starting soon and book one on the tablet, by the same rules as online booking; a location can have the kiosk book the next open class automatically, and sets how far ahead classes are listed and how long the list stays up.
+- Kiosk: booking a class that uses a package needs the member's app code or wallet pass; a key fob, barcode or member number counts like a name, so it can book only free classes (a location can turn that off), and the tablet forgets the visit as soon as it returns to the start screen.
+- Rental plans: a waiver bound to a plan must be signed before the plan is sold, at the desk or online, and again on each purchase when it is set to every purchase.
+- Rental plans: someone a plan is shared with signs its waiver before booking on it, and an automatic renewal that needs a signature waits for it (the member is emailed) and renews as soon as it is signed.
 - Calendar feeds: subscribe to your bookings and shifts, or a team's games, from any calendar app; the address is shown once.
 - An embeddable public schedule per location showing published sessions and free seats, never names.
 - QuickBooks Online connection with account mappings and a sync over a date range (simulated until a QuickBooks app is registered).
@@ -34,6 +38,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Member app feedback is limited to 10 messages an hour per member and only goes to the member's home location or one whose portal is public.
 - Unconfirmed portal sign-ups are deleted a week after their link expires, trial requests 180 days after they arrive (or 90 days after they are closed), and erasing a client clears the IP address on their recorded terms acceptances.
 - Guest program checkout keeps a guest's details on the basket until payment and creates their client records only once the card is charged; abandoned or expired baskets leave nothing behind. Guests are limited to 5 baskets per 15 minutes per network and per email address, with at most 4 participants each, and welcome automations no longer email a guest's unverified address.
+- POS reports (sales groupings, daily register, reorder, returns) now need the POS reports permission, like the report centre; front desk keeps the sales list but no longer sees the Reports tab.
 
 ### Added
 - Member app: staff design the home screen (tiles, order, captions and styling) with a live preview, and the app takes its colours from the account.

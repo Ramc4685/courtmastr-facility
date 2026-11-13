@@ -11,6 +11,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import false, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, events
@@ -93,6 +94,7 @@ def _hold_credit(session: Db, seat: dict, row: Enrollment, client_package_id: UU
         packages.service.reserve_credit(
             session, client_package_id=client_package_id, client_id=row.client_id, **_credit(row),
             session_on=seat["starts_at"].astimezone(zone).date(), reservation_type_id=seat["reservation_type_id"],
+            defer_renewal=row.channel == "kiosk",  # nothing at the kiosk charges: the daily run renews
         )  # fmt: skip
     except NotFound:
         raise ValidationFailed("Unknown package.", pointer="/client_package_id") from None
@@ -122,8 +124,14 @@ def _enroll(
         location_id=seat["location_id"], client_id=client_id, session_id=seat["id"], status="enrolled",
         pricing="entitlement" if client_package_id else "free", channel=channel, enrolled_at=clock.now(),
     )  # fmt: skip
-    session.add(row)
-    session.flush()  # uq_enrollment_session_client answers a second enrolment with already-enrolled
+    try:
+        with session.begin_nested():
+            session.add(row)
+            session.flush()
+    except IntegrityError as exc:  # a domain error, so internal callers (the kiosk) can tell it apart
+        if "uq_enrollment_session_client" not in str(exc.orig):
+            raise
+        raise Conflict("The client already holds a place in this session.", code="already-enrolled") from None
     if client_package_id:
         _hold_credit(session, seat, row, client_package_id)
     events.publish(

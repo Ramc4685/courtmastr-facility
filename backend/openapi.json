@@ -1553,27 +1553,6 @@
         "title": "AllocationsCreate",
         "type": "object"
       },
-      "AnalyticsConfigOut": {
-        "properties": {
-          "linked_domains": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Linked Domains",
-            "type": "array"
-          },
-          "measurement_id": {
-            "title": "Measurement Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "measurement_id",
-          "linked_domains"
-        ],
-        "title": "AnalyticsConfigOut",
-        "type": "object"
-      },
       "ApiKeyCreate": {
         "additionalProperties": false,
         "properties": {
@@ -25302,8 +25281,7 @@
             "enum": [
               "accounting_file",
               "quickbooks_online",
-              "zoom",
-              "google_analytics"
+              "zoom"
             ],
             "title": "Provider",
             "type": "string"
@@ -25344,7 +25322,7 @@
                 "type": "null"
               }
             ],
-            "description": "Accounting: `account_map` (posting key -> account) and `default_income_account`. Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)",
+            "description": "Accounting: `account_map` (posting key -> account) and `default_income_account`",
             "title": "Settings"
           },
           "zoom": {
@@ -30454,6 +30432,35 @@
         "title": "JoinOut",
         "type": "object"
       },
+      "KioskAttendanceCreate": {
+        "additionalProperties": false,
+        "description": "Book a session from the reservation page. Only `session` is built: places already booked and bookings are\nmarked by the check-in itself.",
+        "properties": {
+          "target_id": {
+            "format": "uuid",
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "const": "session",
+            "title": "Target Type",
+            "type": "string"
+          },
+          "visit_token": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Visit Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "visit_token"
+        ],
+        "title": "KioskAttendanceCreate",
+        "type": "object"
+      },
       "KioskAttendedOut": {
         "properties": {
           "session_id": {
@@ -30536,6 +30543,13 @@
             "title": "First Name",
             "type": "string"
           },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/KioskSession"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
           "status": {
             "enum": [
               "admitted",
@@ -30543,6 +30557,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "visit_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Token"
           },
           "welcome_message": {
             "anyOf": [
@@ -30562,7 +30587,8 @@
           "first_name",
           "displayed_alert_codes",
           "attended",
-          "welcome_message"
+          "welcome_message",
+          "sessions"
         ],
         "title": "KioskCheckInResult",
         "type": "object"
@@ -30819,6 +30845,54 @@
         "title": "KioskPairingCode",
         "type": "object"
       },
+      "KioskSession": {
+        "description": "A session on the kiosk reservation page: title and times only, never prices or plan names.",
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "is_bookable": {
+            "title": "Is Bookable",
+            "type": "boolean"
+          },
+          "is_booked": {
+            "title": "Is Booked",
+            "type": "boolean"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "target_id": {
+            "format": "uuid",
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "const": "session",
+            "title": "Target Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "title",
+          "starts_at",
+          "ends_at",
+          "is_booked",
+          "is_bookable"
+        ],
+        "title": "KioskSession",
+        "type": "object"
+      },
       "KioskSettingsOut": {
         "properties": {
           "confirmation_timeout_seconds": {
@@ -30840,6 +30914,14 @@
             "title": "Has Exit Pin",
             "type": "boolean"
           },
+          "is_auto_book": {
+            "title": "Is Auto Book",
+            "type": "boolean"
+          },
+          "is_name_search_booking_allowed": {
+            "title": "Is Name Search Booking Allowed",
+            "type": "boolean"
+          },
           "late_window_minutes": {
             "title": "Late Window Minutes",
             "type": "integer"
@@ -30852,6 +30934,14 @@
           "lookup_method": {
             "title": "Lookup Method",
             "type": "string"
+          },
+          "reservation_timeout_seconds": {
+            "title": "Reservation Timeout Seconds",
+            "type": "integer"
+          },
+          "visible_range_minutes": {
+            "title": "Visible Range Minutes",
+            "type": "integer"
           },
           "welcome_message": {
             "anyOf": [
@@ -30873,6 +30963,10 @@
           "welcome_message",
           "displayed_alert_codes",
           "confirmation_timeout_seconds",
+          "visible_range_minutes",
+          "is_auto_book",
+          "reservation_timeout_seconds",
+          "is_name_search_booking_allowed",
           "has_exit_pin"
         ],
         "title": "KioskSettingsOut",
@@ -30948,6 +31042,28 @@
             ],
             "title": "Exit Pin"
           },
+          "is_auto_book": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Auto Book"
+          },
+          "is_name_search_booking_allowed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Name Search Booking Allowed"
+          },
           "late_window_minutes": {
             "anyOf": [
               {
@@ -30977,6 +31093,32 @@
             ],
             "title": "Lookup Method"
           },
+          "reservation_timeout_seconds": {
+            "anyOf": [
+              {
+                "maximum": 300.0,
+                "minimum": 3.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Timeout Seconds"
+          },
+          "visible_range_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visible Range Minutes"
+          },
           "welcome_message": {
             "anyOf": [
               {
@@ -30991,6 +31133,21 @@
           }
         },
         "title": "KioskSettingsWrite",
+        "type": "object"
+      },
+      "KioskVisitEnd": {
+        "additionalProperties": false,
+        "properties": {
+          "check_in_id": {
+            "format": "uuid",
+            "title": "Check In Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_in_id"
+        ],
+        "title": "KioskVisitEnd",
         "type": "object"
       },
       "LadderChallengeCreate": {
@@ -66914,6 +67071,19 @@
             ],
             "title": "Quantity"
           },
+          "renewal_wait_days": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewal Wait Days"
+          },
           "rental_type_id": {
             "format": "uuid",
             "title": "Rental Type Id",
@@ -67168,6 +67338,10 @@
             ],
             "title": "Quantity"
           },
+          "renewal_wait_days": {
+            "title": "Renewal Wait Days",
+            "type": "integer"
+          },
           "rental_type_id": {
             "format": "uuid",
             "title": "Rental Type Id",
@@ -67222,6 +67396,7 @@
           "is_shareable",
           "is_auto_renew",
           "is_autopay_default",
+          "renewal_wait_days",
           "status"
         ],
         "title": "RentalPlanOut",
@@ -67459,6 +67634,19 @@
               }
             ],
             "title": "Quantity"
+          },
+          "renewal_wait_days": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewal Wait Days"
           },
           "rental_type_id": {
             "anyOf": [
@@ -118620,7 +118808,7 @@
     },
     "/api/v1/kiosk/check-ins": {
       "post": {
-        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons.",
+        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page and its\nsingle-use visit token (so a replayed key is refused, not re-read).",
         "operationId": "createKioskCheckIn",
         "parameters": [
           {
@@ -118674,6 +118862,77 @@
           }
         },
         "summary": "Create Kiosk Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/check-ins/{check_in_id}/attendances": {
+      "post": {
+        "description": "Book a session from the reservation page, by the portal's rules, spending the visit token. Found by name,\nfree sessions only and every refusal is see-staff. Errors: outside-check-in-window, capacity-full,\npolicy-violation, already-enrolled, no-entitlement, see-staff (past due, or found by name).",
+        "operationId": "createKioskAttendance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskAttendanceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskCheckInResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Kiosk Attendance",
         "tags": [
           "access"
         ]
@@ -118737,7 +118996,7 @@
     },
     "/api/v1/kiosk/lookups": {
       "post": {
-        "description": "Find yourself by card or the first letters of your last name: first name and last initial only.",
+        "description": "Find yourself by card or the first letters of your last name: first name and last initial only. A new\nlookup means the kiosk is back at its start screen, so its visit tokens end.",
         "operationId": "kioskLookup",
         "requestBody": {
           "content": {
@@ -118814,6 +119073,41 @@
           }
         },
         "summary": "Pair Kiosk",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/visits/end": {
+      "post": {
+        "description": "The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's).",
+        "operationId": "endKioskVisit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskVisitEnd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "End Kiosk Visit",
         "tags": [
           "access"
         ]
@@ -141655,9 +141949,6 @@
         "summary": "Get Pos Daily Register Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -141720,9 +142011,6 @@
         "summary": "Get Pos Reorder Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -141812,9 +142100,6 @@
         "summary": "Get Pos Returns Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -141922,9 +142207,6 @@
         "summary": "Get Pos Sales Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -148619,29 +148901,6 @@
         ],
         "x-api-key-scopes": [
           "scheduling.public_schedule.manage"
-        ]
-      }
-    },
-    "/api/v1/public/analytics-config": {
-      "get": {
-        "description": "The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or\nX-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent.",
-        "operationId": "getPublicAnalyticsConfig",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnalyticsConfigOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Get Public Analytics Config",
-        "tags": [
-          "integrations",
-          "integrations"
         ]
       }
     },

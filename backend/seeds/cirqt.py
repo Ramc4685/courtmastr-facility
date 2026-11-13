@@ -33,7 +33,15 @@ from app.modules.leagues.models import Competition, Sport, Venue
 from app.modules.memberships.models import MembershipContract, MembershipPlan, MembershipType
 from app.modules.platform import service as platform_service
 from app.modules.platform import staff
-from app.modules.platform.models import Identity, Location, Role, StaffUser, SubscriptionPlan, Tenant, UserLocationAccess
+from app.modules.platform.models import (
+    Identity,
+    Location,
+    Role,
+    StaffUser,
+    SubscriptionPlan,
+    Tenant,
+    UserLocationAccess,
+)
 from app.modules.rentals.models import RentalType
 from app.modules.resources.models import Resource, ResourceGroup
 

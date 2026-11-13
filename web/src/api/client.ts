@@ -102,7 +102,8 @@ const PRE_SESSION = [
   '/api/v1/auth/mfa/verify', '/api/v1/public/portal-signups', '/api/v1/public/portal-signups/confirm', '/api/v1/auth/oidc/authorize', '/api/v1/auth/oidc/callback', '/api/v1/auth/oidc/link',
 ]
 // A 401 from these is an answer, not an expired session. Kiosk routes use the device's kiosk cookie.
-const NOT_SESSION = [...PRE_SESSION, '/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit']
+// Kiosk routes answer 401 for an unpaired device, never for a staff session (the kiosk cookie is not one).
+const notSession = (template: string) => PRE_SESSION.includes(template) || template.startsWith('/api/v1/kiosk/')
 
 type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string }
 
@@ -159,7 +160,7 @@ export async function request<T>(method: Method, template: string, opts: Options
   if (template !== '/api/v1/auth/step-up' && (await refusedWith(res, 'step-up-required')) && (await confirmIdentity())) {
     res = await send() // same Idempotency-Key: the refused attempt released its claim
   }
-  if (res.status === 401 && !NOT_SESSION.includes(template)) onUnauthenticated()
+  if (res.status === 401 && !notSession(template)) onUnauthenticated()
   // 202 may carry a body (a long booking series answers with its status_url); an empty one parses to undefined.
   if (res.status === 204) return undefined as T
   const text = await res.text()

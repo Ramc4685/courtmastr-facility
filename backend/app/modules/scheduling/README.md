@@ -123,7 +123,7 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 
 Portal slot booking (programs calls `materialise_slot`), direct links for slot offers
 (`createSlotOfferDirectLink`), public schedule (SCH-20; `getPublicSchedule`, `getPublicScheduleSettings` and
-`updatePublicScheduleSettings`, and the `scheduling.public_schedule.manage` key, which no route uses yet), calendar
+`updatePublicScheduleSettings`, and the `scheduling.public_schedule.manage` key, which gates the settings routes in integrations), calendar
 feeds (SCH-19), the `rpt_booking` and `rpt_session_fill` views, `enrollment_action` on reschedule, a portal view
 of shared bookings. (Merge and erasure are handled since integration: `subject.py`.)
 

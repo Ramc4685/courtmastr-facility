@@ -9,6 +9,11 @@
 # four added endpoints plus three description edits (no breaking entry). So S1 needs no line here; the contract
 # change is recorded in docs/status/phase8-s1-signin.md and docs/dev/checks.md ("What the diff cannot see").
 
+# Owner decision 2026-11-13 (question 6): third-party analytics dropped (INT-13); the provider value and the
+# anonymous config route are removed with migration 1951. No client depended on them in production.
+POST /api/v1/external-connections removed the enum value `google_analytics` of the request property `provider`
+GET /api/v1/public/analytics-config API path removed without deprecation
+
 # Phase 11 security review: the documents `portal_terms` binding is the only portal terms source, so the old
 # portal-settings `terms_text` / `terms_version` are no longer served or taken (a tenant using them got no
 # recorded acknowledgment); `allows_online_rentals` was never enforced and rentals' `is_online_enabled` is the one

@@ -6574,9 +6574,32 @@ export interface paths {
         put?: never;
         /**
          * Create Kiosk Check In
-         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons.
+         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page and its
+         *     single-use visit token (so a replayed key is refused, not re-read).
          */
         post: operations["createKioskCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/check-ins/{check_in_id}/attendances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Attendance
+         * @description Book a session from the reservation page, by the portal's rules, spending the visit token. Found by name,
+         *     free sessions only and every refusal is see-staff. Errors: outside-check-in-window, capacity-full,
+         *     policy-violation, already-enrolled, no-entitlement, see-staff (past due, or found by name).
+         */
+        post: operations["createKioskAttendance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6631,7 +6654,8 @@ export interface paths {
         put?: never;
         /**
          * Kiosk Lookup
-         * @description Find yourself by card or the first letters of your last name: first name and last initial only.
+         * @description Find yourself by card or the first letters of your last name: first name and last initial only. A new
+         *     lookup means the kiosk is back at its start screen, so its visit tokens end.
          */
         post: operations["kioskLookup"];
         delete?: never;
@@ -6654,6 +6678,26 @@ export interface paths {
          * @description Exchange a pairing code for this device's kiosk cookie.
          */
         post: operations["pairKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/visits/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End Kiosk Visit
+         * @description The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's).
+         */
+        post: operations["endKioskVisit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12279,27 +12323,6 @@ export interface paths {
         patch: operations["updatePublicScheduleSettings"];
         trace?: never;
     };
-    "/api/v1/public/analytics-config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Public Analytics Config
-         * @description The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
-         *     X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent.
-         */
-        get: operations["getPublicAnalyticsConfig"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/public/app-config": {
         parameters: {
             query?: never;
@@ -17534,13 +17557,6 @@ export interface components {
             allocations?: components["schemas"]["AllocationIn"][] | null;
             /** Invoice Id */
             invoice_id?: string | null;
-        };
-        /** AnalyticsConfigOut */
-        AnalyticsConfigOut: {
-            /** Linked Domains */
-            linked_domains: string[];
-            /** Measurement Id */
-            measurement_id: string;
         };
         /** ApiKeyCreate */
         ApiKeyCreate: {
@@ -24993,7 +25009,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "accounting_file" | "quickbooks_online" | "zoom" | "google_analytics";
+            provider: "accounting_file" | "quickbooks_online" | "zoom";
             /**
              * Return Url
              * @description QuickBooks: where the browser lands after authorising
@@ -25001,7 +25017,7 @@ export interface components {
             return_url?: string | null;
             /**
              * Settings
-             * @description Accounting: `account_map` (posting key -> account) and `default_income_account`. Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)
+             * @description Accounting: `account_map` (posting key -> account) and `default_income_account`
              */
             settings?: {
                 [key: string]: string | {
@@ -26695,6 +26711,25 @@ export interface components {
             /** Passcode */
             passcode: string | null;
         };
+        /**
+         * KioskAttendanceCreate
+         * @description Book a session from the reservation page. Only `session` is built: places already booked and bookings are
+         *     marked by the check-in itself.
+         */
+        KioskAttendanceCreate: {
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Type
+             * @constant
+             */
+            target_type: "session";
+            /** Visit Token */
+            visit_token: string;
+        };
         /** KioskAttendedOut */
         KioskAttendedOut: {
             /** Session Id */
@@ -26722,11 +26757,15 @@ export interface components {
             displayed_alert_codes: string[];
             /** First Name */
             first_name: string;
+            /** Sessions */
+            sessions: components["schemas"]["KioskSession"][];
             /**
              * Status
              * @enum {string}
              */
             status: "admitted" | "see_staff";
+            /** Visit Token */
+            visit_token?: string | null;
             /** Welcome Message */
             welcome_message: string | null;
         };
@@ -26833,6 +26872,38 @@ export interface components {
             /** Pairing Code */
             pairing_code: string;
         };
+        /**
+         * KioskSession
+         * @description A session on the kiosk reservation page: title and times only, never prices or plan names.
+         */
+        KioskSession: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Bookable */
+            is_bookable: boolean;
+            /** Is Booked */
+            is_booked: boolean;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Type
+             * @constant
+             */
+            target_type: "session";
+            /** Title */
+            title: string;
+        };
         /** KioskSettingsOut */
         KioskSettingsOut: {
             /** Confirmation Timeout Seconds */
@@ -26843,6 +26914,10 @@ export interface components {
             early_window_minutes: number;
             /** Has Exit Pin */
             has_exit_pin: boolean;
+            /** Is Auto Book */
+            is_auto_book: boolean;
+            /** Is Name Search Booking Allowed */
+            is_name_search_booking_allowed: boolean;
             /** Late Window Minutes */
             late_window_minutes: number;
             /**
@@ -26852,6 +26927,10 @@ export interface components {
             location_id: string;
             /** Lookup Method */
             lookup_method: string;
+            /** Reservation Timeout Seconds */
+            reservation_timeout_seconds: number;
+            /** Visible Range Minutes */
+            visible_range_minutes: number;
             /** Welcome Message */
             welcome_message: string | null;
         };
@@ -26865,12 +26944,28 @@ export interface components {
             early_window_minutes?: number | null;
             /** Exit Pin */
             exit_pin?: string | null;
+            /** Is Auto Book */
+            is_auto_book?: boolean | null;
+            /** Is Name Search Booking Allowed */
+            is_name_search_booking_allowed?: boolean | null;
             /** Late Window Minutes */
             late_window_minutes?: number | null;
             /** Lookup Method */
             lookup_method?: ("name" | "membership_number" | "both") | null;
+            /** Reservation Timeout Seconds */
+            reservation_timeout_seconds?: number | null;
+            /** Visible Range Minutes */
+            visible_range_minutes?: number | null;
             /** Welcome Message */
             welcome_message?: string | null;
+        };
+        /** KioskVisitEnd */
+        KioskVisitEnd: {
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
         };
         /** LadderChallengeCreate */
         LadderChallengeCreate: {
@@ -38542,6 +38637,8 @@ export interface components {
             price_minor: number;
             /** Quantity */
             quantity?: number | string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days?: number | null;
             /**
              * Rental Type Id
              * Format: uuid
@@ -38628,6 +38725,8 @@ export interface components {
             price_minor: number;
             /** Quantity */
             quantity: string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days: number;
             /**
              * Rental Type Id
              * Format: uuid
@@ -38686,6 +38785,8 @@ export interface components {
             price_minor?: number | null;
             /** Quantity */
             quantity?: number | string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days?: number | null;
             /** Rental Type Id */
             rental_type_id?: string | null;
             /** Revenue Category Id */
@@ -60775,6 +60876,43 @@ export interface operations {
             };
         };
     };
+    createKioskAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskAttendanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskCheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getKioskConfig: {
         parameters: {
             query?: never;
@@ -60880,6 +61018,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["KioskConfig"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    endKioskVisit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskVisitEnd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -74995,26 +75164,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    getPublicAnalyticsConfig: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AnalyticsConfigOut"];
                 };
             };
         };

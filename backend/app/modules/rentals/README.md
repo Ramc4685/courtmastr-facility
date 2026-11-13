@@ -61,8 +61,35 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   (`membership-required`) and a member pays `member_price_minor` when set. Online booking of a rental type
   whose `eligibility` is not `everyone` reads the same `is_member` on the rental's local date and refuses
   a non-member (`membership-required`). Assumption: `active_members` and `paid_up_members` behave the same, because
-  non-payment suspends a contract and a suspended contract is not active. Member prices on rentals: see
+  non-payment suspends a contract and a suspended contract is not active. **Owner decision 2026-11-13 (question
+  13): an overdue member whose contract is not yet suspended, a membership held at another location, and a punch
+  pass whose visits are used up all count as members** for members-only plans, member prices and eligibility,
+  which is what `is_member` already answers (any active contract, tenant-wide). Member prices on rentals: see
   "Member prices and the minors rule" below.
+- **Waivers on rental plans (owner decisions 2026-11-13, question 8; ADR 0013).** A document bound to a rental
+  plan (`scope_type = rental_plan`) blocks its sale until accepted, at the desk (`sell_plan`) and in the portal
+  (`portal_buy_plan`, before any charge): `documents.service.requirements_for`, then `ensure_pending` issues the
+  document and the sale answers 409 `document-required` with its `document_id`; once signed the sale goes through and
+  `consume` stamps the document with the purchase, so an `every_purchase` binding asks again next time. The
+  client-active and members-only checks (`_eligible`) run first, so an ineligible client is never issued a document.
+  The import contract allows `rentals.service -> app.modules.documents` (top-level package only). Cases the first
+  version left open (review 2026-11-13, ADR 0013):
+  - **Shared plan.** A share-holder books on someone else's plan only after accepting the waiver themselves (the
+    owner's signature does not cover them): 409 `document-required` with their own pending document, checked before
+    the booking is written, at the desk, in the bill-unbilled path and in the portal. One acceptance per share:
+    it is consumed against the share row (`source_type = rental_plan_share`), so later bookings do not ask again.
+  - **Renewal.** It needs a currently valid acceptance, judged as the original sale was (`online` when sold in the
+    portal): for `every_purchase` that is an unused one, and an expired signature never counts. Otherwise the
+    purchase expires as usual, the renewal waits on an issued pending document (`renewal_waits_since`, migration
+    1964), the client is emailed once (`rentals.plan_renewal_waiting`), and each day-roll (hourly) tries again; once
+    signed, the successor starts that day and the acceptance is consumed against it. The wait ends, and retries stop,
+    when auto-renew is turned off (staff: `PATCH` `is_auto_renew: false`, accepted on the expired waiting purchase;
+    the portal's click-to-cancel), the purchase can no longer renew (plan archived, client no longer eligible), the
+    client already holds a live or upcoming purchase of the plan overlapping the renewal's term (they re-bought it:
+    the renewal is cancelled, never a second term and invoice), or the wait reaches the plan's `renewal_wait_days`
+    (default 14, migration 1965): it then lapses, auto-renew turns off, the client is emailed
+    (`rentals.plan_renewal_lapsed`) and the audit row records it. The purchase API does not expose the wait yet. The document is issued at the plan's location.
+  - **Purchases sold before the binding existed** are asked at their next renewal, by the same rule.
 - "Capacity" for rentals is resource availability enforced by the hold exclusion constraint; rentals have no
   seat count.
 - A rate counts the booked resources that are in the type's resource list (linked resources such as lights do
@@ -234,10 +261,9 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   (`_purchase_for`, staff and portal) only while the plan's owner is a minor on the first date (an unknown birth
   date is not, so it fails closed), the holder is one of the child's guardians (the minors rule's test), and the
   child is a listed player on every occurrence the plan pays for; otherwise it stays the child's alone (a grown
-  child shares through plan sharing). The ledger records the holder as the user. **Merge note:**
-  `claude/owner-decisions-1` adds a waiver gate for share-holders; this guardian path must pass it too once both
-  branches land (hook comment "share-holder waiver gate" in `_purchase_for`, skipped test
-  `test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate`).
+  child shares through plan sharing). The ledger records the holder as the user. The guardian
+  passes the plan's waiver gate as a share-holder does (`_share_holder_documents`): their own acceptance, once per
+  purchase, consumed against the purchase (`test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate`).
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
 - **Open question for the owner.** Should a child's own membership earn the member price when a parent (not a
   member) holds the booking and the child plays? Today the price follows the holder only.

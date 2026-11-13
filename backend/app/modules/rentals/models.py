@@ -453,6 +453,7 @@ class RentalPlan(TenantOwned, Timestamps, Base):
         CheckConstraint("num_nonnulls(validity_days, fixed_expires_on) <= 1", name="expiry"),
         CheckConstraint("validity_days IS NULL OR validity_days > 0", name="validity"),
         CheckConstraint("NOT is_auto_renew OR validity_days IS NOT NULL", name="renew"),
+        CheckConstraint("renewal_wait_days BETWEEN 1 AND 90", name="renewal_wait_days"),
         CheckConstraint("default_invoice_routing NOT IN ('date_based', 'existing_open')", name="routing"),
     )  # fmt: skip
 
@@ -476,6 +477,8 @@ class RentalPlan(TenantOwned, Timestamps, Base):
     fixed_expires_on: Mapped[date | None]
     is_auto_renew: Mapped[bool] = mapped_column(server_default=text("false"))
     is_autopay_default: Mapped[bool] = mapped_column(server_default=text("false"))
+    # How long a renewal may wait on the plan's waiver before it lapses (ADR 0013, migration 1965).
+    renewal_wait_days: Mapped[int] = mapped_column(SmallInteger, server_default=text("14"))
     default_invoice_routing: Mapped[str] = enum_column(server_default=text("'new_single'"))
     is_shareable: Mapped[bool] = mapped_column(server_default=text("false"))
     status: Mapped[str] = enum_column(server_default=text("'active'"))
@@ -540,6 +543,8 @@ class RentalPlanPurchase(TenantOwned, Timestamps, Base):
     renewed_from_purchase_id: Mapped[UUID | None]
     cancelled_at: Mapped[datetime | None]
     cancel_mode: Mapped[str | None] = enum_column()
+    # An auto-renewal waiting on the plan's waiver (ADR 0013): set once, cleared when it renews (migration 1964).
+    renewal_waits_since: Mapped[datetime | None]
 
 
 class RentalPlanLedgerEntry(TenantOwned, Base):
