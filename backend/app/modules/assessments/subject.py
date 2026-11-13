@@ -8,11 +8,11 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
-from app.modules.assessments.models import AssessmentResult, AssessmentResultValue
+from app.modules.assessments.models import AssessmentResult, AssessmentResultValue, ProgressShareLink
 
 
 def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
-    for model in (AssessmentResult, AssessmentResultValue):
+    for model in (AssessmentResult, AssessmentResultValue, ProgressShareLink):
         session.execute(update(model).where(model.client_id == loser_id).values(client_id=survivor_id))
 
 
@@ -29,11 +29,12 @@ def _export(session: Session, client_id: UUID) -> dict:
 
 
 def _erase(session: Session, client_id: UUID) -> dict:
+    session.execute(delete(ProgressShareLink).where(ProgressShareLink.client_id == client_id))  # links read the data
     session.execute(delete(AssessmentResultValue).where(AssessmentResultValue.client_id == client_id))
     gone = session.execute(delete(AssessmentResult).where(AssessmentResult.client_id == client_id)).rowcount
     return {"deleted_assessment_results": gone}
 
 
-_TABLES = ("assessment_result", "assessment_result_value")
+_TABLES = ("assessment_result", "assessment_result_value", "progress_share_link")
 clients.merge.register_merge_handler("assessments", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("assessments", tables=_TABLES, export=_export, erase=_erase)

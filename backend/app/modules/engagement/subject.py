@@ -8,7 +8,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
-from app.modules.engagement.models import DeviceRegistration, InboxItem, Message, ScheduledNotification
+from app.modules.engagement.models import DeviceRegistration, InboxItem, Message, PortalSignup, ScheduledNotification
 
 _TABLES = ("message", "device_registration", "inbox_item", "scheduled_notification")
 
@@ -43,5 +43,26 @@ def _erase(session: Session, client_id: UUID) -> dict:
     return {"messages_cleared": cleared.rowcount, "inbox_deleted": inbox.rowcount, "devices_deleted": devices.rowcount}
 
 
+# Public sign-ups (SSP-05): the row holds a name, address and phone until it expires; a merge moves the link and
+# an erasure deletes the client's rows.
+def _repoint_signups(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
+    session.execute(update(PortalSignup).where(PortalSignup.client_id == loser_id).values(client_id=survivor_id))
+
+
+def _export_signups(session: Session, client_id: UUID) -> dict:
+    rows = session.scalars(select(PortalSignup).where(PortalSignup.client_id == client_id))
+    return {"portal_signups": [{"email": r.email, "first_name": r.first_name, "last_name": r.last_name,
+                                "status": r.status, "created_at": r.created_at.isoformat()} for r in rows]}  # fmt: skip
+
+
+def _erase_signups(session: Session, client_id: UUID) -> dict:
+    gone = session.execute(delete(PortalSignup).where(PortalSignup.client_id == client_id)).rowcount
+    return {"portal_signups_deleted": gone}
+
+
+clients.merge.register_merge_handler("engagement_signup", tables=("portal_signup",), repoint=_repoint_signups)
+platform.privacy.register_subject_handler(
+    "engagement_signup", tables=("portal_signup",), export=_export_signups, erase=_erase_signups
+)
 clients.merge.register_merge_handler("engagement_messaging", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("engagement_messaging", tables=_TABLES, export=_export, erase=_erase)

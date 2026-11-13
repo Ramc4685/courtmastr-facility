@@ -1364,6 +1364,29 @@ platform.privacy.register_subject_handler(
 )
 
 
+# Terms acceptances (SSP-14) are the legal record of what a buyer agreed to and hold nothing but the link, so an
+# erasure keeps them (security-baseline 4.3, like signed documents); a merge moves them to the survivor.
+def _repoint_terms(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
+    session.execute(update(TermsAcceptance).where(TermsAcceptance.client_id == loser_id).values(client_id=survivor_id))
+
+
+def _export_terms(session: Session, client_id: UUID) -> dict:
+    rows = session.scalars(select(TermsAcceptance).where(TermsAcceptance.client_id == client_id))
+    return {"terms_acceptances": [{"terms_version_id": r.terms_version_id, "sale_kind": r.sale_kind,
+                                   "accepted_at": r.accepted_at.isoformat()} for r in rows]}  # fmt: skip
+
+
+def _erase_terms(session: Session, client_id: UUID) -> dict:
+    kept = session.scalar(select(func.count()).where(TermsAcceptance.client_id == client_id))
+    return {"retained_terms_acceptances": kept or 0}
+
+
+clients.merge.register_merge_handler("documents_terms", tables=("terms_acceptance",), repoint=_repoint_terms)
+platform.privacy.register_subject_handler(
+    "documents_terms", tables=("terms_acceptance",), export=_export_terms, erase=_erase_terms
+)
+
+
 def parse_client_ids(raw: str) -> list[UUID]:
     try:
         ids = [UUID(part) for part in raw.split(",") if part]
