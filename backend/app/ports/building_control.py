@@ -1,7 +1,8 @@
 """Building control port (CHK-15, CHK-16): door locks and court lights, vendor-neutral.
 
-`device_ref` and `zone_ref` are the addresses the installer gives the controller (a door id, a relay channel);
-we never interpret them. Calls are synchronous and must time out quickly (seconds): the remote unlock runs in a
+Every call names the tenant and the location (string ids) as well as the device: one adapter serves every tenant,
+so it routes by site and never acts on a bare address. `device_ref` and `zone_ref` are the addresses the installer
+gives the controller (a door id, a relay channel); we never interpret them. Calls are synchronous and must time out quickly (seconds): the remote unlock runs in a
 request someone is standing at the door for, and the lights tick runs inside a job transaction.
 
 Only the simulated adapter exists until a vendor is chosen (app.bootstrap wires it; settings refuse it outside
@@ -37,17 +38,17 @@ class BuildingController(Protocol):
     simulated: bool
     supports_code_push: bool  # False: the keypad asks us (POST /door/verify) for every code
 
-    def unlock(self, device_ref: str, *, seconds: int) -> None:
+    def unlock(self, tenant_id: str, location_id: str, device_ref: str, *, seconds: int) -> None:
         """Release the door now for `seconds`, then relock."""
         ...
 
-    def push_code(self, device_ref: str, code: TimedCode) -> None: ...
+    def push_code(self, tenant_id: str, location_id: str, device_ref: str, code: TimedCode) -> None: ...
 
-    def revoke_code(self, device_ref: str, code_id: str) -> None: ...
+    def revoke_code(self, tenant_id: str, location_id: str, device_ref: str, code_id: str) -> None: ...
 
-    def set_zone(self, zone_ref: str, *, is_on: bool) -> None: ...
+    def set_zone(self, tenant_id: str, location_id: str, zone_ref: str, *, is_on: bool) -> None: ...
 
-    def read_zone(self, zone_ref: str) -> bool | None:
+    def read_zone(self, tenant_id: str, location_id: str, zone_ref: str) -> bool | None:
         """What the controller reports now; None when it cannot tell."""
         ...
 

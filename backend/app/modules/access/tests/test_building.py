@@ -843,6 +843,19 @@ def test_member_unlock_opens_only_entrance_doors_and_records_the_entry_after_the
 # --- lights ----------------------------------------------------------------------------------------------------
 
 
+def test_every_controller_call_names_its_tenant_and_location(client, owner, b, sim):
+    with clock.freeze(at(9.95)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        cancel(b, booking)
+        tick(b)
+        tick(b)  # the second asks the controller what it shows
+    ok(client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Phone call"}))
+    ops = {scope[0] for scope in sim.scopes}
+    assert {"push_code", "revoke_code", "set_zone", "read_zone", "unlock"} <= ops
+    assert {scope[1:3] for scope in sim.scopes} == {(str(b.tenant.id), b.location)}
+
+
 def test_lights_follow_holds_without_flicker_and_light_child_zones(b, sim):
     first, second = book(b, 10, 11), book(b, 11, 12)  # back to back on the whole court
     half = book(b, 13, 14, resources=[b.half_a])

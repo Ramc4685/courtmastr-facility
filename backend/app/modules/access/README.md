@@ -178,8 +178,10 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   (overview section 2), which is everything this needs. It may not import resources or rentals: zone resources are
   checked and their descendants found through scheduling's internal `resource_ids_at` and `resource_descendants`,
   and bookings are read through scheduling.
-- **Port.** `unlock(device_ref, seconds)`, `push_code(device_ref, TimedCode)`, `revoke_code(device_ref, code_id)`,
-  `set_zone(zone_ref, is_on)`, `read_zone(zone_ref) -> bool | None`, plus `supports_code_push` (when False, the keypad
+- **Port.** Every method names the site first, `(tenant_id, location_id, ...)`, so one adapter serving every tenant
+  routes by site and never acts on a bare address: `unlock(..., device_ref, seconds)`, `push_code(..., device_ref,
+  TimedCode)`, `revoke_code(..., device_ref, code_id)`, `set_zone(..., zone_ref, is_on)`, `read_zone(..., zone_ref)
+  -> bool | None`, plus `supports_code_push` (when False, the keypad
   asks `POST /door/verify` for every code; the simulated adapter says True and also answers verify). Only `SimulatedBuildingControl` exists: it records calls (never a
   code), can be scripted to fail or time out, and settings refuse it outside dev and test (unset means `none`
   there, so every command fails and is surfaced). No vendor is assumed.

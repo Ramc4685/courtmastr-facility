@@ -17,6 +17,7 @@ class SimulatedBuildingControl:
     simulated: bool = True
     supports_code_push: bool = True
     calls: list[tuple] = field(default_factory=list)
+    scopes: list[tuple] = field(default_factory=list)  # (operation, tenant_id, location_id, address) per call
     zones: dict[str, bool] = field(default_factory=dict)
     pushed: set[str] = field(default_factory=set)
     hang_seconds: float = 1.0
@@ -27,6 +28,7 @@ class SimulatedBuildingControl:
 
     def reset(self) -> None:
         self.calls.clear()
+        self.scopes.clear()
         self.zones.clear()
         self.pushed.clear()
         self._failures.clear()
@@ -43,21 +45,29 @@ class SimulatedBuildingControl:
                     raise BuildingControlError(f"{operation} timed out")
                 raise BuildingControlError(f"{operation} was refused by the controller")
 
-    def unlock(self, device_ref: str, *, seconds: int) -> None:
+    def _scope(self, operation: str, tenant_id: str, location_id: str, address: str) -> None:
+        self.scopes.append((operation, tenant_id, location_id, address))
+
+    def unlock(self, tenant_id: str, location_id: str, device_ref: str, *, seconds: int) -> None:
+        self._scope("unlock", tenant_id, location_id, device_ref)
         self._call("unlock", device_ref, seconds)
 
-    def push_code(self, device_ref: str, code: TimedCode) -> None:
+    def push_code(self, tenant_id: str, location_id: str, device_ref: str, code: TimedCode) -> None:
+        self._scope("push_code", tenant_id, location_id, device_ref)
         self._call("push_code", device_ref, code.code_id)
         self.pushed.add(code.code_id)
 
-    def revoke_code(self, device_ref: str, code_id: str) -> None:
+    def revoke_code(self, tenant_id: str, location_id: str, device_ref: str, code_id: str) -> None:
+        self._scope("revoke_code", tenant_id, location_id, device_ref)
         self._call("revoke_code", device_ref, code_id)
         self.pushed.discard(code_id)
 
-    def set_zone(self, zone_ref: str, *, is_on: bool) -> None:
+    def set_zone(self, tenant_id: str, location_id: str, zone_ref: str, *, is_on: bool) -> None:
+        self._scope("set_zone", tenant_id, location_id, zone_ref)
         self._call("set_zone", zone_ref, is_on)
         self.zones[zone_ref] = is_on
 
-    def read_zone(self, zone_ref: str) -> bool | None:
+    def read_zone(self, tenant_id: str, location_id: str, zone_ref: str) -> bool | None:
+        self._scope("read_zone", tenant_id, location_id, zone_ref)
         self._call("read_zone", zone_ref)
         return self.zones.get(zone_ref)

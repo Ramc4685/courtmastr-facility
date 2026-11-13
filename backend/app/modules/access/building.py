@@ -271,6 +271,11 @@ def _window(booking: dict, cfg: dict) -> tuple[datetime, datetime]:
     )
 
 
+def _site(row: DoorDevice | LightingZone) -> tuple[str, str]:
+    """(tenant id, location id) for the port: every controller call names its site as well as the device."""
+    return str(row.tenant_id), str(row.location_id)
+
+
 def _doors(session: Session, location_id: UUID) -> list[DoorDevice]:
     return list(session.scalars(select(DoorDevice).where(
         DoorDevice.location_id == location_id, DoorDevice.is_active).order_by(DoorDevice.name, DoorDevice.id)))  # fmt: skip
@@ -389,7 +394,8 @@ def _push(session: Session, row: EntryCode, code: str, *, quiet: bool = False) -
     failed = False
     for door in _doors(session, row.location_id):
         try:
-            controller.push_code(door.device_ref, TimedCode(str(row.id), code, row.valid_from_at, row.valid_until_at))
+            controller.push_code(*_site(door), door.device_ref,
+                                 TimedCode(str(row.id), code, row.valid_from_at, row.valid_until_at))  # fmt: skip
         except BuildingControlError:
             failed = True
     if failed:
@@ -407,7 +413,7 @@ def _send_revoke(session: Session, row: EntryCode) -> bool:
     ok = True
     for door in _doors(session, row.location_id):
         try:
-            controller.revoke_code(door.device_ref, str(row.id))
+            controller.revoke_code(*_site(door), door.device_ref, str(row.id))
         except BuildingControlError:
             ok = False
     return ok
@@ -706,7 +712,9 @@ def _release(session: Session, door: DoorDevice, staff_user_id: UUID | None = No
     """Release one door now, bounded by DEVICE_TIMEOUT. Runs in the request (someone is standing at the door, and a
     queued unlock that lands late opens it for nobody, README) before this request writes or locks anything. A
     failure or a hang is recorded as `command_failed` and answered False."""
-    call = _DEVICE_POOL.submit(lambda: building_control.get().unlock(door.device_ref, seconds=door.unlock_seconds))
+    call = _DEVICE_POOL.submit(
+        lambda: building_control.get().unlock(*_site(door), door.device_ref, seconds=door.unlock_seconds)
+    )
     try:
         call.result(timeout=DEVICE_TIMEOUT)
         return True
@@ -882,7 +890,7 @@ def _reassert(zone: LightingZone, want: bool) -> bool:
     if controller is None:
         return False
     try:
-        reported = controller.read_zone(zone.zone_ref)
+        reported = controller.read_zone(*_site(zone), zone.zone_ref)
     except BuildingControlError:
         reported = None
     if reported is not None:
@@ -900,7 +908,7 @@ def _command_zone(session: Session, zone: LightingZone, want: bool, why: str) ->
         zone.failure_count = 0
         return
     try:
-        building_control.get().set_zone(zone.zone_ref, is_on=want)
+        building_control.get().set_zone(*_site(zone), zone.zone_ref, is_on=want)
     except BuildingControlError:
         zone.failure_count += 1
         _event(session, zone.location_id, "command_failed", lighting_zone_id=zone.id,
