@@ -35,6 +35,11 @@ async function addItem(page: Page, description: string, price: string) {
   await expect(page.getByRole('table', { name: 'Billing items' }).getByText(description)).toBeVisible()
 }
 
+// Bulk actions act at one location; pick it rather than relying on the remembered current location.
+async function chooseLocation(page: Page) {
+  await page.getByRole('combobox', { name: 'Location' }).first().selectOption({ label: 'Courtside Downtown' })
+}
+
 async function invoiceItem(page: Page, description: string) {
   await page.getByRole('checkbox', { name: `Select ${description}` }).check()
   await page.getByRole('button', { name: /Invoice selected/ }).click()
@@ -114,6 +119,7 @@ test('bulk invoicing previews before it creates', async ({ page }) => {
   await openMorgan(page)
   await addItem(page, item, '8.00')
   await page.goto('/billing')
+  await chooseLocation(page)
   await page.getByRole('searchbox', { name: 'Search' }).fill(item)
   await page.getByRole('checkbox', { name: `Select ${item}` }).check()
   await page.getByRole('button', { name: /Invoice selected \(1\)/ }).click()
@@ -130,6 +136,7 @@ test('bulk reverse takes one reason for the selected items', async ({ page }) =>
   await openMorgan(page)
   await addItem(page, item, '5.00')
   await page.goto('/billing')
+  await chooseLocation(page)
   await page.getByRole('searchbox', { name: 'Search' }).fill(item)
   await page.getByRole('checkbox', { name: `Select ${item}` }).check()
   await page.getByRole('button', { name: /Reverse selected \(1\)/ }).click()
@@ -147,6 +154,7 @@ test('bulk reverse takes one reason for the selected items', async ({ page }) =>
 test('bulk invoice PDFs are checked before they are saved', async ({ page }) => {
   await signIn(page, '/billing')
   await page.getByRole('tab', { name: 'Invoices' }).click()
+  await chooseLocation(page)
   await page.getByRole('checkbox', { name: /Select invoice #/ }).first().check()
   await page.getByRole('button', { name: /Save PDFs \(1\)/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Save invoice PDFs in bulk' })
@@ -158,6 +166,7 @@ test('bulk invoice PDFs are checked before they are saved', async ({ page }) => 
 
 test('adding an item to clients in bulk opens on a client picker', async ({ page }) => {
   await signIn(page, '/billing')
+  await chooseLocation(page)
   await page.getByRole('button', { name: 'Add an item to clients' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add an item to clients' })
   await expect(dialog.getByRole('combobox', { name: 'Add a client' })).toBeVisible()
