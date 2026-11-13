@@ -29,6 +29,7 @@ ANONYMOUS = {
     "/webhooks/quickbooks",  # likewise (intuit-signature)
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",
+    "/door/verify",  # authenticated by the door controller's own bearer credential (fhb_...), not a session
     "/files/{tenant_id}/{file_id}",  # authenticated by the URL's signature, issued after a permission check
     # authenticated by the X-Operator-Token secret, like /operator/tenants (Phase 8 T1)
     "/operator/plans", "/operator/tenants/{tenant_id}/entitlements", "/operator/tenants/{tenant_id}/plan",

@@ -851,7 +851,8 @@ def kiosk_exit(session: Session, device: KioskDevice, pin: str) -> None:
 
 _ACCESS_DEFAULTS = {
     "hidden_detail_fields": ["balance_due", "membership_dates", "visit_counts"], "staff_early_minutes": 180,
-    "staff_late_minutes": 300,
+    "staff_late_minutes": 300, "entry_code_early_min": 15, "entry_code_grace_min": 10, "light_lead_in_min": 5,
+    "light_run_on_min": 5, "requires_paid_entry": True,
 }  # fmt: skip
 
 

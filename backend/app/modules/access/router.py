@@ -1,5 +1,6 @@
 """access HTTP surface (openapi-money.yaml, tag access): staff check-in, credentials, kiosk settings and devices,
-portal app cards, and the kiosk itself.
+portal app cards, the kiosk itself, and building control: door devices, lighting zones, the building activity log,
+portal door codes, and the door controllers' verify endpoint.
 
 The kiosk router has no signed-in principal: a device is paired with a single-use code and then carries an
 HttpOnly, SameSite=Strict cookie holding its token (hash stored). Every kiosk route resolves the device from that
@@ -19,9 +20,9 @@ from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency, secret
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import _redis, rate_limit
 from app.core.settings import get_settings
-from app.modules.access import desk, service
+from app.modules.access import building, desk, service
 from app.modules.access import schemas as s
-from app.modules.access.models import KioskDevice
+from app.modules.access.models import DoorDevice, KioskDevice
 
 router = APIRouter(
     route_class=TxRoute, tags=["access"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -319,6 +320,91 @@ def revoke_wallet_pass(credential_id: UUID, ctx: Portal) -> None:
     service.revoke_wallet_pass(ctx.session, ctx.principal, credential_id)
 
 
+# --- building control (CHK-15, CHK-16) ------------------------------------------------------------------------
+
+Devices = Annotated[Ctx, Depends(require("access.device.manage"))]
+Unlock = Annotated[Ctx, Depends(require("access.door.unlock"))]
+Lights = Annotated[Ctx, Depends(require("access.lighting.override"))]
+
+
+@router.get("/door-devices", response_model=s.Page[s.DoorDeviceOut])
+def list_door_devices(location_id: Annotated[UUID, Query()], ctx: Read):
+    return {"data": building.list_doors(ctx.session, ctx.principal, location_id), "page": _EMPTY}
+
+
+@router.post("/door-devices", response_model=s.DoorDeviceIssued, status_code=201)
+@secret_response
+def create_door_device(body: s.DoorDeviceCreate, ctx: Devices):
+    """Register a door controller; its bearer credential is shown once."""
+    return building.create_door(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/door-devices/{door_device_id}", response_model=s.DoorDeviceOut)
+def update_door_device(door_device_id: UUID, body: s.DoorDeviceUpdate, ctx: Devices):
+    """Rename, re-address or retire a door (retiring drops its credential)."""
+    return building.update_door(ctx.session, ctx.principal, door_device_id, body.model_dump(exclude_unset=True))
+
+
+@router.post("/door-devices/{door_device_id}/credential", response_model=s.DoorDeviceIssued, status_code=201)
+@secret_response
+def rotate_door_device_credential(door_device_id: UUID, ctx: Devices):
+    """A new bearer credential for the controller; the old one stops working at once."""
+    return building.rotate_door_credential(ctx.session, ctx.principal, door_device_id)
+
+
+@router.post("/door-devices/{door_device_id}/unlock", response_model=s.BuildingEventOut, status_code=201)
+def unlock_door_device(door_device_id: UUID, body: s.DoorUnlockRequest, ctx: Unlock):
+    """Open the door now for someone standing at it (the help line when a code fails). Reason required."""
+    return building.remote_unlock(ctx.session, ctx.principal, door_device_id, body.model_dump())
+
+
+@router.get("/lighting-zones", response_model=s.Page[s.LightingZoneOut])
+def list_lighting_zones(location_id: Annotated[UUID, Query()], ctx: Read):
+    return {"data": building.list_zones(ctx.session, ctx.principal, location_id), "page": _EMPTY}
+
+
+@router.post("/lighting-zones", response_model=s.LightingZoneOut, status_code=201)
+def create_lighting_zone(body: s.LightingZoneCreate, ctx: Devices):
+    """A light circuit and the courts whose bookings switch it."""
+    return building.create_zone(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/lighting-zones/{lighting_zone_id}", response_model=s.LightingZoneOut)
+def update_lighting_zone(lighting_zone_id: UUID, body: s.LightingZoneUpdate, ctx: Devices):
+    return building.update_zone(ctx.session, ctx.principal, lighting_zone_id, body.model_dump(exclude_unset=True))
+
+
+@router.put("/lighting-zones/{lighting_zone_id}/override", response_model=s.LightingZoneOut)
+def override_lighting_zone(lighting_zone_id: UUID, body: s.LightingZoneOverride, ctx: Lights):
+    """Hold a zone on or off until a time (cleaning, an event); `is_on: null` hands it back to the bookings."""
+    return building.override_zone(ctx.session, ctx.principal, lighting_zone_id, body.model_dump())
+
+
+@router.get("/building-events", response_model=s.Page[s.BuildingEventOut])
+def list_building_events(query: Lists, ctx: Read):
+    """Entries, denied attempts, unlocks, light switches, overrides, codes and failed commands. Filters:
+    location_id, local_on, kind, door_device_id, lighting_zone_id."""
+    return building.list_building_events(ctx.session, ctx.principal, query)
+
+
+@router.get("/building-status", response_model=s.BuildingStatusOut)
+def get_building_status(location_id: Annotated[UUID, Query()], ctx: Read):
+    """Per zone: should it be on now, what was last commanded, and whether the two agree. Per door: its state."""
+    return building.building_status(ctx.session, ctx.principal, location_id)
+
+
+@router.get("/portal/entry-codes", response_model=s.Page[s.PortalEntryCodeOut])
+def list_portal_entry_codes(ctx: Portal):
+    """Live door codes of the caller's (and dependants') bookings: the portal and the app show them."""
+    return {"data": building.list_portal_entry_codes(ctx.session, ctx.principal), "page": _EMPTY}
+
+
+@router.post("/portal/bookings/{booking_id}/door-unlock", response_model=s.PortalDoorUnlockResult)
+def unlock_portal_booking_door(booking_id: UUID, ctx: Portal):
+    """Open the door from the portal, inside the booking's code window only."""
+    return building.member_unlock(ctx.session, ctx.principal, booking_id)
+
+
 # --- the kiosk -----------------------------------------------------------------------------------------------
 
 
@@ -416,3 +502,50 @@ def exit_kiosk(body: s.KioskExitRequest, request: Request, response: Response, d
     """Leave kiosk mode with the location's exit PIN: the device token stops working until staff pair it again."""
     service.kiosk_exit(_session(request), device, body.staff_pin)
     response.delete_cookie(KIOSK_COOKIE, path="/api/v1/kiosk")
+
+
+# --- door controllers (device credential, no principal) --------------------------------------------------------
+
+DOOR_VERIFIES_PER_MINUTE = 30  # a keypad, one person at a time: more is a script
+
+
+def door_device(request: Request) -> DoorDevice:
+    """The door behind `Authorization: Bearer fhb_...`, with its own audit actor."""
+    scheme, _, raw = request.headers.get("authorization", "").partition(" ")
+    tenant_id = tokens.tenant_of(raw if scheme.lower() == "bearer" else None, "fhb")
+    if tenant_id is None:
+        raise Unauthenticated("Door credential required", code="device-unauthenticated")
+    host = _host_tenant(request)
+    if host is not None and host.id != tenant_id:
+        raise Unauthenticated("Host and token disagree", code="device-unauthenticated")
+    session = request_session(request, tenant_id)
+    door = building.door_for_token(session, raw)
+    if door is None:
+        raise Unauthenticated("Door credential required", code="device-unauthenticated")
+    session.info["actor"] = Principal(kind="kiosk", tenant_id=tenant_id, display_name=f"Door {door.name}")
+    return door
+
+
+Door = Annotated[DoorDevice, Depends(door_device)]
+
+
+def door_rate_limit(door: Door) -> None:
+    """Per door, like the kiosk: doors behind one NAT share an address. Fails open; the lockout still holds."""
+    if not get_settings().rate_limit.enabled:
+        return
+    key = f"rl:door-verify:{door.id}:{int(clock.now().timestamp() // 60)}"
+    try:
+        pipe = _redis().pipeline()
+        pipe.incr(key)
+        pipe.expire(key, 60)
+        count = pipe.execute()[0]
+    except Exception:  # noqa: BLE001 - a Redis outage must not keep people out
+        return
+    if count > DOOR_VERIFIES_PER_MINUTE:
+        raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
+
+
+@kiosk.post("/door/verify", response_model=s.DoorVerifyResult, dependencies=[Depends(door_rate_limit)])
+def verify_door_code(body: s.DoorVerifyRequest, request: Request, door: Door):
+    """A keypad's code: allow (with how long to release the lock) or deny, and nothing else."""
+    return building.verify_code(_session(request), door, body.code)

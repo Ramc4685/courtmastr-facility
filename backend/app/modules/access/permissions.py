@@ -26,4 +26,5 @@ register(
     _p("settings.manage", L, "Manage check-in and kiosk settings", "", _MG),
     _p("door.unlock", L, "Unlock a door", "P", _MG),
     _p("device.manage", L, "Manage access-control devices", "K", _AD),
+    _p("lighting.override", L, "Switch court lights on or off for a period", "", _MG),
 )

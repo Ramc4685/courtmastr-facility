@@ -316,6 +316,11 @@ class AccessSettings(TenantOwned, Timestamps, Base):
         ),
         CheckConstraint("staff_early_minutes BETWEEN 0 AND 1440", name="early"),
         CheckConstraint("staff_late_minutes BETWEEN 0 AND 1440", name="late"),
+        CheckConstraint(
+            "entry_code_early_min BETWEEN 0 AND 240 AND entry_code_grace_min BETWEEN 0 AND 240"
+            " AND light_lead_in_min BETWEEN 0 AND 120 AND light_run_on_min BETWEEN 0 AND 120",
+            name="building",
+        ),
     )
 
     location_id: Mapped[UUID]
@@ -324,6 +329,13 @@ class AccessSettings(TenantOwned, Timestamps, Base):
     )
     staff_early_minutes: Mapped[int] = mapped_column(server_default=text("180"))
     staff_late_minutes: Mapped[int] = mapped_column(server_default=text("300"))
+    # Building control (CHK-15, CHK-16): an entry code opens from early before the booking to grace after it;
+    # court lights come on lead-in before and go off run-on after; a balance due refuses the code when required.
+    entry_code_early_min: Mapped[int] = mapped_column(server_default=text("15"))
+    entry_code_grace_min: Mapped[int] = mapped_column(server_default=text("10"))
+    light_lead_in_min: Mapped[int] = mapped_column(server_default=text("5"))
+    light_run_on_min: Mapped[int] = mapped_column(server_default=text("5"))
+    requires_paid_entry: Mapped[bool] = mapped_column(server_default=text("true"))
 
 
 class AccessRule(TenantOwned, Timestamps, Base):
@@ -408,3 +420,148 @@ class MembershipTypeLocation(TenantOwned, Timestamps, Base):
 
     membership_type_id: Mapped[UUID]
     location_id: Mapped[UUID]
+
+
+# --- building control (CHK-15, CHK-16): doors, court lights, entry codes, their activity log ----------------
+
+
+class EntryCodeStatus(StrEnum):
+    ACTIVE = "active"
+    REVOKED = "revoked"
+
+
+class BuildingEventKind(StrEnum):
+    ENTRY_GRANTED = "entry_granted"
+    ENTRY_DENIED = "entry_denied"
+    REMOTE_UNLOCK = "remote_unlock"
+    MEMBER_UNLOCK = "member_unlock"
+    LIGHT_ON = "light_on"
+    LIGHT_OFF = "light_off"
+    OVERRIDE = "override"
+    CODE_ISSUED = "code_issued"
+    CODE_REVOKED = "code_revoked"
+    COMMAND_FAILED = "command_failed"
+
+
+class DoorDevice(TenantOwned, Timestamps, Base):
+    """A door controller or keypad at a location. It calls POST /door/verify with its own bearer credential
+    (`fhb_...`, shown once, SHA-256 stored); `device_ref` is the address the controller adapter understands."""
+
+    __tablename__ = "door_device"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        Index("uq_door_device_token", "tenant_id", "token_hash", unique=True),
+        CheckConstraint("unlock_seconds BETWEEN 1 AND 60", name="unlock_seconds"),
+    )
+
+    location_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    device_ref: Mapped[str] = mapped_column(info={"audit": "value"})
+    unlock_seconds: Mapped[int] = mapped_column(server_default=text("5"))
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+    token_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})
+    bad_code_count: Mapped[int] = mapped_column(server_default=text("0"))  # wrong codes since the last right one
+    locked_until_at: Mapped[datetime | None]  # keypad lockout after DOOR_BAD_CODES wrong codes
+    last_seen_at: Mapped[datetime | None]
+
+
+class LightingZone(TenantOwned, Timestamps, Base):
+    """One switchable light circuit at a location, lit while a booking holds any of its resources (courts). Keeps
+    the last state we commanded, so the tick only sends changes, and a staff override for a period."""
+
+    __tablename__ = "lighting_zone"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        UniqueConstraint("tenant_id", "location_id", "name", name="uq_lighting_zone_name"),
+        CheckConstraint("(override_is_on IS NULL) = (override_until_at IS NULL)", name="override"),
+    )
+
+    location_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    zone_ref: Mapped[str] = mapped_column(info={"audit": "value"})
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+    override_is_on: Mapped[bool | None] = mapped_column(info={"audit": "value"})
+    override_until_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
+    override_reason: Mapped[str | None]
+    commanded_is_on: Mapped[bool | None]  # None: never commanded
+    commanded_at: Mapped[datetime | None]
+    failure_count: Mapped[int] = mapped_column(server_default=text("0"))  # failed commands in a row
+
+
+class LightingZoneResource(TenantOwned, Timestamps, Base):
+    """A resource whose bookings light the zone. A parent court and its halves may all map to one zone."""
+
+    __tablename__ = "lighting_zone_resource"
+    __table_args__ = tenant_args(
+        *tfk("lighting_zone_id", "lighting_zone", ondelete="CASCADE", index=False),
+        *tfk("resource_id", "resource"),
+        UniqueConstraint("tenant_id", "lighting_zone_id", "resource_id", name="uq_lighting_zone_resource"),
+    )
+
+    lighting_zone_id: Mapped[UUID]
+    resource_id: Mapped[UUID]
+
+
+class EntryCode(TenantOwned, Timestamps, Base):
+    """The door code of one booking, shared by its party. Only a keyed hash (lookup) and the AES-GCM sealed code
+    (shown again to its owner) are stored; both are never audited. One active code per booking."""
+
+    __tablename__ = "entry_code"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("booking_id", "booking"),
+        enum_check("status", EntryCodeStatus),
+        CheckConstraint("valid_until_at > valid_from_at", name="window"),
+        CheckConstraint("(status = 'revoked') = (revoked_at IS NOT NULL)", name="revoked"),
+        Index(
+            "uq_entry_code_active",
+            "tenant_id",
+            "location_id",
+            "code_hash",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+        ),  # fmt: skip
+        Index(
+            "uq_entry_code_booking", "tenant_id", "booking_id", unique=True, postgresql_where=text("status = 'active'")
+        ),  # fmt: skip
+    )
+
+    location_id: Mapped[UUID]
+    booking_id: Mapped[UUID]
+    code_hash: Mapped[str] = mapped_column(info={"audit": "never"})
+    code_ciphertext: Mapped[str] = mapped_column(info={"audit": "never"})
+    valid_from_at: Mapped[datetime]
+    valid_until_at: Mapped[datetime]
+    status: Mapped[str] = enum_column(server_default=text("'active'"))
+    revoked_at: Mapped[datetime | None]
+    revoke_reason: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    pushed_at: Mapped[datetime | None]  # the controller holds it (adapters that store codes)
+    notified_at: Mapped[datetime | None]
+
+
+class BuildingEvent(TenantOwned, Timestamps, Base):
+    """Activity log of the building: entries and denials at the door, unlocks, light switches, overrides, code
+    issue and revoke, failed commands. Append-only; never holds a code."""
+
+    __tablename__ = "building_event"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("door_device_id", "door_device"),
+        *tfk("lighting_zone_id", "lighting_zone"),
+        *tfk("entry_code_id", "entry_code"),
+        *tfk("check_in_id", "check_in"),
+        *tfk("staff_user_id", "staff_user"),
+        enum_check("kind", BuildingEventKind),
+        Index("ix_building_event_recent", "tenant_id", "location_id", text("occurred_at DESC"), text("id DESC")),
+    )
+
+    location_id: Mapped[UUID]
+    occurred_at: Mapped[datetime]
+    local_on: Mapped[date]
+    kind: Mapped[str] = enum_column()
+    door_device_id: Mapped[UUID | None]
+    lighting_zone_id: Mapped[UUID | None]
+    entry_code_id: Mapped[UUID | None]
+    check_in_id: Mapped[UUID | None]
+    staff_user_id: Mapped[UUID | None]
+    detail: Mapped[str | None] = mapped_column(info={"audit": "value"})  # a reason code, never free text or a code

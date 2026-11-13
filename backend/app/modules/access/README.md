@@ -3,8 +3,8 @@
 Who came through the door, how they proved who they were, and what the front desk had to know. One check-in
 command serves the staff window (CHK-01), the client profile (CHK-03), the self check-in kiosk (CHK-05) and an
 app-card QR (CHK-13); every path writes one `check_in` row with the result, the reasons and the alerts shown. The
-staff API accepts the `staff_window`, `client_profile`, `pos` and `api` channels; `door` is reserved for hardware and
-nothing writes it yet.
+staff API accepts the `staff_window`, `client_profile`, `pos` and `api` channels; the `door` channel is written only by
+building control (below), when a booking's entry code admits its holder.
 
 ## Tables (migration `0612_access_checkin`)
 
@@ -168,11 +168,81 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   certificates, so CHK-13 stays partial.
 - **Admin clear.** The clear-digital-cards action covers app cards and wallet passes alike.
 
+## Building control (CHK-15, CHK-16; migration `1971_access_building_control`)
+
+Door entry codes tied to bookings and court lights that follow bookings, behind the vendor-neutral port
+`app/ports/building_control.py`. Code: `building.py` (service), `jobs.py` (the minute tick), `handlers.py`.
+
+- **Why in access.** The door decision is a check-in decision: it reuses `service._facts` plus `domain.evaluate`
+  and writes a normal `check_in` on the `door` channel. Access may call scheduling, programs, clients and platform
+  (overview section 2), which is everything this needs. It may not import resources or rentals: zone resources are
+  checked through a lightweight `resource` table read under RLS, and bookings are read through scheduling.
+- **Port.** `unlock(device_ref, seconds)`, `push_code(device_ref, TimedCode)`, `revoke_code(device_ref, code_id)`,
+  `set_zone(zone_ref, is_on)`, `read_zone(zone_ref) -> bool | None`, plus `supports_code_push` (when False, the keypad
+  asks `POST /door/verify` for every code; the simulated adapter says True and also answers verify). Only `SimulatedBuildingControl` exists: it records calls (never a
+  code), can be scripted to fail or time out, and settings refuse it outside dev and test (unset means `none`
+  there, so every command fails and is surfaced). No vendor is assumed.
+- **Tables.** `door_device` (token hash only, bad-code count, lockout), `lighting_zone` (override, last commanded
+  state, failure count) with `lighting_zone_resource`, `entry_code` (one active per booking), `building_event`
+  (append-only activity, with `local_on` for the day filter). Five `access_settings` columns: `entry_code_early_min`
+  (15), `entry_code_grace_min` (10), `light_lead_in_min` (5), `light_run_on_min` (5), `requires_paid_entry` (true).
+- **Keys.** `access.device.manage` (doors, zones, credentials), `access.door.unlock` (staff remote unlock, reason
+  required), and one new key, `access.lighting.override` (Admin, Manager), added to the matrix because holding a
+  court's lights for a period is a different power from managing devices. Reads use `access.checkin.read`.
+- **Codes.** One six-digit code per confirmed rental or session booking at a location with an active door, shared by
+  its party, valid from start minus `entry_code_early_min` to end plus `entry_code_grace_min`, issued at most seven
+  days ahead. Issued by the booking created, rescheduled and cancelled handlers, and by the minute tick (a checkout
+  hold confirmed by `confirm_booking` publishes no event, and the tick catches anything a handler missed). A moved
+  booking's code is revoked and a new one issued and sent; a cancelled booking's code is revoked; codes are pushed
+  to and revoked from controllers that store codes. A failed push is retried by the tick; a failed revoke is logged
+  and not retried (the controller still stops honouring the code at its end time). Issue and revoke publish
+  `access.entry_code.issued` and `access.entry_code.revoked`.
+- **Code storage (decision).** A keyed HMAC (`crypto.mac`, per location) for lookup, plus the code sealed with the
+  tenant data key (`crypto.encrypt`) so the portal and the app can show it again. Regenerating on view would change
+  a code already emailed; a plain hash could not be shown again. Codes never appear in logs, the notification log
+  or audit: audit changes carry `"code": true` only.
+- **Delivery.** Email through the email port directly (`send_after_commit`), not the engagement notification log,
+  which stores bodies. A rental's holder gets it; every client registered on a session gets it, at issue and on later
+  enrollment (`programs.enrollment.created`). There is no SMS channel, so no SMS. The portal (`GET /portal/entry-codes`)
+  and the app read the same field. The location phone travels with the email, the portal list and the refusal,
+  because the fallback when a code fails is a phone call and a staff remote unlock.
+- **The door.** `POST /door/verify` with `Authorization: Bearer fhb_...` (the door's own credential, shown once, rotatable;
+  retiring a door drops it), 30 a minute per door through Redis (fails open), five wrong codes in a row lock the
+  keypad for five minutes. It answers allow (with unlock seconds) or deny, nothing more. Lookup is by keyed hash, so
+  timing says nothing about how close a wrong code was. An admitted rental writes a `door` check-in for its holder.
+  A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
+  the keypad, opens every active door of the location) call the controller in the request: someone is waiting at the
+  door and a queued unlock that lands late opens it for nobody. This is a deliberate exception to "only the payment
+  provider runs in-request"; a failure is logged and answered `409 device-unavailable`.
+- **Lights.** Computed, not scheduled. Every minute (`run_building_control` in `app.scheduler.EVERY_MINUTE`) each
+  zone should be on when an override says so or when a confirmed rental, session or game holds one of its resources
+  between start minus lead-in and end plus run-on. Holds cover a resource and its descendants, so a booking on a
+  whole court lights its halves' zones too, and a zone may map several resources. The window uses the booked time,
+  never the changeover buffer; a location that wants the lights on through the buffer raises lead-in and run-on.
+  Only changes are sent, so back-to-back bookings never flicker, a restarted scheduler or a missed tick catches up on
+  the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every
+  tick; the third failure in a row emails the location's alert address (or its email), and failures show in the
+  activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds.
+- **Staff.** Overrides hold a zone on or off until a time within seven days (`PUT /lighting-zones/{id}/override`,
+  audited, applied at once). `GET /building-events` (filters `local_on`, `kind`, door, zone) is the activity view;
+  `GET /building-status` gives per zone "should be on now", the reason and whether it matches the last command.
+
+### Assumptions and shortcuts (building control)
+
+- "Unpaid when payment is required": tentative bookings never get a code, and with `requires_paid_entry` the holder
+  must have no balance due. Access cannot see the booking's own charge (its source is rentals, which access may not
+  import), so a paid booking by someone with another open balance is refused too.
+- Session codes have no single holder, so a session entry writes a building event and no check-in, and the portal
+  list and member unlock cover the booking holder (rentals) only. Participants of a shared booking are not emailed.
+- A door check-in may consume a membership visit, like any check-in.
+- The status line compares with the last command, not with `read_zone`: no controller reports state yet.
+- A zone never commanded shows as not in sync until the first tick sends its state.
+- Changing the code window settings re-issues upcoming codes (treated as a reschedule).
+
 ## Deferred (P1 and later)
 
 CHK-20 summary analytics. CHK-21 "renew membership" and "update payment method" have no button at the window yet (staff open the
-client profile from the name on the status card); a QR on the printed card is not built. CHK-15 and CHK-16 (RFID, biometric,
-door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is built on a fake adapter only (see Wallet passes above); signed passes wait for issuer certificates.
-The permissions `access.door.unlock` and `access.device.manage` are registered for the door hardware and have no
-route yet. Kiosk attendance, the eligible-sessions list for a check-in and kiosk package purchase are in the contract
+client profile from the name on the status card); a QR on the printed card is not built. RFID and biometric readers (the rest of
+CHK-15) wait for v2 adapters, and building control has only the simulated adapter; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is built on a fake adapter only (see Wallet passes above); signed passes wait for issuer certificates.
+Kiosk attendance, the eligible-sessions list for a check-in and kiosk package purchase are in the contract
 but not built, and have no phase yet.

@@ -87,8 +87,8 @@ x-features-without-endpoints: {BIL-03: P1. Filters on GET /charges (is_invoiced=
     stub GET /coupons/{id}/redemptions.', POS-14: 'P1. Receipt header is location contact data, footer is billing-settings.receipt_footer;
     no new path.', POS-15: v2-adapter. Browser print in v1., POS-19: 'P1. `package_plan_id` on POST /pos-sales/{id}/lines.',
   POS-20: P2. Covered in intent by drawer sessions., POS-21: v2-adapter., POS-22: 'P1. GET /products?is_below_reorder_level=true
-    plus reporting-context views; alert email is pos-settings.', POS-23: v2-adapter., CHK-15: v2-adapter. CredentialReader
-    port; credential kinds exist., CHK-16: v2-adapter. DoorController port; access.door.unlock has no route in v1., CHK-17: P2.
+    plus reporting-context views; alert email is pos-settings.', POS-23: v2-adapter., CHK-15: P1. Door entry codes per
+    booking behind the BuildingController port (simulated adapter only)., CHK-16: P1. Remote unlock, court lights from holds, overrides; simulated adapter only., CHK-17: P2.
     Not built., CHK-20: P1. Reporting-context report over rpt_check_in., CHK-21: P1. Alerts already return in CheckInResult.alerts
     with an `action` hint; remediation deep-links to billing and memberships routes., STF-11: 'P1. Reporting-context report
     (rpt_trainer_session), own-reach scoped through staff_payee.staff_user_id.', STF-12: P1. Flags on StaffPayee; delivery
@@ -4567,6 +4567,170 @@ paths:
       x-features: [CHK-07]
       parameters:
       - {name: check_in_station_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices:
+    get:
+      operationId: listDoorDevices
+      tags: [access]
+      summary: 'Door controllers at a location'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: location_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: createDoorDevice
+      tags: [access]
+      summary: 'Register a door controller; its bearer credential is returned once'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-15, CHK-16]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices/{door_device_id}:
+    patch:
+      operationId: updateDoorDevice
+      tags: [access]
+      summary: 'Rename, re-address or retire a door (retiring drops its credential)'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: door_device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices/{door_device_id}/credential:
+    post:
+      operationId: rotateDoorDeviceCredential
+      tags: [access]
+      summary: 'New bearer credential; the old one stops at once'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: door_device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices/{door_device_id}/unlock:
+    post:
+      operationId: unlockDoorDevice
+      tags: [access]
+      summary: 'Staff remote unlock, reason required, audited; 409 device-unavailable when the controller fails'
+      x-priority: P1
+      x-permission: access.door.unlock
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: door_device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /lighting-zones:
+    get:
+      operationId: listLightingZones
+      tags: [access]
+      summary: 'Court lighting zones at a location'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-16]
+      parameters:
+      - {name: location_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: createLightingZone
+      tags: [access]
+      summary: 'A light circuit and the resources whose bookings switch it'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-16]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /lighting-zones/{lighting_zone_id}:
+    patch:
+      operationId: updateLightingZone
+      tags: [access]
+      summary: 'Rename, re-map or retire a zone'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-16]
+      parameters:
+      - {name: lighting_zone_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /lighting-zones/{lighting_zone_id}/override:
+    put:
+      operationId: overrideLightingZone
+      tags: [access]
+      summary: 'Hold a zone on or off until a time within seven days; is_on null clears it'
+      x-priority: P1
+      x-permission: access.lighting.override
+      x-features: [CHK-16]
+      parameters:
+      - {name: lighting_zone_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /building-events:
+    get:
+      operationId: listBuildingEvents
+      tags: [access]
+      summary: 'Entries, denied attempts, unlocks, light switches, overrides, codes and failures; filter by location_id, local_on, kind, door_device_id, lighting_zone_id'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-15, CHK-16]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /building-status:
+    get:
+      operationId: getBuildingStatus
+      tags: [access]
+      summary: 'Reconciliation per zone (should be on now versus last commanded) and each door'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: location_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /portal/entry-codes:
+    get:
+      operationId: listPortalEntryCodes
+      tags: [access]
+      summary: 'Live door codes of the caller''s and dependants'' bookings, with the location phone'
+      x-priority: P1
+      x-permission: client:can_act_for
+      x-features: [CHK-16]
+      security:
+      - {clientSession: []}
+      - {bearerToken: []}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /portal/bookings/{booking_id}/door-unlock:
+    post:
+      operationId: unlockPortalBookingDoor
+      tags: [access]
+      summary: 'Open the door inside the booking''s code window; 409 entry-refused names the location phone'
+      x-priority: P1
+      x-permission: client:can_act_for
+      x-features: [CHK-16]
+      parameters:
+      - {name: booking_id, in: path, required: true, schema: {type: string, format: uuid}}
+      security:
+      - {clientSession: []}
+      - {bearerToken: []}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door/verify:
+    post:
+      operationId: verifyDoorCode
+      tags: [access]
+      summary: 'A keypad code: allow (with unlock seconds) or deny only. Door bearer credential, 30 per minute per door, five bad codes lock the keypad for five minutes'
+      x-priority: P1
+      x-permission: door-device
+      x-features: [CHK-15, CHK-16]
+      security:
+      - {bearerToken: []}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
   /occupancy:
