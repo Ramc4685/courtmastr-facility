@@ -22,6 +22,7 @@ import { RentalPlansPage } from './RentalPlansPage'
 import { ProgressPage } from './ProgressPage'
 import { StatementPage } from './StatementPage'
 import { CaptainPage } from '../leagues/CaptainPage'
+import { PortalLeaguePostsPage } from '../leagues/PortalPostsPage'
 import { displayName, makePortalValue, PortalProvider, usePortal } from './shared'
 
 const NAV = [
@@ -36,6 +37,7 @@ const NAV = [
   { key: 'invoices', to: '/portal/invoices', label: 'Invoices' },
   { key: 'statement', to: '/portal/statement', label: 'Statement' },
   { key: 'teams', to: '/portal/teams', label: 'My teams' },
+  { key: 'league_posts', to: '/portal/league-posts', label: 'Classifieds' },
   { key: 'inbox', to: '/portal/inbox', label: 'Inbox' },
   { key: 'profile', to: '/portal/profile', label: 'Profile' },
 ]
@@ -189,6 +191,7 @@ export function PortalApp() {
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="statement" element={<StatementPage />} />
           <Route path="teams" element={<CaptainPage />} />
+          <Route path="league-posts" element={<PortalLeaguePostsPage />} />
           <Route path="inbox" element={<InboxPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/portal" replace />} />

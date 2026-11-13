@@ -5,7 +5,7 @@ acknowledgments (SSP-14), and guest checkout for program groups (REG-12).
 Written by hand to match the models; enable_rls() on both new tables.
 
 Revision ID: 1501
-Revises: 1401
+Revises: 1441
 """
 
 import sqlalchemy as sa
@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "1501"
-down_revision = "1401"
+down_revision = "1441"
 
 _CHANNELS_OLD = "channel IN ('staff', 'portal', 'public_link', 'mobile', 'api')"
 _CHANNELS_NEW = "channel IN ('staff', 'portal', 'public_link', 'mobile', 'api', 'guest')"

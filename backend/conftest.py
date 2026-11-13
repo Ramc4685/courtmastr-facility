@@ -298,6 +298,7 @@ def populate(client, tenant) -> SimpleNamespace:
     leagues |= _populate_league_depth(
         client, headers, post, tenant, location["id"], person["id"], space["resource_id"], leagues
     )
+    leagues |= _populate_league_site(client, headers, post, tenant, location["id"], person["id"])
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     reporting = _populate_reporting(post, location["id"])
     reporting |= _populate_imports(client, headers, tenant, location["id"])
@@ -468,8 +469,6 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     }, key=key())  # fmt: skip
     assert declined["status"] == "failed"
     from datetime import timedelta
-
-    from app.core import clock
 
     today = clock.now().date()
     batch = post("/statement-batches", {  # statement_batch + statement_recipient (+ its stored PDF)
@@ -1184,6 +1183,36 @@ def _populate_league_depth(client, headers, post, tenant, location_id, client_id
         "stat_definition_id": goals["id"],
         "ladder_competition_id": ladder["id"],
     }
+
+
+def _populate_league_site(client, headers, post, tenant, location_id, client_id) -> dict:
+    """Phase 14 chip B2: the enabled public league site with a link, a photo, a sponsor with a logo, a published
+    story and an approved classified (posted straight into the table: populate has no portal password)."""
+    from datetime import timedelta
+
+    from app.modules.leagues.models import LeaguePost
+
+    site = client.put("/api/v1/league-site", headers=headers, json={"is_enabled": True, "shows_classifieds": True})
+    assert site.status_code == 200, site.text
+    link = post("/league-links", {"title": "Rules", "url": "https://example.com/rules"})
+    image = {"Content-Type": "image/png"}
+    photo = client.post("/api/v1/league-photos?caption=Final", headers=headers | image, content=png_bytes())
+    assert photo.status_code == 201, photo.text
+    sponsor = post("/league-sponsors", {"name": "Corner Cafe", "url": "https://example.com"})
+    logo = client.put(f"/api/v1/league-sponsors/{sponsor['id']}/logo", headers=headers | image, content=png_bytes())
+    assert logo.status_code == 200, logo.text
+    story = post(
+        "/league-news", {"title": "Season opens", "body": "Games start soon.", "published_at": "2020-01-01T00:00:00Z"}
+    )
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        row = LeaguePost(location_id=location_id, kind="classified", category="player_wanted", client_id=client_id,
+                         title="Keeper wanted", body="Our Sunday side needs a keeper.", status="approved",
+                         expires_at=clock.now() + timedelta(days=30))  # fmt: skip
+        session.add(row)
+        session.flush()
+        post_id = str(row.id)
+    return {"link_id": link["id"], "photo_id": photo.json()["id"], "sponsor_id": sponsor["id"], "story_id": story["id"],
+            "post_id": post_id}  # fmt: skip
 
 
 @pytest.fixture(scope="session")

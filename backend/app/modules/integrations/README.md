@@ -60,8 +60,7 @@ through `service.adapter_for`.
 - `api_key` lives here rather than in platform: integrations owns the machine surface (ADR 0012).
 - One fixed-window Redis counter per key and minute. It fails open when Redis is down. A token bucket is a
   later upgrade if partners need bursts.
-- `_ledger_rows` reads `ledger_entry` with SQL rather than through a billing interface, because billing has no
-  journal read yet. Replace it when module 8 adds one.
+- The accounting export reads the day's ledger totals through billing's internal `ledger_day_totals`.
 - `sweep_webhook_deliveries` runs every minute (app/scheduler.py) and re-enqueues due deliveries whose message
   was lost; a duplicate is harmless because `attempt_delivery` locks and re-checks the row.
 - The disable email goes to the endpoint's creator, not to every Owner.

@@ -77,6 +77,11 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     app-directory:    {limit: 30, window_sec: 60}                   # shared-app facility search, per IP
     trial-request:    {limit: 5,  window_sec: 3600, closed: true}   # public "Try us" requests, per IP and per address
     app-usage:        {limit: 30, window_sec: 60}                   # anonymous member app usage counts, per IP
+    public-site:      {limit: 120, window_sec: 60}                  # public league site and TV board, per IP (a board polls)
+    public-site-media: {limit: 600, window_sec: 60}                 # league gallery images and sponsor logos, per IP
+    league-post:      {limit: 10, window_sec: 3600, closed: true}   # classifieds and pickup games posted, per IP
+    league-post-contact: {limit: 20, window_sec: 900, closed: true} # relay messages to posters, per IP
+    league-post-contact-sender: {limit: 10, window_sec: 3600, closed: true}  # relay messages, per signed-in identity
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months

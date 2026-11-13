@@ -65,7 +65,7 @@ def update_tenant(session: Session, principal: Principal, data: dict) -> Tenant:
     tenant = get_tenant(session)
     if "default_time_zone" in data:
         check_time_zone(data["default_time_zone"], "/default_time_zone")
-    # currency becomes immutable once any charge exists; that guard arrives with the billing context.
+    # currency is not writable here: it is set at provisioning, and every _minor amount is in that currency.
     for field, value in data.items():
         setattr(tenant, field, value)
     audit.record(session, "platform.tenant.update", tenant, changes=audit.diff(tenant))
@@ -270,7 +270,8 @@ def archive_location(session: Session, principal: Principal, location_id: UUID) 
     authorize(principal, "platform.location.archive")
     if location.status != "active":
         raise Conflict("This location is already archived.")
-    # location-has-future-bookings is checked here once the scheduling context exists.
+    for check in _location_archive_checks:  # scheduling: location-has-future-bookings
+        check(session, location.id)
     location.status = "inactive"
     audit.record(
         session,
@@ -488,6 +489,15 @@ def register_client_ids_resolver(resolver) -> None:
     """clients registers how a client identity maps to client ids, so /me can fill PrincipalOut.client_ids."""
     global _client_ids_resolver
     _client_ids_resolver = resolver
+
+
+_location_archive_checks: list = []
+
+
+def register_location_archive_check(check) -> None:
+    """A context that holds future work at a location registers `check(session, location_id)`, which raises a
+    DomainError to refuse the archive. Platform imports no context, so the check comes to it."""
+    _location_archive_checks.append(check)
 
 
 def location_exists(session: Session, location_id: UUID) -> bool:

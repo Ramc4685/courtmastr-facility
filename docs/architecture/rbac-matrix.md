@@ -249,7 +249,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `scheduling.block.manage` | L | | own | Y | Y | Y | own | - | - | - | SCH-08 |
 | `scheduling.session.manage` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | SCH-07, CLS-08 |
 | `scheduling.session.change_capacity` | L | | subj:reservation_type | Y | Y | - | - | - | - | - | CLS-04 |
-| `scheduling.enrollment.create` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | CLS-01, CLS-02, PKG-12 |
+| `scheduling.enrollment.create` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | CLS-01, CLS-02, PKG-12; programs' session roster message (CLS-10) |
 | `scheduling.enrollment.cancel` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | CLS-03 |
 | `scheduling.enrollment.free_book` | L | P | subj:reservation_type | Y | Y | - | - | - | - | - | CLS-05 |
 | `scheduling.enrollment.override_capacity` | L | P | | Y | Y | - | - | - | - | - | CLS-04 |
@@ -366,7 +366,7 @@ combined key. The reference sets "customize contract" per user only and Billing 
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `programs.program.manage` | L | | | Y | Y | - | - | Y | - | - | REG-01..REG-06, REG-13, CLS-10 |
 | `programs.program.delete` | L | D | | Y | Y | - | - | - | - | - | REG-05 |
-| `programs.registration_config.manage` | L | | | Y | Y | - | - | Y | - | - | REG-10, REG-11, SSP-17 |
+| `programs.registration_config.manage` | L | | | Y | Y | - | - | Y | - | - | REG-10, REG-11, SSP-17; session booking policies (CLS-09), so league managers keep them |
 | `programs.registration.read` | L | | own | Y | Y | Y | own | Y | - | - | REG-04, REG-21 |
 | `programs.registration.create` | L | | | Y | Y | Y | - | Y | - | - | REG-07 |
 | `programs.registration.update` | L | | | Y | Y | Y | - | Y | - | - | REG-08, REG-21 |
@@ -462,7 +462,6 @@ gating of cart price/quantity edits": permission wins over the Classic preferenc
 | `access.checkin.read` | L | | | Y | Y | Y | - | - | - | - | CHK-07, CHK-18, CHK-19 |
 | `access.checkin.read_full_details` | L | H | | Y | Y | - | - | - | - | - | CHK-02 ("Full Details on Check-in") |
 | `access.checkin.override_denial` | L | P | | Y | Y | - | - | - | - | - | CHK-08, CHK-21 |
-| `access.checkin.delete` | L | | | Y | Y | - | - | - | - | - | MEM-20 (restores a visit) |
 | `access.checkin.check_out` | L | | | Y | Y | Y | - | - | - | - | CHK-07 (check a client out) |
 | `access.credential.assign` | C | | | Y | Y | Y | - | - | - | - | CHK-11, CHK-12, MEM-19 |
 | `access.kiosk.launch` | L | | | Y | Y | Y | - | - | - | - | CHK-05 |
@@ -541,7 +540,7 @@ allow-list (STF-06, PLT-07).
 | `engagement.app_inquiry.read` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (Phase 11 C2: the trial request and feedback inbox) |
 | `engagement.app_inquiry.manage` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (status changes in that inbox) |
 | `engagement.app_usage.read` | T | | | Y | Y | - | - | - | - | - | APP-17 (Phase 11 C2: anonymous daily screen and action counts; tenant-wide, no location) |
-| `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10 |
+| `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10; programs' session booking policies (CLS-09), also open to `programs.registration_config.manage` |
 | `engagement.notification_rule.manage` | L | | | Y | Y | - | - | - | - | - | MKT-13, MKT-14, STF-12, PAY-07, PAY-08 |
 | `engagement.automation.manage` | L | B | | Y | Y | - | - | - | - | - | MKT-20 |
 | `engagement.suppression.manage` | T | | | Y | - | - | - | - | - | - | MKT-08 (un-suppress is a compliance act) |

@@ -174,7 +174,6 @@ class TenantUpdate(In):
     name: Name | None = None
     default_time_zone: str | None = None
     locale: str | None = Field(None, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
-    currency: str | None = Field(None, pattern=r"^[A-Z]{3}$")
     settings: dict[str, Any] | None = None
     brand_primary_color: Annotated[str, StringConstraints(to_lower=True, pattern=r"^#[0-9a-fA-F]{6}$")] | None = None
     brand_accent_color: Annotated[str, StringConstraints(to_lower=True, pattern=r"^#[0-9a-fA-F]{6}$")] | None = None

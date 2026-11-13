@@ -922,7 +922,7 @@ paths:
       tags: [programs]
       summary: Email the roster of a session
       x-priority: P0
-      x-permission: engagement.message.send_direct
+      x-permission: scheduling.enrollment.create
       x-features: [CLS-03, MKT-11]
       security: [{staffSession: []}, {apiKey: []}]
       requestBody:
@@ -1044,7 +1044,7 @@ paths:
       tags: [programs]
       summary: List the default policy and overrides of a location
       x-priority: P0
-      x-permission: engagement.portal_settings.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-02, SSP-03]
       security: [{staffSession: []}, {apiKey: []}]
       parameters:
@@ -1074,7 +1074,7 @@ paths:
       tags: [programs]
       summary: Replace the location default booking policy
       x-priority: P0
-      x-permission: engagement.portal_settings.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-02]
       security: [{staffSession: []}, {apiKey: []}]
       requestBody:
@@ -7087,6 +7087,105 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
       x-problem-codes: [invalid-state-transition]
+  /accounting-exports:
+    post:
+      operationId: runAccountingExport
+      tags: [integrations]
+      summary: Post one location-day as a summarised journal
+      description: Safe to repeat. A finished day is returned unchanged; a failed or pending day is attempted again with
+        the same provider request id.
+      x-priority: P0
+      x-permission: integrations.sync.run
+      x-features: [INT-07]
+      security: [{staffSession: []}, {apiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [external_connection_id, location_id, business_on]
+              additionalProperties: false
+              properties:
+                external_connection_id: {type: string, format: uuid}
+                location_id: {type: string, format: uuid}
+                business_on: {type: string, format: date}
+      responses:
+        '200':
+          description: OK.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AccountingExport'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+  /integration-adapters:
+    get:
+      operationId: listIntegrationAdapters
+      tags: [integrations]
+      summary: Each integration port with its adapter and whether it is connected, simulated or not configured
+      x-priority: P1
+      x-permission: integrations.connection.manage
+      x-features: [INT-01]
+      security: [{staffSession: []}, {apiKey: []}]
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [port, label, adapter, status, detail]
+                  properties:
+                    port: {type: string}
+                    label: {type: string}
+                    adapter: {type: [string, 'null']}
+                    status: {type: string, enum: [connected, simulated, not_configured]}
+                    detail: {type: string}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /adapter-commands:
+    get:
+      operationId: listAdapterCommands
+      tags: [integrations]
+      summary: What simulated adapters were asked to do
+      x-priority: P1
+      x-permission: integrations.connection.manage
+      x-features: [INT-01]
+      security: [{staffSession: []}, {apiKey: []}]
+      parameters:
+      - {name: port, in: query, schema: {type: string}}
+      - {name: location_id, in: query, schema: {type: string, format: uuid}}
+      - {$ref: '#/components/parameters/Limit'}
+      - {$ref: '#/components/parameters/Cursor'}
+      - {$ref: '#/components/parameters/Sort'}
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, page]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, port, adapter, command, arguments, outcome, occurred_at]
+                      properties:
+                        id: {type: string, format: uuid}
+                        port: {type: string}
+                        adapter: {type: string}
+                        location_id: {type: [string, 'null'], format: uuid}
+                        command: {type: string}
+                        arguments: {type: object, additionalProperties: true}
+                        outcome: {type: string}
+                        occurred_at: {type: string, format: date-time}
+                  page: {$ref: '#/components/schemas/Page'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
   /webhooks/quickbooks:
     post:
       operationId: receiveQuickBooksEvents

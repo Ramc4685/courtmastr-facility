@@ -427,6 +427,12 @@ def list_competition_player_stats(session: Db, principal: Principal, competition
     competition = core._competition(session, principal, competition_id, core._game_reader(principal))
     if (mine := core.assigned_competitions(principal)) is not None and competition.id not in set(session.scalars(mine)):
         raise NotFound()
+    return player_totals(session, competition)
+
+
+def player_totals(session: Db, competition: Competition) -> list[dict]:
+    """Internal: the totals for an already-authorized competition (staff above, the public site when it shows
+    players)."""
     defs = list(session.scalars(
         select(StatDefinition).where(StatDefinition.sport_id == competition.sport_id)
         .order_by(StatDefinition.sort_order, StatDefinition.code)

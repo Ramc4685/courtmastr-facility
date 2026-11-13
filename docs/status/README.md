@@ -238,7 +238,7 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | CLS-04 Capacity change | P0 | partial | Works for one session. Bulk change across sessions has no screen, though the API takes a list. |
 | CLS-05 Free booking | P0 | done | Integration: with the flag off a package of the session's type is required, or the free-book override permission. |
 | CLS-06 Waitlist | P0 | partial | Add (auto-promote), promote, remove. A full session points staff to the waitlist. The offer and accept flow has no screen (API partial). |
-| CLS-07 Public class listing | P2 | not built |  |
+| CLS-07 Public class listing | P2 | done | Phase 14 B2: `/public/league-site/classes` on the league site (`11-leagues.md`). |
 | CLS-08 Virtual sessions | P1 | done | Staff session panel makes a session virtual through the video port (simulated adapter only); enrolled clients get the join link in the portal from 15 minutes before the start (SSP-18). No real Zoom or Meet adapter (phase 11 B). |
 | CLS-09 Client self-booking | P0 | not built | Portal/mobile. |
 | CLS-10 Program registration | P0 | not built | Module 6. |
@@ -380,7 +380,8 @@ Lane detail: `09-pos-inventory.md`.
 
 Built on its own lane (`11-leagues.md` has the feature table). P0 11: all done after Phase 14 B1 (the generator
 runs as a job over several windows, all four bye modes, single and double elimination). B1 also built LGE-07,
-LGE-10, LGE-11, LGE-13, LGE-16, LGE-26, LGE-28, PLT-11, REG-14, REG-26 and RPT-36. Courts are booked only through `scheduling.service`; team fees bill through
+LGE-10, LGE-11, LGE-13, LGE-16, LGE-26, LGE-28, PLT-11, REG-14, REG-26 and RPT-36. Phase 14 B2 built the public league
+site: LGE-17 to LGE-24, LGE-33, PLT-12, MKT-18 and CLS-07 (`phase14-b2-public-site.md`). Courts are booked only through `scheduling.service`; team fees bill through
 `billing.service`; the public schedule and standings have their own schemas.
 
 ## Module 1 and Wave 7: platform, security and operations

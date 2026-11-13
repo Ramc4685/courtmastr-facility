@@ -39,8 +39,10 @@ Later modules must not assume these exist.
 - **Contract tests:** the committed snapshot and the generated web types are checked; since K3 a sampled
   Schemathesis run is in the suite (`make contract` runs every operation) and `make api-diff` fails on breaking
   changes against `main`.
-- **Guards waiting on other contexts:** `location-has-future-bookings` on archive (scheduling), currency
-  immutability once a charge exists (billing), FKs for `staff_user.linked_resource_id` (resources) and
+- **Guards from other contexts:** archiving a location runs the checks other contexts register with
+  `register_location_archive_check`; scheduling refuses with `location-has-future-bookings` while a confirmed
+  booking is still to start. `currency` is set at provisioning and `PATCH /tenant` does not accept it (every
+  `_minor` amount is in that currency). Still missing: FKs for `staff_user.linked_resource_id` (resources) and
   `auth_session.target_client_id` (clients).
 
 ## Jobs and retention (Phase 8 K2)

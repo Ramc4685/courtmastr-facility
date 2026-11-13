@@ -28,7 +28,8 @@ import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
 import { ScoresPage, StatsPage, VenuesPage } from '../features/leagues/depth'
 import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
-import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
+import { LeagueBoardPage, PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
+import { LeaguePostsPage, LeagueSitePage } from '../features/leagues/SitePages'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalApp } from '../features/portal/PortalApp'
@@ -115,7 +116,26 @@ export function makeQueryClient() {
   })
 }
 
+/** True inside an iframe. The proxy lets other sites frame the public league pages and the TV board only; this keeps
+ * every other screen out of a frame too, since the app is one document and any route can load behind those paths. */
+export function isFramed(): boolean {
+  return window.top !== window.self
+}
+
+/** What a framed app may render: the embeddable public league routes, and a refusal for everything else. */
+export function FramedRoutes() {
+  return (
+    <Routes>
+      <Route path="/leagues/public" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
+      <Route path="*" element={<main className="p-6"><h1 className="text-lg font-semibold">This page cannot be shown inside another site</h1><a className="text-primary hover:underline" href={window.location.href} target="_top">Open it in its own window</a></main>} />
+    </Routes>
+  )
+}
+
 export function AppRoutes() {
+  if (isFramed()) return <FramedRoutes />
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInPage />} />
@@ -132,6 +152,7 @@ export function AppRoutes() {
       <Route path="/forms/:id" element={<PublicFormPage />} />
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
       <Route path="/f/:slug/*" element={<FacilityApp />} />
+      <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/kiosk" element={<KioskPage />} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
@@ -222,7 +243,7 @@ export function AppRoutes() {
         <Route path="lockers" element={<RequirePermission permission={['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination']}><LockersPage /></RequirePermission>} />
         <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
         <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
-        <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />
+        <Route path="programs/booking-policies" element={<RequirePermission permission={['engagement.portal_settings.manage', 'programs.registration_config.manage']}><BookingPolicyPage /></RequirePermission>} />
         <Route path="programs/forms" element={<RequirePermission permission="programs.form.manage"><FormsPage /></RequirePermission>} />
         <Route path="programs/forms/:id" element={<RequirePermission permission="programs.form.manage"><FormPage /></RequirePermission>} />
         <Route path="programs/setup" element={<RequirePermission permission="programs.program.manage"><ProgramSetupPage /></RequirePermission>} />
@@ -237,6 +258,8 @@ export function AppRoutes() {
         <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
         <Route path="leagues/venues" element={<RequirePermission permission="leagues.competition.manage"><VenuesPage /></RequirePermission>} />
         <Route path="leagues/stats" element={<RequirePermission permission="leagues.competition.manage"><StatsPage /></RequirePermission>} />
+        <Route path="leagues/site" element={<RequirePermission permission="leagues.public_site.manage"><LeagueSitePage /></RequirePermission>} />
+        <Route path="leagues/posts" element={<RequirePermission permission="leagues.classified.moderate"><LeaguePostsPage /></RequirePermission>} />
         <Route path="leagues/scores" element={<RequirePermission permission="leagues.result.enter"><ScoresPage /></RequirePermission>} />
         <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (

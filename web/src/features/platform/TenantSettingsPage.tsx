@@ -21,7 +21,7 @@ function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
   const qc = useQueryClient()
   const toast = useToast()
   const [form, setForm] = useState({
-    name: tenant.name, default_time_zone: tenant.default_time_zone, currency: tenant.currency, locale: tenant.locale,
+    name: tenant.name, default_time_zone: tenant.default_time_zone, locale: tenant.locale,
     brand_primary_color: tenant.brand_primary_color ?? '', brand_accent_color: tenant.brand_accent_color ?? '',
   })
   const save = useMutation({
@@ -54,7 +54,7 @@ function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
           options={timeZoneOptions(form.default_time_zone)}
           onChange={(e) => setForm({ ...form, default_time_zone: e.target.value })}
         />
-        <Input label="Currency" hint="ISO code, e.g. USD" maxLength={3} value={form.currency} error={errors.currency} onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })} />
+        <Input label="Currency" value={tenant.currency} disabled hint="Set when the account was created; every amount is stored in it." />
         <Input label="Locale" hint="Formats dates and numbers, e.g. en-US" value={form.locale} error={errors.locale} onChange={(e) => setForm({ ...form, locale: e.target.value })} />
         <Input label="Portal main colour" placeholder="#0b6850" hint={colourHint(form.brand_primary_color, 'primary')} value={form.brand_primary_color} error={errors.brand_primary_color} onChange={(e) => setForm({ ...form, brand_primary_color: e.target.value.trim() })} />
         <Input label="Portal highlight colour" placeholder="#ea580c" hint={colourHint(form.brand_accent_color, 'accent')} value={form.brand_accent_color} error={errors.brand_accent_color} onChange={(e) => setForm({ ...form, brand_accent_color: e.target.value.trim() })} />

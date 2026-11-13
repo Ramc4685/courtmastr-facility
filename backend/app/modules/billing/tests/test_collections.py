@@ -22,6 +22,7 @@ OPEN_PORTAL_POSTS = {
     "/portal/client-packages/{package_id}/auto-renew-opt-out",
     "/portal/dependents", "/portal/devices", "/portal/enrollments/{enrollment_id}/cancel",
     "/portal/inbox/{inbox_item_id}/read", "/portal/league-teams/{competition_team_id}/roster",
+    "/portal/league-posts", "/portal/league-posts/{post_id}/contact", "/portal/league-posts/{post_id}/withdraw",
     "/portal/membership-contracts/{contract_id}/auto-renew-opt-out",
     "/portal/package-series/{series_id}/auto-renew-opt-out", "/portal/payment-methods",
     "/portal/payment-methods/setup-intents", "/portal/payments", "/portal/payments/{payment_id}/confirm",
