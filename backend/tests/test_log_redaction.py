@@ -1,0 +1,398 @@
+"""security-baseline V7 and 2.3: logs carry ids, never PII, secrets or card numbers, whatever a caller passes."""
+
+import io
+import json
+import logging
+import time
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+
+from app.core import api
+from app.core.db.platform import platform_engine
+from app.core.db.session import app_engine
+from app.core.logging import MAX_CHARS, TRUNCATED, JsonFormatter, scrub
+
+EMAIL, PHONE, PAN, DOB = "jane.doe@example.com", "2175550123", "4111 1111 1111 1111", "2014-03-09"
+CORPUS = {
+    "email": EMAIL, "contact_email": EMAIL, "phone": PHONE, "mobile_phone": PHONE, "first_name": "Jane",
+    "last_name": "Doe", "display_name": "Jane Doe", "date_of_birth": DOB, "dob": DOB, "address_line1": "1 Main St",
+    "password": "hunter2hunter2", "access_token": "fha_secret", "client_secret": "s3cr3t", "Authorization": "Bearer x",
+    "cookie": "fh_session=abc", "card_number": PAN, "signature_png": "data:image/png;base64,AAAA",
+}  # fmt: skip
+LEAKS = (EMAIL, PHONE, PAN, "4111111111111111", DOB, "Jane", "1 Main St", "hunter2", "fha_secret", "s3cr3t",
+         "Bearer x", "abc", "AAAA")  # fmt: skip
+
+
+def _capture(logger_name: str) -> tuple[logging.Logger, io.StringIO]:
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter())
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    return logger, stream
+
+
+def _assert_clean(output: str) -> None:
+    for leak in LEAKS:
+        assert leak not in output, leak
+
+
+def test_deny_listed_keys_are_masked_at_any_depth():
+    logger, stream = _capture("test.redaction.keys")
+    logger.info("event", extra={"tenant_id": "t-1", **CORPUS, "nested": {"list": [CORPUS], "inner": CORPUS}})
+    entry = json.loads(stream.getvalue())
+    _assert_clean(stream.getvalue())
+    assert entry["tenant_id"] == "t-1"  # ids stay: they are what logs are for
+    assert entry["email"] == "[redacted]" and entry["nested"]["list"][0]["password"] == "[redacted]"
+
+
+def test_messages_and_values_are_scrubbed_of_emails_digit_runs_and_card_numbers():
+    logger, stream = _capture("test.redaction.messages")
+    logger.info("sent to %s / %s / card %s", EMAIL, PHONE, PAN, extra={"detail": f"from {EMAIL} card {PAN}"})
+    logger.info("card 4111-1111-1111-1111 and 5555555555554444")
+    _assert_clean(stream.getvalue())
+    assert "5555555555554444" not in stream.getvalue()
+    assert "sent to" in stream.getvalue()
+
+
+def test_exception_text_is_scrubbed():
+    logger, stream = _capture("test.redaction.exc")
+    try:
+        raise ValueError(f"bad row for {EMAIL}, card {PAN}")
+    except ValueError:
+        logger.exception("failed")
+    _assert_clean(stream.getvalue())
+    assert "ValueError" in stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("text_", "secret"),
+    [
+        ("x" * 65 + "@example.com", "x" * 65),  # a local part longer than RFC 5321 allows
+        ("jane@" + "l" * 64 + ".com", "l" * 64),  # a label longer than DNS allows
+        ("mail jane@localhost now", "jane"),  # no dot
+        ("To: <jane.doe@example.com>", "jane.doe"),
+        ('"jane.doe@example.com",', "jane.doe"),
+        ("a jane@example.com b bob@example.org c", "bob"),
+    ],
+)
+def test_any_token_with_an_at_sign_is_masked_whole(text_, secret):
+    out = scrub(text_)
+    assert secret not in out and "example" not in out and "[email]" in out
+
+
+@pytest.mark.parametrize("secret", ["jane.doe@example.com", "4111111111111111", "4111 1111 1111 1111 111"])
+@pytest.mark.parametrize("offset", [1, 5, 10, 15])
+def test_values_straddling_the_cut_are_masked_not_halved(secret, offset):
+    """Fail closed: the scrub sees past the cut, and a partial token touching the cut is dropped."""
+    value = "w " * ((MAX_CHARS - offset) // 2) + "a" * ((MAX_CHARS - offset) % 2) + " " + secret + " tail"
+    out = scrub(value)
+    assert out.endswith(TRUNCATED)
+    for part in (secret[:4], secret[-4:], secret.split("@")[0]):
+        assert part not in out, part
+
+
+def test_separated_digit_runs_of_nine_or_more_are_masked():
+    assert scrub("call 217 555 0123 or 217-555-0123") == "call [digits] or [digits]"
+    assert scrub("room 12, 2026") == "room 12, 2026"
+
+
+@pytest.mark.parametrize(
+    "card",
+    ["ref 9900004111111111111111", "4111.1111.1111.1111", "4111/1111/1111/1111", "4111_1111_1111_1111",
+     "4111  1111  1111  1111", "4111 1111\n1111 1111", "1234 5678 9012 3456"],
+)  # fmt: skip
+def test_card_numbers_with_any_grouping_are_masked(card):
+    """Recall over precision in logs: no Luhn or prefix check, any long digit run goes."""
+    out = scrub(f"paid with {card} today")
+    assert out.startswith("paid with ") and out.endswith("[digits] today")
+    assert not any(group in out for group in ("1111", "3456", "9900"))
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    ["a." * 100_000, "a" * 200_000 + "@", "a@" + "b-" * 100_000, "1 " * 100_000, "4" * 200_000, "1-" * 100_000],
+)
+def test_redacting_a_200kb_adversarial_string_is_fast_and_cut(hostile):
+    logger, stream = _capture("test.redaction.hostile")
+    started = time.perf_counter()
+    logger.info(hostile, extra={"detail": hostile, "nested": [hostile]})
+    assert time.perf_counter() - started < 0.5
+    entry = json.loads(stream.getvalue())
+    assert len(stream.getvalue()) < 20_000 and entry["msg"].endswith(TRUNCATED)
+
+
+def test_deep_or_wide_extra_does_not_blow_up():
+    deep: dict = {"leaf": EMAIL}
+    for _ in range(5_000):
+        deep = {"child": deep}
+    wide = {f"k{i}": EMAIL for i in range(100_000)}
+    logger, stream = _capture("test.redaction.shape")
+    started = time.perf_counter()
+    logger.info("shape", extra={"deep": deep, "wide": wide, "method": "GET", "status": 200})
+    assert time.perf_counter() - started < 0.5
+    entry = json.loads(stream.getvalue())
+    assert len(entry["wide"]) <= 101 and EMAIL not in stream.getvalue()
+    assert entry["method"] == "GET" and entry["status"] == 200
+
+
+def test_engines_hide_bound_parameters():
+    assert app_engine().hide_parameters and platform_engine().hide_parameters
+
+
+def test_a_database_error_that_becomes_a_500_logs_no_values():
+    """The bound value never reaches the log (hide_parameters), and Postgres's own echo of it in the error
+    text (`invalid input syntax ... "jane.doe@example.com"`) is scrubbed by the formatter."""
+    app = FastAPI()
+    api.install(app)
+
+    @app.get("/boom")
+    def boom():
+        with app_engine().connect() as conn:
+            conn.execute(text("SELECT CAST(:v AS int), :p, :d"), {"v": EMAIL, "p": PHONE, "d": PAN})
+
+    _, stream = _capture("app.request")
+    response = TestClient(app, raise_server_exceptions=False).get("/boom")
+    assert response.status_code == 500 and response.json()["code"] == "internal-error"
+    output = stream.getvalue()
+    assert "unhandled error" in output and "DataError" in output
+    assert "parameters hidden" in output  # hide_parameters, not only the formatter, kept the values out
+    _assert_clean(output)
+
+
+UUID7 = "01a1d568-42a6-7fc1-8780-123456789012"  # digit runs across the dashes reach 9 digits
+ROW_DETAIL = "DETAIL:  Failing row contains (" + ", ".join(["Jane", "1 Main St", "20140309"]) + ")."
+
+
+def test_uuids_dates_and_times_pass_through_untouched():
+    from uuid import UUID
+
+    logger, stream = _capture("test.redaction.ids")
+    logger.info("tenant %s at 2026-11-13 10:00 and 2026-11-13T10:00:00.123+00:00, 2026-11-13 to 2026-11-20",
+                UUID7, extra={"tenant_id": UUID(UUID7), "path": f"/api/v1/clients/{UUID7}", "ids": [UUID7]})  # fmt: skip
+    entry = json.loads(stream.getvalue())
+    assert entry["tenant_id"] == UUID7 and entry["path"].endswith(UUID7) and entry["ids"] == [UUID7]
+    assert UUID7 in entry["msg"] and "2026-11-13 10:00" in entry["msg"]
+    assert "2026-11-13T10:00:00.123+00:00" in entry["msg"] and "2026-11-20" in entry["msg"]
+    assert scrub(f"{UUID7} 4111 1111 1111 1111") == f"{UUID7} [digits]"  # the rest is still masked
+
+
+def test_postgres_detail_and_context_lines_are_dropped():
+    logger, stream = _capture("test.redaction.detail")
+    error = "\n".join(['null value in column "x"', ROW_DETAIL, 'CONTEXT:  SQL function "f" statement 1'])
+    try:
+        raise ValueError(error)  # the traceback quotes this source line, so the text lives in a variable
+    except ValueError:
+        logger.exception("failed")
+    output = stream.getvalue()
+    for leak in ("Jane", "Main St", "20140309", "SQL function"):
+        assert leak not in output, leak
+    assert "null value in column" in output
+
+
+def test_a_record_that_cannot_be_formatted_logs_a_safe_placeholder():
+    from uuid import uuid4
+
+    logger, stream = _capture("test.redaction.broken")
+    logger.info("card %s %s", PAN)  # bad % args
+    logger.info("ok", extra={"detail": {uuid4(): EMAIL}})  # non-string key
+    output = stream.getvalue()
+    assert PAN not in output and EMAIL not in output and "4111" not in output
+    assert len(output.strip().splitlines()) == 2
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["api_key", "x-api-key", "apikey", "tokens", "refreshTokens", "client_secrets", "passwords", "credentials",
+     "phone_numbers"],
+)  # fmt: skip
+def test_more_deny_listed_keys_and_plurals(key):
+    logger, stream = _capture("test.redaction.more")
+    logger.info("event", extra={"detail": {key: "value-xyz"}})
+    assert "value-xyz" not in stream.getvalue()
+
+
+def test_dict_keys_are_scrubbed():
+    logger, stream = _capture("test.redaction.dictkeys")
+    logger.info("event", extra={"detail": {EMAIL: 1, PAN: 2}})
+    assert EMAIL not in stream.getvalue() and "4111" not in stream.getvalue()
+
+
+def test_uvicorn_and_dramatiq_loggers_go_through_the_redacting_formatter(capsys):
+    """uvicorn's own config gives `uvicorn` a plain handler with propagate False, so its "Exception in ASGI
+    application" traceback would bypass the formatter; configure() must take those loggers over."""
+    import logging.config
+
+    from uvicorn.config import LOGGING_CONFIG
+
+    from app.core import logging as app_logging
+
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    names = ("uvicorn", "uvicorn.error", "uvicorn.access", "dramatiq", "dramatiq.worker")
+    kept = {n: (logging.getLogger(n).handlers[:], logging.getLogger(n).propagate, logging.getLogger(n).disabled)
+            for n in names}  # fmt: skip
+    try:
+        logging.config.dictConfig(LOGGING_CONFIG)  # what uvicorn does before it imports the app
+        app_logging.configure()
+        for name in ("uvicorn.error", "dramatiq.worker"):
+            try:
+                with app_engine().connect() as conn:
+                    conn.execute(text("SELECT CAST(:v AS int)"), {"v": EMAIL})
+            except Exception:
+                logging.getLogger(name).exception("Exception in ASGI application")
+        err = capsys.readouterr().err
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+        for n, (handlers, propagate, disabled) in kept.items():
+            lg = logging.getLogger(n)
+            lg.handlers[:], lg.propagate, lg.disabled = handlers, propagate, disabled
+    lines = [json.loads(line) for line in err.strip().splitlines()]
+    assert {line["logger"] for line in lines} == {"uvicorn.error", "dramatiq.worker"}
+    assert all("DataError" in line["exc"] for line in lines) and "jane.doe" not in err
+
+
+def test_postgres_detail_is_dropped_to_the_next_traceback_marker_even_across_newlines():
+    logger, stream = _capture("test.redaction.detail_newline")
+    row = "DETAIL:  Failing row contains (Jane, 1 Main St\nSecond Line Smith, 20140309)."
+    error = "\n".join(['null value in column "x"', row, "[SQL: INSERT INTO client ...]"])
+    try:
+        try:
+            raise ValueError(error)
+        except ValueError as inner:
+            raise RuntimeError("wrapped") from inner
+    except RuntimeError:
+        logger.exception("failed")
+    output = stream.getvalue()
+    for leak in ("Jane", "Main St", "Second Line Smith", "20140309"):
+        assert leak not in output, leak
+    # what follows the dropped text is kept: the SQL marker and the outer traceback
+    assert "[SQL: INSERT INTO client" in output and "RuntimeError: wrapped" in output
+
+
+@pytest.mark.parametrize("phone", ["(217) 555-0123", "+1 (217) 555-0123", "217–555–0123", "217.555.0123"])
+def test_phone_numbers_with_brackets_or_dashes_of_any_kind_are_masked(phone):
+    assert "555" not in scrub(f"call {phone} now") and scrub(f"call {phone} now").startswith("call ")
+
+
+def test_a_dict_passed_as_a_message_argument_goes_through_the_key_deny_list():
+    logger, stream = _capture("test.redaction.args")
+    logger.info("actor args %r kwargs %r", ("t-1", {"password": "hunter2hunter2"}), {"client_secret": "s3cr3t"})
+    logger.info("mapping %(a)s", {"a": "fine", "access_token": "fha_secret"})
+    logger.info("received %s", {"first_name": "Jane", "tenant_id": "t-1"})
+    _assert_clean(stream.getvalue())
+    assert "t-1" in stream.getvalue() and "fine" in stream.getvalue()
+
+
+def test_a_dramatiq_message_logs_as_actor_and_id_and_any_mapping_is_redacted():
+    from types import MappingProxyType
+
+    from app.modules.integrations.handlers import webhook_fan_out
+
+    logger, stream = _capture("test.redaction.message")
+    message = webhook_fan_out.message("t", "e", {"password": "x"})
+    logger.info("Enqueueing message %r", message)
+    logger.info("Failed to process message %s with unhandled exception.", message)
+    logger.info("mapping %s", MappingProxyType({"client_secret": "s3cr3t-value", "a": "fine"}))
+    out = stream.getvalue()
+    assert "password" not in out and "'x'" not in out and "s3cr3t-value" not in out
+    assert out.count(f"integrations.webhook_fan_out({message.message_id})") == 2 and "fine" in out
+
+
+def test_a_message_proxy_logs_as_actor_and_id_only():
+    from dramatiq.broker import MessageProxy
+
+    from app.modules.integrations.handlers import webhook_fan_out
+
+    logger, stream = _capture("test.redaction.proxy")
+    message = webhook_fan_out.message_with_options(args=("t", "e", {}), kwargs={"api_key": "kw-secret-value"})
+    logger.info("Retrying message %r in %d milliseconds.", MessageProxy(message), 10)
+    out = stream.getvalue()
+    assert "kw-secret-value" not in out and "api_key" not in out
+    assert f"integrations.webhook_fan_out({message.message_id})" in out
+
+
+def test_a_failing_actor_on_a_real_worker_logs_no_argument_values():
+    import dramatiq
+    from dramatiq.brokers.stub import StubBroker
+
+    broker = StubBroker()
+    broker.emit_after("process_boot")
+
+    @dramatiq.actor(broker=broker, max_retries=0, actor_name="test_redaction_boom")
+    def boom(email, secret=None):
+        raise ValueError("boom")
+
+    logger, stream = _capture("dramatiq")
+    worker = dramatiq.Worker(broker, worker_timeout=100)
+    worker.start()
+    try:
+        boom.send("arg-value-jane@example.com", secret="kwarg-value-hunter2")
+        broker.join(boom.queue_name, fail_fast=False)
+        worker.join()
+    finally:
+        worker.stop()
+        logger.handlers.clear()
+    out = stream.getvalue()
+    assert "test_redaction_boom(" in out  # the failure was logged
+    assert "arg-value" not in out and "kwarg-value" not in out and "jane@example.com" not in out
+
+
+@pytest.mark.parametrize(
+    "key", ["pwd", "pass", "user_pass", "otp", "cvv2", "pincode", "session", "session_cookie", "jwt"]
+)
+def test_short_credential_keys_are_masked(key):
+    logger, stream = _capture("test.redaction.short")
+    logger.info("event", extra={"detail": {key: "value-xyz"}})
+    assert "value-xyz" not in stream.getvalue()
+
+
+def test_warnings_and_uncaught_exceptions_go_through_the_formatter(capsys):
+    import subprocess
+    import sys
+    from types import SimpleNamespace
+
+    from app.core import logging as app_logging
+
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    saved_hook, saved_unraisable = sys.excepthook, sys.unraisablehook
+    try:
+        app_logging.configure()
+        try:
+            raise ValueError(f"card {PAN}")
+        except ValueError as exc:
+            sys.excepthook(type(exc), exc, exc.__traceback__)
+            # a __del__ or finaliser error: Python's default hook prints it raw to stderr
+            unraisable = SimpleNamespace(exc_type=type(exc), exc_value=exc, exc_traceback=exc.__traceback__)
+            sys.unraisablehook(unraisable)  # type: ignore[arg-type]
+        err = capsys.readouterr().err
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+        sys.excepthook, sys.unraisablehook = saved_hook, saved_unraisable
+        logging.captureWarnings(False)
+    lines = [json.loads(line) for line in err.strip().splitlines()]
+    assert sum("ValueError" in line.get("exc", "") for line in lines) == 2
+    assert "4111" not in err
+    # pytest records warnings itself, so the warnings path runs in a fresh interpreter
+    script = f"from app.core import logging as L; L.configure(); import warnings; warnings.warn('from {EMAIL}')"
+    done = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60, check=True)
+    warned = json.loads(done.stderr.strip().splitlines()[-1])
+    assert warned["logger"] == "py.warnings" and EMAIL not in done.stderr
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/api/v1/public/calendar-feeds/fhc_secret", "/API/v1/Public/Calendar-Feeds/fhc_secret",
+     "//api/v1//public/calendar-feeds//fhc_secret", "/api/v1/public/calendar-feeds/fhc_secret/x"],
+)  # fmt: skip
+def test_a_feed_token_never_reaches_the_request_log_whatever_the_case_or_slashes(path):
+    from app.core.api import _loggable_path
+
+    assert "fhc_secret" not in _loggable_path(path)

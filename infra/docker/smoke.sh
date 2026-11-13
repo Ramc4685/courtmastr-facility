@@ -43,8 +43,23 @@ for h in 'x-content-type-options: nosniff' 'x-frame-options: DENY' 'referrer-pol
 done
 has "api: strict-transport-security: max-age=31536000" 'strict-transport-security: max-age=31536000' "$api"
 if grep -qi '^strict-transport-security' <<<"$page"; then bad "page sends HSTS on localhost"; else ok "page sends no HSTS on localhost (it would pin every local dev server)"; fi
-has "page CSP is strict" "script-src 'self'" "$page"
+has "page CSP is strict" "script-src 'self' https://js.stripe.com https://\*.js.stripe.com;" "$page"
+has "page CSP lets the Stripe Payment Element frame in" "frame-src https://js.stripe.com https://\*.js.stripe.com https://hooks.stripe.com;" "$page"
+has "page CSP lets Stripe.js call its API, nothing else" "connect-src 'self' https://api.stripe.com;" "$page"
 has "page CSP forbids framing" "frame-ancestors 'none'" "$page"
+# Owner decision 2026-11-13 (question 5): only the public league pages, the TV board and the public schedule page
+# may be framed; they take no payment, so their CSP names no Stripe origin.
+for path in /leagues/public /leagues/public/abc /leagues/board/abc /schedule/public/abc; do
+  framed=$(curl -ksI "$BASE$path")
+  has "$path may be framed (frame-ancestors *)" "frame-ancestors \*" "$framed"
+  has "$path CSP has no Stripe origin" "script-src 'self'; style-src" "$framed"
+  if grep -qi '^x-frame-options' <<<"$framed"; then bad "$path still sends X-Frame-Options"; else ok "$path sends no X-Frame-Options"; fi
+done
+for path in /sign-in /portal /leagues/publicity /leagues/boards /schedule/publicity /schedule; do
+  unframed=$(curl -ksI "$BASE$path")
+  has "$path stays unframeable (X-Frame-Options)" 'x-frame-options: DENY' "$unframed"
+  has "$path stays unframeable (CSP)" "frame-ancestors 'none'" "$unframed"
+done
 has "api keeps its own deny-all CSP" "default-src 'none'; frame-ancestors 'none'" "$api"
 has "api responses are no-store" 'cache-control: no-store' "$api"
 if grep -qi '^server:' <<<"$page"; then bad "Server header is exposed"; else ok "no Server header"; fi

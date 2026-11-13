@@ -19,7 +19,6 @@ export const PROVIDERS: Record<Provider, string> = {
   accounting_file: 'Accounting file (daily journal)',
   quickbooks_online: 'QuickBooks Online',
   zoom: 'Zoom',
-  google_analytics: 'Google Analytics',
 }
 const ACCOUNTING = ['quickbooks_online', 'accounting_file']
 const STATUS_TONE ={ active: 'success', pending: 'warning', error: 'danger', disconnected: 'neutral' } as const
@@ -29,15 +28,12 @@ function ConnectDialog({ onClose }: { onClose: () => void }) {
   const toast = useToast()
   const [provider, setProvider] = useState<Provider>('accounting_file')
   const [zoom, setZoom] = useState({ account_id: '', client_id: '', client_secret: '' })
-  const [measurementId, setMeasurementId] = useState('')
-  const [domains, setDomains] = useState('')
   const save = useMutation({
     mutationFn: () =>
       api.post('/api/v1/external-connections', {
         body: {
           provider,
           ...(provider === 'zoom' ? { zoom } : {}),
-          ...(provider === 'google_analytics' ? { settings: { measurement_id: measurementId, linked_domains: domains } } : {}),
           ...(provider === 'quickbooks_online' ? { return_url: `${window.location.origin}/integrations` } : {}),
         },
       }),
@@ -84,12 +80,6 @@ function ConnectDialog({ onClose }: { onClose: () => void }) {
             <Input label="Account ID" value={zoom.account_id} onChange={setZoomField('account_id')} error={errors['zoom/account_id']} required />
             <Input label="Client ID" value={zoom.client_id} onChange={setZoomField('client_id')} error={errors['zoom/client_id']} required />
             <Input label="Client secret" type="password" autoComplete="off" value={zoom.client_secret} onChange={setZoomField('client_secret')} error={errors['zoom/client_secret']} required />
-          </>
-        )}
-        {provider === 'google_analytics' && (
-          <>
-            <Input label="Measurement ID" value={measurementId} onChange={(e) => setMeasurementId(e.target.value)} error={errors['settings/measurement_id']} hint="Looks like G-XXXXXXX." required />
-            <Input label="Linked domains" value={domains} onChange={(e) => setDomains(e.target.value)} error={errors['settings/linked_domains']} hint="Your own sites, comma-separated, e.g. club.example.com" />
           </>
         )}
         {provider === 'quickbooks_online' && <p className="text-sm text-muted">You will sign in to QuickBooks and pick the company to connect.</p>}
@@ -153,7 +143,7 @@ export function ConnectionsPanel() {
           <h2 id="connections-heading" className="text-lg font-semibold">
             Connections
           </h2>
-          <p className="text-sm text-muted">Accounting, online meetings and analytics.</p>
+          <p className="text-sm text-muted">Accounting and online meetings.</p>
         </div>
         <Button onClick={() => setConnecting(true)}>Connect a service</Button>
       </div>

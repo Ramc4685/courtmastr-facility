@@ -20,7 +20,7 @@ from app.core.errors import NotFound
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
-from app.modules.integrations import analytics, feeds, meetings, quickbooks, service
+from app.modules.integrations import feeds, meetings, quickbooks, service
 from app.modules.integrations import schemas as s
 from app.modules.integrations.domain.webhooks import redact
 
@@ -402,14 +402,19 @@ def get_public_calendar_feed(token: str, request: Request, response: Response):
     return _calendar_feed(token, request, response)
 
 
-# Every other method is answered here, so none reaches the framework's 405, which logs the full path before any
-# handler runs (handover: redact in core.api). Listed in tests/test_security.py HIDDEN.
+# Calendar apps' other methods get a precise answer (HEAD feed, OPTIONS, Allow header). The access log no longer
+# depends on this list: core.api logs this path prefix without the token. Listed in tests/test_security.py HIDDEN.
 _FEED_METHODS = {"Allow": "GET, HEAD, OPTIONS"}
+# Every HTTP and WebDAV/CalDAV method a client or scanner sends (RFC 9110, 4918, 3253, 4791, 5789).
+_OTHER_METHODS = [
+    "HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE", "PATCH", "TRACE", "CONNECT", "REPORT", "PROPPATCH",
+    "MKCOL", "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK", "SEARCH", "ACL",
+]  # fmt: skip
 
 
 @inbound.api_route(
     "/public/calendar-feeds/{token}",
-    methods=["HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"],
+    methods=_OTHER_METHODS,
     include_in_schema=False,
 )
 def other_public_calendar_feed_methods(token: str, request: Request, response: Response):
@@ -450,16 +455,3 @@ def get_public_schedule(
     response.headers["Cache-Control"] = "public, max-age=60"
     response.headers["Vary"] = "X-Tenant-Slug"  # the tenant may come from this header: never share across it
     return feeds.public_schedule(session, location_id, from_on, days)
-
-
-# shortcut: shares the public-schedule per-IP bucket; give it its own in config/app.yaml if traffic differs
-@inbound.get(
-    "/public/analytics-config", response_model=s.AnalyticsConfigOut, tags=["integrations"],
-    dependencies=[Depends(rate_limit("public-schedule"))],
-)  # fmt: skip
-def get_public_analytics_config(response: Response, session: Annotated[Db, Depends(public_session)]):
-    """The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
-    X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent."""
-    response.headers["Cache-Control"] = "public, max-age=300"
-    response.headers["Vary"] = "X-Tenant-Slug"
-    return analytics.public_config(session)

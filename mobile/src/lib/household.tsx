@@ -19,7 +19,9 @@ const Ctx = createContext<Household | null>(null);
 export function HouseholdProvider({ children }: { children: ReactNode }) {
   const { tenant, status } = useApp();
   const slug = tenant?.slug ?? '';
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Kept per club, so another club's choice never carries over.
+  const [selected, setSelected] = useState<{ slug: string; id: string | null }>({ slug: '', id: null });
+  const selectedId = selected.slug === slug ? selected.id : null;
   const members = useQuery({
     queryKey: ['actable-clients', slug],
     queryFn: () => portal.listActableClients(),
@@ -27,7 +29,15 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    if (slug) void readJson<string>(`fh.actingFor.${slug}`).then(setSelectedId);
+    if (!slug) return;
+    let current = true;
+    // The stored choice only fills an empty selection: a switch made while it loads wins.
+    void readJson<string>(`fh.actingFor.${slug}`).then((stored) => {
+      if (current) setSelected((prev) => (prev.slug === slug && prev.id ? prev : { slug, id: stored }));
+    });
+    return () => {
+      current = false;
+    };
   }, [slug]);
 
   const value = useMemo<Household>(() => {
@@ -39,7 +49,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       actingFor,
       isLoading: members.isLoading,
       switchTo: (clientId) => {
-        setSelectedId(clientId);
+        setSelected({ slug, id: clientId });
         void writeJson(`fh.actingFor.${slug}`, clientId);
       },
     };

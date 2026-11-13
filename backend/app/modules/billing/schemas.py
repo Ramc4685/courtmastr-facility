@@ -5,10 +5,12 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import EmailStr, Field, StringConstraints, computed_field, field_validator
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, computed_field, field_validator
+from pydantic_core import PydanticCustomError
 
 from app.core.errors import ValidationFailed
-from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
+from app.core.pan import contains_card_number
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL, In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
 from app.ports import payment_provider
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
@@ -323,7 +325,10 @@ class TenderTypeUpdate(In):
     sort_order: Annotated[int, Field(ge=0, le=1000)] | None = None
 
 
-class BillingSettingsIn(In):
+class _BillingSettingsFields(BaseModel):
+    """Shared by the request and the response; only the request (BillingSettingsIn) runs In's card scan, so a
+    stored footer is always readable."""
+
     is_membership_autopay_default_staff: bool = False
     is_membership_autopay_default_portal: bool = True
     save_card_default: Literal["never", "ask", "always"] = "ask"
@@ -348,7 +353,11 @@ class BillingSettingsIn(In):
     membership_suspend_after_days: Annotated[int, Field(ge=1, le=365)] | None = None
 
 
-class BillingSettingsOut(BillingSettingsIn, Out):
+class BillingSettingsIn(_BillingSettingsFields, In):
+    pass
+
+
+class BillingSettingsOut(_BillingSettingsFields, Out):
     model_config = {"from_attributes": True, "extra": "ignore"}
     id: UUID
     location_id: UUID | None
@@ -605,7 +614,10 @@ class BulkActionCreate(In):
 
     @field_validator("params")
     @classmethod
-    def _due_on_is_a_date(cls, params: dict) -> dict:
+    def _check_params(cls, params: dict) -> dict:
+        # `params` is allow-listed for In's card scan (structured options); its one free-text value is scanned here
+        if contains_card_number(str(params.get("reason") or "")):
+            raise PydanticCustomError(CARD_DATA, CARD_DATA_DETAIL)
         if due_on := params.get("due_on"):
             try:
                 date.fromisoformat(str(due_on))

@@ -95,7 +95,7 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | SCH-17 Shared bookings | P1 | done | Phase 14 C2; no portal view. |
 | SCH-18 Trainer availability | P0 | done | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built |  |
-| SCH-20 Embedded public schedule | P1 | partial | API and settings tab; cross-site embedding not enabled at the proxy (`phase15-api.md`) |
+| SCH-20 Embedded public schedule | P1 | done | API, settings tab and a framed page `/schedule/public/:locationId` other sites may embed (owner decision 2026-11-13) |
 | SCH-21 Merge series | P2 | done | Phase 14 C2. |
 
 ## Module 3: Rentals and events

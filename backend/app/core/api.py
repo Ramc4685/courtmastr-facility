@@ -21,10 +21,24 @@ from app.core import context, crypto, idempotency, networks
 from app.core.db.session import run_after_commit
 from app.core.errors import DomainError, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
+from app.core.pan import contains_card_number
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL, NOT_FREE_TEXT
 from app.core.settings import get_settings
 
 log = logging.getLogger("app.request")
 _REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
+# Paths whose next segment is a credential (calendar feed tokens): logged up to the prefix whatever the method,
+# trailing slash or deeper path, so no route has to redact for the log.
+_SECRET_PATH_PREFIXES = ("/api/v1/public/calendar-feeds/",)
+
+
+def _loggable_path(path: str) -> str:
+    folded = re.sub("/+", "/", path).casefold()  # routing may not match these, but the log line comes first
+    for prefix in _SECRET_PATH_PREFIXES:
+        if folded.startswith(prefix):
+            return prefix + "[redacted]"
+    return path
+
 
 # Constraint name -> problem code, for constraints whose meaning is richer than "already exists".
 # Contexts register theirs (ex_resource_hold_overlap -> booking-conflict). Unmapped = 500 = a bug.
@@ -103,13 +117,26 @@ def _check_origin(request: Request) -> None:
         raise PermissionDenied("Cross-site request refused.", code="csrf-failed")
 
 
-def _refuse_nul_in_query_and_path(request: Request) -> None:
-    """Postgres text cannot hold NUL (a filter or path value with one is a 500): refused here, on every method,
-    names and values alike, as core.schemas.In does for request bodies."""
+def _refuse_card_data_in_query(request: Request) -> None:
+    """A write's query values are stored like body fields (a photo caption), so In's card scan applies to them by
+    the same name rules. Path segments are ids and keys, and reads only filter. shortcut: no route takes a form
+    (python-multipart is not installed); scan form values here when one is added.
+
+    First, on every method: Postgres text cannot hold NUL (a filter or path value with one is a 500), so a NUL in
+    any query name or value or path value is refused, as core.schemas.In does for request bodies."""
     for where, pairs in (("query", request.query_params.multi_items()), ("path", request.path_params.items())):
         for name, value in pairs:
             if "\x00" in name or (isinstance(value, str) and "\x00" in value):
                 raise ValidationFailed("Text cannot contain a NUL character.", pointer=f"/{where}")
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    errors = [
+        {"type": CARD_DATA, "loc": ("query", name), "msg": CARD_DATA_DETAIL}
+        for name, value in request.query_params.multi_items()
+        if name not in NOT_FREE_TEXT and contains_card_number(value)
+    ]
+    if errors:
+        raise RequestValidationError(errors)
 
 
 class TxRoute(APIRoute):
@@ -121,7 +148,7 @@ class TxRoute(APIRoute):
 
         async def handler(request: Request):
             _check_origin(request)
-            _refuse_nul_in_query_and_path(request)
+            _refuse_card_data_in_query(request)
             if "idempotency-key" in request.headers:
                 raw = request.method.encode() + request.url.path.encode() + await request.body()
                 request.state.body_hash = crypto.mac_bytes(raw)
@@ -192,7 +219,7 @@ class RequestContextMiddleware:
                 "request",
                 extra={
                     "method": scope["method"],
-                    "path": scope["path"],
+                    "path": _loggable_path(scope["path"]),
                     "status": status,
                     "duration_ms": round((time.perf_counter() - started) * 1000, 1),
                     "tenant_id": state.get("tenant_id"),
@@ -313,6 +340,8 @@ def _on_validation_error(request: Request, exc: RequestValidationError):
         }
         for error in exc.errors()
     ]
+    if any(error["code"] == CARD_DATA for error in errors):  # security-baseline 3: the client shows its own message
+        return problem(request, 422, CARD_DATA, CARD_DATA_DETAIL, errors=errors)
     return problem(request, 422, "validation-failed", "The request is not valid.", errors=errors)
 
 

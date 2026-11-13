@@ -22,7 +22,6 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |
 | `domain/ical.py` | RFC 5545 text: escaping, 75-octet folding, UTC stamps |
 | `meetings.py` | virtual sessions (INT-09): the Zoom connection (a tenant's Server-to-Server app), `video_meeting` per session (pasted link or Zoom), and the member join |
-| `analytics.py` | analytics on registration pages (INT-13): the `google_analytics` connection's settings and the anonymous `GET /public/analytics-config` |
 | `quickbooks.py` | QuickBooks Online (INT-07): OAuth round trip with a sealed state, sealed credentials and refresh, mappings, settings, the queued sync (one committed day per chunk) and retry, the verified webhook |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`;
@@ -95,10 +94,12 @@ through `service.adapter_for`.
   `QuickBooksConnect` on `httpx.MockTransport` shaped from Intuit's public documentation.
 - **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
   a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
-  secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
-  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and POST, PUT and DELETE
-  our own 405 with `Allow`, so no method reaches the framework's 405 (the one hidden route `tests/test_security.py`
-  allows), which logs the raw path (handover: redact in `core.api`).
+  secrets in URLs" (calendar clients can only GET); the request log writes any path under
+  `/api/v1/public/calendar-feeds/` as that prefix plus `[redacted]` (`core.api._loggable_path`), whatever the
+  method, trailing slash or deeper path, and the route also rewrites the request path for error handling. HEAD
+  answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and the other known HTTP and WebDAV/CalDAV
+  methods (`router._OTHER_METHODS`: PATCH, REPORT, MKCALENDAR, ...) our own 405 with `Allow` (the one hidden route
+  `tests/test_security.py` allows).
   A per-IP bucket (`calendar-feed-ip`, generous, because calendar services fetch every feed from a few
   addresses) runs first; the per-feed bucket (`calendar-feed`, 12 an hour) counts only once the token opens an
   active feed of an active tenant (`feeds.live_feed`), so unknown tokens never make buckets. Content is
@@ -136,18 +137,9 @@ through `service.adapter_for`.
   merges the two to show Join online until the session ends (the join command enforces the window). Gate:
   `scheduling.session.manage` on the session's location. **ZoomVideo has never called Zoom:** tests drive it on
   `httpx.MockTransport`.
-- **Analytics on registration pages (INT-13).** A `google_analytics` connection is tenant-wide only, active at
-  once, and holds `measurement_id` (`G-` plus 4 to 16 letters or digits, upper-cased) and `linked_domains`
-  (comma-separated host names, at most 10, lower-cased and sorted); unknown keys are refused, and PATCH
-  merge-patches the two (`409` once disconnected). The id is public by design, so two tenants may use the same
-  one and there is no claim. `GET /public/analytics-config` (tenant from the host; shares the `public-schedule`
-  rate bucket; cached 5 minutes) returns them while the connection is active, else 404; it lives in the
-  integrations module, not the contract's `portal_settings.analytics_measurement_id`.
-  **The tag itself is not loaded.** security-baseline V10 and section 14 forbid third-party analytics, ad and
-  tracking SDKs in web and mobile (the portal serves minors), and the proxy CSP allows `script-src 'self'`
-  only. ADR 0012 section 6 expects the tag after consent; that conflict needs an owner decision (amend the
-  baseline for public registration pages, exclude minors' sessions, widen the CSP) before a consent-gated
-  loader goes into the SPA.
+- **Analytics (INT-13) is dropped** by owner decision 2026-11-13 (question 6): the third-party analytics ban
+  (security-baseline V10, section 14) stands. Migration 1951 removes the `google_analytics` provider that 1704
+  added (and any such connection); there is no analytics route or setting.
 - **Titles members and the public read** are the session's `public_title` or the fixed label "Session", never
   the internal `title` (`feeds.public_title`): the public schedule and member feeds. Staff and team feeds show
   what their owner can already read in the back office (booking titles, team names).
@@ -198,6 +190,10 @@ through `service.adapter_for`.
   refused move marks the meeting failed (`reschedule-failed`). Disconnecting Zoom audits each meeting it fails.
   `host_external_user_id` is a Zoom user id or an email (no `%` or `+`), never a path segment such as `..`; the
   adapter also percent-encodes it as one path segment.
+- The public schedule has an anonymous web page, `/schedule/public/:locationId` (`web/src/features/integrations/
+  PublicSchedulePage.tsx`), which other sites may frame (owner decision 2026-11-13, question 5; proxy `@embeddable`).
+  The settings screen gives its iframe snippet. The page shows what `GET /public/schedule` returns, so the listing
+  rules and the location's settings stay in one place; the JSON route still sends no CORS headers.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because
   scheduling was owned by another builder in Phase 15; it reads through `scheduling.service.booking_ids` and
   `booking_views`. Moving it is a file move.

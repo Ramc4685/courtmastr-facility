@@ -19,8 +19,20 @@ Hosting is the owner's call (Fly.io or AWS, chosen on cost, possibly switched la
 - **Stack.** `infra/docker/compose.stack.yml` runs everything on one machine under its own project name (`fhstack`),
   network, volumes and ports, so it cannot collide with the dev Compose. `make stack-up`, `make stack-smoke`,
   `make stack-down`. The first `make stack-up` writes `infra/docker/.env.stack` from `stack.env.example`, generating
-  `FH_DATA_KEY` and `FH_OPERATOR_TOKEN` (the stack runs as `FH_ENV=production`, which refuses dev or example values);
-  delete an older `.env.stack` that still holds the committed example key.
+  `FH_DATA_KEY` and `FH_OPERATOR_TOKEN` (the stack runs as `FH_ENV=stack`, which refuses dev or example values like
+  production does);
+  delete an older `.env.stack` that still holds the committed example key. It also writes a throwaway self-signed
+  certificate to `infra/docker/.stack-tls/` (git-ignored) for the stack's Redis, which serves TLS only; the stack's
+  Postgres serves TLS with the image's snakeoil pair. Outside dev and test the app refuses a database
+  without `sslmode=verify-full` and a Redis URL that is not `rediss://` or that turns off certificate or host-name
+  checks (`ssl_cert_reqs=none|optional`, `ssl_check_hostname=false`) (security-baseline V9). Only `FH_ENV=stack`,
+  the local stack and explicitly not production, accepts encryption without verification, for its self-signed
+  certificates (`config/app.stack.yaml`: `sslmode=require`, `ssl_cert_reqs=none&ssl_check_hostname=false`).
+  A deployment (`config/app.production.yaml`) sets:
+  - `FH_DB_SSLMODE=verify-full` and `PGSSLROOTCERT=<path to the provider's CA bundle>` (read by libpq, so the
+    variable goes to every backend process: api, worker, relay, scheduler, migrate);
+  - `FH_REDIS_URL=rediss://...` with a certificate the system trust store accepts, or
+    `?ssl_ca_certs=<path to the CA bundle>` for a private CA (it may carry the Redis password, so it is a secret).
 - **Proxy.** `infra/proxy/Caddyfile`. Caddy rather than nginx: automatic TLS with renewal and one small file.
   Sets HSTS, a strict CSP for the SPA (the API sends its own deny-all CSP), `nosniff`, referrer, frame and
   permissions headers; caps API bodies at 1 MiB with the one upload route allowed 21 MiB (mirrors

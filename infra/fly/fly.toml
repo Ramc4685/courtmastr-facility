@@ -1,7 +1,8 @@
 # EXAMPLE ONLY: nothing here has been run, no Fly account or app exists, and `fly` was never called for this project.
 # Shape: two Fly apps. This one runs the backend image as four process groups; fly.web.toml runs the proxy and web
 # build. Postgres, Redis (Upstash) and the Tigris bucket are provisioned separately (docs/ops/deploy-fly.md).
-# Secrets are set with `fly secrets set` (FH_DB_APP_PASSWORD, FH_DB_PLATFORM_PASSWORD, FH_DATA_KEY, FH_S3_*), never here.
+# Secrets are set with `fly secrets set` (FH_DB_APP_PASSWORD, FH_DB_PLATFORM_PASSWORD, FH_DATA_KEY, FH_S3_*,
+# FH_REDIS_URL as a rediss:// URL), never here; FH_DB_SSLMODE must be verify-full, with PGSSLROOTCERT set (startup refuses less).
 app = "REPLACE-facilityhub-api"
 primary_region = "REPLACE-region"
 
