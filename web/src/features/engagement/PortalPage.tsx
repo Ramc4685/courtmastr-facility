@@ -62,7 +62,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
       <Input label="Portal address (slug)" hint="Lower-case letters, numbers and dashes." value={form.slug} error={errors.slug} onChange={(e) => set({ slug: e.target.value })} />
       <TextArea label="Welcome text" value={form.welcome_text} error={errors.welcome_text} onChange={(v) => set({ welcome_text: v })} />
       <p className="text-sm text-muted">
-        Online rentals are switched on per location in <Link to="/rentals/setup" className="text-primary underline-offset-2 hover:underline">Rental setup</Link> (Online booking).
+        Online rentals are switched on per location in <Link to="/rentals/setup" className="text-primary underline">Rental setup</Link> (Online booking).
       </p>
       <Checkbox label="Allow online purchases" checked={form.allows_online_purchases} onChange={(e) => set({ allows_online_purchases: e.target.checked })} />
       <Checkbox label="Let people create their own account online" hint="They confirm their email before the account exists. Off by default." checked={form.allows_self_signup} onChange={(e) => set({ allows_self_signup: e.target.checked })} />
@@ -193,7 +193,7 @@ function PortalTerms() {
   if (binding.isPending) return <LoadingState />
   if (binding.isError) return <ErrorState error={binding.error} onRetry={() => binding.refetch()} />
   if (current?.template_id) {
-    return <p className="text-sm text-muted">The portal terms come from a document template. Change them in <Link to="/documents" className="text-primary underline-offset-2 hover:underline">Documents</Link>.</p>
+    return <p className="text-sm text-muted">The portal terms come from a document template. Change them in <Link to="/documents" className="text-primary underline">Documents</Link>.</p>
   }
   return (
     <form className="max-w-2xl space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate() }}>
