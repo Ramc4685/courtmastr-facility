@@ -61,7 +61,7 @@ These are the values the seed uses. Marked items are assumptions.
 | m | A child cannot be booked on a court without a parent on the booking. | pass (closed on `claude/rentals-pilot`): a minor never holds a rental; the parent holds it and names the child as a player |
 | m | A child the parent added in the portal (`manager` authority) never holds a court online; the parent books and names the child. | pass |
 | m | A dependant with no birth date cannot hold a court online (unknown is not an adult online). | pass |
-| n | Staff coach versus independent coach: pay rates and what the coach sees. | pass (see below) |
+| n | Staff coach versus independent coach: pay rates, the time clock, the payroll preview and what the coach sees. | pass (see below) |
 
 ## What is missing, ranked for CIRQT
 
@@ -144,8 +144,9 @@ Nothing in the product drives a door or a light today. The access module reserve
 
 The seed sets up two coaches:
 
-- **Rowan, staff coach.** A staff sign-in with the coach role, linked to his own trainer column, paid $30 per session through payroll pay rates.
+- **Rowan, staff coach.** A staff sign-in with the coach role, linked to his own trainer column, paid $30 per session through payroll pay rates, and a "Coach" job on the time clock at $30 an hour (one-hour lessons, assumed) for hours outside lessons. Clocking in for a lesson as well would pay it twice, so the clock is for other work.
 - **Ines, independent coach.** A client record so she can rent courts, plus a payee and trainer column with no sign-in, and a 70% commission rate.
+- **Payroll preview.** A calculated draft run for the day shows Rowan's $30 lesson and $30 clocked hour, and Ines's $35 commission on a $50 lesson.
 
 | Question | Answer in the product |
 |---|---|

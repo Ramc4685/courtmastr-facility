@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 
+from app.core import clock
 from app.core.db.session import tenant_session
 from app.modules.clients.models import Client
 from app.modules.memberships.models import MembershipPlan
@@ -658,11 +659,11 @@ def lesson_setup(c, w):
     return lesson, plan
 
 
-def coached_session(c, w, day: date, start: str, end: str, court: str) -> str:
+def coached_session(c, w, day: date, start: str, end: str, court: str, coach: str = "Rowan (staff coach)") -> str:
     lesson, _ = lesson_setup(c, w)
     booked = ok(c.post(f"{API}/bookings", headers=w.owner, json={
         "location_id": w.location, "kind": "session", "reservation_type_id": lesson,
-        "resources": [{"resource_id": payees(c, w)["Rowan (staff coach)"]["resource_id"]}, {"resource_id": w.courts[court]}],
+        "resources": [{"resource_id": payees(c, w)[coach]["resource_id"]}, {"resource_id": w.courts[court]}],
         "starts_at": at(day, start), "ends_at": at(day, end)}))  # fmt: skip
     return booked["booking"]["session"]["id"]
 
@@ -783,3 +784,40 @@ def test_n_staff_coach_and_independent_coach(client_module, w):
     }
     assert list(seen.values()) == [200, 200, 200, 200, 403, 403, 403], seen
 
+
+def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(client_module, w):
+    """Assumed rates (fit report): Rowan $30 a one-hour session, so his "Coach" job clocks $30 an hour; Ines keeps
+    70% of the lesson money. Rowan clocks an hour and teaches a lesson, Ines teaches a paid lesson; the next day the
+    payroll preview (a calculated draft run) shows all three."""
+    c, day = client_module, TODAY + timedelta(days=3)
+    found = payees(c, w)
+    rowan, ines = found["Rowan (staff coach)"], found["Ines (independent coach)"]
+    coach = login(c, w.tenant, f"coach@{w.mail}", cirqt.PASSWORD, "staff")
+    clock_state = ok(c.get(f"{API}/time-entries/current?location_id={w.location}", headers=coach), 200)
+    [job] = [j for j in clock_state["job_classifications"] if j["name"] == "Coach"]
+    rates = data(c.get(f"{API}/staff-users/{rowan['staff_user_id']}/hourly-rates", headers=w.owner))
+    assert [(r["job_classification_id"], r["rate_minor"]) for r in rates] == [(job["id"], 3000)]
+    _, plan = lesson_setup(c, w)
+    lessons = []
+    for name, start, end in (("Rowan (staff coach)", "09:00", "10:00"), ("Ines (independent coach)", "11:00", "12:00")):
+        session_id = coached_session(c, w, day, start, end, "Court 1", coach=name)
+        bought = ok(c.post(f"{API}/portal/client-packages", headers=w.member_portal | key(), json={
+            "package_plan_id": plan, "location_id": w.location, "client_id": w.member, "method_token": "tok_card_ok"}))  # fmt: skip
+        enrolled = ok(c.post(f"{API}/enrollments", headers=w.owner, json={
+            "session_id": session_id, "client_id": w.member, "client_package_id": bought["id"]}))  # fmt: skip
+        lessons.append((session_id, enrolled["id"]))
+    with clock.freeze(datetime.combine(day + timedelta(days=1), time(12), ZONE)):
+        owner = login(c, w.tenant, f"owner@{w.mail}", cirqt.PASSWORD, "staff")  # a token minted on the frozen clock
+        ok(c.post(f"{API}/time-entries", headers=owner, json={
+            "staff_user_id": rowan["staff_user_id"], "location_id": w.location, "job_classification_id": job["id"],
+            "clock_in_at": at(day, "07:00"), "clock_out_at": at(day, "08:00"), "edit_reason": "Opening the doors"}))  # fmt: skip
+        for session_id, enrollment_id in lessons:
+            ok(c.put(f"{API}/sessions/{session_id}/attendance", headers=owner,
+                     json={"marks": [{"enrollment_id": enrollment_id, "status": "attended"}]}), 200)  # fmt: skip
+        run = ok(c.post(f"{API}/payroll-runs", headers=owner, json={
+            "location_id": w.location, "period_starts_on": day.isoformat(), "period_ends_on": day.isoformat()}))  # fmt: skip
+        statements = data(c.get(f"{API}/payroll-runs/{run['id']}/statements", headers=owner))
+    pay = lambda field, *who: sum(s[field] for s in statements if {s["staff_payee_id"], s["staff_user_id"]} & set(who))  # noqa: E731
+    assert pay("session_pay_minor", rowan["id"], rowan["staff_user_id"]) == 3000  # his lesson
+    assert pay("hourly_pay_minor", rowan["id"], rowan["staff_user_id"]) == 3000  # his clocked hour
+    assert pay("commission_minor", ines["id"]) == 3500  # 70% of the $50 lesson
