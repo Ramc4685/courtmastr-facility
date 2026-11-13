@@ -1230,6 +1230,7 @@ class _Sheet:
     def __init__(self, session: Session, run: PayrollRun):
         self.session, self.run = session, run
         self.statements: dict[tuple, PayStatement] = {}
+        self.session_spans: dict[UUID, list] = {}  # staff user -> spans of sessions this run pays
 
     def statement(self, *, payee: StaffPayee | None = None, staff_user_id: UUID | None = None, name: str = ""):
         key = ("payee", payee.id) if payee else ("user", staff_user_id)
@@ -1364,6 +1365,8 @@ def _session_pay(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) ->
                                     common | {"was_paid_before": view["id"] in before})  # fmt: skip
         if not pay_sessions:
             continue
+        if facts and payee.staff_user_id is not None:
+            sheet.session_spans.setdefault(payee.staff_user_id, []).append((view["starts_at"], view["ends_at"]))
         for fact in facts:
             sheet.line(
                 sheet.statement(payee=payee), "session_pay_minor", kind=fact["kind"],
@@ -1488,14 +1491,17 @@ def _hourly_pay(session: Session, sheet: _Sheet, payees: list[StaffPayee], zone)
         rate = pay.rate_on(rates.get((entry.staff_user_id, entry.job_classification_id), []), day)
         if rate is None:
             continue
-        minutes = _minutes(entry.clock_in_at, entry.clock_out_at) or 0
+        # A clocked minute inside a session this run pays is paid once, as the session (CIRQT pilot).
+        paid = pay.overlap_minutes(entry.clock_in_at, entry.clock_out_at, sheet.session_spans.get(entry.staff_user_id, ()))
+        minutes = (_minutes(entry.clock_in_at, entry.clock_out_at) or 0) - paid
         payee = by_user.get(entry.staff_user_id)
         statement = sheet.statement(payee=payee) if payee else sheet.statement(
             staff_user_id=entry.staff_user_id, name=names.get(entry.staff_user_id, "")
         )  # fmt: skip
         sheet.line(
             statement, "hourly_pay_minor", kind="hourly", occurred_on=day, source_type="time_entry",
-            source_id=entry.id, description=jobs.get(entry.job_classification_id, ""),
+            source_id=entry.id,
+            description=jobs.get(entry.job_classification_id, "") + (f" ({paid} min in paid sessions not counted)" if paid else ""),
             quantity=(Decimal(minutes) / 60).quantize(Decimal("0.01")), rate_minor=rate,
             amount_minor=pay.per_hour(rate, minutes),
         )  # fmt: skip

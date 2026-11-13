@@ -786,17 +786,18 @@ def test_n_staff_coach_and_independent_coach(client_module, w):
 
 
 def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(client_module, w):
-    """Assumed rates (fit report): Rowan $30 a one-hour session, so his "Coach" job clocks $30 an hour; Ines keeps
-    70% of the lesson money. Rowan clocks an hour and teaches a lesson, Ines teaches a paid lesson; the next day the
-    payroll preview (a calculated draft run) shows all three."""
+    """The owner pays coaches per session: Rowan $30 a one-hour lesson (assumed rate), and his only clock job is
+    for non-coaching work ("Upkeep and front desk (not lessons)", $15 an hour, assumed); Ines keeps 70% of the lesson
+    money. Rowan clocks the opening hour and, by mistake, through his lesson as well; Ines teaches a paid lesson. The
+    next day's payroll preview pays his lesson once: clocked minutes inside a paid session are not counted."""
     c, day = client_module, TODAY + timedelta(days=3)
     found = payees(c, w)
     rowan, ines = found["Rowan (staff coach)"], found["Ines (independent coach)"]
     coach = login(c, w.tenant, f"coach@{w.mail}", cirqt.PASSWORD, "staff")
     clock_state = ok(c.get(f"{API}/time-entries/current?location_id={w.location}", headers=coach), 200)
-    [job] = [j for j in clock_state["job_classifications"] if j["name"] == "Coach"]
+    [job] = [j for j in clock_state["job_classifications"] if j["name"] == cirqt.UPKEEP_JOB]
     rates = data(c.get(f"{API}/staff-users/{rowan['staff_user_id']}/hourly-rates", headers=w.owner))
-    assert [(r["job_classification_id"], r["rate_minor"]) for r in rates] == [(job["id"], 3000)]
+    assert [(r["job_classification_id"], r["rate_minor"]) for r in rates] == [(job["id"], 1500)]
     _, plan = lesson_setup(c, w)
     lessons = []
     for name, start, end in (("Rowan (staff coach)", "09:00", "10:00"), ("Ines (independent coach)", "11:00", "12:00")):
@@ -811,6 +812,9 @@ def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(clien
         ok(c.post(f"{API}/time-entries", headers=owner, json={
             "staff_user_id": rowan["staff_user_id"], "location_id": w.location, "job_classification_id": job["id"],
             "clock_in_at": at(day, "07:00"), "clock_out_at": at(day, "08:00"), "edit_reason": "Opening the doors"}))  # fmt: skip
+        ok(c.post(f"{API}/time-entries", headers=owner, json={
+            "staff_user_id": rowan["staff_user_id"], "location_id": w.location, "job_classification_id": job["id"],
+            "clock_in_at": at(day, "08:30"), "clock_out_at": at(day, "10:00"), "edit_reason": "Clocked through the lesson"}))  # fmt: skip
         for session_id, enrollment_id in lessons:
             ok(c.put(f"{API}/sessions/{session_id}/attendance", headers=owner,
                      json={"marks": [{"enrollment_id": enrollment_id, "status": "attended"}]}), 200)  # fmt: skip
@@ -819,5 +823,5 @@ def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(clien
         statements = data(c.get(f"{API}/payroll-runs/{run['id']}/statements", headers=owner))
     pay = lambda field, *who: sum(s[field] for s in statements if {s["staff_payee_id"], s["staff_user_id"]} & set(who))  # noqa: E731
     assert pay("session_pay_minor", rowan["id"], rowan["staff_user_id"]) == 3000  # his lesson
-    assert pay("hourly_pay_minor", rowan["id"], rowan["staff_user_id"]) == 3000  # his clocked hour
+    assert pay("hourly_pay_minor", rowan["id"], rowan["staff_user_id"]) == 2250  # 07:00-08:00 and 08:30-09:00 only
     assert pay("commission_minor", ines["id"]) == 3500  # 70% of the $50 lesson

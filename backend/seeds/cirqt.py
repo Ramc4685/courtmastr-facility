@@ -49,6 +49,7 @@ VOLLEYBALL_COURTS = ["Court 2", "Court 3"]
 HOURS = [
     {"weekday": d, "opens_time": "06:00", "closes_time": "23:00", "is_closed": False} for d in range(1, 8)
 ]  # assumed
+UPKEEP_JOB = "Upkeep and front desk (not lessons)"  # the staff coach's only clock job: never coaching time
 STAFF = {"manager": "Mara", "front_desk": "Felix", "league_admin": "Lena", "coach": "Rowan"}  # owner from onboarding
 MEMBERSHIP_FEE = 1000  # assumed $10 a month (owner gave no figure)
 PRIME = ("18:00", "22:00")  # owner: prime time 6 pm to 10 pm, every day
@@ -358,8 +359,8 @@ def _leagues(session, actor, location, courts, category, people) -> None:
 
 def _coaching(session, actor, location, category, mail: str) -> None:
     """Two coaches, to show the difference the owner asked about. Rowan is a staff coach: a staff sign-in (coach
-    role) linked to his trainer column, paid $30 per session through payroll, with a "Coach" job on the time clock
-    at $30 an hour. Ines is an independent coach: a client
+    role) linked to his trainer column, paid $30 per session through payroll (the owner pays coaches per session),
+    with one clock job for non-coaching work only, `UPKEEP_JOB` at $15 an hour (assumed). Ines is an independent coach: a client
     record (she rents courts like anyone), plus a trainer column and a payee with no sign-in whose pay is 70% of the
     lesson money as a commission line on the payroll run (the product computes it; paying her happens outside).
     Lessons are a "Private lesson" type sold as a one-lesson package online ($50, assumed)."""
@@ -385,11 +386,11 @@ def _coaching(session, actor, location, category, mail: str) -> None:
         staffing.put_default_pay_rate(session, actor, payee.id, ss.PayRateWrite(**rate).model_dump())
         if user is not None:
             user.linked_resource_id = payee.resource_id  # the coach's own calendar column
-    # Rowan's time clock: a "Coach" job at $30 an hour (one-hour lessons at $30 a session, assumed). Session pay
-    # comes from the payee rate above; the clock is for hours outside lessons, so the owner never clocks both.
-    job = staffing.create_job_classification(session, actor, {"name": "Coach"})
+    # Lessons are paid per session from the payee rate above; the clock is for other work, and payroll never counts
+    # clocked minutes inside a paid session, so a lesson is paid once even if he stays clocked in.
+    job = staffing.create_job_classification(session, actor, {"name": UPKEEP_JOB})
     staffing.add_hourly_rate(session, actor, rowan.id, {
-        "job_classification_id": job.id, "rate_minor": 3000, "effective_from_on": date(2026, 1, 1)})  # fmt: skip
+        "job_classification_id": job.id, "rate_minor": 1500, "effective_from_on": date(2026, 1, 1)})  # fmt: skip
     clients.service.create_client(session, actor, {"first_name": "Ines", "last_name": "Independent",
                                                    "home_location_id": location.id, "primary_email": f"ines@{mail}"})  # fmt: skip
     lesson = session.scalar(select(ReservationType).where(ReservationType.name == "Private lesson"))

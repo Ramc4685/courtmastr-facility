@@ -144,9 +144,9 @@ Nothing in the product drives a door or a light today. The access module reserve
 
 The seed sets up two coaches:
 
-- **Rowan, staff coach.** A staff sign-in with the coach role, linked to his own trainer column, paid $30 per session through payroll pay rates, and a "Coach" job on the time clock at $30 an hour (one-hour lessons, assumed) for hours outside lessons. Clocking in for a lesson as well would pay it twice, so the clock is for other work.
+- **Rowan, staff coach.** A staff sign-in with the coach role, linked to his own trainer column, paid $30 per session through payroll pay rates (the owner pays coaches per session). His only time-clock job is "Upkeep and front desk (not lessons)" at $15 an hour (assumed), for other work. If he stays clocked in through a lesson, payroll does not count the clocked minutes inside it, so the lesson is paid once.
 - **Ines, independent coach.** A client record so she can rent courts, plus a payee and trainer column with no sign-in, and a 70% commission rate.
-- **Payroll preview.** A calculated draft run for the day shows Rowan's $30 lesson and $30 clocked hour, and Ines's $35 commission on a $50 lesson.
+- **Payroll preview.** A calculated draft run for the day shows Rowan's $30 lesson, his clocked opening hour and the half hour before the lesson at $15 (the clocked lesson hour is left out), and Ines's $35 commission on a $50 lesson.
 
 | Question | Answer in the product |
 |---|---|
