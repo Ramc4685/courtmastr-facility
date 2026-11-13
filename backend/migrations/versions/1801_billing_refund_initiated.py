@@ -20,7 +20,7 @@ _NEW = "status IN ('initiated', 'pending', 'succeeded', 'failed', 'cancelled')"
 def upgrade() -> None:
     op.add_column("refund", sa.Column("idempotency_key", sa.Text(), nullable=True))
     op.create_index(
-        "uq_refund_idempotency_key", "refund", ["tenant_id", "idempotency_key"], unique=True,
+        "uq_refund_idempotency_key", "refund", ["tenant_id", "payment_id", "idempotency_key"], unique=True,
         postgresql_where=sa.text("idempotency_key IS NOT NULL"),
     )  # fmt: skip
     op.create_index(

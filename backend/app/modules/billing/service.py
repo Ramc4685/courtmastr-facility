@@ -31,7 +31,7 @@ from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import clients, platform
 from app.modules.billing.domain import schedule as plans
-from app.modules.billing.domain.money import net_amount, tax_amount
+from app.modules.billing.domain.money import net_amount, round_half_up, tax_amount
 from app.modules.billing.events import (
     ChargeAdjusted,
     ChargeCreated,
@@ -358,6 +358,7 @@ def post_charge(
     service_ends_on: date | None = None,
     coupon_id: UUID | None = None,
     tax_ids: Iterable[UUID] | None = None,
+    discount_pct: Decimal | None = None,
 ) -> Charge:
     """Create a receivable and post it to the ledger (debit receivable; credit revenue and each tax).
 
@@ -369,6 +370,7 @@ def post_charge(
     revenue category (minus exclude_tax_ids) is computed on the net at the rate in force on revenue_on.
     Dates default to today at the location. A zero-total charge is recorded but posts nothing. `tax_ids`
     replaces the revenue category's taxes with these (a POS product's own tax codes), at the same rates.
+    `discount_pct` (instead of `discount_minor`) is kept on the row and becomes the amount half-up on the gross.
     """
     origin = (
         Charge.source_context == source_context, Charge.source_type == source_type, Charge.source_id == source_id,
@@ -384,6 +386,7 @@ def post_charge(
         raise ValidationFailed(
             "Quantity must be positive and the price cannot be negative.", pointer="/unit_price_minor"
         )
+    discount_minor = _pct_discount(gross, discount_pct, discount_minor)
     if not 0 <= discount_minor <= gross:
         raise ValidationFailed("The discount cannot exceed the line amount.", pointer="/discount_minor")
     if client_id is not None:
@@ -411,7 +414,7 @@ def post_charge(
         unit_price_minor=unit_price_minor, discount_minor=discount_minor, net_minor=net, tax_minor=tax_total,
         total_minor=net + tax_total, bill_on=bill_on, revenue_on=revenue_on, service_starts_on=service_starts_on,
         service_ends_on=service_ends_on, revenue_category_id=category.id, created_by_staff_user_id=_staff_id(session),
-        coupon_id=coupon_id,
+        coupon_id=coupon_id, discount_pct=discount_pct,
     )  # fmt: skip
     session.add(charge)
     session.flush()
@@ -481,8 +484,16 @@ def adjust_charge(
     unit_price_minor: int | None = None,
     discount_minor: int | None = None,
     exclude_tax_ids: Iterable[UUID] | None = None,
+    discount_pct: Decimal | None = None,
+    revenue_on: date | None = None,
+    revenue_category_id: UUID | None = None,
 ) -> Charge:
     """Change the money of a posted charge (BIL-01) and return the row that replaces it.
+
+    `revenue_on` and `revenue_category_id` move the revenue the same way: the original is negated at its own
+    revenue date in its own category and the replacement posts at the new date in the new category, so the
+    ledger history is never rewritten. A percentage discount (given now, or kept from the original when only
+    the quantity or price changes) is recomputed half-up on the new gross; an amount discount clears it.
 
     Money columns are immutable, so the edit is two rows: the charge is negated at its own revenue date and
     becomes `reversed`, and an `adjustment` charge carrying the new values takes its place on the same
@@ -496,15 +507,23 @@ def adjust_charge(
     _require_live(charge)
     quantity = charge.quantity if quantity is None else Decimal(quantity)
     unit_price_minor = charge.unit_price_minor if unit_price_minor is None else unit_price_minor
-    discount_minor = charge.discount_minor if discount_minor is None else discount_minor
     gross = net_amount(quantity, unit_price_minor)
     if quantity <= 0 or unit_price_minor < 0:
         raise ValidationFailed(
             "Quantity must be positive and the price cannot be negative.", pointer="/unit_price_minor"
         )
+    if discount_pct is None and discount_minor is None:  # keep what the item had: a percentage or an amount
+        discount_pct, discount_minor = charge.discount_pct, None if charge.discount_pct else charge.discount_minor
+    discount_minor = _pct_discount(gross, discount_pct, discount_minor or 0)
     if not 0 <= discount_minor <= gross:
         raise ValidationFailed("The discount cannot exceed the line amount.", pointer="/discount_minor")
     net = gross - discount_minor
+    category_id = charge.revenue_category_id
+    if revenue_category_id is not None and revenue_category_id != category_id:
+        category = _get(session, RevenueCategory, revenue_category_id, pointer="/revenue_category_id")
+        if not category.is_active or category.system_key is not None:
+            raise ValidationFailed("Choose an active revenue category.", pointer="/revenue_category_id")
+        category_id = category.id
     snapshot = session.scalars(select(ChargeTax).where(ChargeTax.charge_id == charge.id)).all()
     excluded = {row.tax_id for row in snapshot if row.is_excluded} if exclude_tax_ids is None else set(exclude_tax_ids)
     paid = [
@@ -525,9 +544,10 @@ def adjust_charge(
         source_line_no=charge.source_line_no, description=charge.description,
         additional_description=charge.additional_description, internal_remarks=charge.internal_remarks,
         quantity=quantity, unit_price_minor=unit_price_minor, discount_minor=discount_minor, net_minor=net,
-        tax_minor=tax_total, total_minor=net + tax_total, bill_on=charge.bill_on, revenue_on=charge.revenue_on,
-        service_starts_on=charge.service_starts_on, service_ends_on=charge.service_ends_on,
-        revenue_category_id=charge.revenue_category_id, adjusts_charge_id=charge.id, reason=reason,
+        discount_pct=discount_pct, tax_minor=tax_total, total_minor=net + tax_total, bill_on=charge.bill_on,
+        revenue_on=revenue_on or charge.revenue_on, service_starts_on=charge.service_starts_on,
+        service_ends_on=charge.service_ends_on, revenue_category_id=category_id, adjusts_charge_id=charge.id,
+        reason=reason,
         coupon_id=charge.coupon_id, created_by_staff_user_id=_staff_id(session),
     )  # fmt: skip
     session.add(replacement)
@@ -542,13 +562,28 @@ def adjust_charge(
             _allocate(session, _lock(session, Payment, payment_id), None, [(replacement.id, amount)])
     audit.record(
         session, "billing.charge.update", charge, location_id=charge.location_id, reason=reason,
-        changes={"total_minor": [old_total, replacement.total_minor], "status": ["active", "reversed"]},
+        changes={
+            "total_minor": [old_total, replacement.total_minor], "status": ["active", "reversed"],
+            "revenue_on": [str(charge.revenue_on), str(replacement.revenue_on)],
+            "revenue_category_id": [str(charge.revenue_category_id), str(replacement.revenue_category_id)],
+        },
     )  # fmt: skip
     events.publish(session, ChargeAdjusted(**_charge_ref(charge), replacement_charge_id=replacement.id), charge.id)
     session.flush()
     if charge.invoice_id:
         _refresh_invoice(session, charge.invoice_id)
     return replacement
+
+
+def _pct_discount(gross: int, discount_pct: Decimal | None, discount_minor: int) -> int:
+    """A percentage discount becomes an amount once, half-up on the line; never both."""
+    if discount_pct is None:
+        return discount_minor
+    if discount_minor:
+        raise ValidationFailed("Give a percentage or an amount, not both.", pointer="/discount_pct")
+    if not 0 <= discount_pct <= 100:
+        raise ValidationFailed("A percentage is between 0 and 100.", pointer="/discount_pct")
+    return round_half_up(Decimal(gross) * Decimal(discount_pct) / 100)
 
 
 def _require_live(charge: Charge) -> None:
@@ -1041,13 +1076,14 @@ def refund(
     processed = payment.provider_account_id is not None
     method = method or ("original" if processed else "external")
     _refundable(payment, method, reason)
-    row = None
-    if method == "original":
-        if not idempotency_key:
-            raise ValidationFailed("A processed refund needs an Idempotency-Key.", pointer="/amount_minor")
-        row = _refund_by_key(session, idempotency_key)
-        if row is not None and row.status != "initiated":
+    if method == "original" and not idempotency_key:
+        raise ValidationFailed("A processed refund needs an Idempotency-Key.", pointer="/amount_minor")
+    row = _refund_by_key(session, idempotency_key) if idempotency_key else None
+    if row is not None:  # a key is bound to its payment and its request, never replayed against another
+        _same_refund(row, payment_id, amount_minor, method, reason)
+        if row.status != "initiated":
             return row  # a replay is answered before any guard: the first call already consumed the remainder
+    if method == "original":
         if row is None:
             if not release_allocation_ids and not 0 < amount_minor <= payment.unapplied_minor:
                 _too_much()  # refuse early so a plain mistake leaves no row behind
@@ -1064,8 +1100,6 @@ def refund(
     _refundable(payment, method, reason)  # re-checked under the lock
     if release_allocation_ids:
         _release_for_refund(session, payment, release_allocation_ids)
-    if row is not None and row.amount_minor != amount_minor:
-        raise Conflict("This Idempotency-Key was used for another refund.", code="idempotency-key-reused")
     if not 0 < amount_minor <= payment.unapplied_minor:
         _too_much()
     if row is None:  # record-only: nothing to call, so nothing to write first
@@ -1074,6 +1108,7 @@ def refund(
             amount_minor=amount_minor, currency=payment.currency, method=method, status="succeeded",
             refund_on=platform.service.location_today(session, payment.location_id), reason=reason,
             comments=comments, issued_by_staff_user_id=_staff_id(session), refund_batch_id=refund_batch_id,
+            idempotency_key=idempotency_key,
         )  # fmt: skip
         session.add(row)
         session.flush()
@@ -1122,13 +1157,20 @@ def _too_much() -> None:
 
 
 def _refund_by_key(session: Session, idempotency_key: str) -> Refund | None:
-    return session.execute(
-        select(Refund).where(Refund.idempotency_key == idempotency_key).with_for_update()
-    ).scalar_one_or_none()
+    """Any refund with this key, on any payment, so a key reused elsewhere is caught (oldest first)."""
+    return session.scalars(
+        select(Refund).where(Refund.idempotency_key == idempotency_key).order_by(Refund.created_at).with_for_update()
+    ).first()
+
+
+def _same_refund(row: Refund, payment_id: UUID, amount_minor: int, method: str, reason: str) -> None:
+    if (row.payment_id, row.amount_minor, row.method, row.reason) != (payment_id, amount_minor, method, reason):
+        raise Conflict("This Idempotency-Key was used for another refund.", code="idempotency-key-reused")
 
 
 def _refund_provider_key(session: Session, row: Refund) -> str:
-    return f"{session.info['tenant_id']}:refund:{row.idempotency_key}"
+    # bound to the payment too, so the processor can never answer one payment's refund with another's
+    return f"{session.info['tenant_id']}:refund:{row.payment_id}:{row.idempotency_key}"
 
 
 def _initiate_refund(session: Session, values: dict) -> Refund:
@@ -1145,6 +1187,7 @@ def _initiate_refund(session: Session, values: dict) -> Refund:
     except (IntegrityError, OperationalError):
         existing = _refund_by_key(session, values["idempotency_key"])  # lost a race to the same key?
         if existing is not None:
+            _same_refund(existing, values["payment_id"], values["amount_minor"], values["method"], values["reason"])
             return existing
         row = Refund(**values)
         session.add(row)

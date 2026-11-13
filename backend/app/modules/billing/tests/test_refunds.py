@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core import clock
-from app.core.errors import ValidationFailed
+from app.core.errors import Conflict, ValidationFailed
 from app.modules.billing import webhooks
 from app.modules.billing.models import PaymentAllocation, Refund
 from app.modules.billing.tests.test_billing import API, assert_books_agree, card, cash, charge, key, svc, work
@@ -135,3 +135,41 @@ def test_a_duplicate_refund_webhook_posts_once(shop, monkeypatch):
         assert transactions(session) == posted + 1
         assert session.scalar(select(func.count()).select_from(Refund)) == 1
         assert_books_agree(session)
+
+
+def test_a_refund_key_is_bound_to_its_payment_and_its_request(shop, monkeypatch):
+    ready(shop)
+    first, second = _paid(shop), _paid(shop)
+    refund_key = uuid4().hex
+    with work(shop.tenant) as session:
+        made_id = svc.refund(session, first, amount_minor=200, reason="Duplicate", idempotency_key=refund_key).id
+    fake = payment_provider.get("fake")
+    calls = []
+    monkeypatch.setattr(fake, "refund", lambda **kw: calls.append(kw))
+    for target, over in ((second, {}), (first, {"amount_minor": 300}), (first, {"method": "external"})):
+        with pytest.raises(Conflict) as caught, work(shop.tenant) as session:
+            svc.refund(
+                session, target, **({"amount_minor": 200, "reason": "Duplicate"} | over), idempotency_key=refund_key
+            )
+        assert caught.value.code == "idempotency-key-reused"
+    assert calls == []  # nothing reached the processor
+    with work(shop.tenant) as session:
+        assert session.get(svc.Payment, second).unapplied_minor == 500  # nothing refunded on the other payment
+        replay = svc.refund(session, first, amount_minor=200, reason="Duplicate", idempotency_key=refund_key)
+        assert replay.id == made_id and calls == []  # the same request replays the stored result
+
+
+def test_a_key_reused_on_another_payment_releases_nothing(shop):
+    ready(shop)
+    refund_key = uuid4().hex
+    with work(shop.tenant) as session:
+        svc.refund(session, card(session, shop, 500).id, amount_minor=100, reason="x", idempotency_key=refund_key)
+        item = charge(session, shop, 1000)
+        other = card(session, shop, 1083, allocations=[(item.id, 1083)])
+        allocation = session.scalars(select(PaymentAllocation).where(PaymentAllocation.payment_id == other.id)).one()
+        with pytest.raises(Conflict):
+            svc.refund(
+                session, other.id, amount_minor=100, reason="x", idempotency_key=refund_key,
+                release_allocation_ids=[allocation.id],
+            )  # fmt: skip
+        assert allocation.status == "applied" and item.applied_minor == 1083

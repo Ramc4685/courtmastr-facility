@@ -488,7 +488,7 @@ class Refund(TenantOwned, Timestamps, Base):
         Index("ix_refund_pending", "tenant_id", "created_at", postgresql_where=text("status = 'pending'")),
         Index("ix_refund_initiated", "tenant_id", "created_at", postgresql_where=text("status = 'initiated'")),
         Index(
-            "uq_refund_idempotency_key", "tenant_id", "idempotency_key", unique=True,
+            "uq_refund_idempotency_key", "tenant_id", "payment_id", "idempotency_key", unique=True,
             postgresql_where=text("idempotency_key IS NOT NULL"),
         ),
     )  # fmt: skip
