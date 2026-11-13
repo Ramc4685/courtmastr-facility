@@ -149,12 +149,13 @@ games to score.
   a portal sign-in on both sides and is rate limited per IP and per sender. A pickup game needs a future start.
 - **Images** (photos, sponsor logos) go through `platform.files` and are capped at 900 KB (the API's 1 MiB body
   cap); they are served by our own public routes, published photos and active sponsors only.
-- **Embedding (LGE-21) is not enabled yet.** The proxy (`infra/proxy/Caddyfile`) still refuses all framing
-  (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), so an embedded copy renders blank and the staff screen
-  offers a link to the public site instead of an embed snippet. Turning it on waits for the owner: the proxy
-  should then allow `/leagues/public*` and `/leagues/board/*` only. The web app is ready for that: when framed it
-  renders only those routes and refuses every other screen, because the app is one document and any route could
-  load behind an embeddable path. The second line of defence is the session cookie,
+- **Embedding (LGE-21) is enabled for the public league pages and the TV board only** (owner decision 2026-11-13,
+  question 5). The proxy (`infra/proxy/Caddyfile`, `@embeddable`) drops `X-Frame-Options` and sends
+  `frame-ancestors *` for `/leagues/public`, `/leagues/public/*` and `/leagues/board/*` (and the public schedule page,
+  `/schedule/public/*`, integrations), with a CSP that names no Stripe origin; every other path keeps
+  `X-Frame-Options: DENY` and `frame-ancestors 'none'` (`infra/docker/smoke.sh` checks both). The staff site screen
+  gives an iframe snippet (`?embed=1` drops the page chrome). When framed the web app renders only those routes and
+  refuses every other screen, because the app is one document and any route could load behind an embeddable path. The second line of defence is the session cookie,
   `SameSite=Lax`: a browser does not send it on requests from a frame on another site, so a framed screen has no
   session.
 - **Shortcut: sponsor date windows use today's UTC date**, not a location's zone; a tenant-wide sponsor has no

@@ -15,7 +15,9 @@ from app.core.settings import get_settings
 @cache
 def app_engine() -> Engine:
     settings = get_settings()
-    return create_engine(settings.db_url("app"), pool_size=settings.db.pool_size, pool_pre_ping=True)
+    return create_engine(
+        settings.db_url("app"), pool_size=settings.db.pool_size, pool_pre_ping=True, hide_parameters=True
+    )  # bound values (names, emails, birth dates) stay out of error text and logs
 
 
 def open_tenant_session(tenant_id: UUID, actor: Any = None) -> Session:

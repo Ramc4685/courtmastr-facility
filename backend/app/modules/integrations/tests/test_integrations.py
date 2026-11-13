@@ -172,6 +172,7 @@ _GRANTABLE_COUNTS = {
 _WITHHELD_IN_LISTED_CONTEXTS = {
     "access.kiosk.manage", "access.device.manage", "billing.tax.manage", "billing.settings.manage",
     "billing.provider.manage", "pos.terminal.manage", "resources.padlock.reveal_combination",
+    "rentals.portal_setting.manage",
 }  # fmt: skip
 _ENGAGEMENT = {
     "engagement.app_content.manage", "engagement.campaign.create", "engagement.campaign.edit",
@@ -186,6 +187,18 @@ def test_the_key_grantable_set_is_pinned():
     assert grantable == (listed - _WITHHELD_IN_LISTED_CONTEXTS) | _ENGAGEMENT
     assert {p.context for p in CATALOGUE.values()} - set(_GRANTABLE_COUNTS) == {
         "integrations", "platform", "reporting", "staff"}  # fmt: skip
+
+
+def test_a_key_can_neither_be_given_nor_use_the_rental_portal_switch(client, tenant, owner):
+    assert _key(client, owner, 422, scopes=["rentals.portal_setting.manage"])["code"] == "scope-not-grantable"
+    key = _key(client, owner, scopes=["rentals.booking.create"])
+    with _system(tenant) as session:  # stored another way: an old row, a manual fix, a restore
+        session.execute(update(ApiKey).values(scopes=["rentals.booking.create", "rentals.portal_setting.manage"]))
+    with _system(tenant) as session:
+        assert set(auth.authenticate(session, key["secret"]).permissions) == {"rentals.booking.create"}
+    settings = f"{API}/locations/{_location(client, owner)}/rental-portal-settings"
+    assert client.get(settings, headers=owner).status_code == 200
+    assert client.get(settings, headers=_bearer(key["secret"])).status_code == 403
 
 
 def test_a_stored_scope_off_the_allow_list_never_reaches_the_key_and_the_migration_strips_it(client, tenant, owner):

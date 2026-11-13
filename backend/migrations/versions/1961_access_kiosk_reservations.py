@@ -4,14 +4,14 @@ sessions are listed, auto-book, and the reservation page timeout.
 Written by hand in the shape autogenerate produces.
 
 Revision ID: 1961
-Revises: 1562
+Revises: 1951
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "1961"
-down_revision = "1562"
+down_revision = "1951"
 
 
 def upgrade() -> None:

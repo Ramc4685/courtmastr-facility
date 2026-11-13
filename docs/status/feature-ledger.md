@@ -19,11 +19,12 @@ VERIFIED = route, service function, report spec or screen found in code (OpenAPI
 |---|---|---|---|---|---|
 | DONE | 178 | 168 | 21 | 1 | 368 |
 | DONE-UNMERGED | 0 | 0 | 0 | 0 | 0 |
-| PARTIAL | 16 | 17 | 5 | 0 | 38 |
+| PARTIAL | 16 | 17 | 4 | 0 | 37 |
 | PARKED | 8 | 8 | 9 | 0 | 25 |
 | DEFERRED-V2 | 0 | 0 | 0 | 20 | 20 |
 | NOT-BUILT | 0 | 2 | 0 | 0 | 2 |
 | UNASSIGNED | 0 | 0 | 0 | 0 | 0 |
+| DROPPED | 0 | 0 | 1 | 0 | 1 |
 | **All** | 202 | 195 | 35 | 21 | 453 |
 
 Checked: VERIFIED 260, CLAIMED 193.
@@ -40,7 +41,9 @@ Checked: VERIFIED 260, CLAIMED 193.
 | Phase 12 | 42 | 0 | 3 | 0 | 0 | 0 | 45 |
 | Phase 13 | 0 | 0 | 0 | 16 | 0 | 0 | 16 |
 | Phase 14 | 57 | 0 | 2 | 3 | 0 | 0 | 62 |
-| Phase 15 | 15 | 0 | 5 | 2 | 20 | 0 | 42 |
+| Phase 15 | 15 | 0 | 4 | 2 | 20 | 0 | 42 |
+
+Phase 15 also has one DROPPED feature (INT-13), not in a column above.
 
 ## P0 features not DONE
 
@@ -111,6 +114,12 @@ Orphans with no status row before 2026-11-13 (all now have one): PLT-01, PLT-02,
 
 Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06, MKT-11, MKT-12, MKT-17, DOC-07, LGE-30, DOC-13, PAY-12, PAY-13, POS-15, POS-21, POS-23, CHK-15, CHK-16, LGE-29, STF-14, MKT-15, MKT-19, MKT-21, MKT-23, INT-10, INT-11.
 
+## DROPPED
+
+| Id | Feature | Priority | Where | Note |
+|---|---|---|---|---|
+| INT-13 | Google Analytics cross-domain tracking for registration pages | P2 | Phase 15 | Dropped by owner decision 2026-11-13 (question 6): no third-party analytics (security-baseline V10); migration 1951 removes it |
+
 ## PARTIAL
 
 | Id | Feature | Priority | Where | Missing |
@@ -152,7 +161,6 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | REG-06 | Group page personalisation and member-grid columns | P2 | Phase 14 | Member grid stores columns but roster has no chooser |
 | APP-11 | Tell a friend (referral share) | P2 | Phase 11 | Phase 11 on main: share sheet only; hidden without web origin |
 | APP-15 | Social and device integrations | P2 | Phase 11 | Phase 11 on main: booking share built; no add-to-calendar |
-| INT-13 | Google Analytics cross-domain tracking for registration pages | P2 | Phase 15 | Setting and `/public/analytics-config` only; tag not loaded, owner decision needed |
 
 ## Status claims found stale or false
 
@@ -685,7 +693,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | INT-10 | Smartwaiver integration (third-party waivers) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
 | INT-11 | Perkville loyalty/rewards integration | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
 | INT-12 | CoachMePlus ("Activate") integration | v2 | Module 16 (pre-Phase 8) | DONE | CLAIMED | 16-integrations.md "done (as scoped)": partners use API and webhooks |
-| INT-13 | Google Analytics cross-domain tracking for registration pages | P2 | Phase 15 | PARTIAL | VERIFIED | Setting and `/public/analytics-config` only; tag not loaded, owner decision needed |
+| INT-13 | Google Analytics cross-domain tracking for registration pages | P2 | Phase 15 | DROPPED | VERIFIED | Owner decision 2026-11-13 (question 6); migration 1951 removes the provider and `/public/analytics-config` |
 | INT-14 | Partner and hardware network (catalog) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); exists: adapter directory and command log |
 | INT-15 | Trainingym member-engagement integration | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); exists: API and client webhook only |
 

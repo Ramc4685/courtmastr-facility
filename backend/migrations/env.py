@@ -29,7 +29,7 @@ import app.modules.staff.models  # noqa: F401
 from app.core.db import Base
 from app.core.settings import get_settings
 
-engine = create_engine(get_settings().db_url("owner"))
+engine = create_engine(get_settings().db_url("owner"), hide_parameters=True)
 with engine.connect() as connection:
     context.configure(connection=connection, target_metadata=Base.metadata, compare_type=True)
     with context.begin_transaction():

@@ -1,6 +1,9 @@
 # ADR 0012: Integrations and public API
 
 - Status: Accepted
+- Amended 2026-11-13: section 6's Google Analytics provision (INT-13, the GA4 tag after consent) is
+  superseded by owner decision 2026-11-13 (question 6). Third-party analytics stay banned (security-baseline
+  V10); the feature is dropped and migration 1951 removes it.
 - Date: 2026-11-10
 - Scope: `integrations` context (build module 16), plus the pieces of `platform` it leans on (`api_key`,
   `stored_file`, `tenant_entitlement`) and the port/adapter layout in `backend/app/ports` and `app/adapters`.
@@ -278,7 +281,7 @@ an `external_connection` row (`provider`, `location_id` null, `status`, `config`
   token. "Include bookings" and "Include notes" default off because they send personal data to a third-party
   calendar. Two-way Google/Outlook sync is rejected (the documentation shows one-way; marketing wording is
   loose).
-- **Google Analytics** (INT-13, P2): a GA4 measurement id per tenant on public and portal pages, emitted only
+- **Google Analytics** (INT-13, P2; superseded and dropped 2026-11-13, see the status note): a GA4 measurement id per tenant on public and portal pages, emitted only
   after cookie consent where GDPR mode is on (PLT-16). No server component.
 
 ### 7. File storage port

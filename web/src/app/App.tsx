@@ -30,6 +30,7 @@ import { TemplatesPage } from '../features/documents/TemplatesPage'
 import { ScoresPage, StatsPage, VenuesPage } from '../features/leagues/depth'
 import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
 import { LeagueBoardPage, PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
+import { PublicSchedulePage } from '../features/integrations/PublicSchedulePage'
 import { LeaguePostsPage, LeagueSitePage } from '../features/leagues/SitePages'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
@@ -119,20 +120,22 @@ export function makeQueryClient() {
   })
 }
 
-/** True inside an iframe. Embedding is not yet enabled at the proxy (it still refuses all framing); when it is, it
- * should allow the public league pages and the TV board only, and this keeps every other screen out of a frame too,
+/** True inside an iframe. The proxy lets other sites frame the public league pages, the TV board and the public
+ * schedule page only (owner
+ * decision 2026-11-13, infra/proxy/Caddyfile `@embeddable`); this keeps every other screen out of a frame too,
  * since the app is one document and any route can load behind those paths. */
 export function isFramed(): boolean {
   return window.top !== window.self
 }
 
-/** What a framed app may render: the embeddable public league routes, and a refusal for everything else. */
+/** What a framed app may render: the embeddable public league and schedule routes, and a refusal for everything else. */
 export function FramedRoutes() {
   return (
     <Routes>
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
       <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
+      <Route path="/schedule/public/:locationId" element={<PublicSchedulePage />} />
       <Route path="*" element={<main className="p-6"><h1 className="text-lg font-semibold">This page cannot be shown inside another site</h1><a className="text-primary hover:underline" href={window.location.href} target="_top">Open it in its own window</a></main>} />
     </Routes>
   )
@@ -158,6 +161,7 @@ export function AppRoutes() {
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
       <Route path="/f/:slug/*" element={<FacilityApp />} />
       <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
+      <Route path="/schedule/public/:locationId" element={<PublicSchedulePage />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/kiosk" element={<KioskPage />} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />

@@ -13,7 +13,7 @@ scope, the audit trail read API and tenant onboarding. Calls no other context.
 | `staff.py` | staff users, roles, overrides, and the escalation rules of `rbac-matrix.md` section 13 |
 | `rbac.py` | effective-permission resolution (system roles from code, custom roles from rows, overrides win) |
 | `permissions.py` | the 31 `platform.*` catalogue entries; a test diffs them against `rbac-matrix.md` 6.1 |
-| `retention.py` | hourly retention purges (`purge_expired`), `register_purge` (also called by `imports`), and the dead-letter commands (`open_failed_jobs`, `resolve_failed_job`) |
+| `retention.py` | hourly retention purges (`purge_expired`), `register_purge` (also called by `imports`, `programs` and `engagement`), and the dead-letter commands (`open_failed_jobs`, `resolve_failed_job`) |
 | `entitlements.py`, `entitlements_router.py` | plans, feature and limit checks, `Me.entitlements`, the plan screen and operator plan routes (Phase 8 T1) |
 | `files.py`, `files_router.py` | stored files (security-baseline 8): checks, scan, store, read, load, remove, signed downloads, `purge_files` |
 | `mfa.py` | TOTP factors, recovery codes and the tenant MFA policy (Phase 8 S2) |
@@ -61,8 +61,16 @@ Later modules must not assume these exist.
   definer function: `fh_app` still has only `SELECT, INSERT` on `audit_event` (migration 1210 says why the caller
   is `fh_app`, not the `fh_platform` that ADR 0007 names). Report result bytes are purged by `reporting`
   (`purge_expired_results`), not here.
-- **Not purged yet:** webhook deliveries and inbound provider events (ADR 0007 section 9 gives 30 and 90 days;
-  their owning contexts have no purge yet).
+- **Message bodies** (engagement registers `engagement_message_bodies` through `register_purge`): a message no longer queued has its
+  `body_text` is nulled after `retention.message_body_days` (90, security-baseline 2.3); the row stays.
+- **Inbound provider events** (`core.inbound_webhooks.purge_payloads`, run by the hourly clock as `fh_platform`,
+  since the table is global and ignored events have no tenant): every event has its payload and error text
+  emptied after `retention.inbound_payload_days` (90, ADR 0007 section 9), whatever its status, attempts or
+  tenant's state. An unfinished one (received, or failed under `RETRY_ATTEMPTS`) is made terminal in the same
+  statement (`failed`, attempt count at the cap), so the retry sweep never sees an emptied event. Divergence from
+  the ADR, which deletes the row: the row is kept so a late redelivery is still deduplicated. An event found with
+  no payload is logged as an error and recorded as a failed attempt, never marked processed (`billing.webhooks`).
+- **Not purged yet:** webhook deliveries (ADR 0007 section 9 gives 30 days; integrations has no purge yet).
 - **Dead letters** (`failed_job`, ADR 0008 section 7): `core.jobs.FailedJobRecorder` writes one row per message
   that is finally rejected (retries exhausted, or none allowed), in the message's tenant: actor, queue, message
   id, args (ids and dates only, by the actor rule), error class and first line (later lines of a database error

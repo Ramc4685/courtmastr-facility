@@ -224,9 +224,11 @@ staff can also start an autopay run (`POST /autopay-runs`).
 (hourly; MEM-14) are `@tenant_actor` lines in `app/scheduler.py`, both idempotent.
 
 `webhooks.retry_provider_events` (hourly through `app/scheduler.py`, Phase 9 chip C): per tenant, provider
-events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times) and older than a few
-minutes are applied inline, each in a savepoint. Idempotent: an applied event is marked processed and the
-handlers re-read the object from the provider.
+events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times, defined in
+`core.inbound_webhooks` so the retention purge spares them) and older than a few minutes are applied inline, each
+in a savepoint. Idempotent: an applied event is marked processed and the handlers re-read the object from the
+provider. An event with an empty payload (purged or stored malformed) is never applied: both paths log an error
+and record a failed attempt ("payload missing").
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 

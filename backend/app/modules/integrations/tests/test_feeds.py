@@ -316,9 +316,14 @@ def test_calendar_app_methods_never_log_the_token(client, owner, caplog):
         assert head.headers["content-type"].startswith("text/calendar")
         assert client.options(url).status_code == 204
         assert client.request("PROPFIND", url).status_code == 404
-        for method in ("POST", "PUT", "DELETE"):
+        for method in ("POST", "PUT", "DELETE", "PATCH", "REPORT", "PROPPATCH", "MKCALENDAR", "TRACE", "LOCK"):
             refused = client.request(method, url)
             assert refused.status_code == 405 and refused.headers["allow"] == "GET, HEAD, OPTIONS", method
+        # Methods nobody listed, a trailing slash (redirect) and a deeper path (404) are logged without it too.
+        for method in ("PURGE", "QUERY", "BIND"):
+            assert client.request(method, url).status_code in (404, 405), method
+        assert client.get(f"{url}/", follow_redirects=False).status_code in (307, 404)
+        assert client.get(f"{url}/x").status_code == 404
     server = [r for r in caplog.records if not r.name.startswith("httpx")]
     assert server and all(token not in r.getMessage() and token not in str(r.__dict__) for r in server)
 
