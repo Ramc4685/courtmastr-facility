@@ -431,7 +431,7 @@ class PortalRentalCreate(In):
 
 
 class PortalRentalConfirm(In):
-    """A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8."""
+    """A PaymentProvider client token; never raw card data. This route takes a one-off token, not a stored method."""
 
     provider_payment_token: Annotated[str, StringConstraints(min_length=1, max_length=200)]
 
