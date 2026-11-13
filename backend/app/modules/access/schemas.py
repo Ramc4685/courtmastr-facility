@@ -639,7 +639,9 @@ class PortalEntryCodeOut(Out):
     booking_id: UUID
     location_id: UUID
     location_phone: str | None  # call it when the code fails: staff unlock remotely
-    code: str
+    code: str | None  # None while held (held_reason)
+    held_reason: Literal["age-not-confirmed"] | None  # the code waits on staff confirming the caller's age once
+    message: str | None  # what to tell the member while held, with the location phone
     valid_from_at: datetime
     valid_until_at: datetime
     is_open_now: bool

@@ -33,7 +33,7 @@ test('a member sees the door code on their booking and the page passes the scan'
       json: {
         data: [{
           booking_id: '01900000-0000-7000-8000-000000000001', location_id: '01900000-0000-7000-8000-000000000002',
-          location_phone: '+1 309 555 0100', code: '48151623', is_open_now: true,
+          location_phone: '+1 309 555 0100', code: '48151623', held_reason: null, message: null, is_open_now: true,
           valid_from_at: new Date(now - 600_000).toISOString(), valid_until_at: new Date(now + 3_600_000).toISOString(),
         }],
         page: { next_cursor: null, has_more: false },

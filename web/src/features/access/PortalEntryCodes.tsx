@@ -22,12 +22,17 @@ export function PortalEntryCodes({ zoneOf }: { zoneOf: (locationId: string) => s
 }
 
 function CodeRow({ code, zone }: { code: Code; zone?: string }) {
+  if (code.code === null) return <li className="py-2 text-sm">{code.message}</li>
+  return <LiveRow code={code} digits={code.code} zone={zone} />
+}
+
+function LiveRow({ code, digits, zone }: { code: Code; digits: string; zone?: string }) {
   const open = useMutation({ mutationFn: () => api.post('/api/v1/portal/bookings/{booking_id}/door-unlock', { path: { booking_id: code.booking_id } }) })
   const call = code.location_phone ? ` If it does not open, call ${code.location_phone}.` : ''
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-2">
       <div>
-        <p className="font-mono text-2xl tracking-widest" aria-label={`Door code ${code.code.split('').join(' ')}`}>{code.code}</p>
+        <p className="font-mono text-2xl tracking-widest" aria-label={`Door code ${digits.split('').join(' ')}`}>{digits}</p>
         <p className="text-sm text-muted">
           Works {formatDateTime(code.valid_from_at, zone)} to {formatDateTime(code.valid_until_at, zone)}.{call}
         </p>

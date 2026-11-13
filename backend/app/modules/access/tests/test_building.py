@@ -355,12 +355,56 @@ def test_a_holder_who_stops_being_a_known_adult_loses_the_active_code(client, b)
     assert [(c.status, c.revoke_reason) for c in codes(b, booking)] == [("revoked", "not_known_adult")]
 
 
-def test_a_self_set_unverified_birth_date_counts_as_unknown():
-    from datetime import date
+def test_until_clients_ships_is_age_confirmed_the_shim_reads_the_unverified_flag(monkeypatch):
     from types import SimpleNamespace
 
-    assert building._trusted_birth_on(SimpleNamespace(birth_on=date(1990, 1, 1))) == date(1990, 1, 1)
-    assert building._trusted_birth_on(SimpleNamespace(birth_on=date(1990, 1, 1), is_birth_on_unverified=True)) is None
+    monkeypatch.delattr(clients.service, "is_age_confirmed", raising=False)
+    get = lambda person: monkeypatch.setattr(clients.service, "get", lambda s, cid: person)  # noqa: E731
+    get(SimpleNamespace(id=uuid4()))
+    assert building._age_confirmed(None, uuid4()) is True
+    get(SimpleNamespace(id=uuid4(), is_birth_on_unverified=True))
+    assert building._age_confirmed(None, uuid4()) is False
+
+
+HELD = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
+
+
+def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(client, tenant, owner, b, mailbox,
+                                                                             monkeypatch):  # fmt: skip
+    """Owner decision 2026-11-13, "staff confirm once": a self-declared adult books, but each code is held (one
+    `code_withheld` row with the reason, a notice with the location phone, a held line on the portal) until
+    `clients.age_confirmed`; then every held code is issued and sent at once, and later ones are self-service."""
+    confirmed: set[UUID] = set()
+    monkeypatch.setattr(clients.service, "is_age_confirmed", lambda s, cid: cid in confirmed, raising=False)
+    me = b.person["id"]
+    with clock.freeze(at(9)):
+        first, second = book(b, 10, 11), book(b, 12, 13)
+        mailbox.clear()
+        tick(b)
+        tick(b)
+        assert codes(b, first) == [] and codes(b, second) == []
+        assert sorted(details_of(b, "code_withheld")) == sorted(
+            f"age-not-confirmed:booking:{x}:client:{me}" for x in (first, second))  # fmt: skip
+        assert len(mailbox) == 2 and all(HELD in m.body and "+1 309 555 0100" in m.body for m in mailbox)
+        member = portal(client, tenant, b.person)
+        held = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
+        assert sorted(h["booking_id"] for h in held) == sorted([first, second])
+        assert all(h["code"] is None and h["held_reason"] == "age-not-confirmed" and h["message"].startswith(HELD)
+                   and "+1 309 555 0100" in h["message"] for h in held)  # fmt: skip
+        assert client.post(f"{API}/portal/bookings/{first}/door-unlock", headers=member).status_code == 404
+        mailbox.clear()
+        confirmed.add(UUID(me))
+        handlers.on_age_confirmed.fn(str(tenant.id), str(uuid4()), {"client_id": me})
+        assert [c.status for c in codes(b, first) + codes(b, second)] == ["active", "active"]
+        assert len(mailbox) == 2 and all("Your door code" in m.subject for m in mailbox)
+        listed = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
+        assert all(c["code"] and c["held_reason"] is None for c in listed) and len(listed) == 2
+        third = book(b, 14, 15)
+        sync(b, third)  # self-service from now on
+        assert [c.status for c in codes(b, third)] == ["active"]
+    assert details_of(b, "code_withheld").count(f"age-not-confirmed:booking:{third}:client:{me}") == 0
+    activity = ok(client.get(f"{API}/building-events?kind=code_withheld", headers=owner), 200)["data"]  # staff view
+    assert {e["detail"].split(":")[0] for e in activity} == {"age-not-confirmed"} and len(activity) == 2
 
 
 def test_a_failed_code_email_is_retried_by_the_tick_and_marked_only_once_handed_off(b, mailbox, monkeypatch):

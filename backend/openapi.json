@@ -51095,8 +51095,27 @@
             "type": "string"
           },
           "code": {
-            "title": "Code",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "held_reason": {
+            "anyOf": [
+              {
+                "const": "age-not-confirmed",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Reason"
           },
           "is_open_now": {
             "title": "Is Open Now",
@@ -51118,6 +51137,17 @@
             ],
             "title": "Location Phone"
           },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
           "valid_from_at": {
             "format": "date-time",
             "title": "Valid From At",
@@ -51134,6 +51164,8 @@
           "location_id",
           "location_phone",
           "code",
+          "held_reason",
+          "message",
           "valid_from_at",
           "valid_until_at",
           "is_open_now"

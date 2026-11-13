@@ -227,10 +227,21 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   access mode, paid entry); never the child, a delegate, a household manager or another child. `is_known_adult` (a
   trusted birth date at or over `platform.service.minor_age`, today at the location) runs before the "window
   unchanged" shortcut in sync, and an active code whose person fails it is revoked. A rental's holder must be a known
-  adult themselves (else no code and one `code_withheld` row per booking and person). Seam: a birth date the person set
-  themselves through the portal is not proof of age; `_trusted_birth_on` treats it as unknown once the rentals
-  branch's `client.is_birth_on_unverified` lands (read through getattr until then). Shortcut: the enrollment's payer
+  adult themselves (else no code and one `code_withheld` row per booking and person). Shortcut: the enrollment's payer
   is not consulted (programs does not expose it); guardianship links decide.
+- **Age check (owner decision 2026-11-13, "staff confirm once").** Anyone may sign up and book on a self-declared
+  birth date, but a known adult is an adult by birth date whose age staff have confirmed once. A holder (or, on a
+  session, a guardian) who is an adult by date but unconfirmed gets no code: one `code_withheld` row with detail
+  `age-not-confirmed:booking:<booking id>:client:<client id>` (the staff activity view), one email per booking and a
+  held line on the portal Door codes list (`code: null`, `held_reason`, `message`), both saying "Your entry code will
+  be sent once our staff have confirmed your age. This is a one-time check." with the location phone. The booking
+  itself is never refused. On `clients.client.age_confirmed`, `issue_held_codes` issues and sends every held code at
+  once; later bookings are self-service. Minors and people with no birth date: never, as before. Seam: the event and
+  `clients.service.is_age_confirmed(session, client_id)` land with `claude/rentals-pilot`; until then
+  `_age_confirmed` calls that function when present, else reads `client.is_birth_on_unverified` when the column
+  exists (no column: confirmed, today's behaviour). The event name follows the house `ctx.aggregate.verb` form and
+  must match what that branch publishes. The notice is access's own email, not rentals' booking confirmation (access
+  does not own that template).
 - **Entitlement at the door.** Every verify and portal unlock re-checks, for every kind of code, that the booking is
   still confirmed and the person still entitled (still the holder, still enrolled), that the code's window equals the
   live booking's window (a moved booking's old code fails at once, before any handler runs), that the person passes

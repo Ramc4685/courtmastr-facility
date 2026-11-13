@@ -33488,7 +33488,9 @@ export interface components {
              */
             booking_id: string;
             /** Code */
-            code: string;
+            code: string | null;
+            /** Held Reason */
+            held_reason: "age-not-confirmed" | null;
             /** Is Open Now */
             is_open_now: boolean;
             /**
@@ -33498,6 +33500,8 @@ export interface components {
             location_id: string;
             /** Location Phone */
             location_phone: string | null;
+            /** Message */
+            message: string | null;
             /**
              * Valid From At
              * Format: date-time

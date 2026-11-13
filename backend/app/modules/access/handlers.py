@@ -17,6 +17,12 @@ def on_client_disabled(session, payload: dict) -> None:
     service.revoke_wallet_passes_of(session, UUID(payload["client_id"]))
 
 
+# Seam: the event and `clients.service.is_age_confirmed` land with claude/rentals-pilot (README, "Age check").
+@handles("clients.client.age_confirmed")
+def on_age_confirmed(session, payload: dict) -> None:
+    building.issue_held_codes(session, UUID(payload["client_id"]))
+
+
 @handles("scheduling.booking.created")
 def on_booking_created(session, payload: dict) -> None:
     building.sync_booking_code(session, UUID(payload["booking_id"]))

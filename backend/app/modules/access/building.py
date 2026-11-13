@@ -20,7 +20,7 @@ import concurrent.futures
 import logging
 import secrets
 import time
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -43,7 +43,7 @@ from app.modules.access.domain.evaluate import evaluate
 from app.modules.access.models import BuildingEvent, DoorDevice, EntryCode, LightingZone, LightingZoneResource
 from app.ports import building_control, notifications
 from app.ports.building_control import BuildingControlError, TimedCode
-from app.ports.email import EmailMessage, send_after_commit_then
+from app.ports.email import EmailMessage, send_after_commit, send_after_commit_then
 
 DEVICE, UNLOCK, LIGHTS, READ = "access.device.manage", "access.door.unlock", "access.lighting.override", service.READ
 CODE_KINDS = ("rental", "session")  # bookings whose party gets a door code
@@ -281,21 +281,38 @@ def _doors(session: Session, location_id: UUID) -> list[DoorDevice]:
         DoorDevice.location_id == location_id, DoorDevice.is_active).order_by(DoorDevice.name, DoorDevice.id)))  # fmt: skip
 
 
-def _trusted_birth_on(client) -> date | None:
-    """The birth date this module may rely on. A date the person set themselves through the portal is not proof
-    of age: until staff review it, it counts as unknown. Seam: the rentals branch adds `is_birth_on_unverified`
-    on client; read through getattr until that column is on this branch, then read it directly."""
-    return None if getattr(client, "is_birth_on_unverified", False) else client.birth_on
+AGE_HELD = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
 
 
-def is_known_adult(session: Session, client_id: UUID, location_id: UUID | None) -> bool:
-    """A known (and trusted) birth date at or over the tenant's minor age (`platform.service.minor_age`) today
-    at the location. Unknown or self-set unverified age is no."""
+def _age_confirmed(session: Session, client_id: UUID) -> bool:
+    """Owner decision 2026-11-13, "staff confirm once": a self-declared birth date books, but no code goes out until
+    staff confirm the person's age once. Seam: `clients.service.is_age_confirmed` lands with claude/rentals-pilot;
+    until then this reads the client's `is_birth_on_unverified` flag when that column exists (README)."""
+    shared = getattr(clients.service, "is_age_confirmed", None)
+    if shared is not None:
+        return bool(shared(session, client_id))
+    return not getattr(clients.service.get(session, client_id), "is_birth_on_unverified", False)
+
+
+def _adult_by_date(session: Session, client_id: UUID, location_id: UUID | None) -> bool:
+    """A birth date at or over the tenant's minor age (`platform.service.minor_age`) today at the location."""
     client = clients.service.get(session, client_id)
-    if _trusted_birth_on(client) is None:
+    if client.birth_on is None:
         return False
     today = platform.service.location_today(session, location_id) if location_id else clock.now().date()
     return not clients.service.is_minor(client, today, platform.service.minor_age(session))
+
+
+def is_known_adult(session: Session, client_id: UUID, location_id: UUID | None) -> bool:
+    """An adult by birth date whose age staff have confirmed once. Unknown age, a minor, or unconfirmed is no."""
+    return _adult_by_date(session, client_id, location_id) and _age_confirmed(session, client_id)
+
+
+def _age_pending(session: Session, client_id: UUID, location_id: UUID, kind: str) -> list[UUID]:
+    """Who would make this code holdable once staff confirm their age: the holder, or on a session a guardian, who
+    is an adult by birth date but not yet confirmed. Empty: a minor or someone dateless (never a code)."""
+    people = [client_id] + (clients.households.guardian_ids(session, client_id) if kind == "session" else [])
+    return [p for p in people if _adult_by_date(session, p, location_id) and not _age_confirmed(session, p)]
 
 
 def _entitled(session: Session, booking: dict | None) -> list[UUID]:
@@ -500,7 +517,8 @@ def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None =
             if row is not None:
                 _revoke(session, row, "not_known_adult")
             if issuable:
-                _withhold(session, booking, client_id)
+                _withhold(session, booking, client_id,
+                          _age_pending(session, client_id, booking["location_id"], booking["kind"]))  # fmt: skip
             continue
         if row is not None and (row.valid_from_at, row.valid_until_at) == window:
             if row.notified_at is None and window[1] > now:  # never handed off: try again each tick
@@ -528,14 +546,68 @@ def recheck_client_codes(session: Session, client_id: UUID) -> None:
             _revoke(session, row, "refused")
 
 
-def _withhold(session: Session, booking: dict, client_id: UUID) -> None:
-    """A person failing the known-adult rule gets no code; logged once per booking and person for staff."""
-    detail = f"not_known_adult:booking:{booking['booking_number']}:client:{client_id}"
+def _withhold(session: Session, booking: dict, client_id: UUID, pending: list[UUID]) -> None:
+    """A person failing the known-adult rule gets no code; logged once per booking and person for staff (the
+    activity view). Held for an age check (`pending`): the reason is `age-not-confirmed`, the row names the booking
+    by id (the portal and `issue_held_codes` read it back), and each pending person is told once, with the phone."""
+    if pending:
+        detail = f"age-not-confirmed:booking:{booking['id']}:client:{client_id}"
+    else:
+        detail = f"not_known_adult:booking:{booking['booking_number']}:client:{client_id}"
     seen = session.scalar(select(BuildingEvent.id).where(
         BuildingEvent.location_id == booking["location_id"], BuildingEvent.kind == "code_withheld",
         BuildingEvent.detail == detail))  # fmt: skip
-    if seen is None:
-        _event(session, booking["location_id"], "code_withheld", detail=detail)
+    if seen is not None:
+        return
+    _event(session, booking["location_id"], "code_withheld", detail=detail)
+    for person in pending:
+        _email_held(session, booking["location_id"], clients.service.get(session, person))
+
+
+def _held_message(session: Session, location_id: UUID) -> str:
+    phone = _phone(session, location_id)
+    return AGE_HELD + (f" Questions? Call us on {phone}." if phone else "")
+
+
+def _email_held(session: Session, location_id: UUID, client) -> None:
+    if not client.primary_email:
+        return
+    location = platform.service.get_location(session, system_principal("access"), location_id)
+    body = f"Hello {client.first_name},\n\nThank you for your booking at {location.name}.\n" + (
+        _held_message(session, location_id) + "\n"
+    )
+    send_after_commit(session, EmailMessage(client.primary_email, f"Your entry code for {location.name}", body))
+
+
+def _held(session: Session, client_ids: set[UUID] | None = None) -> list[tuple[dict, UUID]]:
+    """(booking, person) for each code still held for an age check: logged in the last CODE_HORIZON, the booking
+    live with its window open, the person still entitled and pending, and no active code yet."""
+    now = clock.now()
+    rows = session.scalars(select(BuildingEvent.detail).where(
+        BuildingEvent.kind == "code_withheld", BuildingEvent.detail.like("age-not-confirmed:booking:%"),
+        BuildingEvent.occurred_at > now - CODE_HORIZON - timedelta(days=1)))  # fmt: skip
+    pairs = {(UUID(d.split(":")[2]), UUID(d.split(":")[4])) for d in rows if d.count(":") == 4}
+    pairs = {(b, c) for b, c in pairs if client_ids is None or c in client_ids}
+    views = scheduling.service.booking_views(session, {b for b, _ in pairs})
+    out = []
+    for booking_id, person in sorted(pairs):
+        booking = views.get(booking_id)
+        if booking is None or person not in _entitled(session, booking):
+            continue
+        if _window(booking, _cfg(session, booking["location_id"]))[1] <= now:
+            continue
+        if session.scalar(select(EntryCode.id).where(EntryCode.booking_id == booking_id, EntryCode.client_id == person,
+                                                    EntryCode.status == "active")):  # fmt: skip
+            continue
+        out.append((booking, person))
+    return out
+
+
+def issue_held_codes(session: Session, client_id: UUID) -> None:
+    """Internal (`clients.age_confirmed`): every code held for an age check that this confirmation unblocks (the
+    person's own, or a child's they are guardian of) is issued and sent now, not at the next tick."""
+    for booking, _ in _held(session):
+        sync_booking_code(session, booking["id"], booking)
 
 
 # --- the door ------------------------------------------------------------------------------------------------
@@ -767,13 +839,18 @@ def _phone(session: Session, location_id: UUID) -> str | None:
     return platform.service.get_location(session, system_principal("access"), location_id).phone
 
 
-def _my_codes(session: Session, principal: Principal) -> list[EntryCode]:
-    """Live codes the caller may see and use: exactly the delivery rule (`code_recipients`) applied to the caller's
-    own client record, over the codes of everyone they can reach in the portal."""
+def _portal_me(session: Session, principal: Principal) -> tuple[list[UUID], set[UUID]]:
+    """(everyone the caller can reach in the portal, the caller's own client records)."""
     reach = service._portal_clients(session, principal)  # 404s a principal without an identity
     identity_id = principal.identity_id
     assert identity_id is not None
-    me = {c for c in reach if clients.households.authority(session, identity_id, c) == "self"}
+    return reach, {c for c in reach if clients.households.authority(session, identity_id, c) == "self"}
+
+
+def _my_codes(session: Session, principal: Principal) -> list[EntryCode]:
+    """Live codes the caller may see and use: exactly the delivery rule (`code_recipients`) applied to the caller's
+    own client record, over the codes of everyone they can reach in the portal."""
+    reach, me = _portal_me(session, principal)
     rows = session.scalars(select(EntryCode).where(
         EntryCode.status == "active", EntryCode.client_id.in_(reach), EntryCode.valid_until_at > clock.now(),
     ).order_by(EntryCode.valid_from_at, EntryCode.id)).all()  # fmt: skip
@@ -781,18 +858,32 @@ def _my_codes(session: Session, principal: Principal) -> list[EntryCode]:
 
 
 def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict]:
-    """The caller's (and dependants') live door codes, one per booking and person, for the portal and the app."""
+    """The caller's (and dependants') live door codes, one per booking and person, for the portal and the app; and
+    a held line (no code, `held_reason`, the message with the phone) for each code waiting on the caller's age check."""
     rows = _my_codes(session, principal)
     tenant_id, now = session.info["tenant_id"], clock.now()
     phones = {lid: _phone(session, lid) for lid in {row.location_id for row in rows}}
-    return [
+    live = [
         {
             "booking_id": row.booking_id, "location_id": row.location_id, "location_phone": phones[row.location_id],
-            "code": _plain(row, tenant_id), "valid_from_at": row.valid_from_at,
+            "code": _plain(row, tenant_id), "valid_from_at": row.valid_from_at, "held_reason": None, "message": None,
             "valid_until_at": row.valid_until_at, "is_open_now": row.valid_from_at <= now < row.valid_until_at,
         }
         for row in rows
     ]  # fmt: skip
+    reach, me = _portal_me(session, principal)
+    held = []
+    for booking, person in _held(session, set(reach)):
+        location_id = booking["location_id"]
+        if not me & set(_age_pending(session, person, location_id, booking["kind"])):
+            continue
+        opens, closes = _window(booking, _cfg(session, location_id))
+        held.append({
+            "booking_id": booking["id"], "location_id": location_id, "location_phone": _phone(session, location_id),
+            "code": None, "held_reason": "age-not-confirmed", "message": _held_message(session, location_id),
+            "valid_from_at": opens, "valid_until_at": closes, "is_open_now": False,
+        })  # fmt: skip
+    return live + held
 
 
 def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> dict:
