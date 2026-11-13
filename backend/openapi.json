@@ -84954,6 +84954,9 @@
         "summary": "Get App Config",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "put": {
@@ -85015,6 +85018,9 @@
         "summary": "Put App Config",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
@@ -85154,6 +85160,9 @@
         "summary": "List App Contents",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "post": {
@@ -85215,6 +85224,9 @@
         "summary": "Create App Content",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
@@ -85270,6 +85282,9 @@
         "summary": "Delete App Content",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "patch": {
@@ -85341,6 +85356,9 @@
         "summary": "Update App Content",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
@@ -85396,6 +85414,9 @@
         "summary": "Remove App Content Image",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "put": {
@@ -85457,6 +85478,9 @@
         "summary": "Set App Content Image",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
