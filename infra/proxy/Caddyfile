@@ -34,7 +34,6 @@
 
 	header {
 		X-Content-Type-Options "nosniff"
-		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
 		Cross-Origin-Opener-Policy "same-origin"
 		Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(self)"
@@ -50,8 +49,18 @@
 	# third-party origins are Stripe's documented ones for Stripe.js and the Payment Element (card and bank entry,
 	# 3-D Secure): script and frames from js.stripe.com, the 3-D Secure frame from hooks.stripe.com, calls to
 	# api.stripe.com (StripeCardField.tsx). Nothing else may load.
-	@spa not path /api/*
+	# Owner decision 2026-11-13 (question 5): only the anonymous public league pages and the TV board may be framed
+	# by other sites (web/src/app/App.tsx FramedRoutes renders nothing else inside a frame). Every other path, the API
+	# included, stays unframeable. The public schedule has no page to frame: clubs fetch /api/v1/public/schedule.
+	@embeddable path /leagues/public /leagues/public/* /leagues/board/*
+	@unframed not path /leagues/public /leagues/public/* /leagues/board/*
+	header @unframed X-Frame-Options "DENY"
+	@spa {
+		not path /api/*
+		not path /leagues/public /leagues/public/* /leagues/board/*
+	}
 	header @spa Content-Security-Policy "default-src 'none'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.stripe.com; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+	header @embeddable Content-Security-Policy "default-src 'none'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.stripe.com; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors *; object-src 'none'"
 
 	# Never public: the interactive docs load CDN scripts on the app origin, the OpenAPI document maps every route, and the
 	# operator routes (tenant onboarding) are for the platform operator, who reaches the API around the proxy

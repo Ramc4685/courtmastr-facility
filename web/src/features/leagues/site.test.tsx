@@ -78,8 +78,9 @@ describe('LeagueSitePage', SCREEN, () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
     expect(calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ is_enabled: true, shows_pickup_games: true, title: 'Club leagues' })
     expect(screen.getByRole('link', { name: /\/leagues\/public$/ })).toBeVisible()
-    expect(screen.getByText(/Embedding it inside another website is not switched on yet/)).toBeVisible()
-    expect(screen.queryByLabelText('Embed code')).toBeNull()
+    expect((screen.getByLabelText('Embed code') as HTMLTextAreaElement).value).toMatch(
+      /^<iframe src="http:\/\/[^"]+\/leagues\/public\?embed=1" title="Club leagues"/,
+    )
     expect(screen.queryByRole('tab', { name: 'Sponsors' })).toBeNull()
   })
 
@@ -115,6 +116,14 @@ describe('inside a frame', SCREEN, () => {
     expect(await screen.findByRole('heading', { name: 'This page cannot be shown inside another site' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Open it in its own window' })).toHaveAttribute('target', '_top')
   })
+
+  it.each(['/sign-in', '/portal', '/portal/invoices', '/pay', '/kiosk', '/forms/f1', '/settings', '/leagues/publicity'])(
+    'refuses %s inside a frame',
+    async (path) => {
+      framed(path)
+      expect(await screen.findByRole('heading', { name: 'This page cannot be shown inside another site' })).toBeVisible()
+    },
+  )
 })
 
 describe('LeaguePostsPage', SCREEN, () => {

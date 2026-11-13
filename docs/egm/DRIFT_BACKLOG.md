@@ -225,6 +225,11 @@ INT-13 analytics on registration pages (new 2026-11-13):
 - [x] [undocumented] The README lists only the scheduling events it consumes (README:20-21). It never mentions the events this module publishes: `ScheduleGenerated`, `GameRescheduled`, `GameCancelled`, `GameResultRecorded`, `StandingsUpdated` (`backend/app/modules/leagues/events.py:9-38`). Docs batch.
 - [x] [undocumented] The README says nothing about the client merge and erasure handlers this module registers for `team`, `competition_team` and `roster_entry` (`backend/app/modules/leagues/subject.py:53-55`). Docs batch.
 - [x] [wording] README:51 and README:59 cite `tests/test_location_scope.py` and `tests/test_portal_schemas.py` as leagues tests. These files are the shared, generated suites in `backend/tests/` and never name leagues, while the module's own tests are in `backend/app/modules/leagues/tests/`. The paths resolve only relative to `backend/`. Docs batch.
+- [ ] [undocumented] `leagues.alert.send` is registered (`backend/app/modules/leagues/permissions.py:27`) and used nowhere; README:127 names only alert settings as unrouted.
+- [ ] [undocumented] Posting rate limits `league-post`, `league-post-contact`, `league-post-contact-sender` (`config/app.yaml:82-84`) and the list caps (news 50 `site.py:360`, posts 100 `site.py:564,616`) are not in the README (:147-148).
+- [ ] [undocumented] `leagues.service.competition_of` (`service.py:473`) has no interface section in the leagues README; no file map for `site.py`, `depth.py`, `domain/`.
+- [ ] [wording] README:4 says "single-elimination brackets" only; `permissions.py:1-2` docstring says per-competition grants are not built, README:100-104 describes `competition_staff` narrowing.
+- [ ] [contract] Leagues YAML departures not recorded in the README: `/locations/{id}/league-site-settings` with embed origins (served as `/league-site`, no origins), tokenised public views, `getPublicCompetitionTeam`, `/scheduling-preferences`, `putStatTables`, `createGameCardExport` (`docs/api/openapi-programs.yaml:3853-4079`, `leagues/router.py:576,626,715,824,847`).
 
 ### memberships (11) — [evidence](drift/memberships.md)
 
