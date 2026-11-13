@@ -13,6 +13,8 @@ def _nul_pointer(value: Any, path: str = "") -> str | None:
         return path if "\x00" in value else None
     items = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
     for key, item in items:
+        if isinstance(key, str) and "\x00" in key:
+            return path or "/"
         if (found := _nul_pointer(item, f"{path}/{key}")) is not None:
             return found
     return None

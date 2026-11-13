@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core import context, crypto, idempotency, networks
 from app.core.db.session import run_after_commit
-from app.core.errors import DomainError, PermissionDenied
+from app.core.errors import DomainError, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.settings import get_settings
 
@@ -103,6 +103,15 @@ def _check_origin(request: Request) -> None:
         raise PermissionDenied("Cross-site request refused.", code="csrf-failed")
 
 
+def _refuse_nul_in_query_and_path(request: Request) -> None:
+    """Postgres text cannot hold NUL (a filter or path value with one is a 500): refused here, on every method,
+    names and values alike, as core.schemas.In does for request bodies."""
+    for where, pairs in (("query", request.query_params.multi_items()), ("path", request.path_params.items())):
+        for name, value in pairs:
+            if "\x00" in name or (isinstance(value, str) and "\x00" in value):
+                raise ValidationFailed("Text cannot contain a NUL character.", pointer=f"/{where}")
+
+
 class TxRoute(APIRoute):
     """One transaction per request, committed before the response is sent (never in a dependency teardown,
     which may run after it). Also where an Idempotency-Key is honoured."""
@@ -112,6 +121,7 @@ class TxRoute(APIRoute):
 
         async def handler(request: Request):
             _check_origin(request)
+            _refuse_nul_in_query_and_path(request)
             if "idempotency-key" in request.headers:
                 raw = request.method.encode() + request.url.path.encode() + await request.body()
                 request.state.body_hash = crypto.mac_bytes(raw)

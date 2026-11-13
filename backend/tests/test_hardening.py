@@ -321,6 +321,22 @@ def test_a_nul_character_in_request_text_is_a_422(client, tenant, owner, path, b
     assert refused.json()["errors"][0]["pointer"] == pointer
 
 
+@pytest.mark.parametrize(
+    "path",
+    ["/clients?q=a%00b", "/refunds?status=a%00b", "/clients?a%00b=1", "/report-definitions/a%00b"],
+)
+def test_a_nul_character_in_a_query_or_path_value_is_a_422(client, tenant, owner, path):
+    refused = client.get(f"{API}{path}", headers=owner)
+    assert refused.status_code == 422, refused.text
+
+
+def test_a_nul_character_in_a_request_dict_key_is_a_422(client, tenant, owner):
+    body = {"action": "reverse_charges", "location_id": str(uuid4()), "charge_ids": [str(uuid4())],
+            "params": {"reason": "x", "k\u0000": "v"}}  # fmt: skip
+    refused = client.post(f"{API}/billing-bulk-actions", headers=owner | {"Idempotency-Key": uuid4().hex}, json=body)
+    assert refused.status_code == 422, refused.text
+
+
 def test_a_booking_number_above_int4_is_a_422(client, tenant, owner):
     refused = client.post(f"{API}/bookings/{uuid4()}/merge", headers=owner, json={"booking_number": 2**31})
     assert refused.status_code == 422, refused.text
