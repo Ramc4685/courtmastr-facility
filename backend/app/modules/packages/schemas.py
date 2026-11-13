@@ -453,7 +453,6 @@ class PostBilledPackageOpen(In):
 class PostBilledCloseIn(In):
     location_id: UUID
     closing_on: date
-    client_package_ids: Annotated[list[UUID], Field(min_length=1, max_length=500)] | None = None
 
 
 class PostBilledPreviewLine(Out):

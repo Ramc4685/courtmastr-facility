@@ -50,6 +50,9 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
   `202` job shape with `status: succeeded`, and has no consent gate because it is transactional.
 - **No booking-policy row means `selfservice.BUILT_IN`:** bookable, 30 days visible, no cut-off,
   self-cancel on, auto-promote.
+- **A direct link books an unlisted session (SCH-16).** `POST /portal/enrollments` may carry the session's
+  `direct_link_token`; while it is live (`scheduling.service.has_live_link`) the hidden, list-only, visible-range
+  and self-bookable checks are waived. Cutoff, membership, capacity and payment rules still apply.
 - **One fee per basket item.** Staff registration (`POST /enrollments`) takes several. A group that has
   active fees needs one chosen (`fee-required`), on the waitlist too.
 - **REG-10 partial:**

@@ -198,7 +198,7 @@ export function PublicDirectLinkPage() {
   const [clientId, setClientId] = useState('')
   const [booked, setBooked] = useState(false)
   const book = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/enrollments', { body: { client_id: clientId || (people[0]?.id ?? ''), session_id: view.data?.session_id ?? '' } }),
+    mutationFn: () => api.post('/api/v1/portal/enrollments', { body: { client_id: clientId || (people[0]?.id ?? ''), session_id: view.data?.session_id ?? '', direct_link_token: token } }),
     onSuccess: () => setBooked(true),
     onError: (e) => toast('error', e.message),
   })

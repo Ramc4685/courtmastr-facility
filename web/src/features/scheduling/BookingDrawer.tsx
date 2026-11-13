@@ -487,7 +487,7 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
 
       {b.kind !== 'block' && !cancelled && (
         <div className="space-y-4 border-t border-border pt-5">
-          <ParticipantsCard bookingId={b.id} editable={editable} />
+          {b.client_id && <ParticipantsCard bookingId={b.id} editable={editable} />}
           {editable && can('scheduling.booking.update_series') && <MergeSeriesForm bookingId={b.id} onDone={onClose} />}
         </div>
       )}

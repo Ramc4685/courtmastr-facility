@@ -27,16 +27,22 @@ run in CI only).
 
 - One direct link per session, reusable; turning it off rotates the token. Booking from the link is the
   portal's ordinary enrolment, so the visitor signs in first.
-- Shared booking participants must be active relatives of the organiser; package credit is spent by the
-  packages calls, not by scheduling.
+- Shared booking participants must be active relatives of the organiser, and only a client's own booking
+  (with an organiser) can be shared; class sessions take seats through enrolments only. Package credit is
+  spent by the packages calls, not by scheduling.
+- A direct link's token travels in the portal enrolment body and waives only the listing and self-booking
+  checks.
 - Rate tiers are whole-count: every session of the period bills at the highest tier the count reaches.
 - One bound agreement per contract; rebinding replaces it (audited).
 
 ## Not built
 
 Direct links for slot offers; extra billed items on a post-billed rate; refunds when a billed credit is later
-restored; an automatic (scheduled) close; a portal view of shared bookings.
+restored; an automatic (scheduled) close; a portal view of shared bookings; a check that a post-billed
+package's reservation type belongs to its location (blocked by the packages-to-scheduling import boundary);
+picking a package on the direct-link page (it books free sessions only).
 
 ## Handovers
 
-None: no edits to `billing/*`, `core/*`, `infra/*` or other contexts' modules.
+No edits to `billing/*`, `core/*` or `infra/*`. After review, `programs` (portal enrolment) takes the
+`direct_link_token` and calls `scheduling.service.has_live_link`, as the lead asked.

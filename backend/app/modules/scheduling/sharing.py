@@ -157,22 +157,30 @@ def _event(row: BookingParticipant) -> dict:
 
 
 def add_participant(session: Db, principal: Principal, booking_id: UUID, client_id: UUID) -> list[dict]:
-    """Share the booking with one more client. With an organiser, the client must be their active relative (a
-    spouse, a player of the coach's team); the organiser is listed too once the booking is shared."""
+    """Share a client's own booking with one of their active relatives (a spouse, a player of the coach's team);
+    the organiser is listed too once the booking is shared. A booking without an organiser (a class session)
+    takes no participants: its seats go through enrolments, which hold capacity, waivers and payment."""
     booking = _shareable(session, principal, booking_id, ENROLL)
     if booking.status == "cancelled":
         raise Conflict("A cancelled booking cannot be shared.", code="invalid-state-transition")
-    clients.service.require_active(session, client_id)
     organiser = booking.client_id
-    if organiser is not None and client_id != organiser and client_id not in _related(session, organiser):
+    if organiser is None:
+        raise Conflict(
+            "Only a client's own booking can be shared; enrol clients in a session instead.",
+            code="invalid-state-transition",
+        )
+    clients.service.require_active(session, client_id)
+    if client_id != organiser and client_id not in _related(session, organiser):
         raise ValidationFailed("Only the organiser's related clients can share this booking.", pointer="/client_id")
     staff_user_id = principal.staff_user_id if principal.kind == "staff" else None
     on_booking = {row.client_id for row in _participants(session, booking.id)}
-    if organiser is not None and organiser not in on_booking and client_id != organiser:
-        _insert(session, booking, organiser, staff_user_id)
-    row = _insert(session, booking, client_id, staff_user_id)
-    audit.record(session, ENROLL, row, location_id=booking.location_id, changes={"booking_id": [None, str(booking.id)]})
-    events.publish(session, ev.ParticipantAdded(**_event(row)), row.id)
+    added = [organiser] if organiser not in on_booking and client_id != organiser else []
+    for cid in [*added, client_id]:
+        row = _insert(session, booking, cid, staff_user_id)
+        audit.record(
+            session, ENROLL, row, location_id=booking.location_id, changes={"booking_id": [None, str(booking.id)]}
+        )
+        events.publish(session, ev.ParticipantAdded(**_event(row)), row.id)
     return _views(session, booking)
 
 

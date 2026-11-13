@@ -815,7 +815,10 @@ def _populate_shared_post_billed(client, headers, post, tenant, location_id, cli
     from zoneinfo import ZoneInfo
 
     from app.modules import packages
+    from app.modules.scheduling.models import Booking
 
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # a client's own reservation
+        session.get(Booking, UUID(space["booking_id"])).client_id = UUID(client_id)
     participant = post(f"/bookings/{space['booking_id']}/participants", {"client_id": client_id})[0]
     rate = post("/post-billed-rates", {"reservation_type_id": space["reservation_type_id"], "per_session_minor": 1500})
     package = post("/client-packages/post-billed", {

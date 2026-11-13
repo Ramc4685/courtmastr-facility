@@ -6,8 +6,11 @@ from uuid import UUID
 import pytest
 from sqlalchemy import func, select
 
+from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
+from app.modules.programs.tests.test_checkout import member
+from app.modules.programs.tests.test_selfservice import SOON, policy
 from app.modules.scheduling.models import Booking, BookingParticipant, BookingSeries, Session
 from app.modules.scheduling.tests.helpers import API, at, book, ok
 from app.modules.scheduling.tests.helpers import facility as build_facility
@@ -64,14 +67,35 @@ def test_inactive_or_cancelled_session_links_do_not_resolve(client, owner, tenan
     refused(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 409, "invalid-state-transition")
 
 
+def test_a_link_books_a_private_session_only_while_it_is_live(client, owner, tenant, f, mailbox):
+    policy(client, owner, f)  # the location takes bookings online; this session is not self-bookable
+    private = {"capacity": 2, "is_self_bookable": False}
+    seat = ok(book(client, owner, f, [f.court], at(13, SOON), at(14, SOON), kind="session", session=private))
+    seat = seat["booking"]["session"]["id"]
+    person, portal = member(client, tenant, owner, f, mailbox)
+    body = {"client_id": person["id"], "session_id": seat}
+    enrol = lambda extra: client.post(f"{API}/portal/enrollments", headers=portal, json=body | extra)  # noqa: E731
+    refused(enrol({}), 409, "policy-violation")  # not self-bookable: no link, no booking
+    refused(enrol({"direct_link_token": "made-up"}), 409, "policy-violation")
+    link = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)
+    booked = ok(enrol({"direct_link_token": link["token"]}))
+    assert booked["status"] == "enrolled"
+
+    other, other_portal = member(client, tenant, owner, f, mailbox)
+    ok(client.delete(f"{API}/sessions/{seat}/direct-link", headers=owner), 204)
+    late = client.post(f"{API}/portal/enrollments", headers=other_portal,
+                       json={"client_id": other["id"], "session_id": seat, "direct_link_token": link["token"]})  # fmt: skip
+    refused(late, 409, "policy-violation")  # revoked: the old link books nothing
+
+
 # --- shared bookings (SCH-17, SSP-09) -----------------------------------------------------------------------
 
 
-def relate(client, owner, parent_id: str, child_id: str) -> None:
+def relate(client, owner, parent_id: str, child_id: str, code: str = "parent_of") -> None:
     types = ok(client.get(f"{API}/relationship-types", headers=owner), 200)
-    parent_of = next(t for t in types if t["code"] == "parent_of")
+    kind = next(t for t in types if t["code"] == code)
     ok(client.post(f"{API}/clients/{parent_id}/relationships", headers=owner,
-                   json={"other_client_id": child_id, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+                   json={"other_client_id": child_id, "relationship_type_id": kind["id"]}))  # fmt: skip
 
 
 def test_shared_booking_lists_organiser_and_relatives_each_with_own_attendance(client, owner, tenant, f):
@@ -87,6 +111,11 @@ def test_shared_booking_lists_organiser_and_relatives_each_with_own_attendance(c
     assert [(r["client_id"], r["is_organiser"], r["attendance"]) for r in rows] == [
         (organiser["id"], True, "scheduled"), (kid["id"], False, "scheduled")]  # fmt: skip
     refused(client.post(url, headers=owner, json={"client_id": kid["id"]}), 409, "already-enrolled")
+    with tenant_session(tenant.id) as session:  # the organiser's row is audited like any other participant
+        audited = set(
+            session.scalars(select(AuditEvent.entity_id).where(AuditEvent.entity_type == "booking_participant"))
+        )
+    assert {UUID(r["id"]) for r in rows} <= audited
 
     kid_row = rows[1]
     marked = ok(client.patch(f"{url}/{kid_row['id']}", headers=owner, json={"attendance": "no_show"}), 200)
@@ -101,22 +130,34 @@ def test_shared_booking_lists_organiser_and_relatives_each_with_own_attendance(c
 
 def test_participants_follow_a_client_merge(client, owner, tenant, f):
     booking = session_booking(client, owner, f, 16)
-    keep, lose = new_client(client, owner, f.location), new_client(client, owner, f.location)
+    organiser, keep, lose = (new_client(client, owner, f.location) for _ in range(3))
+    relate(client, owner, organiser["id"], keep["id"], "sibling_of")
+    relate(client, owner, organiser["id"], lose["id"], "sibling_of")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.get(Booking, UUID(booking["id"])).client_id = UUID(organiser["id"])
     url = f"{API}/bookings/{booking['id']}/participants"
     ok(client.post(url, headers=owner, json={"client_id": keep["id"]}))
     ok(client.post(url, headers=owner, json={"client_id": lose["id"]}))
     ok(client.post(f"{API}/clients/{keep['id']}/merge", headers=owner, json={"merged_client_ids": [lose["id"]]}), 200)
-    assert [r["client_id"] for r in ok(client.get(url, headers=owner), 200)] == [keep["id"]]
+    assert [r["client_id"] for r in ok(client.get(url, headers=owner), 200)] == [organiser["id"], keep["id"]]
     with tenant_session(tenant.id) as session:
         stmt = select(func.count()).select_from(BookingParticipant)
-        assert session.scalar(stmt.where(BookingParticipant.booking_id == UUID(booking["id"]))) == 1
+        assert session.scalar(stmt.where(BookingParticipant.booking_id == UUID(booking["id"]))) == 2
 
 
-def test_block_bookings_take_no_participants(client, owner, f):
+def test_blocks_and_class_sessions_take_no_participants(client, owner, tenant, f):
     block = ok(book(client, owner, f, [f.court2], at(9), at(10)))["booking"]
     someone = new_client(client, owner, f.location)
     refused(client.post(f"{API}/bookings/{block['id']}/participants", headers=owner, json={"client_id": someone["id"]}),
             409, "invalid-state-transition")  # fmt: skip
+    # A class session has no organiser: its seats go through enrolments (capacity, waivers, payment), never here.
+    seat = session_booking(client, owner, f, 11, session={"capacity": 2})
+    url = f"{API}/bookings/{seat['id']}/participants"
+    refused(client.post(url, headers=owner, json={"client_id": someone["id"]}), 409, "invalid-state-transition")
+    with tenant_session(tenant.id) as session:
+        assert session.get(Session, UUID(seat["session"]["id"])).booked_count == 0
+        assert session.scalar(select(func.count()).select_from(BookingParticipant)
+                              .where(BookingParticipant.booking_id == UUID(seat["id"]))) == 0  # fmt: skip
 
 
 # --- merging reservations into one series (SCH-21) ----------------------------------------------------------
@@ -142,11 +183,15 @@ def test_merge_moves_the_other_series_into_this_one(client, owner, tenant, f):
             409, "already-linked")  # fmt: skip
 
 
-def test_merge_links_a_single_reservation_and_refuses_mismatches(client, owner, f):
+def test_merge_links_a_single_reservation_and_refuses_mismatches(client, owner, tenant, f):
     single, other = session_booking(client, owner, f, 18), session_booking(client, owner, f, 20)
     merged = ok(client.post(f"{API}/bookings/{single['id']}/merge", headers=owner,
                             json={"booking_number": other["booking_number"]}), 200)  # fmt: skip
     assert merged["occurrence_count"] == 2
+    with tenant_session(tenant.id) as session:  # both bookings changed series: each is audited
+        audited = set(session.scalars(select(AuditEvent.entity_id).where(
+            AuditEvent.entity_type == "booking", AuditEvent.action == "scheduling.booking.update_series")))  # fmt: skip
+    assert {UUID(single["id"]), UUID(other["id"])} <= audited
     block = ok(book(client, owner, f, [f.court2], at(22), at(23)))["booking"]
     refused(client.post(f"{API}/bookings/{single['id']}/merge", headers=owner,
                         json={"booking_number": block["booking_number"]}), 409, "merge-mismatch")  # fmt: skip

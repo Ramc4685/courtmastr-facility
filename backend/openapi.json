@@ -45731,6 +45731,18 @@
             ],
             "title": "Client Package Id"
           },
+          "direct_link_token": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Link Token"
+          },
           "session_id": {
             "format": "uuid",
             "title": "Session Id",
@@ -51004,23 +51016,6 @@
       "PostBilledCloseIn": {
         "additionalProperties": false,
         "properties": {
-          "client_package_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "maxItems": 500,
-                "minItems": 1,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Package Ids"
-          },
           "closing_on": {
             "format": "date",
             "title": "Closing On",

@@ -132,17 +132,20 @@ def _usage(session: Session, package: ClientPackage, closing_on: date, zone: Zon
     return [(kind, source_id) for kind, source_id, at in rows if kind and source_id and _local(at, zone) <= closing_on]
 
 
-def _plan(session: Session, location_id: UUID, closing_on: date, ids: list[UUID] | None, *, lock: bool) -> list[dict]:
+def _plan(session: Session, location_id: UUID, closing_on: date, *, lock: bool) -> list[dict]:
+    """Every open post-billed package at the location, plus ended ones whose held credits were used after their
+    last close: that usage is still owed and is billed once, through `post_billed_usage`."""
     p = ClientPackage
-    stmt = select(p).where(p.location_id == location_id, p.billing_mode == "post_billed", p.status == "active")
-    if ids is not None:
-        stmt = stmt.where(p.id.in_(ids))
+    statuses = ("active", "expired")
+    stmt = select(p).where(p.location_id == location_id, p.billing_mode == "post_billed", p.status.in_(statuses))
     packages = list(session.scalars((stmt.with_for_update() if lock else stmt).order_by(p.id)))
     zone = ZoneInfo(platform.service.location_time_zone(session, location_id))
+    usage = {pkg.id: _usage(session, pkg, closing_on, zone) for pkg in packages}
+    packages = [pkg for pkg in packages if pkg.status == "active" or usage[pkg.id]]
     names = clients.service.display_names(session, [pkg.owner_client_id for pkg in packages])
     lines = []
     for package in packages:
-        used = _usage(session, package, closing_on, zone)
+        used = usage[package.id]
         rate = _tier(session, package.reservation_type_id, len(used)) if used else None
         lines.append({
             "package": package, "used": used, "rate": rate, "client_package_id": package.id,
@@ -184,7 +187,7 @@ def preview_close(session: Session, principal: Principal, data: dict) -> dict:
     authorize(principal, CLOSE, location_id=location_id)
     _check_date(session, location_id, closing_on)
     done = _existing(session, location_id, closing_on)
-    lines = _plan(session, location_id, closing_on, data.get("client_package_ids"), lock=False)
+    lines = _plan(session, location_id, closing_on, lock=False)
     hidden = ("package", "used", "rate")
     return {
         "location_id": location_id, "closing_on": closing_on, "post_billed_close_id": done.id if done else None,
@@ -211,7 +214,7 @@ def close_period(session: Session, principal: Principal, data: dict) -> dict:
         won = _existing(session, location_id, closing_on)
         assert won is not None
         return _close_view(session, won)
-    lines = _plan(session, location_id, closing_on, data.get("client_package_ids"), lock=True)
+    lines = _plan(session, location_id, closing_on, lock=True)
     billable = [line for line in lines if line["rate"]]
     for line in billable:
         _bill(session, close, line, closing_on)
@@ -252,7 +255,7 @@ def _bill(session: Session, close: PostBilledClose, line: dict, closing_on: date
         PostBilledUsage(post_billed_line_id=row.id, client_package_id=package.id, source_type=kind, source_id=sid)
         for kind, sid in line["used"]
     )
-    if not package.is_auto_renew:
+    if not package.is_auto_renew and package.status == "active":
         last = max(package.valid_during.lower, closing_on)
         package.valid_during = Range(package.valid_during.lower, last + timedelta(days=1))
         service._expire(session, package)

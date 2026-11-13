@@ -39,7 +39,7 @@ def open_package(client, w, **fields) -> dict:
         return ok(client.post(f"{API}/client-packages/post-billed", headers=w.owner, json=body), 201)
 
 
-def use(w, package: dict, day: date, *, settle: bool = True) -> None:
+def use(w, package: dict, day: date, *, settle: bool = True) -> dict:
     """One session paid by the package: a credit reserved for a booking, then consumed by attending."""
     source = {"source_type": "booking", "source_id": uuid4()}
     with at(day), tx(w.tenant) as session:
@@ -47,6 +47,7 @@ def use(w, package: dict, day: date, *, settle: bool = True) -> None:
                                session_on=day, reservation_type_id=UUID(w.type_id), **source)  # fmt: skip
         if settle:
             service.settle_credit(session, outcome="attended", **source)
+    return source
 
 
 def close(client, w, day: date, path: str = "", headers=None):
@@ -103,6 +104,33 @@ def test_a_package_without_auto_renew_ends_at_its_close(client, w):
     ok(close(client, w, DAY), 201)
     with tx(w.tenant) as session:
         assert session.get(ClientPackage, UUID(package["id"])).status == "expired"
+
+
+def test_late_usage_after_a_package_ended_is_billed_exactly_once(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w, is_auto_renew=False)
+    use(w, package, DAY)
+    held = use(w, package, DAY, settle=False)  # booked before the close, attended after it
+    first = ok(close(client, w, DAY), 201)
+    assert (first["session_count"], first["total_minor"]) == (1, 1000)
+    with tx(w.tenant) as session:
+        assert session.get(ClientPackage, UUID(package["id"])).status == "expired"
+    later = DAY + timedelta(days=2)
+    with at(later), tx(w.tenant) as session:
+        service.settle_credit(session, outcome="attended", **held)
+    second = ok(close(client, w, later), 201)
+    assert (second["session_count"], second["total_minor"]) == (1, 1000)
+    third = ok(close(client, w, later + timedelta(days=1)), 201)
+    assert third["package_count"] == 0  # billed once: nothing left for a later close
+    assert sorted(c.total_minor for c in charges(w.tenant, w.person["id"])) == [1000, 1000]
+
+
+def test_a_close_covers_every_package_of_its_period(client, w):
+    rate(client, w, 1, 1000)
+    with at(DAY):  # no partial closes: a package filter would let one close block the rest of the period
+        partial = client.post(f"{API}/post-billed-closes", headers=w.owner, json={
+            "location_id": w.location_id, "closing_on": DAY.isoformat(), "client_package_ids": [str(uuid4())]})  # fmt: skip
+    refused(partial, 422, "validation-failed")
 
 
 def test_rates_are_required_and_closes_cannot_run_ahead(client, w):

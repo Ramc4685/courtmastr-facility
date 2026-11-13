@@ -56,11 +56,11 @@ test('post-billed rates, the period close, and the client dialogs pass axe', asy
   await scan(page, 'membership agreement dialog')
 })
 
-test('a session drawer shows its direct link, sharing and merge controls, and passes axe', async ({ page }) => {
+test('a session drawer shows its direct link and merge controls, and passes axe', async ({ page }) => {
   await signIn(page, '/schedule')
   await page.getByRole('button', { name: 'week', exact: true }).click()
   await page.getByRole('button', { name: /^Private Lesson.*full/ }).first().click()
-  await expect(page.getByRole('heading', { name: 'Shared with' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Shared with' })).toHaveCount(0) // a class session has no organiser
   await expect(page.getByRole('button', { name: 'Link into series' })).toBeVisible()
   await page.getByRole('button', { name: /^(Create|Show) link$/ }).click()
   const link = page.getByRole('textbox', { name: 'Registration link' })

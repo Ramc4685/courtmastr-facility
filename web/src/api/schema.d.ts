@@ -29589,6 +29589,8 @@ export interface components {
             client_id: string;
             /** Client Package Id */
             client_package_id?: string | null;
+            /** Direct Link Token */
+            direct_link_token?: string | null;
             /**
              * Session Id
              * Format: uuid
@@ -31445,8 +31447,6 @@ export interface components {
         };
         /** PostBilledCloseIn */
         PostBilledCloseIn: {
-            /** Client Package Ids */
-            client_package_ids?: string[] | null;
             /**
              * Closing On
              * Format: date

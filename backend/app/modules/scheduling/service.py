@@ -839,6 +839,15 @@ def set_capacity(session: Db, session_ids: list[UUID], capacity: int) -> list[di
     return results
 
 
+def has_live_link(session: Db, session_id: UUID, token: str | None) -> bool:
+    """Internal (programs' portal enrolment): whether the token is this session's active direct link (SCH-16)."""
+    if not token:
+        return False
+    s = Session
+    stmt = select(s.id).where(s.id == session_id, s.direct_link_token == token, s.is_direct_link_active)
+    return session.scalar(stmt) is not None
+
+
 def get_session(session: Db, session_id: UUID) -> dict:
     """Internal read for programs: the seat row with its booking's times and status."""
     seat = session.get(Session, session_id)
@@ -2138,9 +2147,13 @@ def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict
     mass-edited, cancelled and billed as one linked set. Times and holds do not change. Same location, kind and
     client only; this booking gets a series of its own first when it has none. The other series' passes move
     with their occurrences (renumbered after this series' passes) and the emptied series row goes."""
-    booking = _own(session, principal, booking_id, UPDATE_SERIES)
     number = data["booking_number"]
-    other = session.scalar(select(Booking).where(Booking.booking_number == number).with_for_update())
+    other_id = session.scalar(select(Booking.id).where(Booking.booking_number == number))
+    # Both rows locked in id order, so two opposite merges cannot deadlock.
+    pair = [booking_id] if other_id is None else sorted({booking_id, other_id})
+    session.execute(select(Booking.id).where(Booking.id.in_(pair)).order_by(Booking.id).with_for_update())
+    booking = _own(session, principal, booking_id, UPDATE_SERIES)
+    other = session.get(Booking, other_id) if other_id is not None else None
     if other is None or not (
         principal.kind == "system" or principal.location_ids is None or other.location_id in principal.location_ids
     ):
@@ -2168,11 +2181,14 @@ def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict
         session.add(target)
         session.flush()
         booking.booking_series_id, booking.version = target.id, booking.version + 1
+        audit.record(session, UPDATE_SERIES, booking, location_id=booking.location_id,
+                     changes={"booking_series_id": [None, str(target.id)]})  # fmt: skip
     source_id = other.booking_series_id
     if source_id is None:
-        moved = [other.id]
+        moved_rows = [other]
     else:
-        moved = list(session.scalars(select(Booking.id).where(Booking.booking_series_id == source_id)))
+        stmt = select(Booking).where(Booking.booking_series_id == source_id).order_by(Booking.id).with_for_update()
+        moved_rows = list(session.scalars(stmt))
         offset = session.scalar(
             select(func.coalesce(func.max(BookingSeriesRule.sequence), 0)).where(
                 BookingSeriesRule.booking_series_id == target.id
@@ -2189,11 +2205,13 @@ def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict
             BookingSeriesRun.__table__.update().where(BookingSeriesRun.booking_series_id == source_id)
             .values(booking_series_id=target.id)
         )  # fmt: skip
-    live = session.scalar(select(func.count()).where(Booking.id.in_(moved), Booking.status != "cancelled"))
-    session.execute(
-        Booking.__table__.update().where(Booking.id.in_(moved))
-        .values(booking_series_id=target.id, version=Booking.version + 1)
-    )  # fmt: skip
+    moved = [row.id for row in moved_rows]
+    live = sum(row.status != "cancelled" for row in moved_rows)
+    for row in moved_rows:
+        changes = {"booking_series_id": [str(row.booking_series_id) if row.booking_series_id else None, str(target.id)]}
+        row.booking_series_id, row.version = target.id, row.version + 1
+        audit.record(session, UPDATE_SERIES, row, location_id=row.location_id, changes=changes)
+    session.flush()
     _count(session, target.id, live)
     if source_id is not None:
         source = session.get(BookingSeries, source_id)
