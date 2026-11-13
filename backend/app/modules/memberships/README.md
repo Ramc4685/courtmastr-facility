@@ -23,7 +23,9 @@ a late job never admits or refuses anyone wrongly. One live contract per owner i
 `uq_membership_contract_previous` (409 `already-renewed`).
 
 **Internal interface (no permission check, ADR 0009 section 9).** `eligibility(session, client_id, on=None)`,
-`is_member(...)`, `record_visit(session, client_id=, check_in_id=, location_id=)` for `access`;
+`is_member(...)`, `member_on(session, client_id, on)` for rentals pricing (the date-aware read: a past date
+an ended contract covered counts, an auto-renewing live contract covers past `end_on` until cancelled or a renewal
+fails), `record_visit(session, client_id=, check_in_id=, location_id=)` for `access`;
 `status_of(session, contract_id)` and `addon_grants(session, contract_id)` for `packages`;
 `seller_periods(...)` for payroll in `staff`. `get_contract(session, principal, contract_id)` is also called by
 `access`, with a system principal, so it authorizes like a staff read. `run_daily` and `import_contract` are

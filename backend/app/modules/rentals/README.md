@@ -163,13 +163,17 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   one path never knew who pays.
 - **One price for quote and charge.** `_price_for` is the only caller of `pricing.price`: staff preview and create,
   `bill_selected` (preview and charge), the portal open times and the portal checkout all go through it, so a quote
-  and its charge agree. It reads `_member_pricing`, which is memberships' `eligibility` (owner decision 13, the
-  same definition the members-only check uses): an active contract, owned or shared, at any location, overdue or
-  used up counts; suspended, frozen, expired or cancelled does not. The membership type of the covering contract
+  and its charge agree. It reads `_member_pricing`, which is memberships' `member_on`, the date-aware form of
+  `eligibility` (owner decision 13): an active contract, owned or shared, at any location, overdue or
+  used up counts on a date; suspended or frozen on that date, or after the contract's end, does not. The membership type of the covering contract
   feeds membership-type rate rules. A line is flagged `is_member_price` when the member amount or a
   membership-type rule set its unit.
-- **Dates.** Membership is read on each occurrence's local date: a recurring rental that outlives a membership
-  pays the guest price for the later occurrences (separate lines; a line never mixes prices). A `flat` rate is one
+- **Dates.** Membership is read on each occurrence's local date through memberships' `member_on`: a recurring
+  rental that outlives a membership pays the guest price for the later occurrences (separate lines; a line never
+  mixes prices). An auto-renewing contract covers past its end date until it is cancelled or a renewal fails; if it
+  lapses, occurrences not yet charged price as guest when they are billed, and charges already posted stay. Arrears
+  billing (bill selected) of a date an ended contract covered charges the member price. The online members-only
+  check reads the same function on the rental's date. A `flat` rate is one
   charge for the request, priced on the first date. Bands are local wall time; a booking across a band edge is cut
   there and each line is rounded half-up once.
 - **Lapse between quote and payment.** The portal quotes from `/portal/rental-availability`; the checkout prices

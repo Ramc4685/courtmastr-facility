@@ -13,6 +13,7 @@ from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing
 from app.modules.clients.models import Client
+from app.modules.memberships.models import MembershipContract
 from app.modules.memberships.tests.support import membership_plan
 from app.modules.programs.tests.test_selfservice import SOON, policy
 from app.modules.rentals.tests.test_rentals import portal_client
@@ -52,9 +53,9 @@ def f(client, owner, tenant):
     return f
 
 
-def join(client, owner, f, client_id: str, start, plan: dict | None = None) -> str:
+def join(client, owner, f, client_id: str, start, plan: dict | None = None, **extra) -> str:
     body = {"client_id": client_id, "location_id": f.location, "membership_plan_id": (plan or f.plan)["id"],
-            "start_on": start.date().isoformat()}  # fmt: skip
+            "start_on": start.date().isoformat()} | extra  # fmt: skip
     return ok(client.post(f"{API}/membership-contracts", headers=owner, json=body))["id"]
 
 
@@ -100,6 +101,32 @@ def test_recurring_rental_prices_each_occurrence_on_its_own_date(client, owner, 
     created = ok(rent(client, owner, body(f, lapsing, 15, 16, recurrence=RECURRING)))
     assert sorted(units(created["quote"])) == [2000, 2400]  # two member weeks on one line, the lapsed week on another
     assert created["quote"]["subtotal_minor"] == 2000 * 2 + 2400
+
+
+def test_an_auto_renewing_membership_covers_past_its_end_date(client, owner, f, tenant):
+    short = membership_plan(client, owner, tenant, billing_occurrences_count=1, auto_renew_lead_count=7,
+                            auto_renew_lead_unit="day")  # one month, Apr 15 to May 14, renewing  # fmt: skip
+    renewing = new_client(client, owner, f.location)["id"]
+    join(client, owner, f, renewing, DAY - timedelta(days=20), short, is_auto_renew=True)
+    created = ok(rent(client, owner, body(f, renewing, 15, 16, recurrence=RECURRING)))
+    assert units(created["quote"]) == [2000]  # all three weeks at the member price, on one line
+    assert created["quote"]["subtotal_minor"] == 2000 * 3
+
+
+def test_arrears_billing_prices_dates_an_ended_membership_covered(client, owner, f, tenant):
+    payer = new_client(client, owner, f.location)["id"]
+    contract = join(client, owner, f, payer, DAY - timedelta(days=10))
+    unbilled = ok(rent(client, owner, body(f, payer, 15, 16, charge={"decision": "unbilled"})))["rental"]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # it has ended since
+        row = session.get(MembershipContract, contract)
+        row.status, row.end_on = "expired", DAY.date() + timedelta(days=1)
+    charge = {"rental_ids": [unbilled["id"]], "charge": {"decision": "bill", "rental_rate_id": f.rate}}
+    billed = ok(
+        client.post(f"{API}/rentals/charges", headers=owner | {"Idempotency-Key": uuid4().hex}, json=charge), 200
+    )
+    assert billed["quote"]["subtotal_minor"] == 2000  # the date was covered when it was played
+    later = ok(rent(client, owner, body(f, payer, 15 + 24 * 7, 16 + 24 * 7)))  # a week after it ended
+    assert later["quote"]["subtotal_minor"] == 2400
 
 
 def test_bill_selected_prices_the_payer_as_a_member(client, owner, f):

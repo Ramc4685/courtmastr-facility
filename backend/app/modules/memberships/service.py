@@ -1847,6 +1847,34 @@ def is_member(session: Session, client_id: UUID, on: date | None = None) -> bool
     return eligibility(session, client_id, on)["is_member"]
 
 
+def member_on(session: Session, client_id: UUID, on: date) -> dict | None:
+    """Internal (no principal): the contract that made the client a member on the date `on`, for pricing what
+    happens on that date. Unlike `eligibility` (today's standing) it also answers for a past date a since-cancelled
+    or expired contract covered (arrears billing), and treats an auto-renewing live contract as covering past its
+    `end_on` until it is cancelled or a renewal fails (the failed renewal ends it, and later dates are not covered).
+    Freezes, suspensions and an unmet activation gate still exclude a date. Shares count while not revoked.
+    Returns {"contract_id", "membership_type_id"} or None."""
+    c = MembershipContract
+    shared = select(MembershipShare.membership_contract_id).where(
+        MembershipShare.client_id == client_id, MembershipShare.revoked_at.is_(None)
+    )
+    stmt = select(c).where(c.start_on <= on, or_(c.owner_client_id == client_id, c.id.in_(shared)))
+    for contract in session.scalars(stmt.order_by(c.start_on, c.id)):
+        renewing = contract.is_auto_renew and contract.status in LIVE and not contract.cancel_reason
+        end = date.max if renewing else contract.end_on
+        if on > end:
+            continue
+        freezes, suspensions = _spans(session, contract.id)
+        status = domain.effective_status(
+            contract.status if contract.status in LIVE else "active", contract.start_on, end,
+            [(f.during.lower, f.during.upper) for f in freezes], [(s.during.lower, s.during.upper) for s in suspensions],
+            on, is_gated=contract.status == "upcoming" and _is_gated(session, contract),
+        )  # fmt: skip
+        if status == "active":
+            return {"contract_id": contract.id, "membership_type_id": contract.membership_type_id}
+    return None
+
+
 def list_standings(session: Session, principal: Principal, client_ids: list[UUID]) -> list[dict]:
     out = []
     for client_id in client_ids:

@@ -434,13 +434,14 @@ class _Priced:
 
 
 def _member_pricing(session: Db, client_id: UUID | None, on: date) -> tuple[bool, frozenset]:
-    """Whether the payer pays member prices on a local date, and under which membership type. The one
-    definition is memberships' `eligibility` (owner decision 13): an active contract, owned or shared, at any
-    location, overdue or used up; never suspended, frozen, expired or cancelled."""
+    """Whether the payer pays member prices on a local date, and under which membership type: memberships'
+    `member_on`, the date-aware form of the owner-decision-13 definition (an active contract, owned or shared, at
+    any location, overdue or used up; never suspended or frozen on that date). It covers a past date a since-ended
+    contract covered and an auto-renewing contract past its end date."""
     if client_id is None:
         return False, frozenset()
-    found = memberships.service.eligibility(session, client_id, on)
-    return (True, frozenset({found["membership_type_id"]})) if found["is_member"] else (False, frozenset())
+    found = memberships.service.member_on(session, client_id, on)
+    return (True, frozenset({found["membership_type_id"]})) if found else (False, frozenset())
 
 
 def _price_for(
@@ -1472,9 +1473,10 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     client_id = _portal_client(session, principal, data["client_id"])
     rtype = _online_type(session, data["rental_type_id"])
     # active_members and paid_up_members read the same: non-payment suspends a contract, so it is no longer active.
-    # Membership is read on the rental's own date, so a contract that ends before it does not pass.
+    # Membership is read on the rental's own date (`member_on`): a contract that ends before it does not pass, an
+    # auto-renewing one does.
     rental_on = data["starts_at"].astimezone(_zone(session, rtype.location_id)).date()
-    if rtype.eligibility != "everyone" and not _is_member(session, client_id, rental_on):
+    if rtype.eligibility != "everyone" and memberships.service.member_on(session, client_id, rental_on) is None:
         raise ValidationFailed(
             "Online booking of this rental is for members.", pointer="/rental_type_id", code="membership-required"
         )
