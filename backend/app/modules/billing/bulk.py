@@ -4,7 +4,8 @@ A request authorizes the action's key at the action's location, picks the subjec
 clients, at most `MAX_ITEMS`), stores one item per subject and either runs them at once (a dry run, or at most
 `IN_REQUEST_LIMIT` items) or enqueues `run_bulk_action`. Each item, or each client's group of charges when
 invoicing, is its own savepoint, so one failure is reported on its row and the rest go through. The job runs as
-the system: the person was authorized when the action was created, on every subject.
+the person who started it: their principal is re-loaded and re-authorized at each chunk, so a job outlives
+neither their account nor their key.
 """
 
 import hashlib
@@ -17,10 +18,11 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock
-from app.core.auth import Principal, authorize, system_principal
+from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.jobs import chunked_actor
 from app.core.pagination import ListQuery, paginate
+from app.modules import clients, platform
 from app.modules.billing import catalog, documents, service
 from app.modules.billing.models import BillingBulkAction, BillingBulkActionItem, CatalogItem, Charge, Invoice
 
@@ -38,9 +40,7 @@ KEYS = {
 }
 
 
-def create_bulk_action(
-    session: Session, principal: Principal, data: dict, idempotency_key: str | None
-) -> BillingBulkAction:
+def create_bulk_action(session: Session, principal: Principal, data: dict, idempotency_key: str) -> BillingBulkAction:
     action, location_id = data["action"], data["location_id"]
     authorize(principal, KEYS[action], location_id=location_id)
     service._location_in_scope(session, principal, location_id)
@@ -53,7 +53,9 @@ def create_bulk_action(
                 raise Conflict("This Idempotency-Key was used for another bulk action.", code="idempotency-key-reused")
             return action_view(existing)
     params = _params(session, action, location_id, data.get("params") or {})
-    subjects = _subjects(session, principal, action, location_id, data)
+    subjects = _subjects(session, principal, action, location_id, data, params)
+    if data.get("preview_id"):
+        _check_preview(session, principal, data, subjects)
     row = BillingBulkAction(
         location_id=location_id, action=action, is_dry_run=bool(data.get("is_dry_run")), params=params,
         item_count=len(subjects), requested_by_staff_user_id=service._staff_id(session), idempotency_key=key,
@@ -64,9 +66,9 @@ def create_bulk_action(
     session.add_all(
         BillingBulkActionItem(
             billing_bulk_action_id=row.id, subject_type=subject_type, subject_id=subject_id, group_client_id=client_id,
-            status="skipped" if error else "pending", error_code=error,
+            status="skipped" if error else "pending", error_code=error, amount_minor=amount,
         )
-        for subject_type, subject_id, client_id, error in subjects
+        for subject_type, subject_id, client_id, error, amount in subjects
     )  # fmt: skip
     session.flush()
     audit.record(
@@ -108,8 +110,28 @@ def _params(session: Session, action: str, location_id: UUID, params: dict) -> d
     return {}
 
 
-def _subjects(session: Session, principal: Principal, action: str, location_id: UUID, data: dict) -> list[tuple]:
-    """(subject_type, subject_id, group_client_id, skip error code) for every subject, at the action's location."""
+def _check_preview(session: Session, principal: Principal, data: dict, subjects: list[tuple]) -> None:
+    """A run that names its dry run must act on the same subjects at the same amounts, else 409: the person
+    approved what the preview showed, not what the books say now."""
+    preview = _load(session, principal, data["preview_id"])
+    if not preview.is_dry_run or (preview.action, preview.location_id) != (data["action"], data["location_id"]):
+        raise ValidationFailed("Name a dry run of this action at this location.", pointer="/preview_id")
+    shown = dict(
+        session.execute(
+            select(BillingBulkActionItem.subject_id, BillingBulkActionItem.amount_minor).where(
+                BillingBulkActionItem.billing_bulk_action_id == preview.id, BillingBulkActionItem.status != "skipped"
+            )
+        ).all()
+    )
+    if shown != {subject_id: amount for _, subject_id, _, error, amount in subjects if error is None}:
+        raise Conflict("Items or prices changed since the preview. Preview again.", code="bulk-preview-stale")
+
+
+def _subjects(
+    session: Session, principal: Principal, action: str, location_id: UUID, data: dict, params: dict
+) -> list[tuple]:
+    """(subject_type, subject_id, group_client_id, skip error code, amount) for every subject, at the action's
+    location. The amount is what a preview showed: the charge or invoice total, or the item's net fee."""
     if action in ("create_invoices", "reverse_charges"):
         wanted = data.get("charge_ids") or []
         stmt = select(Charge).where(
@@ -132,9 +154,12 @@ def _subjects(session: Session, principal: Principal, action: str, location_id: 
                 row.id,
                 row.client_id,
                 "charge-has-no-client" if action == "create_invoices" and row.client_id is None else None,
+                row.total_minor,
             )
             for row in rows
-        ] + [("charge", charge_id, None, missing) for charge_id in dict.fromkeys(wanted) if charge_id not in found]
+        ] + [
+            ("charge", charge_id, None, missing, None) for charge_id in dict.fromkeys(wanted) if charge_id not in found
+        ]
     if action in ("email_invoices", "render_invoices"):
         wanted = data.get("invoice_ids") or []
         if not wanted:
@@ -144,15 +169,31 @@ def _subjects(session: Session, principal: Principal, action: str, location_id: 
         )
         rows = _capped(session, found_invoices.order_by(Invoice.id), "/invoice_ids")
         found = {row.id for row in rows}
-        return [("invoice", row.id, row.bill_to_client_id, None) for row in rows] + [
-            ("invoice", invoice_id, None, "invoice-not-found")
+        return [("invoice", row.id, row.bill_to_client_id, None, row.total_minor) for row in rows] + [
+            ("invoice", invoice_id, None, "invoice-not-found", None)
             for invoice_id in dict.fromkeys(wanted)
             if invoice_id not in found
         ]
     wanted = list(dict.fromkeys(data.get("client_ids") or []))
     if not wanted or len(wanted) > MAX_ITEMS:
         raise ValidationFailed(f"Select between 1 and {MAX_ITEMS} clients.", pointer="/client_ids")
-    return [("client", client_id, client_id, None) for client_id in wanted]  # an unknown client fails at its sale
+    item = session.get(CatalogItem, UUID(params["catalog_item_id"]))
+    if item is None:
+        raise ValidationFailed("Choose an item of this location.", pointer="/params/catalog_item_id")
+    fee = item.fee_minor - service._pct_discount(item.fee_minor, item.discount_pct, item.discount_minor or 0)
+    reach = principal.location_ids if principal.kind == "staff" else None  # None: every location
+
+    def reachable(client_id: UUID) -> bool:  # unknown and out-of-reach clients look the same (404 rule)
+        try:
+            client = clients.service.get(session, client_id)
+        except NotFound:
+            return False
+        return reach is None or client.home_location_id in reach
+
+    return [
+        ("client", client_id, client_id, None if reachable(client_id) else "client-not-found", fee)
+        for client_id in wanted
+    ]
 
 
 def _capped(session: Session, stmt, pointer: str) -> list:
@@ -188,11 +229,7 @@ def run_chunk(session: Session, action_id: UUID) -> bool:
         for item in items:
             _attempt(session, row, [item])
     if not items:  # pending items no chunk can select would loop for ever: fail them instead
-        session.execute(
-            update(BillingBulkActionItem)
-            .where(BillingBulkActionItem.billing_bulk_action_id == row.id, BillingBulkActionItem.status == "pending")
-            .values(status="failed", error_code="not-processed")
-        )
+        _fail_pending(session, row, "not-processed")
     counts = dict(
         session.execute(
             select(BillingBulkActionItem.status, func.count())
@@ -244,11 +281,12 @@ def _apply(
         revenue_on = params.get("revenue_on") and date.fromisoformat(params["revenue_on"])
         return "charge", service.reverse(session, subject, reason=params["reason"], revenue_on=revenue_on).id
     if row.action in ("email_invoices", "render_invoices"):
-        if row.is_dry_run:  # an email or a stored file cannot be undone by a rollback: only check it could go
-            return "billing_document_delivery", None
         channel = "email" if row.action == "email_invoices" else "download"
+        if row.is_dry_run:  # an email or a stored file cannot be undone by a rollback: run every check instead
+            documents.check_invoice_send(session, subject, channel)
+            return "billing_document_delivery", None
         return "billing_document_delivery", documents.send_invoice(
-            session, system_principal("run_bulk_action"), subject, {"channel": channel}
+            session, session.info["actor"], subject, {"channel": channel}
         ).id
     sale = catalog.sell(session, UUID(params["catalog_item_id"]), client_id=subject)
     return "catalog_item_sale", sale.id
@@ -256,7 +294,36 @@ def _apply(
 
 @chunked_actor(max_retries=3)
 def run_bulk_action(session: Session, billing_bulk_action_id: str) -> bool:
-    return run_chunk(session, UUID(billing_bulk_action_id))
+    return run_job_chunk(session, billing_bulk_action_id)
+
+
+def run_job_chunk(session: Session, billing_bulk_action_id: str) -> bool:
+    """The job runs as the person who started the action: re-loaded at each chunk, so a deactivated account or
+    a key taken away stops the rest (`requester-not-allowed`). An action an API key started runs as the system."""
+    row = service._get(session, BillingBulkAction, UUID(billing_bulk_action_id))
+    if row.requested_by_staff_user_id is not None:
+        person = platform.staff.principal_for(session, row.requested_by_staff_user_id)
+        if person is None or not _allowed(person, KEYS[row.action], row.location_id):
+            _fail_pending(session, row, "requester-not-allowed")
+            return run_chunk(session, row.id)
+        session.info["actor"] = person
+    return run_chunk(session, row.id)
+
+
+def _allowed(principal: Principal, key: str, location_id: UUID) -> bool:
+    try:
+        authorize(principal, key, location_id=location_id)
+    except DomainError:
+        return False
+    return True
+
+
+def _fail_pending(session: Session, row: BillingBulkAction, code: str) -> None:
+    session.execute(
+        update(BillingBulkActionItem)
+        .where(BillingBulkActionItem.billing_bulk_action_id == row.id, BillingBulkActionItem.status == "pending")
+        .values(status="failed", error_code=code)
+    )
 
 
 def action_view(row: BillingBulkAction) -> BillingBulkAction:

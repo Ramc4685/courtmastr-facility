@@ -332,14 +332,27 @@ handlers re-read the object from the provider.
   as `skipped`; so is a clientless (POS) charge when invoicing (`charge-has-no-client`: it has no payer). A chunk
   that selects nothing while items are still pending fails them (`not-processed`) instead of re-running for
   ever. At most 1000 subjects. A dry run, or 25 items or fewer, runs in the request; more run as
-  `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, as the system: the person was
-  authorized on every subject when the action was created. Every item (or client group) is a savepoint, so a
-  failure is recorded on its row (`error_code`) and the rest continue. A dry run does the same work and rolls each
-  savepoint back (result ids are null); email and render dry runs only check the invoice. The optional
-  `Idempotency-Key` (scoped to the caller) is bound to a hash of the request body: the same body replays the
-  first action, another body is 409 `idempotency-key-reused`. `GET /billing-bulk-actions/{id}` and `/items`
+  `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, **as the person who started
+  it** (risk review; an action started by an API key has no requester and runs as the system): each chunk loads `requested_by` through `platform.staff.principal_for` and
+  re-checks the action's key at its location, so a revoked or disabled requester fails what is left
+  (`requester-not-allowed`), and audit rows name the person, not the system. Every item (or client group) is a
+  savepoint, so a failure is recorded on its row (`error_code`, `internal-error` for an unexpected one) and the
+  rest continue. A dry run does the same work and rolls each savepoint back (result ids are null); email and
+  render dry runs run the send checks (`documents.check_invoice_send`: an address, a renderable invoice), so a
+  dry run shows `no-email-address` before the real one. **Each item stores `amount_minor`** (migration 1804; a charge's or
+  invoice's total, or the catalogue item's net fee): a run that names `preview_id` (a dry run of the same action at
+  the same location) is 409 `bulk-preview-stale` when any subject or amount differs, 422 at `/preview_id` when it
+  is not such a dry run, 404 when it does not exist. `add_catalog_item` loads each client and checks its home
+  location against a location-limited caller's locations (a client with no home location is out of reach for
+  them; an API key is not location-limited): unknown or out of reach is `skipped` / `client-not-found`. **The `Idempotency-Key` is required** (an API client could otherwise
+  run an add-item twice); scoped to the caller, it is bound to a hash of the request body: the same body replays
+  the first action, another body is 409 `idempotency-key-reused`. `GET /billing-bulk-actions/{id}` and `/items`
   need `billing.charge.read` at the action's location. Not built: saved filter presets; bulk email of a client
   with no address fails that item (`no-email-address`).
+- **Left for the owner (risk review, Phase 9 orphans).** (1) Front desk can move the revenue date and category of a
+  paid item with only `billing.charge.update` (`desk.py`, revenue edits): no price moves, but revenue reports
+  shift; a separate key would close it. (2) Collections are scoped by the debtor's home location, so a manager at
+  location B does not see a debtor whose home is A even when the unpaid items are at B.
 - **Documents are JSON, with a PDF beside them.** `GET /invoices/{id}/document` and `/payments/{id}/receipt`
   return JSON; the PDF is a separate `/pdf` path (`/invoices/{id}/pdf`, `/payments/{id}/receipt/pdf`,
   `/clients/{id}/statement/pdf`, portal `/portal/invoices/{id}/pdf`, `/portal/statement/pdf`) instead of the

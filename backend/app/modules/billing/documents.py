@@ -247,6 +247,16 @@ def send_invoice(session: Session, principal: Principal, invoice_id: UUID, data:
     return row
 
 
+def check_invoice_send(session: Session, invoice_id: UUID, channel: str) -> None:
+    """What send_invoice would refuse, without sending or storing anything (a bulk dry run): a voided invoice, no
+    address to email, a document that does not render."""
+    invoice = service._get(session, Invoice, invoice_id)
+    if invoice.status == "voided":
+        raise Conflict("This invoice is voided.", code="invoice-voided")
+    _recipient(session, invoice.bill_to_client_id, None, channel)
+    invoice_pdf(invoice_document(session, invoice), session)
+
+
 def list_invoice_deliveries(session: Session, principal: Principal, invoice_id: UUID) -> list:
     authorize(principal, "billing.invoice.read")
     invoice = service._get(session, Invoice, invoice_id)

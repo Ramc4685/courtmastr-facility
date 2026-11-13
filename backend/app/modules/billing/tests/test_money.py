@@ -553,7 +553,8 @@ def test_the_sweep_finishes_an_orphan_and_cancels_what_never_reached_the_process
         patched.setattr(fake, "create_payment", lambda **_: (_ for _ in ()).throw(RuntimeError("no network")))
         card(session, shop, 300, idempotency_key=lost)
     with work(shop.tenant) as session:
-        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}  # too fresh to touch
+        # too fresh to touch
+        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}
     with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
         assert webhooks.reconcile(session) == {"payments": 2, "cancelled": 0, "refunds": 0, "failed": 0}
         states = dict(session.execute(select(Payment.idempotency_key, Payment.status)).all())

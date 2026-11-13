@@ -512,12 +512,14 @@ def get_invoice_pdf(invoice_id: UUID, ctx: Ctx = Depends(require("billing.invoic
 @router.post("/billing-bulk-actions", response_model=s.BulkActionOut, status_code=202)
 def create_billing_bulk_action(
     body: s.BulkActionCreate,
-    idempotency_key: Annotated[str | None, Header(min_length=8, max_length=255, pattern=KEY_PATTERN)] = None,
+    idempotency_key: RequiredKey,
     ctx: Ctx = Depends(require(*bulk.KEYS.values())),
 ):
     """Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,
     email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
-    location. A dry run or up to 25 items finish in the request; more run as a job (poll the action)."""
+    location. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The
+    Idempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409
+    `bulk-preview-stale`) if any subject or amount changed since."""
     return bulk.create_bulk_action(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
 
 

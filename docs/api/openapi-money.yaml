@@ -1227,13 +1227,14 @@ paths:
       - {key: billing.invoice.send, when: action = email_invoices or render_invoices}
       - {key: billing.charge.create, when: action = add_catalog_item}
       x-features: [BIL-02, BIL-10]
-      x-idempotent: optional
+      x-idempotent: required
       parameters:
-      - {$ref: '#/components/parameters/IdempotencyKey'}
+      - {$ref: '#/components/parameters/IdempotencyKeyRequired'}
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/BillingBulkActionCreate'}}}
-      x-problem-codes: [permission-denied, validation-failed, request-in-progress, idempotency-key-reused]
+      x-problem-codes: [permission-denied, validation-failed, request-in-progress, idempotency-key-reused,
+        bulk-preview-stale]
       responses:
         '202':
           description: Accepted; work continues in a job.
@@ -6280,6 +6281,11 @@ components:
         client_ids: {type: array, items: {type: string, format: uuid}}
         params: {type: object, additionalProperties: true}
         is_dry_run: {type: boolean}
+        preview_id:
+          type: [string, 'null']
+          format: uuid
+          description: The dry run this run was previewed as; 409 `bulk-preview-stale` when a subject or its amount
+            changed since.
     BillingBulkAction:
       type: object
       required: [id, location_id, action, is_dry_run, status, item_count, done_count, failed_count, created_at]
@@ -6303,6 +6309,7 @@ components:
         subject_type: {type: string, enum: [charge, invoice, client]}
         group_client_id: {type: [string, 'null'], format: uuid}
         subject_id: {type: string, format: uuid}
+        amount_minor: {type: [integer, 'null'], format: int64, description: What the subject was priced at.}
         status: {type: string, enum: [pending, done, failed, skipped]}
         result_type: {type: [string, 'null']}
         result_id: {type: [string, 'null'], format: uuid}

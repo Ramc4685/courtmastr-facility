@@ -1223,7 +1223,9 @@ export interface paths {
          * Create Billing Bulk Action
          * @description Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,
          *     email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
-         *     location. A dry run or up to 25 items finish in the request; more run as a job (poll the action).
+         *     location. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The
+         *     Idempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409
+         *     `bulk-preview-stale`) if any subject or amount changed since.
          */
         post: operations["createBillingBulkAction"];
         delete?: never;
@@ -19593,9 +19595,13 @@ export interface components {
             params: {
                 [key: string]: string | boolean | null;
             };
+            /** Preview Id */
+            preview_id?: string | null;
         };
         /** BulkActionItemOut */
         BulkActionItemOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
             /** Error Code */
             error_code: string | null;
             /** Group Client Id */
@@ -46770,9 +46776,9 @@ export interface operations {
     createBillingBulkAction: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
             };
             path?: never;
             cookie?: never;

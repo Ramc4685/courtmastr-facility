@@ -1145,6 +1145,7 @@ class BillingBulkActionItem(TenantOwned, Timestamps, Base):
     subject_type: Mapped[str] = enum_column()
     subject_id: Mapped[UUID]  # a charge, invoice or client id, by subject_type
     group_client_id: Mapped[UUID | None]  # create_invoices: one invoice per client
+    amount_minor: Mapped[int | None] = _money()  # what the subject was priced at; a run checks it against its preview
     status: Mapped[str] = enum_column(server_default=text("'pending'"))
     result_type: Mapped[str | None]
     result_id: Mapped[UUID | None]

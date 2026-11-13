@@ -600,6 +600,7 @@ class BulkActionCreate(In):
     only_mine: bool = False
     params: dict[str, str | bool | None] = {}
     is_dry_run: bool = False
+    preview_id: UUID | None = None  # the dry run this run was previewed as: refused if its amounts changed
 
 
 class BulkActionOut(Out):
@@ -621,6 +622,7 @@ class BulkActionItemOut(Out):
     subject_type: Literal["charge", "invoice", "client"]
     subject_id: UUID
     group_client_id: UUID | None
+    amount_minor: int | None
     status: Literal["pending", "done", "failed", "skipped"]
     result_type: str | None
     result_id: UUID | None

@@ -47,3 +47,10 @@ POST /api/v1/payments/{payment_id}/void added the new `initiated` enum value to 
 POST /api/v1/portal/payments added the new `initiated` enum value to the `payment/anyOf[subschema #1: PortalPaymentDetail]/refunds/items/status` response property for the response status `201`
 POST /api/v1/portal/payments/{payment_id}/confirm added the new `initiated` enum value to the `payment/anyOf[subschema #1: PortalPaymentDetail]/refunds/items/status` response property for the response status `200`
 GET /api/v1/refunds added the new `initiated` enum value to the `data/items/status` response property for the response status `200`
+# Phase 9 orphans, risk review: bulk actions need an Idempotency-Key (an API-key client could otherwise run an
+# add-item twice and double-sell); the header gets the same bounds as every other required key.
+POST /api/v1/billing-bulk-actions the `header` request parameter `idempotency-key` became required
+POST /api/v1/billing-bulk-actions `header` request parameter `idempotency-key` list-of-types was narrowed by removing types `null`
+POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotency-key`, the maxLength was set to `255`
+POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotency-key`, the minLength was set to `8`
+POST /api/v1/billing-bulk-actions added the pattern `^[A-Za-z0-9_.:\-]{1,255}$` to the `header` request parameter `idempotency-key`
