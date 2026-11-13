@@ -197,7 +197,10 @@ Imports: it resolves tax codes without case.
   `billing.collections.read` / `billing.collections.manage` at the client's home location). A tag that is
   no longer in use cannot be given to a client (422), but a profile that already carries it keeps it.
   `/collections-report` lists every client in collections with the tag, balance, past-due amount and oldest
-  past-due date, location-scoped through the client's home location.
+  past-due date. The report, a client's profile and the expiring-cards list are limited to clients whose home
+  location the staff member reaches (2026-11-13 question 12: recommended, awaiting the owner's yes); a profile
+  outside it is 404. Staff
+  with every location see every client.
 - **Portal lockout (BIL-22).** `core.auth.deps.add_client_guard` runs `_portal_guard` on every portal request.
   A POST to one of `PORTAL_PURCHASE_ROUTES` (buying or booking) is refused with 403 `portal-past-due` when the
   signed-in identity, or any client it acts for, is the payer of a past-due invoice at a location whose

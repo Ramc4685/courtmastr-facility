@@ -153,6 +153,25 @@ def test_expiring_cards_lists_cards_through_a_month_with_their_holder(api, shop)
     api("GET", "/expiring-cards?through=2040-13", None, 422)
 
 
+def test_collections_and_expiring_cards_follow_the_staff_members_locations(api, shop, desk):
+    """2026-11-13 question 12 (recommended, awaiting the owner): limited by the client's home location; all-location
+    staff see all."""
+    tag = api("POST", "/collections-tags", {"name": "Payment plan"}, 201)
+    who = str(shop.client_id)
+    api("PUT", f"/clients/{who}/collections-profile", {"collections_tag_id": tag["id"]})
+    with work(shop.tenant) as session:
+        card = methods.attach_method(session, shop.client_id, "tok_card_ok")
+        card.exp_month, card.exp_year = 1, 2020
+    # the owner reaches every location
+    assert [r["client_id"] for r in api("GET", "/collections-report")["data"]] == [who]
+    assert [r["client_id"] for r in api("GET", "/expiring-cards")["data"]] == [who]
+    # a manager of another location sees none of this client's rows, and the profile is 404, never 403
+    west = desk.west_manager
+    assert api("GET", "/collections-report", headers=west)["data"] == []
+    assert api("GET", "/expiring-cards", headers=west)["data"] == []
+    api("GET", f"/clients/{who}/collections-profile", None, 404, headers=west)
+
+
 def test_the_daily_digest_reports_failures_and_due_autopay_once_a_day(shop, mailbox):
     _settings(shop.tenant, decline_alert_email="desk@example.com", decline_alert_mode="daily_digest")
     with clock.freeze(NOON), work(shop.tenant) as session:

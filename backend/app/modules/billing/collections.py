@@ -82,8 +82,8 @@ def _profile(session: Session, client_id: UUID, *, lock: bool = False) -> Client
 
 
 def get_profile(session: Session, principal: Principal, client_id: UUID) -> ClientCollectionsProfile:
-    authorize(principal, _READ)
-    clients.service.get(session, client_id)
+    client = clients.service.get(session, client_id)
+    authorize(principal, _READ, location_id=client.home_location_id)
     profile = _profile(session, client_id)
     if profile is None:
         raise NotFound("This client is not in collections.", code="not-in-collections")
@@ -149,8 +149,11 @@ def report(session: Session, principal: Principal, query: ListQuery) -> dict:
     """The collections report (BIL-20): every client in collections, with tag and what they owe. Filter
     `collections_tag_id`; sort `placed_on` (default, oldest first)."""
     authorize(principal, _READ)
+    stmt = select(ClientCollectionsProfile)
+    if (in_scope := clients.service.client_ids_in_scope(principal)) is not None:
+        stmt = stmt.where(ClientCollectionsProfile.client_id.in_(in_scope))
     page = paginate(
-        session, select(ClientCollectionsProfile), query, id_column=ClientCollectionsProfile.id,
+        session, stmt, query, id_column=ClientCollectionsProfile.id,
         sort_fields={"placed_on": ClientCollectionsProfile.placed_on}, default_sort="placed_on",
         filter_fields={"collections_tag_id": ClientCollectionsProfile.collections_tag_id},
     )  # fmt: skip
@@ -192,6 +195,8 @@ def expiring_cards(session: Session, principal: Principal, through: str | None, 
         PaymentMethod.kind == "card", PaymentMethod.status == "active",
         tuple_(PaymentMethod.exp_year, PaymentMethod.exp_month) <= (year, month),
     )  # fmt: skip
+    if (in_scope := clients.service.client_ids_in_scope(principal)) is not None:
+        stmt = stmt.where(PaymentMethod.client_id.in_(in_scope))
     page = paginate(
         session, stmt, query, id_column=PaymentMethod.id,
         sort_fields={"expiry": cast(PaymentMethod.exp_year, Integer) * 100 + PaymentMethod.exp_month}, default_sort="expiry",
