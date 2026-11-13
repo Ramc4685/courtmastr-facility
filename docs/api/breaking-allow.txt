@@ -8,3 +8,8 @@
 # OpenAPI document has no cookie or header parameters for it, and the diff against the merge base with main is
 # four added endpoints plus three description edits (no breaking entry). So S1 needs no line here; the contract
 # change is recorded in docs/status/phase8-s1-signin.md and docs/dev/checks.md ("What the diff cannot see").
+
+# Owner decision 2026-11-13 (question 6): third-party analytics dropped (INT-13); the provider value and the
+# anonymous config route are removed with migration 1951. No client depended on them in production.
+POST /api/v1/external-connections removed the enum value `google_analytics` of the request property `provider`
+GET /api/v1/public/analytics-config API path removed without deprecation

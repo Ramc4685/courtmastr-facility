@@ -693,10 +693,6 @@ def create_external_connection(
         from app.modules.integrations import meetings
 
         meetings.connect_zoom(session, row, data.get("zoom"))
-    elif row.provider == Provider.GOOGLE_ANALYTICS:
-        from app.modules.integrations import analytics
-
-        analytics.connect(row)
     audit.record(session, "integrations.connection.create", row, location_id=location_id, changes=audit.diff(row))
     return row, authorize_url
 

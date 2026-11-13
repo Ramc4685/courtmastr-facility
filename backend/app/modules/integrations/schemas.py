@@ -115,13 +115,12 @@ class ZoomAppIn(In):
 
 
 class ExternalConnectionCreate(In):
-    provider: Literal["accounting_file", "quickbooks_online", "zoom", "google_analytics"]
+    provider: Literal["accounting_file", "quickbooks_online", "zoom"]
     zoom: ZoomAppIn | None = Field(None, description="Zoom: the Server-to-Server OAuth app to connect")
     location_id: UUID | None = Field(None, description="Omit for every location")
     settings: dict[str, str | dict[str, str]] | None = Field(
         None,
-        description="Accounting: `account_map` (posting key -> account) and `default_income_account`. "
-        "Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)",
+        description="Accounting: `account_map` (posting key -> account) and `default_income_account`",
     )
     return_url: Url | None = Field(None, description="QuickBooks: where the browser lands after authorising")
 
@@ -296,11 +295,6 @@ class VideoMeetingOut(Out):
 class JoinOut(Out):
     join_url: str
     passcode: str | None
-
-
-class AnalyticsConfigOut(Out):
-    measurement_id: str
-    linked_domains: list[str]
 
 
 # --- calendar feeds and the public schedule ----------------------------------------------------------------

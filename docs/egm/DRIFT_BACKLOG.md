@@ -125,7 +125,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`. Docs batch.
 - [x] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769). Docs batch.
 
-### integrations (51 open, 25 closed) — [evidence](drift/integrations.md)
+### integrations (see drift/integrations.md; re-checked 2026-11-13 on claude/hardening-pass, INT-13 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -206,17 +206,30 @@ Calendar feeds and public schedule:
 
 INT-13 analytics on registration pages (new 2026-11-13):
 
-- [ ] [contract] `GET /public/analytics-config` is not in the yaml (`backend/app/modules/integrations/router.py:390-398`, generated spec only); the yaml provider enum lacks `google_analytics` (openapi-programs.yaml:9206); ADR 0012:281 says "no server component".
-- [ ] [contract] data-model-programs.md:1943 puts `analytics_measurement_id` on `portal_settings`; the code keeps it in `external_connection.settings`, tenant-wide only (`backend/app/modules/integrations/analytics.py:36, 41-44`).
+- [x] [contract] `GET /public/analytics-config` is not in the yaml (`backend/app/modules/integrations/router.py:390-398`, generated spec only); the yaml provider enum lacks `google_analytics` (openapi-programs.yaml:9206); ADR 0012:281 says "no server component". Fixed 2026-11-13: INT-13 removed by owner decision (migration 1951); the route, setting and provider are gone.
+- [ ] [contract] `docs/architecture/data-model-programs.md:1943` still lists `analytics_measurement_id` on `portal_settings`; INT-13 is dropped and the column does not exist. Remove the row.
 - [x] [contract] ADR 0012:281 says consent only where GDPR mode is on (PLT-16); the code asks everyone, never reads GDPR mode, and has no way to withdraw the choice (`web/src/features/integrations/AnalyticsConsent.tsx:11, 65`).
 - [x] [contract] security-baseline.md:33 and :667 forbid third-party analytics scripts in the SPA; the portal loads gtag from googletagmanager.com after consent (`AnalyticsConsent.tsx:12, 48`). Update the baseline or the feature.
 - [x] [missing] The tag is blocked in the deployed stack: CSP is `script-src 'self'; connect-src 'self'` (`infra/proxy/Caddyfile:51`). The README says so (lines 119-122).
 - [x] [missing] The tag is mounted only in the portal shell, not on public form pages, and there is no staff screen (`web/src/features/portal/PortalApp.tsx`; README lines 119-120).
-- [ ] [missing] No tag loads: the SPA loader was removed because security-baseline V10 and section 14 forbid third-party analytics in web and mobile, against ADR 0012:281's consent-gated tag and the CSP `script-src 'self'`. Owner decision needed; reconcile the ADR and baseline.
+- [x] [missing] No tag loads: the SPA loader was removed because security-baseline V10 and section 14 forbid third-party analytics in web and mobile, against ADR 0012:281's consent-gated tag and the CSP `script-src 'self'`. Owner decision needed; reconcile the ADR and baseline. Fixed 2026-11-13: INT-13 removed by owner decision (migration 1951); the route, setting and provider are gone.
 - [x] [stale-not-built] `docs/status/16-integrations.md:28` says INT-13 is not built.
 - [x] [wording] `backend/app/modules/integrations/analytics.py:4` names `features/integrations/analytics.ts`, which does not exist (the file is `AnalyticsConsent.tsx`); `AnalyticsConsent.tsx:9` points to the missing `docs/status/phase15-api.md`.
-- [ ] [undocumented] The analytics PATCH branch lives in `quickbooks.update_settings` and the update schema text names only QuickBooks keys (a disconnected one is now refused with 409; `backend/app/modules/integrations/quickbooks.py:204-213`, `schemas.py:147-149`).
-- [ ] [undocumented] Disconnect calls `release_account` with the measurement id although nothing was claimed (`backend/app/modules/integrations/service.py:700-701, 705-716`, `analytics.py:44`).
+- [x] [undocumented] The analytics PATCH branch lives in `quickbooks.update_settings` and the update schema text names only QuickBooks keys (a disconnected one is now refused with 409; `backend/app/modules/integrations/quickbooks.py:204-213`, `schemas.py:147-149`). Fixed 2026-11-13: INT-13 removed by owner decision (migration 1951); the route, setting and provider are gone.
+- [x] [undocumented] Disconnect calls `release_account` with the measurement id although nothing was claimed (`backend/app/modules/integrations/service.py:700-701, 705-716`, `analytics.py:44`). Fixed 2026-11-13: INT-13 removed by owner decision (migration 1951); the route, setting and provider are gone.
+
+Re-check 2026-11-13 (`claude/hardening-pass`, new items only):
+
+- [ ] [contract] The yaml marks 28 integrations ops callable with an API key (`createApiKey` openapi-programs.yaml:6396, `rotateApiKey` 6418, `revokeApiKey` 6436, and the webhook, connection, sync and adapter ops), but `KEY_CONTEXTS` excludes `integrations` (`backend/app/modules/integrations/service.py:68-72`), so all answer `403 api-key-not-allowed`. Drop `apiKey` from those ops.
+- [ ] [wording] README:36-37 lists the contexts off the key allow-list without `imports` (`service.py:68-72`).
+- [ ] [undocumented] `models.py:60-61` (`ApiKey` docstring) omits the allow-list; migration 1705 keeps a second copy of the contexts that nothing ties to `KEY_CONTEXTS`.
+- [ ] [undocumented] `export_accounting_day` cuts the location slug to 12 characters for the doc number (`service.py:793`), so two locations can share `FH-<SLUG>-<YYYYMMDD>`; README:66 shows the plain slug.
+- [ ] [undocumented] A stale-sync takeover can run two chains at once and the old chain's dead-letter hook can fail the new job (`backend/app/modules/integrations/quickbooks.py:314-316, 391-437`); README:164-167 does not say.
+- [ ] [undocumented] `meetings.portal_meetings` imports the private `feeds._pages` (`meetings.py:19`), stops at 1000 places, does not drop past sessions, and includes the household's places (`meetings.py:253-266`); README:129-133 says "the caller's booked places".
+- [ ] [contract] `listPortalEnrollmentMeetings` has no response schema in the yaml (openapi-programs.yaml:7199); the code returns `[{enrollment_id, session_id}]` (`schemas.py:351-355`), and a non-client caller gets `404`, not the yaml's `403`.
+- [ ] [wording] README:9 `models.py` row omits `video_meeting` (`models.py:269-273`).
+- [ ] [wording] README:60-61 says `webhook_allow_localhost` is "dev only"; startup refuses it outside dev and test (`backend/app/core/settings.py:309-310`).
+- [ ] [missing] `public_schedule_setting` and `video_meeting` ids are not in the `populate()` return (`backend/conftest.py:1316`) or `test_isolation.py:498`.
 
 ### leagues (5) — [evidence](drift/leagues.md)
 
