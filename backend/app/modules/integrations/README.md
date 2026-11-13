@@ -6,7 +6,7 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 
 | File | What it holds |
 |---|---|
-| `models.py` | `api_key`, `webhook_endpoint`, `webhook_delivery`, `external_connection`, `accounting_export`, `adapter_command_log` (append-only) |
+| `models.py` | `api_key`, `webhook_endpoint`, `webhook_delivery`, `external_connection`, `accounting_export`, `adapter_command_log` (append-only), `calendar_feed`, `public_schedule_setting` |
 | `auth.py` | the `fhk` bearer authenticator: prefix lookup, hash compare, grace for the previous secret, expiry, the per-key rate limit, and the key principal (creator ∩ scopes ∩ locations) |
 | `catalogue.py` | webhook event catalogue: each event type, the read permission it needs, and how its location is found |
 | `domain/webhooks.py` | retry schedule, disable thresholds, HMAC signing and verification, SSRF address classes, payload redaction |
@@ -17,6 +17,8 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `jobs.py` | `deliver_webhook` (one attempt, reschedules itself) and an unscheduled sweep |
 | `router.py` | the endpoints in `docs/api/openapi-programs.yaml` tag integrations, all `require()`-gated; `inbound` holds the provider webhooks, registered before billing's `/webhooks/{provider}` |
 | `reference.py` | the generated public API reference: `x-api-key-scopes` on every operation a key may call (added in `app.main`'s OpenAPI hook), listed by `GET /api-reference` |
+| `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |
+| `domain/ical.py` | RFC 5545 text: escaping, 75-octet folding, UTC stamps |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`)
 and `app/ports/video_meeting.py` (`FakeVideo`, a simulated Zoom). `app/core/crypto.py` seals webhook secrets
@@ -55,6 +57,17 @@ through `service.adapter_for`.
 - **Accounting export.** One row per (connection, location, business day), idempotent. The doc number is
   `FH-<LOCATION SLUG>-<YYYYMMDD>` and the request id `{tenant}:qbo_je:{export id}`. Unbalanced days fail and
   record the error. QuickBooks is refused (`provider-not-configured`) unless `integrations.quickbooks_enabled`.
+- **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
+  a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
+  secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
+  anything logs it, and its rate limit (`calendar-feed`, 12 an hour) is keyed by the token, not the IP, because
+  calendar services fetch every feed from a few addresses. Content is recomputed on each fetch from the
+  owner's current grants through the owning contexts' list functions, ±90 days, booking titles only. A
+  deactivated staff owner or an inactive member identity makes the feed 404. Any staff user may own a feed
+  (rbac-matrix section 7); a team feed needs a league game key; `revoke_any` lets a manager see and disable,
+  never edit or re-enable, other people's feeds within their locations.
+- **Public schedule.** Off until a location publishes it. Shows sessions (public title, seats left) and, when
+  turned on, busy times per resource without any name, never beyond `days_ahead` (1 to 31).
 
 ## Assumptions and shortcuts (written down, not guessed)
 
@@ -71,6 +84,11 @@ through `service.adapter_for`.
   was lost; a duplicate is harmless because `attempt_delivery` locks and re-checks the row.
 - The disable email goes to the endpoint's creator, not to every Owner.
 - Not built: OAuth client-credentials and the QuickBooks OAuth round trip, `sync_mapping` per object, the
-  class/account mapping screen, a `video_meeting` table and entitlement-checked join redirects, the calendar
-  feed, the member-realm API, plan entitlement gating, and a mandatory `Idempotency-Key` for machine principals.
+  class/account mapping screen, a `video_meeting` table and entitlement-checked join redirects, and a
+  mandatory `Idempotency-Key` for machine principals.
+- Team feeds walk the owner's games by start time and keep the team's, scanning at most 1000 (leagues has no
+  team filter on `list_games`). Feeds carry at most 1000 events.
+- The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because
+  scheduling was owned by another builder in Phase 15; it reads through `scheduling.service.booking_ids` and
+  `booking_views`. Moving it is a file move.
 - At most 10 webhook endpoints per tenant.

@@ -1521,6 +1521,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Calendar Feeds
+         * @description Your feeds; with integrations.calendar_feed.revoke_any, every staff feed in your locations.
+         *     Filters: kind, status, owner_staff_user_id. Sort: created_at, name. URLs are never listed.
+         */
+        get: operations["listCalendarFeeds"];
+        put?: never;
+        /**
+         * Create Calendar Feed
+         * @description A staff schedule (bookings you can read, optionally your shifts) or one team's games. The URL token is in
+         *     this response only. Errors: staff-session-required, permission-denied.
+         */
+        post: operations["createCalendarFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar-feeds/{calendar_feed_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Calendar Feed */
+        delete: operations["deleteCalendarFeed"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Calendar Feed
+         * @description Rename, change shifts, disable, or re-enable with a new URL (`url_token` is set only then). Someone
+         *     else's feed may only be disabled, under revoke_any.
+         */
+        patch: operations["updateCalendarFeed"];
+        trace?: never;
+    };
     "/api/v1/campaigns": {
         parameters: {
             query?: never;
@@ -8491,6 +8539,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/calendar-feeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Portal Calendar Feed
+         * @description My schedule: the sessions I and my household are enrolled in. The URL token is in this response only.
+         */
+        post: operations["createPortalCalendarFeed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/client-documents": {
         parameters: {
             query?: never;
@@ -10875,6 +10943,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public-schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Schedule Settings
+         * @description What the location's public schedule shows. A location never configured is unpublished.
+         */
+        get: operations["getPublicScheduleSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Public Schedule Settings
+         * @description Publish or hide a location's schedule and choose what it shows; omitted fields keep their value.
+         */
+        patch: operations["updatePublicScheduleSettings"];
+        trace?: never;
+    };
     "/api/v1/public/branding": {
         parameters: {
             query?: never;
@@ -10887,6 +10979,26 @@ export interface paths {
          * @description Logo URLs of the tenant resolved from the host: the staff shell and the member portal header.
          */
         get: operations["getPublicBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/calendar-feeds/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Calendar Feed
+         * @description iCalendar text, recomputed from the owner's current access on each fetch. 404 for any unusable URL.
+         */
+        get: operations["getPublicCalendarFeed"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11408,6 +11520,27 @@ export interface paths {
         };
         /** List Public Rental Types */
         get: operations["listPublicRentalTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Schedule
+         * @description Embeddable: a published location's sessions with seats left and, if shown, busy times with no names.
+         *     Tenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule.
+         */
+        get: operations["getPublicSchedule"];
         put?: never;
         post?: never;
         delete?: never;
@@ -17219,6 +17352,119 @@ export interface components {
             title: string;
             /** Version */
             version: number;
+        };
+        /** CalendarFeedCreate */
+        CalendarFeedCreate: {
+            /**
+             * Competition Team Id
+             * @description Team feeds: the team
+             */
+            competition_team_id?: string | null;
+            /**
+             * Include Shifts
+             * @description Staff feeds: add your published shifts
+             * @default false
+             */
+            include_shifts: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "staff_schedule" | "team_schedule";
+            /**
+             * Location Id
+             * @description Staff feeds: only this location's bookings
+             */
+            location_id?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** CalendarFeedCreated */
+        CalendarFeedCreated: {
+            /** Competition Team Id */
+            competition_team_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Include Shifts */
+            include_shifts: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "staff_schedule" | "team_schedule" | "member_schedule";
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Name */
+            name: string;
+            /** Owner Staff User Id */
+            owner_staff_user_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+            /**
+             * Url Token
+             * @description Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}
+             */
+            url_token: string | null;
+        };
+        /** CalendarFeedOut */
+        CalendarFeedOut: {
+            /** Competition Team Id */
+            competition_team_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Include Shifts */
+            include_shifts: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "staff_schedule" | "team_schedule" | "member_schedule";
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Name */
+            name: string;
+            /** Owner Staff User Id */
+            owner_staff_user_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+        };
+        /** CalendarFeedUpdate */
+        CalendarFeedUpdate: {
+            /** Include Shifts */
+            include_shifts?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * Status
+             * @description Re-enabling mints a new URL
+             */
+            status?: ("active" | "disabled") | null;
         };
         /** CalendarView */
         CalendarView: {
@@ -26954,6 +27200,12 @@ export interface components {
             data: components["schemas"]["BrandOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CalendarFeedOut] */
+        Page_CalendarFeedOut_: {
+            /** Data */
+            data: components["schemas"]["CalendarFeedOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[CampaignOut] */
         Page_CampaignOut_: {
             /** Data */
@@ -28701,6 +28953,11 @@ export interface components {
             unit_label: string | null;
             /** Value */
             value: string;
+        };
+        /** PortalCalendarFeedCreate */
+        PortalCalendarFeedCreate: {
+            /** Name */
+            name?: string | null;
         };
         /** PortalCheckoutConfirm */
         PortalCheckoutConfirm: {
@@ -32029,6 +32286,24 @@ export interface components {
             /** Tenant Logo Url */
             tenant_logo_url: string | null;
         };
+        /** PublicBusyOut */
+        PublicBusyOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
         /** PublicCompetitionOut */
         PublicCompetitionOut: {
             /** Division Label */
@@ -32492,6 +32767,81 @@ export interface components {
         PublicSchedule: {
             /** Is On Public Schedule */
             is_on_public_schedule: boolean;
+        };
+        /** PublicScheduleOut */
+        PublicScheduleOut: {
+            /** Busy */
+            busy: components["schemas"]["PublicBusyOut"][];
+            /**
+             * From On
+             * Format: date
+             */
+            from_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Sessions */
+            sessions: components["schemas"]["PublicSessionOut"][];
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * To On
+             * Format: date
+             */
+            to_on: string;
+        };
+        /** PublicScheduleSettingsOut */
+        PublicScheduleSettingsOut: {
+            /** Days Ahead */
+            days_ahead: number;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Show Busy */
+            show_busy: boolean;
+            /** Show Sessions */
+            show_sessions: boolean;
+        };
+        /** PublicScheduleSettingsUpdate */
+        PublicScheduleSettingsUpdate: {
+            /** Days Ahead */
+            days_ahead?: number | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Show Busy */
+            show_busy?: boolean | null;
+            /** Show Sessions */
+            show_sessions?: boolean | null;
+        };
+        /** PublicSessionOut */
+        PublicSessionOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Full */
+            is_full: boolean;
+            /** Seats Left */
+            seats_left: number;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string;
         };
         /** PublicStandingOut */
         PublicStandingOut: {
@@ -42249,6 +42599,155 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCalendarFeeds: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CalendarFeedOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarFeedCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                calendar_feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                calendar_feed_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalendarFeedUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedCreated"];
                 };
             };
             /** @description Validation Error */
@@ -60164,6 +60663,42 @@ export interface operations {
             };
         };
     };
+    createPortalCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCalendarFeedCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarFeedCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalClientDocuments: {
         parameters: {
             query?: {
@@ -66002,6 +66537,76 @@ export interface operations {
             };
         };
     };
+    getPublicScheduleSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicScheduleSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePublicScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicScheduleSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicScheduleSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getPublicBranding: {
         parameters: {
             query?: never;
@@ -66018,6 +66623,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicBranding"];
+                };
+            };
+        };
+    };
+    getPublicCalendarFeed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/calendar": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -66877,6 +67513,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicRentalType"][];
+                };
+            };
+        };
+    };
+    getPublicSchedule: {
+        parameters: {
+            query: {
+                location_id: string;
+                from_on?: string | null;
+                days?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

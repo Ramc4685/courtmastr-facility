@@ -6732,6 +6732,325 @@
         "title": "CalendarEntry",
         "type": "object"
       },
+      "CalendarFeedCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "competition_team_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Team feeds: the team",
+            "title": "Competition Team Id"
+          },
+          "include_shifts": {
+            "default": false,
+            "description": "Staff feeds: add your published shifts",
+            "title": "Include Shifts",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "staff_schedule",
+              "team_schedule"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff feeds: only this location's bookings",
+            "title": "Location Id"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "CalendarFeedCreate",
+        "type": "object"
+      },
+      "CalendarFeedCreated": {
+        "properties": {
+          "competition_team_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition Team Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "include_shifts": {
+            "title": "Include Shifts",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "staff_schedule",
+              "team_schedule",
+              "member_schedule"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fetched At"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Staff User Id"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "url_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}",
+            "title": "Url Token"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "status",
+          "owner_staff_user_id",
+          "location_id",
+          "competition_team_id",
+          "include_shifts",
+          "last_fetched_at",
+          "created_at",
+          "url_token"
+        ],
+        "title": "CalendarFeedCreated",
+        "type": "object"
+      },
+      "CalendarFeedOut": {
+        "properties": {
+          "competition_team_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition Team Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "include_shifts": {
+            "title": "Include Shifts",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "staff_schedule",
+              "team_schedule",
+              "member_schedule"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fetched At"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Staff User Id"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "disabled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "status",
+          "owner_staff_user_id",
+          "location_id",
+          "competition_team_id",
+          "include_shifts",
+          "last_fetched_at",
+          "created_at"
+        ],
+        "title": "CalendarFeedOut",
+        "type": "object"
+      },
+      "CalendarFeedUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "include_shifts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Shifts"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "disabled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Re-enabling mints a new URL",
+            "title": "Status"
+          }
+        },
+        "title": "CalendarFeedUpdate",
+        "type": "object"
+      },
       "CalendarView": {
         "properties": {
           "blackouts": {
@@ -38551,6 +38870,26 @@
         "title": "Page[BrandOut]",
         "type": "object"
       },
+      "Page_CalendarFeedOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarFeedOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CalendarFeedOut]",
+        "type": "object"
+      },
       "Page_CampaignOut_": {
         "properties": {
           "data": {
@@ -43879,6 +44218,26 @@
           "value"
         ],
         "title": "PortalAssessmentValueOut",
+        "type": "object"
+      },
+      "PortalCalendarFeedCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "PortalCalendarFeedCreate",
         "type": "object"
       },
       "PortalCheckoutConfirm": {
@@ -54069,6 +54428,32 @@
         "title": "PublicBranding",
         "type": "object"
       },
+      "PublicBusyOut": {
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "PublicBusyOut",
+        "type": "object"
+      },
       "PublicCompetitionOut": {
         "properties": {
           "division_label": {
@@ -55543,6 +55928,183 @@
           "is_on_public_schedule"
         ],
         "title": "PublicSchedule",
+        "type": "object"
+      },
+      "PublicScheduleOut": {
+        "properties": {
+          "busy": {
+            "items": {
+              "$ref": "#/components/schemas/PublicBusyOut"
+            },
+            "title": "Busy",
+            "type": "array"
+          },
+          "from_on": {
+            "format": "date",
+            "title": "From On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/PublicSessionOut"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "to_on": {
+            "format": "date",
+            "title": "To On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "from_on",
+          "to_on",
+          "time_zone",
+          "sessions",
+          "busy"
+        ],
+        "title": "PublicScheduleOut",
+        "type": "object"
+      },
+      "PublicScheduleSettingsOut": {
+        "properties": {
+          "days_ahead": {
+            "title": "Days Ahead",
+            "type": "integer"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "show_busy": {
+            "title": "Show Busy",
+            "type": "boolean"
+          },
+          "show_sessions": {
+            "title": "Show Sessions",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "location_id",
+          "is_enabled",
+          "days_ahead",
+          "show_sessions",
+          "show_busy"
+        ],
+        "title": "PublicScheduleSettingsOut",
+        "type": "object"
+      },
+      "PublicScheduleSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "days_ahead": {
+            "anyOf": [
+              {
+                "maximum": 31.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Ahead"
+          },
+          "is_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Enabled"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "show_busy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Busy"
+          },
+          "show_sessions": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Sessions"
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "title": "PublicScheduleSettingsUpdate",
+        "type": "object"
+      },
+      "PublicSessionOut": {
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "is_full": {
+            "title": "Is Full",
+            "type": "boolean"
+          },
+          "seats_left": {
+            "title": "Seats Left",
+            "type": "integer"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at",
+          "title",
+          "seats_left",
+          "is_full"
+        ],
+        "title": "PublicSessionOut",
         "type": "object"
       },
       "PublicStandingOut": {
@@ -81795,6 +82357,332 @@
         ],
         "x-api-key-scopes": [
           "scheduling.booking.read"
+        ]
+      }
+    },
+    "/api/v1/calendar-feeds": {
+      "get": {
+        "description": "Your feeds; with integrations.calendar_feed.revoke_any, every staff feed in your locations.\nFilters: kind, status, owner_staff_user_id. Sort: created_at, name. URLs are never listed.",
+        "operationId": "listCalendarFeeds",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CalendarFeedOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Calendar Feeds",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "post": {
+        "description": "A staff schedule (bookings you can read, optionally your shifts) or one team's games. The URL token is in\nthis response only. Errors: staff-session-required, permission-denied.",
+        "operationId": "createCalendarFeed",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarFeedCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarFeedCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Calendar Feed",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/calendar-feeds/{calendar_feed_id}": {
+      "delete": {
+        "operationId": "deleteCalendarFeed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendar_feed_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Calendar Feed Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Calendar Feed",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "patch": {
+        "description": "Rename, change shifts, disable, or re-enable with a new URL (`url_token` is set only then). Someone\nelse's feed may only be disabled, under revoke_any.",
+        "operationId": "updateCalendarFeed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendar_feed_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Calendar Feed Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarFeedUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarFeedCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Calendar Feed",
+        "tags": [
+          "integrations"
         ]
       }
     },
@@ -119677,6 +120565,69 @@
         ]
       }
     },
+    "/api/v1/portal/calendar-feeds": {
+      "post": {
+        "description": "My schedule: the sessions I and my household are enrolled in. The URL token is in this response only.",
+        "operationId": "createPortalCalendarFeed",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalCalendarFeedCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarFeedCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Calendar Feed",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/portal/client-documents": {
       "get": {
         "description": "Your documents, or a household member's you may act for (client_id). Filter: status.",
@@ -132077,6 +133028,138 @@
         ]
       }
     },
+    "/api/v1/public-schedule-settings": {
+      "get": {
+        "description": "What the location's public schedule shows. A location never configured is unpublished.",
+        "operationId": "getPublicScheduleSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicScheduleSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Schedule Settings",
+        "tags": [
+          "integrations",
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.public_schedule.manage"
+        ]
+      },
+      "patch": {
+        "description": "Publish or hide a location's schedule and choose what it shows; omitted fields keep their value.",
+        "operationId": "updatePublicScheduleSettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicScheduleSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicScheduleSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Public Schedule Settings",
+        "tags": [
+          "integrations",
+          "scheduling"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.public_schedule.manage"
+        ]
+      }
+    },
     "/api/v1/public/branding": {
       "get": {
         "description": "Logo URLs of the tenant resolved from the host: the staff shell and the member portal header.",
@@ -132096,6 +133179,45 @@
         "summary": "Get Public Branding",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/public/calendar-feeds/{token}": {
+      "get": {
+        "description": "iCalendar text, recomputed from the owner's current access on each fetch. 404 for any unusable URL.",
+        "operationId": "getPublicCalendarFeed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/calendar": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Calendar Feed",
+        "tags": [
+          "integrations"
         ]
       }
     },
@@ -133526,6 +134648,86 @@
         "summary": "List Public Rental Types",
         "tags": [
           "rentals"
+        ]
+      }
+    },
+    "/api/v1/public/schedule": {
+      "get": {
+        "description": "Embeddable: a published location's sessions with seats left and, if shown, busy times with no names.\nTenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule.",
+        "operationId": "getPublicSchedule",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 31,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Schedule",
+        "tags": [
+          "integrations",
+          "scheduling"
         ]
       }
     },

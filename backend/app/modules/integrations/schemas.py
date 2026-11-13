@@ -172,3 +172,80 @@ class AdapterCommandOut(Out):
     arguments: dict
     outcome: str
     occurred_at: datetime
+
+
+# --- calendar feeds and the public schedule ----------------------------------------------------------------
+
+
+class CalendarFeedCreate(In):
+    kind: Literal["staff_schedule", "team_schedule"]
+    name: Name
+    location_id: UUID | None = Field(None, description="Staff feeds: only this location's bookings")
+    competition_team_id: UUID | None = Field(None, description="Team feeds: the team")
+    include_shifts: bool = Field(False, description="Staff feeds: add your published shifts")
+
+
+class PortalCalendarFeedCreate(In):
+    name: Name | None = None
+
+
+class CalendarFeedUpdate(In):
+    name: Name | None = None
+    include_shifts: bool | None = None
+    status: Literal["active", "disabled"] | None = Field(None, description="Re-enabling mints a new URL")
+
+
+class CalendarFeedOut(Out):
+    id: UUID
+    kind: Literal["staff_schedule", "team_schedule", "member_schedule"]
+    name: str
+    status: Literal["active", "disabled"]
+    owner_staff_user_id: UUID | None
+    location_id: UUID | None
+    competition_team_id: UUID | None
+    include_shifts: bool
+    last_fetched_at: datetime | None
+    created_at: datetime
+
+
+class CalendarFeedCreated(CalendarFeedOut):
+    url_token: str | None = Field(description="Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}")
+
+
+class PublicScheduleSettingsOut(Out):
+    location_id: UUID
+    is_enabled: bool
+    days_ahead: int
+    show_sessions: bool
+    show_busy: bool
+
+
+class PublicScheduleSettingsUpdate(In):
+    location_id: UUID
+    is_enabled: bool | None = None
+    days_ahead: int | None = Field(None, ge=1, le=31)
+    show_sessions: bool | None = None
+    show_busy: bool | None = None
+
+
+class PublicSessionOut(Out):
+    starts_at: datetime
+    ends_at: datetime
+    title: str
+    seats_left: int
+    is_full: bool
+
+
+class PublicBusyOut(Out):
+    resource_id: UUID
+    starts_at: datetime
+    ends_at: datetime
+
+
+class PublicScheduleOut(Out):
+    location_id: UUID
+    from_on: date
+    to_on: date
+    time_zone: str
+    sessions: list[PublicSessionOut]
+    busy: list[PublicBusyOut]

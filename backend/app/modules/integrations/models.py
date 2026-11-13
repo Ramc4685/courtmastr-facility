@@ -4,7 +4,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Index, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import CheckConstraint, Index, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -197,3 +197,60 @@ class AdapterCommandLog(TenantOwned, Base):
     arguments: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
     outcome: Mapped[str] = enum_column(server_default=text("'ok'"))
     occurred_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class FeedKind(StrEnum):
+    STAFF_SCHEDULE = "staff_schedule"  # the owner's readable bookings, optionally their published shifts
+    TEAM_SCHEDULE = "team_schedule"  # one league team's games
+    MEMBER_SCHEDULE = "member_schedule"  # a portal identity's enrolled sessions
+
+
+class FeedStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class CalendarFeed(TenantOwned, Timestamps, Base):
+    """A one-way iCalendar subscription (INT-08, SCH-19, STF-13, LGE-25, SSP-19). The URL token is a read-only
+    capability: 256-bit, shown once, stored as SHA-256 with a lookup prefix; re-enabling mints a new one."""
+
+    __tablename__ = "calendar_feed"
+    __table_args__ = tenant_args(
+        enum_check("kind", FeedKind),
+        enum_check("status", FeedStatus),
+        *tfk("owner_staff_user_id", "staff_user", ondelete="CASCADE"),
+        *tfk("owner_identity_id", "identity", ondelete="CASCADE"),
+        *tfk("location_id", "location", ondelete="CASCADE"),
+        *tfk("competition_team_id", "competition_team", ondelete="CASCADE"),
+        UniqueConstraint("tenant_id", "token_prefix"),
+        CheckConstraint("num_nonnulls(owner_staff_user_id, owner_identity_id) = 1", name="owner"),
+    )
+
+    kind: Mapped[str] = enum_column()
+    name: Mapped[str]
+    status: Mapped[str] = enum_column(server_default=text("'active'"))
+    owner_staff_user_id: Mapped[UUID | None]
+    owner_identity_id: Mapped[UUID | None]
+    location_id: Mapped[UUID | None]  # staff feeds: only this location
+    competition_team_id: Mapped[UUID | None]  # team feeds
+    include_shifts: Mapped[bool] = mapped_column(server_default=text("false"))
+    token_prefix: Mapped[str] = mapped_column(info={"audit": "never"})
+    token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
+    last_fetched_at: Mapped[datetime | None]
+
+
+class PublicScheduleSetting(TenantOwned, Timestamps, Base):
+    """What the anonymous embeddable schedule of one location shows (SCH-20). No row = not published."""
+
+    __tablename__ = "public_schedule_setting"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "location_id"),
+        CheckConstraint("days_ahead BETWEEN 1 AND 31", name="days_ahead"),
+    )
+
+    location_id: Mapped[UUID]
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    days_ahead: Mapped[int] = mapped_column(server_default=text("7"), info={"audit": "value"})
+    show_sessions: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    show_busy: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})

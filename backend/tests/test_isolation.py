@@ -394,6 +394,7 @@ _BODIES = {
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
+    "updateCalendarFeed": {"name": "Renamed"},
     # platform OIDC (Phase 8 S3)
     "updateIdentityProvider": {"display_name": "Renamed"},
 }
@@ -461,7 +462,7 @@ def test_every_id_route_is_covered():
         "/membership-types", "/membership-plans", "/membership-contracts", "/package-plans", "/client-packages",
         "/package-series",
         "/api-keys", "/webhook-endpoints", "/webhook-deliveries", "/external-connections", "/accounting-exports",
-        "/adapter-commands", "/import-jobs",
+        "/adapter-commands", "/import-jobs", "/calendar-feeds",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -476,7 +477,7 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
         b.request_id, b.relationship_type_id, b.custom_field_id, b.template_id, b.binding_id, b.document_id,
         b.pending_document_id, b.membership_type_id, b.membership_plan_id, b.contract_id, b.package_plan_id,
         b.package_id, b.series_id, b.api_key_id, b.webhook_endpoint_id, b.webhook_delivery_id,
-        b.external_connection_id,
+        b.external_connection_id, b.calendar_feed_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs

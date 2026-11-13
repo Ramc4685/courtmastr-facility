@@ -2,17 +2,23 @@
 connections, the accounting export and the adapter directory. Every route is require()-gated, so API keys may
 call them too, but minting credentials and subscribing need a signed-in person (service._require_person)."""
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
+from sqlalchemy.orm import Session as Db
 
+from app.core import ratelimit
 from app.core.api import TxRoute, camel_id
-from app.core.auth.deps import Ctx, require
+from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
+from app.core.auth.principal import system_principal
+from app.core.errors import NotFound
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
+from app.core.ratelimit import rate_limit
+from app.modules.integrations import feeds, service
 from app.modules.integrations import schemas as s
-from app.modules.integrations import service
 from app.modules.integrations.domain.webhooks import redact
 
 router = APIRouter(
@@ -184,3 +190,98 @@ def list_api_operations(request: Request, ctx: Ctx = Depends(require(KEYS))):
 def list_adapter_commands(query: Lists, ctx: Ctx = Depends(require("integrations.connection.manage"))):
     """What simulated adapters were asked to do. Filters: port, location_id. Sort: occurred_at."""
     return service.list_adapter_commands(ctx.session, ctx.principal, query)
+
+
+# --- calendar feeds (INT-08, SCH-19, STF-13, LGE-25, SSP-19) and the public schedule (SCH-20) -----------------
+
+
+def _feed_created(row, token: str | None) -> dict:
+    return s.CalendarFeedOut.model_validate(row).model_dump() | {"url_token": token}
+
+
+@router.get("/calendar-feeds", response_model=s.Page[s.CalendarFeedOut])
+def list_calendar_feeds(query: Lists, ctx: Ctx = Depends(require())):
+    """Your feeds; with integrations.calendar_feed.revoke_any, every staff feed in your locations.
+    Filters: kind, status, owner_staff_user_id. Sort: created_at, name. URLs are never listed."""
+    return feeds.list_feeds(ctx.session, ctx.principal, query)
+
+
+@router.post("/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
+@secret_response
+def create_calendar_feed(body: s.CalendarFeedCreate, ctx: Ctx = Depends(require())):
+    """A staff schedule (bookings you can read, optionally your shifts) or one team's games. The URL token is in
+    this response only. Errors: staff-session-required, permission-denied."""
+    row, token = feeds.create_feed(ctx.session, ctx.principal, body.model_dump())
+    return _feed_created(row, token)
+
+
+@router.patch("/calendar-feeds/{calendar_feed_id}", response_model=s.CalendarFeedCreated)
+@secret_response
+def update_calendar_feed(calendar_feed_id: UUID, body: s.CalendarFeedUpdate, ctx: Ctx = Depends(require())):
+    """Rename, change shifts, disable, or re-enable with a new URL (`url_token` is set only then). Someone
+    else's feed may only be disabled, under revoke_any."""
+    row, token = feeds.update_feed(ctx.session, ctx.principal, calendar_feed_id, body.model_dump(exclude_unset=True))
+    return _feed_created(row, token)
+
+
+@router.delete("/calendar-feeds/{calendar_feed_id}", status_code=204)
+def delete_calendar_feed(calendar_feed_id: UUID, ctx: Ctx = Depends(require())) -> None:
+    feeds.delete_feed(ctx.session, ctx.principal, calendar_feed_id)
+
+
+@router.post("/portal/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
+@secret_response
+def create_portal_calendar_feed(body: s.PortalCalendarFeedCreate, ctx: Ctx = Depends(current_ctx)):
+    """My schedule: the sessions I and my household are enrolled in. The URL token is in this response only."""
+    row, token = feeds.create_member_feed(ctx.session, ctx.principal, body.model_dump())
+    return _feed_created(row, token)
+
+
+@inbound.get(
+    "/public/calendar-feeds/{token}", response_class=Response, responses={200: {"content": {"text/calendar": {}}}}
+)
+def get_public_calendar_feed(token: str, request: Request, response: Response):
+    """iCalendar text, recomputed from the owner's current access on each fetch. 404 for any unusable URL."""
+    # The token is a credential: keep it out of the access log and error bodies from here on.
+    request.scope["path"] = request.scope["path"].replace(token, "[redacted]")
+    request.scope["raw_path"] = request.scope["path"].encode()
+    tenant_id = feeds.tenant_of(token)
+    if tenant_id is None:
+        raise NotFound()
+    ratelimit.hit("calendar-feed", token, response, tenant=tenant_id)
+    session = request_session(request, tenant_id)
+    session.info["actor"] = system_principal("calendar feed")
+    body = feeds.render(session, token)
+    return Response(
+        body,
+        media_type="text/calendar; charset=utf-8",
+        headers=dict(response.headers) | {"Cache-Control": "private, max-age=900"},
+    )
+
+
+@router.get("/public-schedule-settings", response_model=s.PublicScheduleSettingsOut, tags=["scheduling"])
+def get_public_schedule_settings(location_id: UUID, ctx: Ctx = Depends(require("scheduling.public_schedule.manage"))):
+    """What the location's public schedule shows. A location never configured is unpublished."""
+    return feeds.get_public_schedule_settings(ctx.session, ctx.principal, location_id)
+
+
+@router.patch("/public-schedule-settings", response_model=s.PublicScheduleSettingsOut, tags=["scheduling"])
+def update_public_schedule_settings(
+    body: s.PublicScheduleSettingsUpdate, ctx: Ctx = Depends(require("scheduling.public_schedule.manage"))
+):
+    """Publish or hide a location's schedule and choose what it shows; omitted fields keep their value."""
+    return feeds.update_public_schedule_settings(ctx.session, ctx.principal, body.model_dump())
+
+
+@inbound.get(
+    "/public/schedule", response_model=s.PublicScheduleOut, tags=["scheduling"],
+    dependencies=[Depends(rate_limit("public-schedule"))],
+)  # fmt: skip
+def get_public_schedule(
+    location_id: UUID, response: Response, session: Annotated[Db, Depends(public_session)],
+    from_on: date | None = None, days: Annotated[int | None, Query(ge=1, le=31)] = None,
+):  # fmt: skip
+    """Embeddable: a published location's sessions with seats left and, if shown, busy times with no names.
+    Tenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule."""
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return feeds.public_schedule(session, location_id, from_on, days)

@@ -1233,7 +1233,12 @@ def _populate_integrations(client, headers, tenant, post, location, person) -> d
         integrations.service.video_meetings(session, location["id"]).delete_meeting("populate")
         session.flush()
         delivery_id = str(delivery.id)
+    feed = post("/calendar-feeds", {"kind": "staff_schedule", "name": "My bookings", "location_id": location["id"]})
+    published = client.patch(
+        "/api/v1/public-schedule-settings", headers=headers, json={"location_id": location["id"], "is_enabled": True}
+    )
+    assert published.status_code == 200, published.text
     return {
         "api_key_id": api_key["id"], "webhook_endpoint_id": endpoint["id"], "webhook_delivery_id": delivery_id,
-        "external_connection_id": connection["id"],
+        "external_connection_id": connection["id"], "calendar_feed_id": feed["id"],
     }  # fmt: skip
