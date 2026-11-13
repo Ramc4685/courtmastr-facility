@@ -140,7 +140,9 @@ def test_portal_quotes_and_charges_the_member_price(client, owner, tenant, f):
     checkout = ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 23, 24)))
     assert checkout["quote"]["subtotal_minor"] == price(mine, 23)["price_minor"]
     stranger = new_client(client, owner, f.location)["id"]
-    assert client.get(f"{API}/portal/rental-availability?{query}&client_id={stranger}", headers=portal).status_code == 404
+    assert (
+        client.get(f"{API}/portal/rental-availability?{query}&client_id={stranger}", headers=portal).status_code == 404
+    )
 
 
 def test_a_membership_that_lapses_after_the_quote_the_charge_wins(client, owner, tenant, f):
@@ -241,4 +243,3 @@ def test_coaching_keeps_its_rules_a_parent_registers_a_child(client, owner, tena
     enrolled = ok(client.post(f"{API}/portal/enrollments", headers=portal,
                               json={"client_id": kid, "session_id": seat["id"]}))  # fmt: skip
     assert enrolled["client_id"] == kid and enrolled["status"] == "enrolled"
-

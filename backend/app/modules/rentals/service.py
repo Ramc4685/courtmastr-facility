@@ -444,7 +444,10 @@ def _member_pricing(session: Db, client_id: UUID | None, on: date) -> tuple[bool
 
 
 def _price_for(
-    session: Db, rate: pricing.Rate, occurrences: list[pricing.Occurrence], client_id: UUID | None,
+    session: Db,
+    rate: pricing.Rate,
+    occurrences: list[pricing.Occurrence],
+    client_id: UUID | None,
     grouping: str | None = None,
 ) -> list[pricing.Line]:
     """The rental price for quote and charge alike: each occurrence at the payer's member status on its own
@@ -463,7 +466,9 @@ def _price_for(
         for (is_member, types), group in groups.items()
         for line in pricing.price(rate, group, is_member=is_member, member_types=types, grouping=grouping)
     ]
-    return sorted(lines, key=lambda line: (line.occurrence_index or 0, str(line.resource_id or ""), -line.unit_amount_minor))
+    return sorted(
+        lines, key=lambda line: (line.occurrence_index or 0, str(line.resource_id or ""), -line.unit_amount_minor)
+    )
 
 
 def _currency(session: Db) -> str:
@@ -766,9 +771,7 @@ def _decide(
     return priced.quote(_currency(session), rtype.deposit_pct), _route(session, decision, posted, client_id)
 
 
-def _price_rows(
-    session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking], client_id: UUID
-) -> _Priced:
+def _price_rows(session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking], client_id: UUID) -> _Priced:
     occurrences = _occurrence_inputs(session, rows, _type_resources(session, rtype.id))
     return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date(), client_id)
 
@@ -1338,7 +1341,12 @@ def _check_online_slot(session: Db, rtype: RentalType, starts_at: datetime, ends
 
 
 def search_availability(
-    session: Db, type_id: UUID, on: date, *, length_min: int | None = None, resource_id: UUID | None = None,
+    session: Db,
+    type_id: UUID,
+    on: date,
+    *,
+    length_min: int | None = None,
+    resource_id: UUID | None = None,
     client_id: UUID | None = None,
 ) -> list[dict]:
     """Advisory slots (RNT-06): free ranges of the type's resources on a local date, snapped to the grid,

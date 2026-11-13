@@ -8,7 +8,7 @@ This check builds CIRQT in the product and drives it the way the owner would. No
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 16 pass, 0 fail, 9 gaps.** Run on 2026-11-13 against Alembic head 1562.
+**Result: 18 pass, 0 fail, 7 gaps.** First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot` (head 1981), which re-ran the scenarios.
 
 ## Assumptions (owner to confirm)
 
@@ -46,7 +46,7 @@ These are the values the seed uses. Marked items are assumptions.
 | e | A minor cannot get a buying login. | **gap**: the invitation works like an adult's |
 | f | Desk work: check-in, a walk-in rental, cash, cancel, refund. | pass (secondary, because CIRQT is unmanned). The front desk role may not refund, so a manager does it. |
 | g | Prime and off-prime pricing in Chicago time, with a booking that straddles 18:00 ($24 + $30), the noon morning edge, Saturday, and the public slot prices. | pass |
-| g | Member prices on bookings. | **gap**: everyone pays the guest price |
+| g | Member prices on bookings. | pass (closed on `claude/rentals-pilot`): members pay the member rate per band; quote and charge share one pricing function |
 | h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass |
 | h | No-show rule for rentals. | **gap** |
 | i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
@@ -58,17 +58,17 @@ These are the values the seed uses. Marked items are assumptions.
 | l | A member buys a lesson package and enrols in a coached lesson. The lesson holds its court. | pass |
 | m | A parent buys a lesson for a child and drops the child off. | pass |
 | m | Online, a parent can rent only in their own name, so a child cannot be put on a court alone from the portal. | pass |
-| m | A child cannot be booked on a court without a parent on the booking. | **gap**: staff can do it, and a rental has no participant list or age rule |
+| m | A child cannot be booked on a court without a parent on the booking. | pass (closed on `claude/rentals-pilot`): a minor never holds a rental; the parent holds it and names the child as a player |
 | n | Staff coach versus independent coach: pay rates and what the coach sees. | pass (see below) |
 
 ## What is missing, ranked for CIRQT
 
 1. **Building control: door codes and court lights.** There is no adapter, no booking-bound code, no booking start or end trigger and no remote unlock route. For an unmanned site this is the blocker. Details are below.
-2. **Member prices on rentals.** Rentals price every payer as a guest; screenshot 05 shows a member billed $54 (guest $24 + $30) for 17:00-19:00, and the portal (screenshot 15) tells a member "members pay less" while quoting the guest $24. The member price and membership-type rules are stored but never used on bookings. Rentals are the main revenue, so this matters more than anything except the door.
+2. **Member prices on rentals.** *Closed on `claude/rentals-pilot`: one pricing function for quote and charge, member prices online through `/portal/rental-availability` (rentals README).* Before: rentals priced every payer as a guest; screenshot 05 shows a member billed $54 (guest $24 + $30) for 17:00-19:00, and the portal (screenshot 15) tells a member "members pay less" while quoting the guest $24. The member price and membership-type rules are stored but never used on bookings. Rentals are the main revenue, so this matters more than anything except the door.
 3. **Recurring and bulk booking online, and a contract object for clubs.** Staff can book a recurring weekly slot on a discounted rate, but:
    - a member or club cannot do it themselves;
    - there is no agreement with a term or renewal, only a series of bookings on one invoice.
-4. **Kids rules.** The product cannot express "a child who plays must have a parent on the booking":
+4. **Kids rules.** *Rentals closed on `claude/rentals-pilot`: a minor never holds a rental and plays only on a guardian's booking (staff override needs a key and a reason).* Still open: sessions have no age limits, and there is no minor guard on marketing opt-in or portal invitations. Before, the product could not express "a child who plays must have a parent on the booking":
    - a rental has one client and no age setting;
    - sessions have no age limits either.
 
@@ -113,7 +113,7 @@ Nothing in the product drives a door or a light today. The access module reserve
 **What a booking-bound one-time code needs:**
 
 - A validity window around the booking, for example 15 minutes before the start until the end. It must be in the location's zone and must account for the changeover buffers.
-- A choice between one code per booking (shared with the group) and one per participant. For rentals only the booker is known, because rentals have no participant list.
+- A choice between one code per booking (shared with the group) and one per participant. For rentals the booker is known and, since `claude/rentals-pilot`, any household players named on the booking (`rental_party`).
 - Revocation when the booking is cancelled, plus reissue when it is rescheduled.
 - Issuing at or shortly before arrival, through the notification port.
 - An audit record of each issue and use.
@@ -174,7 +174,7 @@ Parents can do the following:
 - buy junior memberships and lesson packages for a child;
 - enrol the child in a coached session and drop them off.
 
-Online rentals refuse a child's name; this is an accident of portal scoping, not a rule.
+Rentals now have a rule (`claude/rentals-pilot`): a child never holds a court booking; a parent books in their own name and names the child as a player, online or at the desk.
 
 There are no age or guardian rules on rentals or sessions. Programs have only an age-division label.
 

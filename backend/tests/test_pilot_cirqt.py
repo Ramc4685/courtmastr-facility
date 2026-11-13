@@ -83,12 +83,13 @@ def client_module():
     return TestClient(app)
 
 
-def rent(c, w, headers, sport: str, court: str, day: date, start: str, end: str, client_id: str | None = None):
+def rent(c, w, headers, sport: str, court: str, day: date, start: str, end: str, client_id: str | None = None,
+         **extra):  # fmt: skip
     return c.post(f"{API}/rentals", headers=headers | key(), json={
         "location_id": w.location, "rental_type_id": w.types[sport], "client_id": client_id or w.others[0],
         "resources": [{"resource_id": w.courts[court]}], "starts_at": at(day, start), "ends_at": at(day, end),
         "charge": {"decision": "bill", "rental_rate_id": w.rates[sport]},
-    })  # fmt: skip
+    } | extra)  # fmt: skip
 
 
 def conflict(response) -> bool:
@@ -401,11 +402,6 @@ def test_g_peak_and_off_peak_in_the_location_zone_with_a_straddling_booking(clie
     assert "22:30" not in by_start  # closes 23:00
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Rental bookings never apply member prices: rentals price every payer as a "
-    "non-member (member_amount_minor and membership-type rules are stored but unused on bookings)",
-)
 def test_g_member_prices(client_module, w):
     c = client_module
     assert preview(c, w, w.member, PDAY, "10:00", "11:00")["subtotal_minor"] == 2000  # owner: $25 prime less 20%
@@ -421,12 +417,14 @@ def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_
     c = client_module
     payer = w.others[1]
     far = ok(rent(c, w, w.desk, "Pickleball court", "Court 2", MON + timedelta(days=4), "14:00", "15:00", payer))
+    paid = far["quote"]["subtotal_minor"]
+    assert paid == 2000  # the payer holds Adult monthly: the member off-prime price
     ok(c.post(f"{API}/payments", headers=w.desk | key(), json={"client_id": payer, "location_id": w.location,
-         "amount_minor": 2400, "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": far["invoice_ids"][0]}))  # fmt: skip
+         "amount_minor": paid, "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": far["invoice_ids"][0]}))  # fmt: skip
     result = ok(c.post(f"{API}/rentals/{far['rental']['id']}/cancel", headers=w.desk, json={"reason": "client"}), 200)
-    assert (result["reversed_minor"], result["late_fee_minor"]) == (2400, 0)
+    assert (result["reversed_minor"], result["late_fee_minor"]) == (paid, 0)
     balance = ok(c.get(f"{API}/clients/{payer}/account-credit", headers=w.owner), 200)
-    assert balance["credit_minor"] == 2400  # paid card money became credit
+    assert balance["credit_minor"] == paid  # paid card money became credit
     soon = datetime.now(ZONE) + timedelta(hours=3)
     start = soon.replace(minute=0, second=0, microsecond=0)
     late = ok(rent(c, w, w.desk, "Pickleball court", "Court 1", start.date(), start.strftime("%H:%M"),
@@ -582,7 +580,7 @@ def test_k_staff_bulk_book_several_courts_for_several_weeks_in_one_go(client_mod
 
 def test_k_a_club_holds_the_same_weekly_prime_slot_at_15_percent_off(client_module, w):
     """Bulk for CIRQT: a club or coach keeps one weekly slot. Staff book it as a recurring rental on the second
-    rate the seed made, "Weekly club" (the guest price with a 15% discount rule). There is no contract object."""
+    rate the seed made, "Weekly club" (the same prices with a 15% discount rule). There is no contract object."""
     c, day = client_module, MON + timedelta(days=11)  # a Friday
     rates = {
         r["name"]: r["id"]
@@ -596,7 +594,7 @@ def test_k_a_club_holds_the_same_weekly_prime_slot_at_15_percent_off(client_modu
     }))  # fmt: skip
     assert made["created_count"] == 8 and len(made["invoice_ids"]) == 1
     invoice = ok(c.get(f"{API}/invoices/{made['invoice_ids'][0]}", headers=w.manager), 200)
-    assert invoice["total_minor"] == 8 * 2550, invoice  # $30 prime guest price less 15%
+    assert invoice["total_minor"] == 8 * 2125, invoice  # the club's holder is a member: $25 member prime less 15%
     assert conflict(rent(c, w, w.desk, "Badminton court", "Court 1", day + timedelta(days=49), "19:30", "20:30"))
 
 
@@ -679,17 +677,13 @@ def test_m_online_a_parent_can_only_rent_a_court_in_their_own_name(client_module
     assert ok(client_module.post(f"{API}/portal/rentals", headers=w.parent_portal, json=body | {"client_id": w.parent}))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="No age rule on rentals: staff (or an import) can book a court in a child's "
-    "name alone; a rental carries one client and no participant list, so 'a parent on the booking' "
-    "cannot be expressed or enforced, and rental types have no age or guardian setting",
-)
 def test_m_a_child_cannot_be_booked_on_a_court_without_a_parent(client_module, w):
-    response = rent(
-        client_module, w, w.desk, "Badminton court", "Court 4", MON + timedelta(days=12), "17:00", "18:00", w.kids[1]
-    )
-    assert response.status_code in (403, 409, 422), response.text
+    day = MON + timedelta(days=12)
+    response = rent(client_module, w, w.desk, "Badminton court", "Court 4", day, "17:00", "18:00", w.kids[1])
+    assert (response.status_code, response.json()["code"]) == (422, "minor-cannot-hold-rental"), response.text
+    with_parent = rent(client_module, w, w.desk, "Badminton court", "Court 4", day, "17:00", "18:00", w.parent,
+                       parties=[{"client_id": w.kids[1]}])  # fmt: skip
+    assert with_parent.status_code == 201, with_parent.text  # the parent holds and pays; the child plays
 
 
 # --- n. coaches: one on staff, one independent ----------------------------------------------------------------

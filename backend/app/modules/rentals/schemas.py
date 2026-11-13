@@ -211,7 +211,9 @@ class RentalCreate(In):
     on_conflict: OnConflict = "abort"
     override_policy: bool = False
     # Past the minors rule: needs rentals.booking.override_minor; kept on the rental, flag-only in audit.
-    minor_override_reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None = None
+    minor_override_reason: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None
+    ) = None
 
 
 class QuoteLine(Out):
