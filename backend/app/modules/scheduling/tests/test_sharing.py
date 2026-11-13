@@ -18,7 +18,7 @@ from app.modules.scheduling import subject
 from app.modules.scheduling.models import Booking, BookingParticipant, BookingSeries, BookingSeriesRun, Session
 from app.modules.scheduling.tests.helpers import API, at, book, ok
 from app.modules.scheduling.tests.helpers import facility as build_facility
-from conftest import new_client
+from conftest import add_staff, login, new_client
 
 
 @pytest.fixture
@@ -165,6 +165,39 @@ def test_shared_booking_lists_organiser_and_relatives_each_with_own_attendance(c
     refused(client.delete(f"{url}/{rows[0]['id']}", headers=owner), 409, "invalid-state-transition")
     ok(client.delete(f"{url}/{kid_row['id']}", headers=owner), 204)
     assert [r["client_id"] for r in ok(client.get(url, headers=owner), 200)] == [organiser["id"]]
+
+
+def shared_kid_row(client, owner, tenant, f, start: float) -> tuple[str, dict]:
+    """A shared booking on Court 1 with the organiser's child on it; returns the participants URL and the row."""
+    booking = session_booking(client, owner, f, start)
+    organiser, kid = new_client(client, owner, f.location), new_client(client, owner, f.location)
+    relate(client, owner, organiser["id"], kid["id"])
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.get(Booking, UUID(booking["id"])).client_id = UUID(organiser["id"])
+    url = f"{API}/bookings/{booking['id']}/participants"
+    return url, ok(client.post(url, headers=owner, json={"client_id": kid["id"]}))[1]
+
+
+def test_reverting_a_no_show_needs_the_exception_key(client, owner, tenant, f):
+    url, row = shared_kid_row(client, owner, tenant, f, 17)
+    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
+    assert ok(client.patch(f"{url}/{row['id']}", headers=desk, json={"attendance": "attended"}), 200)
+    refused(
+        client.patch(f"{url}/{row['id']}", headers=desk, json={"attendance": "scheduled"}), 403, "permission-denied"
+    )
+    ok(client.patch(f"{url}/{row['id']}", headers=owner, json={"attendance": "no_show"}), 200)
+    for back in ("scheduled", "attended"):  # undoing a no-show is an exception too
+        refused(client.patch(f"{url}/{row['id']}", headers=desk, json={"attendance": back}), 403, "permission-denied")
+
+
+def test_a_coach_cannot_mark_attendance_outside_their_calendar(client, owner, tenant, f):
+    url, row = shared_kid_row(client, owner, tenant, f, 18)
+    email, staff_id = add_staff(tenant, "coach", location_ids=[f.location])
+    trainer = {"location_id": f.location, "resource_group_id": f.group, "name": "Coach Lee", "kind": "trainer",
+               "staff_user_id": str(staff_id)}  # fmt: skip
+    ok(client.post(f"{API}/resources", headers=owner, json=trainer))
+    coach = login(client, tenant, email)
+    refused(client.patch(f"{url}/{row['id']}", headers=coach, json={"attendance": "attended"}), 404, "not-found")
 
 
 def test_erasure_waits_for_a_shared_booking_ahead(client, owner, tenant, f):

@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
-from app.core.errors import DomainError, NotFound, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import billing, clients, platform
 from app.modules.packages import service
@@ -321,8 +321,11 @@ def _run(session: Session, close: PostBilledClose, lines: list[dict]) -> tuple[l
                     step()
             except (DomainError, IntegrityError) as exc:
                 failed.setdefault(line["client_package_id"], exc.code if isinstance(exc, DomainError) else "conflict")
-            except Exception:  # a bug in one package rolls back its savepoint; the close and the rest go on
-                log.exception("post-billed close step %s failed for package %s", name, line["client_package_id"])
+            except Exception as exc:  # a bug in one package rolls back its savepoint; the close and the rest go on
+                log.error(  # id and type only: the message and SQL parameters may carry client data
+                    "post-billed close step %s failed for package %s: %s",
+                    name, line["client_package_id"], type(exc).__name__,
+                )  # fmt: skip
                 failed.setdefault(line["client_package_id"], "unexpected-error")
             else:
                 if name == "bill":
@@ -344,7 +347,7 @@ def _clear_stale_failures(session: Session, close: PostBilledClose, lines: list[
         c.closing_on <= close.closing_on,
         func.jsonb_array_length(c.failures) > 0,
     )
-    for other in session.scalars(stmt.with_for_update()):
+    for other in session.scalars(stmt.order_by(c.id).with_for_update()):  # id order: retries never deadlock
         kept = [f for f in other.failures if UUID(f["client_package_id"]) not in done]
         if len(kept) != len(other.failures):
             changes = {"cleared_failures": len(other.failures) - len(kept), "by_close": str(close.id)}
@@ -409,7 +412,12 @@ def _credit_back(session: Session, line: dict) -> None:
         charge = _live_charge(session, billed.id)
         to_credit = 0
         if charge is not None:
-            quantity = int(charge.quantity)  # Numeric in billing; sessions are whole, and money must leave as int
+            if charge.quantity != int(charge.quantity):  # staff billed part of a session: they credit it by hand
+                raise Conflict(
+                    "This line's charge has a fractional quantity; credit the sessions back by hand.",
+                    code="fractional-quantity",
+                )
+            quantity = int(charge.quantity)  # Numeric in billing; whole here, and money must leave as int
             u = PostBilledUsage
             still_billed = (
                 session.scalar(select(func.count()).where(u.post_billed_line_id == billed.id, u.credited_at.is_(None)))

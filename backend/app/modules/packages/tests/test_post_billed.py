@@ -2,11 +2,13 @@
 closing date, one charge and invoice per package, idempotency per period, skipped lines and the gate."""
 
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
+from sqlalchemy.engine import Engine
 
 from app.core.audit import AuditEvent
 from app.core.errors import ValidationFailed
@@ -466,3 +468,45 @@ def test_retrying_an_older_close_keeps_a_later_close_failure(client, w, monkeypa
         assert ok(client.post(f"{API}/post-billed-closes/{first['id']}/retry", headers=w.owner), 200)["failed"] == []
     kept = ok(client.get(f"{API}/post-billed-closes/{second['id']}", headers=w.owner), 200)["failed"]
     assert [f["client_package_id"] for f in kept] == [bad["id"]]  # its later session is still unbilled
+
+
+def test_a_fractional_quantity_set_by_staff_is_left_for_staff_to_credit(client, w):
+    line, restored = billed_line(client, w, 3)
+    with at(DAY), tx(w.tenant) as session:  # staff bill two and a half sessions, then a credit comes back
+        billing.service.adjust_charge(session, UUID(line["charge_id"]), reason="Half", quantity=Decimal("2.5"))
+        service.restore_credit(session, **restored)
+    done = ok(close(client, w, DAY + timedelta(days=1)), 201)
+    assert [(f["client_package_id"], f["code"]) for f in done["failed"]] == [
+        (line["client_package_id"], "fractional-quantity")
+    ]
+    assert live_line_charge(w, line["id"]).quantity == Decimal("2.5")  # nothing truncated or posted
+
+
+def test_a_retry_locks_packages_before_closes_and_closes_in_id_order(client, w, monkeypatch):
+    rate(client, w, 1, 1000)
+    bad = open_package(client, w, name="Second")
+    use(w, bad, DAY)
+    real = billing.service.post_charge
+
+    def flaky(session, **kwargs):
+        raise ValidationFailed("No.", pointer="/x")
+
+    monkeypatch.setattr(billing.service, "post_charge", flaky)
+    first = ok(close(client, w, DAY), 201)
+    monkeypatch.setattr(billing.service, "post_charge", real)
+    seen: list[str] = []
+
+    def spy(conn, cursor, statement, params, context, executemany):
+        seen.append(" ".join(statement.split()))
+
+    event.listen(Engine, "before_cursor_execute", spy)
+    try:
+        with at(DAY):
+            ok(client.post(f"{API}/post-billed-closes/{first['id']}/retry", headers=w.owner), 200)
+    finally:
+        event.remove(Engine, "before_cursor_execute", spy)
+    locks = [sql for sql in seen if "FOR UPDATE" in sql]
+    package = next(i for i, sql in enumerate(locks) if "FOR UPDATE OF client_package" in sql)
+    closes = [i for i, sql in enumerate(locks) if "FROM post_billed_close" in sql]
+    assert closes and package < min(closes)  # packages first, as a close does
+    assert all("ORDER BY post_billed_close.id" in locks[i] for i in closes[1:])  # the other closes, in id order

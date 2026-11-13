@@ -77,7 +77,9 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
   a new price) is followed to its replacement; its discount is kept flat (not pro rata), capped at the new gross.
   Sessions staff already took off the live charge by hand (its quantity below the line's still-billed usage) are
   not credited again, and staff reversing the line with no live charge left counts as handled too: either way the
-  audit says `charge_changed_by_hand` and only the rest, if any, is posted. Money leaves this module as `int`.
+  audit says `charge_changed_by_hand` and only the rest, if any, is posted. A live charge with a fractional
+  quantity (staff billed part of a session) is not credited automatically: the package is stored as a
+  `fractional-quantity` failure for staff to credit by hand. Money leaves this module as `int`.
 - **The close** (`POST /post-billed-closes`, gate `packages.period.close`, location scoped) writes one
   `post_billed_close` per location and date, then per package a `post_billed_line`, one
   `billing.service.post_charge` and one `create_invoice_for_charges`. A close always covers every package of
@@ -89,7 +91,7 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
   otherwise they are picked up by a later close. A close or retry that gives a package a step without failing
   clears it from the failures of closes of the same or an earlier period (audited); a later period's failure
   stays. An unexpected error in one package rolls back that package only and is stored as `unexpected-error`.
-  A retry locks the packages before the close, as a close does. Ended packages with nothing owed are neither read nor locked. A package without auto-renew ends
+  A retry locks the packages before the close, as a close does, and other closes are locked in id order. Ended packages with nothing owed are neither read nor locked. A package without auto-renew ends
   at a close only when nothing is held and nothing was used after the closing date. A renewal stays
   post-billed. `POST /post-billed-closes/preview` shows the same lines without writing.
 - `post_billed_line` is a financial record: merge repoints its client, erasure keeps it.

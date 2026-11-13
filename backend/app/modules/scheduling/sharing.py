@@ -207,14 +207,29 @@ def remove_participant(session: Db, principal: Principal, booking_id: UUID, part
     session.flush()
 
 
+def _attendance_booking(session: Db, principal: Principal, booking_id: UUID) -> Booking:
+    """The booking for an attendance mark, through the reach gate programs uses for attendance. A coach limited to
+    their own calendar gets 404 for a booking without their resource: it is outside their reach."""
+    booking = service._load(session, principal, Booking, booking_id, lock=True)
+    if principal.kind == "staff" and principal.permissions.get(MARK) == "own":
+        mine = platform.service.linked_resource_id(session, principal.staff_user_id)
+        if mine is None or mine not in set(service._resource_ids(session, booking)):
+            raise NotFound()
+    service.authorize_reach(session, principal, MARK, booking.id)
+    if booking.kind == "block":
+        raise Conflict("A time block has no clients.", code="invalid-state-transition")
+    return booking
+
+
 def mark_attendance(session: Db, principal: Principal, booking_id: UUID, participant_id: UUID, attendance: str) -> dict:
-    """One participant's own attendance. A no-show needs the exception key, as for enrolments."""
-    booking = _shareable(session, principal, booking_id, MARK)
-    if attendance == "no_show":
-        authorize(principal, MARK_EXCEPTION, location_id=booking.location_id)
+    """One participant's own attendance. Only scheduled to attended takes the ordinary key; any other change
+    (marking or undoing a no-show, taking back an attended mark) needs the exception key, as for enrolments."""
+    booking = _attendance_booking(session, principal, booking_id)
     if booking.status == "cancelled":
         raise Conflict("A cancelled booking takes no attendance.", code="invalid-state-transition")
     row = _participant(session, booking, participant_id)
+    if row.attendance != attendance and (row.attendance, attendance) != ("scheduled", "attended"):
+        service.authorize_reach(session, principal, MARK_EXCEPTION, booking.id)
     if row.attendance != attendance:
         changes = {"attendance": [row.attendance, attendance]}
         row.attendance, row.attendance_marked_at = attendance, None if attendance == "scheduled" else clock.now()

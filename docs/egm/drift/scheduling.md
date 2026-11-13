@@ -25,3 +25,9 @@ Refreshed 2026-11-13 (re-verified after the tests-only round). Scheduling code i
 - [contract] The guard's 409 body is a bare `Conflict` with a fixed sentence and no `extra` (no count or first booking), so staff cannot see which bookings to cancel. The contract documents only the code in `x-problem-codes` (`openapi-core.yaml:700`). The README does not say staff must cancel or move the bookings through the calendar first.
 
 Fixed since the last report and dropped: the 5-minute buffer wording and the README item numbering (items now run 1-18; buffers say the step is API-only, line 77); the README now lists `subject.py`, `events.py`, `permissions.py` and most older internal helpers; the README documents the location-archive guard (lines 50-52), the confirmed-or-live-hold rule and that closure blocks never count; the three public-schedule operations, the unused `public_schedule.manage` key and `createSlotOfferDirectLink` are named under Not built; the `series-run-in-progress` and changed-between-read-and-lock 409s are documented; the type-grant permission key is named; the repeated lock-order sentence is gone.
+
+
+Fixed since the last refresh (2026-11-13, follow-up round): participant attendance (`sharing.mark_attendance`)
+requires `scheduling.attendance.mark_exception` for every change other than scheduled to attended, goes through
+`authorize_reach`, and answers 404 to an `own`-scoped coach on a booking without their resource. The README
+states this; no new drift.

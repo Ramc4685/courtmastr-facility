@@ -31,7 +31,8 @@ run in CI only).
   signs in first.
 - Shared booking participants must be active relatives of the organiser, and only a client's own booking
   (with an organiser) can be shared; class sessions take seats through enrolments only. Package credit is
-  spent by the packages calls, not by scheduling.
+  spent by the packages calls, not by scheduling. A participant's attendance takes the ordinary key only from
+  scheduled to attended; every other change needs the exception key, and coaches mark only their own sessions.
 - A direct link's token travels in the portal enrolment body and waives only the listing and self-booking
   checks.
 - Rate tiers are whole-count: every session of the period bills at the highest tier the count reaches; tier 1
@@ -43,6 +44,10 @@ run in CI only).
   a later close that bills the package clears it. Its reservation type must belong to its location.
 - Decision taken for the owner: a credit-back keeps a staff discount flat (not pro rata), capped at the line's
   new gross, and does not credit again sessions staff already took off the charge by hand.
+- Decision taken for the owner: a consequence of the flat discount is that a session staff compensated with a
+  discount and a refund, then restored, is credited again, which leaves the client account credit.
+- Decision taken for the owner: a line whose live charge has a fractional quantity is never credited back
+  automatically; the close stores a `fractional-quantity` failure and staff credit it by hand.
 - One bound agreement per contract, signed and of the agreement kind; a signed binding is not replaced.
 
 ## Not built

@@ -140,8 +140,10 @@ of shared bookings. (Merge and erasure are handled since integration: `subject.p
   booking needs a package) still apply (`test_sharing.py`). Assumption: one link
   per session (not per client), resolving only while the session is ahead and not cancelled.
 - **Shared bookings (SCH-17, SSP-09).** `booking_participant` lists the clients on a client's own booking
-  (one with an organiser), each with their own `attendance` (`scheduled`, `attended`, `no_show`; a no-show
-  needs `mark_exception`). A booking without an organiser, such as a class session, takes no participants
+  (one with an organiser), each with their own `attendance` (`scheduled`, `attended`, `no_show`). Only
+  scheduled to attended takes `attendance.mark`; any other change, such as marking or undoing a no-show, needs
+  `mark_exception`. Marks go through the reach gate programs uses (`authorize_reach`), and a coach limited to
+  their own calendar gets 404 on a booking without their resource. A booking without an organiser, such as a class session, takes no participants
   (409): its seats go through enrolments, which hold capacity, waivers and payment. Only the organiser's
   active relatives can join; the organiser is listed once it is shared and cannot be removed. Erasure of a
   client waits while they are a participant on a booking ahead, as it does for their own bookings.
