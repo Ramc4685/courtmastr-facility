@@ -484,9 +484,9 @@ JavaScript is accepted anywhere. Values reach the page as CSS custom properties 
 
 ```
 Content-Security-Policy:
-  default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline';
+  default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline';
   img-src 'self' data: blob: https://<files-origin>; font-src 'self'; connect-src 'self' https://api.stripe.com;
-  frame-src https://js.stripe.com https://hooks.stripe.com https://www.youtube-nocookie.com
+  frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://www.youtube-nocookie.com
             https://player.vimeo.com https://fast.wistia.net;
   object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 Strict-Transport-Security: max-age=31536000; includeSubDomains

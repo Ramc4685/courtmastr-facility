@@ -43,7 +43,9 @@ for h in 'x-content-type-options: nosniff' 'x-frame-options: DENY' 'referrer-pol
 done
 has "api: strict-transport-security: max-age=31536000" 'strict-transport-security: max-age=31536000' "$api"
 if grep -qi '^strict-transport-security' <<<"$page"; then bad "page sends HSTS on localhost"; else ok "page sends no HSTS on localhost (it would pin every local dev server)"; fi
-has "page CSP is strict" "script-src 'self'" "$page"
+has "page CSP is strict" "script-src 'self' https://js.stripe.com https://*.js.stripe.com;" "$page"
+has "page CSP lets the Stripe Payment Element frame in" "frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com;" "$page"
+has "page CSP lets Stripe.js call its API, nothing else" "connect-src 'self' https://api.stripe.com;" "$page"
 has "page CSP forbids framing" "frame-ancestors 'none'" "$page"
 has "api keeps its own deny-all CSP" "default-src 'none'; frame-ancestors 'none'" "$api"
 has "api responses are no-store" 'cache-control: no-store' "$api"

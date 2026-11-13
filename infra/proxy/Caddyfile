@@ -46,9 +46,12 @@
 	@public not host localhost *.localhost
 	header @public Strict-Transport-Security "max-age=31536000; includeSubDomains"
 
-	# The API sends its own deny-all CSP and no-store; everything else is the SPA (security-baseline 9.6).
+	# The API sends its own deny-all CSP and no-store; everything else is the SPA (security-baseline 9.6). The only
+	# third-party origins are Stripe's documented ones for Stripe.js and the Payment Element (card and bank entry,
+	# 3-D Secure): script and frames from js.stripe.com, the 3-D Secure frame from hooks.stripe.com, calls to
+	# api.stripe.com (StripeCardField.tsx). Nothing else may load.
 	@spa not path /api/*
-	header @spa Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+	header @spa Content-Security-Policy "default-src 'none'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.stripe.com; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
 
 	# Never public: the interactive docs load CDN scripts on the app origin, the OpenAPI document maps every route, and the
 	# operator routes (tenant onboarding) are for the platform operator, who reaches the API around the proxy
