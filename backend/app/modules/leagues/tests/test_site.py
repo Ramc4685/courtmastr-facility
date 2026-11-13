@@ -145,6 +145,15 @@ def test_public_teams_players_stats_and_brackets(client, owner, tenant, f):
     ok(client.delete(f"{API}/roster-entries/{ana['id']}", headers=owner), 204)
     assert get(client, public, f"/public/competitions/{comp['id']}/player-stats") == []  # removed: no longer named
     assert get(client, owner, f"/competitions/{comp['id']}/player-stats")  # staff keep the history
+    bea = post(client, owner, f"/competition-teams/{comp['teams'][1]['id']}/roster",
+               {"first_name": "Bea", "last_name": "Away"})  # fmt: skip
+    ok(client.put(f"{API}/games/{game['id']}/player-stats", headers=owner, json={"stats": [
+        {"roster_entry_id": bea["id"], "stat_definition_id": goals["id"], "value": "1"}]}), 200)  # fmt: skip
+    assert [r["player_name"] for r in get(client, public, f"/public/competitions/{comp['id']}/player-stats")] == [
+        "Bea Away"]  # fmt: skip
+    ok(client.patch(f"{API}/competition-teams/{comp['teams'][1]['id']}", headers=owner, json={"status": "withdrawn"}),
+       200)  # fmt: skip
+    assert get(client, public, f"/public/competitions/{comp['id']}/player-stats") == []  # a withdrawn team's too
 
     seeds = [t["id"] for t in comp["teams"]]
     ok(client.put(f"{API}/competitions/{comp['id']}/seeding", headers=owner, json={"competition_team_ids": seeds}), 200)

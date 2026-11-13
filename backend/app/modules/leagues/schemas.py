@@ -137,7 +137,6 @@ class _CompetitionFields(_ScoringIn):
     ends_on: date | None = None
     game_length_min: Annotated[int, Field(gt=0, le=600)] | None = None
     is_public: bool | None = None
-    shows_roster_publicly: bool | None = None
     show_players: bool | None = None  # B2: player names and stats on the public site; default off (minors)
     max_defaults: Annotated[int, Field(ge=0)] | None = None
     max_forfeits: Annotated[int, Field(ge=0)] | None = None

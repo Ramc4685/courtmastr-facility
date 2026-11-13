@@ -113,8 +113,9 @@ export function makeQueryClient() {
   })
 }
 
-/** True inside an iframe. The proxy lets other sites frame the public league pages and the TV board only; this keeps
- * every other screen out of a frame too, since the app is one document and any route can load behind those paths. */
+/** True inside an iframe. Embedding is not yet enabled at the proxy (it still refuses all framing); when it is, it
+ * should allow the public league pages and the TV board only, and this keeps every other screen out of a frame too,
+ * since the app is one document and any route can load behind those paths. */
 export function isFramed(): boolean {
   return window.top !== window.self
 }

@@ -14287,17 +14287,6 @@
             ],
             "title": "Show Players"
           },
-          "shows_roster_publicly": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shows Roster Publicly"
-          },
           "sport_id": {
             "format": "uuid",
             "title": "Sport Id",
@@ -15362,17 +15351,6 @@
               }
             ],
             "title": "Show Players"
-          },
-          "shows_roster_publicly": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shows Roster Publicly"
           },
           "standings_columns": {
             "anyOf": [
