@@ -1,14 +1,9 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo data (docs/dev/demo-accounts.md): the owner sees every client screen; Morgan Member (M-1001)
 // has a household (Mia, a dependent; Riley, a spouse) and an alert.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('client list, profile tabs and merge flow pass the axe WCAG 2.1 AA scan', async ({ page }) => {
   test.setTimeout(120_000) // twelve axe scans across two colour schemes; over 30s on a loaded machine

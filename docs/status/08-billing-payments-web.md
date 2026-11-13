@@ -48,7 +48,7 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | BIL-20 Collections tagging and reports | P1 | done | Billing > Collections (report, tags); Collections tab on the client's billing page | CollectionsPage.test, e2e collections | |
 | BIL-21 Client account credit | P0 | partial | Client billing > Account credit (apply to invoices, refund); overpayment note in Take payment | e2e1 (2.00 over goes to credit, then refunded) | Backend gaps carry over. |
 | BIL-22 Billing reminders and past-due enforcement | P0 | done | Billing > Notices; Settings > portal-block hint | NoticesPage.test, e2e collections | The lockout is server-side; the portal shows the refusal message. |
-| BIL-23 Invoice API endpoints | P1 | partial | Invoice page > Mark paid | backend only | The public API v1 belongs to `integrations`. |
+| BIL-23 Invoice API endpoints | P1 | done | Invoice page > Mark paid | backend only | Built in phase 15 (phase15-api.md). |
 | BIL-24 Outsourced billing and collections | P2 | not built | none | none | Not planned. |
 | PAY-01 Take payment and allocate | P0 | done | Take payment dialog (split tender, stored or new method, confirm authentication); Allocate dialog and release allocation on the payment page | TPD (6), e2e1, e2e2, axe | Payments post in order and stop at the first failure. Each row keeps its idempotency key through a lost answer or 5xx, and gets a new key after a decline or 4xx. |
 | PAY-02 Payment method configuration | P0 | done | Set-up > Tenders (hide or show the optional ones, add an external tender) | axe | |

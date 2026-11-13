@@ -753,7 +753,7 @@ function PortalState({ locationId }: { locationId: string }) {
   return (
     <p className="text-sm text-muted sm:col-span-3">
       {state ? <>The member portal at this location is <strong>{state}</strong>. </> : 'Members also need the member portal on at this location. '}
-      <Link to="/engagement/portal" className="text-primary underline-offset-2 hover:underline">Portal settings</Link>
+      <Link to="/engagement/portal" className="text-primary underline">Portal settings</Link>
     </p>
   )
 }

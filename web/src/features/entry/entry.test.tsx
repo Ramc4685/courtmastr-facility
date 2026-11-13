@@ -73,6 +73,13 @@ describe('FacilityApp', { timeout: 20_000 }, () => {
     expect(post?.body).toMatchObject({ location_id: 'l1', email: 'nia@example.com', first_name: 'Nia', phone_mobile: null })
   })
 
+  it('keeps a page heading and title when no location allows online sign-up', async () => {
+    open('/f/riverside/signup', { 'GET /api/v1/public/portal-config': config({ allows_self_signup: false }) })
+    expect(await screen.findByRole('heading', { name: 'Create an account', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('Online sign-up is not available')).toBeInTheDocument()
+    expect(document.title).toBe('Create an account · Riverside Club')
+  })
+
   it('reads the confirm token from the fragment and spends it on a click', async () => {
     window.history.replaceState(null, '', '/f/riverside/signup/confirm#token=fhp_abc')
     const calls = open('/f/riverside/signup/confirm', {

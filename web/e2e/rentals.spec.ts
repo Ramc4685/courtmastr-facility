@@ -1,13 +1,8 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo account and rentals (docs/dev/demo-accounts.md, "Demo rentals (build module 3)").
 const ADMIN = { email: 'admin@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 // A date far enough ahead that the seed and other runs leave it empty; each run picks its own hour.
 const day = new Date(Date.now() + (300 + Math.floor(Math.random() * 300)) * 86400000).toISOString().slice(0, 10)

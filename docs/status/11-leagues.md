@@ -41,19 +41,19 @@ Backend tests: `backend/app/modules/leagues/tests/` (`test_domain.py`, pure rule
 | LGE-18 Public league website | P1 | done | `/leagues/public` (site banner and sections), `/public/competitions/{id}/teams` `/brackets` `/player-stats` | `test_site.py` `test_public_teams_players_stats_and_brackets`; e2e | Teams, schedules, standings, brackets and results are public once the competition is; draft brackets stay hidden. Players and stats only with `show_players` (default off). |
 | LGE-19 Public-site options, branding and facility info | P1 | done | `GET/PUT /league-site`, `/public/league-site`; `/leagues/site` Options | `test_site.py` `test_site_options_gate_every_section` | Tenant singleton; tenant-wide key. Accent colour, title, tagline, about, section switches, board refresh. |
 | PLT-12 League public-site options | P1 | done | as LGE-19 | `test_site.py` | |
-| LGE-20 Links directory | P1 | done | `/league-links` CRUD, `/public/league-site/links`; Links tab | `test_site.py` `test_links_news_photos_and_sponsors` | No in-place edit on the screen (API PATCH only). |
+| LGE-20 Links directory | P2 | done | `/league-links` CRUD, `/public/league-site/links`; Links tab | `test_site.py` `test_links_news_photos_and_sponsors` | No in-place edit on the screen (API PATCH only). |
 | LGE-21 Photo gallery | P2 | done | `POST /league-photos` (raw JPEG/PNG), PATCH, DELETE; `/public/league-site/photos/{id}/image`; Photos tab | `test_site.py` | Uploads only through `platform.files`; 900 KB cap. |
 | LGE-22 Classifieds board | P2 | done | portal `/portal/league-posts` (create, withdraw, contact); `/league-posts` approve and reject; `/public/league-site/posts?kind=classified` | `test_site.py` `test_posts_are_moderated_expire_and_relay_contact`, `test_post_limit_scope_and_erasure`; Vitest; e2e | Staff approve first, 30-day expiry, 5 live posts per client, contact relayed by email, no address shown. |
 | LGE-23 Pickup-game listings | P2 | done | as LGE-22 with `kind=pickup` and a future start time | `test_site.py` | |
-| LGE-24 TV display board | P2 | done | `/public/locations/{id}/league-board`; `/leagues/board/:locationId` | `test_site.py` `test_tv_board_shows_todays_public_games_at_one_location`; Vitest; e2e | Today in the location's zone, public competitions only, refreshes on the site's interval; works with the site off. |
+| LGE-24 TV display board | P1 | done | `/public/locations/{id}/league-board`; `/leagues/board/:locationId` | `test_site.py` `test_tv_board_shows_todays_public_games_at_one_location`; Vitest; e2e | Today in the location's zone, public competitions only, refreshes on the site's interval; works with the site off. |
 | LGE-33 Sponsor advertising | P2 | done | `/league-sponsors` CRUD, `PUT /league-sponsors/{id}/logo`, `/public/league-site/sponsors`; Sponsors tab | `test_site.py` | Own key (`leagues.sponsor.manage`); date window in UTC. No click tracking. |
-| MKT-18 News stories | P2 | done | `/league-news` (paginated) CRUD, `/public/league-site/news`; News tab | `test_site.py` | Drafts and future dates stay hidden; pinned first. |
+| MKT-18 News stories | P1 | done | `/league-news` (paginated) CRUD, `/public/league-site/news`; News tab | `test_site.py` | Drafts and future dates stay hidden; pinned first. |
 | CLS-07 Public class and clinic listing | P2 | done | `/public/league-site/classes` (reads `programs`) | `test_site.py` `test_classes_come_from_portal_published_programs` | Root program groups published to the portal; registration links to the portal. |
-| LGE-25, 27, 29, 30, 32 | P1/P2 | not built | | | Chip C2 and later. |
+| LGE-29, 30 | P1/P2 | parked | | | LGE-29 is v2; LGE-30 waits on phase 13 (email alerts). LGE-25, 27 and 32 are done (phases 12 and 15). |
 
 Counts: **P0 11 features: 11 done.** Phase 14 B1 added LGE-07, 10, 11, 13, 16, 26, 28, PLT-11, RES-06, REG-14,
 REG-26 and RPT-36 (all done). Phase 14 B2 (the public league site, `phase14-b2-public-site.md`) added LGE-17 to
-LGE-24, LGE-33, PLT-12, MKT-18 and CLS-07 (all done). Not built: LGE-25, 27, 29, 30, 32.
+LGE-24, LGE-33, PLT-12, MKT-18 and CLS-07 (all done). Parked: LGE-29 (v2) and LGE-30 (phase 13). LGE-25, 27 and 32 are done.
 
 ## Public schedule and standings (LGE-14 view)
 

@@ -1,5 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect as baseExpect, test, type Page } from '@playwright/test'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|…$/, 30_000)
 
 const expect = baseExpect.configure({ timeout: 30_000 })
 
@@ -16,12 +18,6 @@ async function signIn(page: Page, path: string, who: typeof ADMIN) {
   await page.getByRole('textbox', { name: 'Email' }).fill(who.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(who.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
-}
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /Loading|…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
 }
 
 async function pdf(page: Page, button: ReturnType<Page['getByRole']>) {

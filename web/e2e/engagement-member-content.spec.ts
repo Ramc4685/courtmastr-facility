@@ -1,6 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect as baseExpect, test, type Page } from '@playwright/test'
-import { MEMBER, PASSWORD } from './a11y'
+import { expect as baseExpect, test } from '@playwright/test'
+import { MEMBER, PASSWORD, scanAfter } from './a11y'
+
+const scan = scanAfter(/…$/, 30_000)
 
 test.use({ actionTimeout: 30_000 })
 
@@ -11,12 +12,6 @@ const expect = baseExpect.configure({ timeout: 30_000 })
 // feedback through the portal API first; the staff then create a content item and handle that feedback.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: PASSWORD }
 const SLUG = { 'x-tenant-slug': 'courtside-demo' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('staff create app content, change a feedback status in the inbox, and every tab passes axe', async ({ page, browser }) => {
   test.setTimeout(300_000)

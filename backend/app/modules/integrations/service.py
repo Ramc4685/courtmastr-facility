@@ -63,16 +63,32 @@ SECRET_ROTATION_GRACE = timedelta(hours=24)
 
 # The documented public API resources (docs/status/phase15-api.md): only their contexts' keys may go on a key.
 # An allow-list, so a new context's keys reach machines only when someone adds it here. Platform (audit, staff
-# directory), reporting (person-bound runs and schedules), integrations (keys, sync), staff and engagement
-# (campaigns) stay with signed-in people.
+# directory), reporting (person-bound runs and schedules), integrations (keys, sync, a delivery log wider than
+# the key's scopes) and staff stay with signed-in people.
 KEY_CONTEXTS = frozenset({
     "access", "assessments", "billing", "clients", "documents", "leagues", "memberships", "packages", "pos",
     "programs", "rentals", "resources", "scheduling",
 })  # fmt: skip
+# Single keys from a context that is otherwise off the list. Engagement: the campaign, template, segment, message
+# and app-content operations the contract opens to keys (engagement README: a key's campaign has no sender). Not
+# portal settings (the member realm's on switch and terms), inbox replies (a person's voice), SMS, send-to-all or
+# automations (no key operation), suppression release (a person's decision, recorded as theirs) or staff alert routes (they
+# name staff users, the directory platform keeps from keys).
+KEY_PERMISSIONS = frozenset({
+    "engagement.app_content.manage", "engagement.campaign.create", "engagement.campaign.edit",
+    "engagement.campaign.read", "engagement.campaign.send", "engagement.message.send_direct",
+    "engagement.push.send",
+})  # fmt: skip
+
+
+# Single keys withheld from a listed context: portal on/off switches and online defaults, a person's decision like
+# engagement's portal settings (which never made the list above).
+KEY_WITHHELD = frozenset({"rentals.portal_setting.manage"})
 
 
 def grantable_to_key(permission: Permission) -> bool:
-    return permission.context in KEY_CONTEXTS and not set(permission.flags) & _NEVER_FOR_KEYS
+    listed = permission.context in KEY_CONTEXTS or permission.key in KEY_PERMISSIONS
+    return listed and permission.key not in KEY_WITHHELD and not set(permission.flags) & _NEVER_FOR_KEYS
 
 
 def _require_person(principal: Principal) -> None:

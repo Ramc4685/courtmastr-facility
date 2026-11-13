@@ -1,5 +1,7 @@
 """API app factory."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.bootstrap import bootstrap
@@ -48,6 +50,7 @@ def create_app() -> FastAPI:
         openapi_url=f"{API_PREFIX}/openapi.json",
         docs_url=f"{API_PREFIX}/docs",
         redoc_url=None,
+        lifespan=_lifespan,
     )
     api.install(app)
     from app.modules.integrations.router import inbound as integrations_inbound
@@ -91,6 +94,14 @@ _API_DESCRIPTION = (
     "or a signed-in session token. API keys may call staff operations within their scopes and locations. "
     "See docs/api/public-api-guide.md for pagination, errors, idempotency and webhook signatures."
 )
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Build the OpenAPI document before serving: ~1,200 routes take seconds, which the first
+    # GET /api-reference (and /openapi.json) would otherwise pay.
+    app.openapi()
+    yield
 
 
 def _document_auth(app: FastAPI) -> None:

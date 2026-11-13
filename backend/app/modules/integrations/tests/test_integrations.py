@@ -7,6 +7,7 @@ import importlib
 import json
 import threading
 import time
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 from uuid import UUID, uuid4
@@ -145,6 +146,13 @@ def test_expired_key_is_refused(client, owner):
         "integrations.sync.run",
         "reporting.report_schedule.manage",
         "reporting.dashboard.read",
+        "engagement.portal_settings.manage",
+        "engagement.inbox.reply",
+        "engagement.sms_campaign.send",
+        "engagement.campaign.send_all",
+        "engagement.suppression.manage",
+        "engagement.notification_rule.manage",
+        "engagement.automation.manage",
     ],  # fmt: skip
 )
 def test_keys_hold_only_the_documented_api_resources(client, owner, scope):
@@ -153,23 +161,61 @@ def test_keys_hold_only_the_documented_api_resources(client, owner, scope):
     assert scope in CATALOGUE
     refused = _key(client, owner, 422, scopes=[scope], confirm_sensitive_scopes=True)
     assert refused["code"] == "scope-not-grantable"
-    assert all(service.grantable_to_key(p) == (p.context in service.KEY_CONTEXTS and not set(p.flags) & {
-        "A", "I", "G", "K", "OO", "OD", "+"}) for p in CATALOGUE.values())  # fmt: skip
+
+
+# The whole key-grantable set, pinned: a new permission, or a change to the allow-list, fails here until someone
+# decides whether a machine may hold it. Counts per context; the keys a listed context withholds, by name.
+_GRANTABLE_COUNTS = {
+    "access": 11, "assessments": 5, "billing": 38, "clients": 16, "documents": 6, "engagement": 7, "leagues": 16,
+    "memberships": 13, "packages": 10, "pos": 14, "programs": 12, "rentals": 11, "resources": 4, "scheduling": 21,
+}  # fmt: skip
+_WITHHELD_IN_LISTED_CONTEXTS = {
+    "access.kiosk.manage", "access.device.manage", "billing.tax.manage", "billing.settings.manage",
+    "billing.provider.manage", "pos.terminal.manage", "resources.padlock.reveal_combination",
+    "rentals.portal_setting.manage",
+}  # fmt: skip
+_ENGAGEMENT = {
+    "engagement.app_content.manage", "engagement.campaign.create", "engagement.campaign.edit",
+    "engagement.campaign.read", "engagement.campaign.send", "engagement.message.send_direct", "engagement.push.send",
+}  # fmt: skip
+
+
+def test_the_key_grantable_set_is_pinned():
+    grantable = {k for k, p in CATALOGUE.items() if service.grantable_to_key(p)}
+    assert Counter(CATALOGUE[k].context for k in grantable) == _GRANTABLE_COUNTS
+    listed = {k for k, p in CATALOGUE.items() if p.context in _GRANTABLE_COUNTS and p.context != "engagement"}
+    assert grantable == (listed - _WITHHELD_IN_LISTED_CONTEXTS) | _ENGAGEMENT
+    assert {p.context for p in CATALOGUE.values()} - set(_GRANTABLE_COUNTS) == {
+        "integrations", "platform", "reporting", "staff"}  # fmt: skip
+
+
+def test_a_key_can_neither_be_given_nor_use_the_rental_portal_switch(client, tenant, owner):
+    assert _key(client, owner, 422, scopes=["rentals.portal_setting.manage"])["code"] == "scope-not-grantable"
+    key = _key(client, owner, scopes=["rentals.booking.create"])
+    with _system(tenant) as session:  # stored another way: an old row, a manual fix, a restore
+        session.execute(update(ApiKey).values(scopes=["rentals.booking.create", "rentals.portal_setting.manage"]))
+    with _system(tenant) as session:
+        assert set(auth.authenticate(session, key["secret"]).permissions) == {"rentals.booking.create"}
+    settings = f"{API}/locations/{_location(client, owner)}/rental-portal-settings"
+    assert client.get(settings, headers=owner).status_code == 200
+    assert client.get(settings, headers=_bearer(key["secret"])).status_code == 403
 
 
 def test_a_stored_scope_off_the_allow_list_never_reaches_the_key_and_the_migration_strips_it(client, tenant, owner):
     key = _key(client, owner, scopes=["clients.client.read"])
     with _system(tenant) as session:  # written another way: an old row, a manual fix, a restore
-        session.execute(update(ApiKey).values(scopes=["clients.client.read", "platform.audit.read"]))
+        stored = ["clients.client.read", "engagement.campaign.read", "engagement.inbox.reply", "platform.audit.read"]
+        session.execute(update(ApiKey).values(scopes=stored))
     h = _bearer(key["secret"])
     assert client.get(f"{API}/clients", headers=h).status_code == 200
     assert client.get(f"{API}/audit-events", headers=h).status_code == 403
+    kept = ["clients.client.read", "engagement.campaign.read"]
     with _system(tenant) as session:
-        assert set(auth.authenticate(session, key["secret"]).permissions) == {"clients.client.read"}
+        assert set(auth.authenticate(session, key["secret"]).permissions) == set(kept)
         session.execute(
             text(importlib.import_module("migrations.versions.1705_integrations_key_scope_allow_list").STRIP)
         )
-        assert session.scalar(select(ApiKey.scopes)) == ["clients.client.read"]
+        assert session.scalar(select(ApiKey.scopes)) == kept
 
 
 def test_scopes_are_bounded_by_the_catalogue_the_rules_and_the_creator(client, tenant, owner):

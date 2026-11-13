@@ -1,4 +1,23 @@
+import AxeBuilder from '@axe-core/playwright'
 import { expect, type Locator, type Page } from '@playwright/test'
+
+/** The axe WCAG 2.1 AA scan every spec runs. */
+export async function scan(page: Page, label: string) {
+  // Let colour transitions finish: right after emulateMedia or a toggle, transition-colors buttons are mid-fade and fail
+  // contrast. Transitions only (spinners loop forever); a cancelled one rejects with AbortError and counts as settled.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => undefined))),
+  )
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+}
+
+/** `scan`, once no role=status matches `loading`. Each spec names its screens' loading text: some keep a status such
+ * as "Preparing your file…" up on purpose, so one pattern cannot serve every spec. */
+export const scanAfter = (loading: RegExp, timeout?: number) => async (page: Page, label: string) => {
+  await expect(page.getByRole('status').filter({ hasText: loading })).toHaveCount(0, { timeout })
+  await scan(page, label)
+}
 
 // What axe cannot see (docs/status/phase8-o2-accessibility.md): keyboard order and reach, visible focus and its
 // contrast, dialog focus handling, target size, reflow and reduced motion. Each check returns problems as text

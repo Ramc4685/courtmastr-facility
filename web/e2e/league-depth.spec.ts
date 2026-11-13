@@ -1,16 +1,10 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
-import { ADMIN, MEMBER, signIn } from './a11y'
+import { expect, test } from '@playwright/test'
+import { ADMIN, MEMBER, scan, signIn } from './a11y'
 
 // Phase 14 B1 league depth screens on the seeded demo league (docs/dev/demo-accounts.md, "Demo leagues").
 const LEAGUE_ADMIN = 'league-admin@courtside-demo.example.com'
 const SCOREKEEPER = 'scorekeeper@courtside-demo.example.com'
 const tag = Array.from({ length: 5 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('')
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('league depth screens work and pass axe: venues, stats, staff, generator, scores, captain roster', async ({ browser }) => {
   test.setTimeout(180_000) // three sign-ins; password hashing alone can take 10s on a loaded machine

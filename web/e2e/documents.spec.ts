@@ -1,13 +1,8 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo data (seeds/documents.py): a published "Liability waiver" signed by Morgan Member.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('templates, the editor, the documents tab, in-person signing and the public page pass axe WCAG 2.1 AA', async ({ page }) => {
   test.slow() // eight axe scans plus signing: ~24 s warm, over the 30 s default on a cold dev server

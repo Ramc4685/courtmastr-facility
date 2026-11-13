@@ -170,7 +170,13 @@ function SignupPage({ config }: { config: Config }) {
     e.preventDefault()
     send.mutate()
   }
-  if (!open.length) return <EmptyState title="Online sign-up is not available">Ask the front desk to create your account.</EmptyState>
+  if (!open.length)
+    return (
+      <div className="mx-auto max-w-md">
+        <Title title="Create an account" facility={config.facility_name} />
+        <EmptyState title="Online sign-up is not available">Ask the front desk to create your account.</EmptyState>
+      </div>
+    )
   return (
     <div className="mx-auto max-w-md">
       <Title title="Create an account" facility={config.facility_name} />

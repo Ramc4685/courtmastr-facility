@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
+import { scan as axeScan } from './a11y'
 
 // Seeded demo data (docs/dev/demo-accounts.md): front desk may read clients; Morgan Member is M-1001.
 const DESK = { email: 'front-desk@courtside-demo.example.com', password: 'courtside-demo-2026' }
@@ -7,10 +7,7 @@ const DESK = { email: 'front-desk@courtside-demo.example.com', password: 'courts
 // Kernel slices have one web surface: the shared client picker, previewed on a development-only page.
 test('client picker finds a client by keyboard and passes the axe WCAG 2.1 AA scan', async ({ page }) => {
   test.setTimeout(120_000) // eight axe scans; over 30s on a loaded machine
-  const scan = async (label: string) => {
-    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-    expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-  }
+  const scan = (label: string) => axeScan(page, label)
   await page.goto('/dev/client-picker')
   await page.getByRole('textbox', { name: 'Email' }).fill(DESK.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(DESK.password)
