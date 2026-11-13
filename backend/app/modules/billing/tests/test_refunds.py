@@ -4,20 +4,24 @@ the release-then-refund composite, and replays (retry, duplicate webhook) that n
 import importlib
 import threading
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, func, select, text, update
 
 from app.core import clock, idempotency
+from app.core.audit import AuditEvent
 from app.core.errors import Conflict, ValidationFailed
 from app.core.settings import get_settings
 from app.modules.billing import webhooks
 from app.modules.billing.models import PaymentAllocation, Refund
 from app.modules.billing.tests.test_billing import API, assert_books_agree, card, cash, charge, key, svc, work
 from app.modules.billing.tests.test_money import ready, transactions
+from app.modules.billing.tests.test_surface import Api
+from app.modules.clients.models import ClientRelationship
 from app.ports import payment_provider
 from app.ports.payment_provider import RefundState
+from conftest import new_client
 
 
 def _paid(shop, amount=500):
@@ -703,3 +707,40 @@ def test_a_credit_refund_under_a_held_payment_lock_pays_nothing_and_is_told_to_r
         payment = session.get(svc.Payment, paid)
         assert _provider_refunded(session, paid) == payment.refunded_minor == 500
         assert_books_agree(session)
+
+
+def test_a_pending_refund_that_fails_after_the_payer_link_ended_is_recorded_and_leaves_credit(client, shop, monkeypatch):
+    """A parent paid the child's item, the composite refund went pending, then the relationship ended: the item can
+    no longer be re-paid from the parent's payment (payer-mismatch), but recording the failure must still succeed,
+    the money stays as credit on the payment and the audit carries the amount and the reason code."""
+    ready(shop)
+    api = Api(client, shop.owner)
+    parent = new_client(client, shop.owner, shop.location_id)["id"]
+    parent_of = next(t for t in api("GET", "/relationship-types") if t["code"] == "parent_of")
+    api("POST", f"/clients/{parent}/relationships",
+        {"other_client_id": str(shop.client_id), "relationship_type_id": parent_of["id"]}, 201)  # fmt: skip
+    link = ClientRelationship.to_client_id == shop.client_id
+    with work(shop.tenant) as session:
+        session.execute(update(ClientRelationship).where(link).values(status="active"))
+    with work(shop.tenant) as session:
+        item = charge(session, shop, 1000)  # the child's item, 1083
+        paid = card(session, shop, 1083, client_id=UUID(parent), allocations=[(item.id, 1083)]).id
+        allocation = session.scalars(select(PaymentAllocation.id).where(PaymentAllocation.payment_id == paid)).one()
+    fake = payment_provider.get("fake")
+    monkeypatch.setattr(fake, "refund", lambda **_: RefundState("fake_ref_slow", "pending"))
+    with work(shop.tenant) as session:
+        row = svc.refund(session, paid, amount_minor=600, reason="Closed", idempotency_key=uuid4().hex,
+                         release_allocation_ids=[allocation])  # fmt: skip
+        assert row.status == "pending"
+    monkeypatch.undo()
+    with work(shop.tenant) as session:
+        session.execute(update(ClientRelationship).where(link).values(status="ended"))
+    _fail_twice(shop, monkeypatch, row.id)
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, paid)
+        assert (payment.refunded_minor, payment.unapplied_minor) == (0, 1083)  # all of it is credit
+        assert session.get(svc.Charge, item.id).applied_minor == 0
+        confirm = session.scalars(select(AuditEvent).where(
+            AuditEvent.entity_id == row.id, AuditEvent.action == "billing.refund.confirm")).one()  # fmt: skip
+        assert confirm.changes["not_reapplied_minor"] == [None, 1083]
+        assert confirm.changes["not_reapplied_reason"] == [None, "payer-mismatch"]

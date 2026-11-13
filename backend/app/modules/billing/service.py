@@ -25,7 +25,7 @@ from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize
 from app.core.db.session import tenant_session
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
@@ -1371,8 +1371,11 @@ def confirm_refund(session: Session, refund_id: UUID) -> Refund:
     else:
         payment.refunded_minor -= row.amount_minor
         session.flush()
-        if left := _reapply_released(session, payment, row.release_allocation_ids or ()):
+        left, why = _reapply_released(session, payment, row.release_allocation_ids or ())
+        if left:
             changes["not_reapplied_minor"] = [None, left]
+        if why:
+            changes["not_reapplied_reason"] = [None, why]
     audit.record(
         session, "billing.refund.confirm", row, location_id=row.location_id,
         changes=changes,
@@ -1381,12 +1384,15 @@ def confirm_refund(session: Session, refund_id: UUID) -> Refund:
     return row
 
 
-def _reapply_released(session: Session, payment: Payment, allocation_ids: Sequence[UUID]) -> int:
+def _reapply_released(
+    session: Session, payment: Payment, allocation_ids: Sequence[UUID]
+) -> tuple[int, str | None]:
     """A failed refund puts back what its release took off items: each allocation it released goes to the same
     item again, capped at what the item still owes and at the payment's free money. The release cannot wait for
     success instead: a pending refund already counts in refunded_minor, so the money must leave the items.
     Recording the failure never fails: whatever cannot go back (the payment is disputed, the item was paid
-    another way) stays as unapplied credit on the payment. Returns that amount left as credit."""
+    another way, the payer may no longer pay that client's items) stays as unapplied credit on the payment.
+    Returns that amount left as credit and, when the re-apply was refused outright, the refusal's code."""
     targets: dict[UUID, int] = {}
     released = 0
     free = _remainder(session, payment) - _reserved(session, payment.id)
@@ -1401,13 +1407,17 @@ def _reapply_released(session: Session, payment: Payment, allocation_ids: Sequen
             targets[charge.id] = targets.get(charge.id, 0) + amount
             free -= amount
     if targets and payment.status in ("succeeded", "processing"):
-        _allocate(session, payment, None, list(targets.items()))
+        try:
+            with session.begin_nested():
+                _allocate(session, payment, None, list(targets.items()))
+        except DomainError as error:  # e.g. payer-mismatch once the payer link ended: it stays credit
+            return released, error.code
         audit.record(
             session, "billing.payment.reallocate", payment, location_id=payment.location_id,
             changes={"reapplied_minor": [None, sum(targets.values())]},
         )  # fmt: skip
         released -= sum(targets.values())
-    return released
+    return released, None
 
 
 def _post_refund(session: Session, row: Refund, payment: Payment) -> None:
