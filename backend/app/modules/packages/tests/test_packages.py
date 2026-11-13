@@ -835,3 +835,22 @@ def test_manager_override_reverses_billing_after_sessions_were_used(w, client, o
 def location_of_other_site(client, owner) -> str:
     body = {"name": f"Other {uuid4().hex[:6]}", "time_zone": "America/Chicago", "country_code": "US"}
     return ok(client.post(f"{API}/locations", headers=owner, json=body), 201)["id"]
+
+
+def test_portal_quote_previews_an_online_purchase_for_whom_one_may_buy(w, client, owner):
+    """portalQuoteClientPackage (SSP-08, PKG-09): the buy body, priced; desk-only plans and strangers refused."""
+    stranger = new_client(client, owner, w.location_id)
+    member = _member(w.tenant, w.person["id"])
+    online = package_plan(client, owner, w.tenant, online_sale_mode="paid_in_full")
+    desk_only = package_plan(client, owner, w.tenant)
+    body = {"package_plan_id": UUID(online["id"]), "location_id": UUID(w.location_id)}
+
+    quote = _as(w.tenant, member, service.portal_quote, body, None)
+    assert (quote["sessions_granted_count"], quote["online_sale_mode"], quote["price_minor"] > 0) == (
+        10, "paid_in_full", True,
+    )  # fmt: skip
+    assert scalar(w.tenant, select(func.count()).select_from(ClientPackage)) == 0  # a preview sells nothing
+    with pytest.raises(ValidationFailed):
+        _as(w.tenant, member, service.portal_quote, body | {"package_plan_id": UUID(desk_only["id"])}, None)
+    with pytest.raises(NotFound):
+        _as(w.tenant, member, service.portal_quote, body, UUID(stranger["id"]))

@@ -214,7 +214,7 @@ def expiring_cards(session: Session, principal: Principal, through: str | None, 
 # stored methods, profile, documents, cancelling and opting out) stays open. A test classifies every portal
 # POST route as locked or open, so a new purchase route cannot slip past this list.
 PORTAL_PURCHASE_ROUTES = frozenset({
-    "/portal/client-packages", "/portal/coupon-quotes", "/portal/enrollments", "/portal/membership-contracts",
+    "/portal/client-packages", "/portal/client-packages/quote", "/portal/coupon-quotes", "/portal/enrollments", "/portal/membership-contracts",
     "/portal/membership-contracts/quote", "/portal/registration-checkouts",
     "/portal/registration-checkouts/{checkout_id}/confirm", "/portal/registration-checkouts/{checkout_id}/items",
     "/portal/form-submissions", "/portal/rental-plan-purchases", "/portal/rentals",

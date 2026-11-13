@@ -213,6 +213,12 @@ def list_portal_client_packages(query: Lists, ctx: Portal, client_id: ActFor = N
     return service.portal_list_packages(ctx.session, ctx.principal, client_id, query)
 
 
+@router.post("/portal/client-packages/quote", response_model=s.PortalPackageQuoteOut)
+def portal_quote_client_package(body: s.PortalPackageBuy, ctx: Portal, client_id: ActFor = None):
+    """Preview an online purchase with the buy body. Errors: validation-failed (a plan not sold online)."""
+    return service.portal_quote(ctx.session, ctx.principal, body.model_dump(), client_id)
+
+
 @router.post("/portal/client-packages", response_model=s.PortalPackageSaleOut, status_code=201)
 def portal_buy_client_package(body: s.PortalPackageBuy, ctx: Portal, idempotency_key: RequiredKey):
     """Errors: payment-failed (a pay-in-full plan and the payment did not go through; nothing is sold),

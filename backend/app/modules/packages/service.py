@@ -679,6 +679,20 @@ def _sale_view(session: Session, sold: dict) -> dict:
 def quote_package(session: Session, principal: Principal, data: dict) -> dict:
     """What a sale would create: credits, price (pre-tax), validity and the documents still to accept."""
     authorize(principal, _SELL, location_id=data["location_id"])
+    return _quote(session, data)
+
+
+def portal_quote(session: Session, principal: Principal, data: dict, act_for: UUID | None) -> dict:
+    """The portal preview of an online purchase (SSP-08, PKG-09): the buy body, for oneself or a client one may
+    buy for; a plan not sold online is refused as the sale would refuse it."""
+    subject = _portal_client(session, principal, data.get("client_id") or act_for, "buy")
+    plan = session.get(PackagePlan, data["package_plan_id"])
+    if plan is None or not plan.is_active or plan.online_sale_mode == "off":
+        raise ValidationFailed("This plan is not sold online.", pointer="/package_plan_id")
+    return _quote(session, {**data, "client_id": subject}, online=True) | {"online_sale_mode": plan.online_sale_mode}
+
+
+def _quote(session: Session, data: dict, online: bool = False) -> dict:
     plan = session.get(PackagePlan, data["package_plan_id"])
     if plan is None:
         raise ValidationFailed("Unknown package plan.", pointer="/package_plan_id")
@@ -696,7 +710,7 @@ def quote_package(session: Session, principal: Principal, data: dict) -> dict:
         "occurrences_count": plan.recurrence_occurrences_count,
         "is_member_required": plan.is_members_only_at_desk,
         "is_member": memberships.service.is_member(session, client.id),
-        "requirements": documents.service.requirements_for(session, "package_plan", plan.id, client.id),
+        "requirements": documents.service.requirements_for(session, "package_plan", plan.id, client.id, online=online),
     }  # fmt: skip
 
 

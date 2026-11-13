@@ -240,6 +240,22 @@ class PackageQuoteOut(Out):
     requirements: list[dict[str, Any]]
 
 
+class PortalPackageQuoteOut(Out):
+    """The portal's own preview shape (portalQuoteClientPackage); pre-tax, before any coupon."""
+
+    name: str
+    is_unlimited: bool
+    sessions_granted_count: int
+    price_minor: int
+    unit_price_minor: int | None
+    valid_from_on: date
+    valid_until_on: date | None
+    occurrences_count: int | None
+    is_member: bool
+    online_sale_mode: str
+    requirements: list[dict[str, Any]]
+
+
 class PortalPackageOut(Out):
     """What a member sees: balances and dates, no internal remarks or staff attribution."""
 
