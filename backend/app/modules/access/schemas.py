@@ -208,6 +208,7 @@ class AccessSettingsOut(Out):
     light_lead_in_min: int
     light_run_on_min: int
     requires_paid_entry: bool
+    door_alert_bad_codes_per_hour: int
 
 
 class AccessSettingsWrite(In):
@@ -219,6 +220,7 @@ class AccessSettingsWrite(In):
     light_lead_in_min: int | None = Field(None, ge=0, le=120)
     light_run_on_min: int | None = Field(None, ge=0, le=120)
     requires_paid_entry: bool | None = None
+    door_alert_bad_codes_per_hour: int | None = Field(None, ge=1, le=10000)
 
 
 class AccessRuleIn(In):
@@ -534,7 +536,6 @@ class DoorDeviceOut(Out):
     unlock_seconds: int
     is_active: bool
     has_credential: bool
-    locked_until_at: datetime | None
     last_seen_at: datetime | None
     created_at: datetime
 

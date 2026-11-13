@@ -39,6 +39,11 @@ def sim():
     controller.reset()
 
 
+@pytest.fixture(autouse=True)
+def quick_verify(monkeypatch):
+    monkeypatch.setattr(building, "VERIFY_FLOOR_SECONDS", 0.0)  # the timing test sets its own floor
+
+
 @pytest.fixture
 def b(client, tenant, owner, sim):
     f = facility(client, owner)
@@ -247,28 +252,86 @@ def test_blocks_get_no_code_and_far_bookings_wait_for_the_horizon(b, mailbox):
 # --- the door --------------------------------------------------------------------------------------------------
 
 
-def test_verify_allows_in_window_writes_a_door_check_in_and_locks_after_bad_codes(client, b):
+def wrong_for(code: str) -> str:
+    return "00000000" if code != "00000000" else "11111111"
+
+
+def details_of(f, kind: str) -> list[str]:
+    with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
+        return list(session.scalars(select(BuildingEvent.detail).where(BuildingEvent.kind == kind)
+                                    .order_by(BuildingEvent.id)))  # fmt: skip
+
+
+def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone_out(client, b):
+    """Eight digits; wrong codes never lock the keypad for everyone: the valid code inside the per-door cap is
+    admitted in the middle of an attack."""
     with clock.freeze(at(9)):
         booking = book(b, 10, 11)
         sync(b, booking)
         code = clear(b, codes(b, booking)[0])
+        assert len(code) == 8 and code.isdigit()
         assert verify(client, b, code) == {"result": "deny", "unlock_seconds": 0}  # before the window
     with clock.freeze(at(9.8)):
         assert verify(client, b, code) == {"result": "allow", "unlock_seconds": 5}
         check_in = scalar(b.tenant, select(CheckIn).where(CheckIn.client_id == UUID(b.person["id"])))
         assert (check_in.channel, check_in.result) == ("door", "granted")
-        wrong = "000000" if code != "000000" else "111111"
-        for _ in range(5):
-            assert verify(client, b, wrong)["result"] == "deny"
-        assert verify(client, b, code)["result"] == "deny"  # the keypad is locked for five minutes
-    with clock.freeze(at(9.8) + timedelta(minutes=6)):
-        assert verify(client, b, code)["result"] == "allow"
-    details = scalar(b.tenant, select(BuildingEvent.detail).where(BuildingEvent.kind == "entry_denied")
-                     .order_by(BuildingEvent.id.desc()).limit(1))  # fmt: skip
-    assert details == "keypad_locked"
+        for _ in range(8):  # nine verifies this minute so far
+            assert verify(client, b, wrong_for(code))["result"] == "deny"
+        assert verify(client, b, code)["result"] == "allow"  # the tenth, still inside the cap
+        assert verify(client, b, code)["result"] == "deny"  # over the cap: denied without evaluating
+        assert details_of(b, "entry_denied")[-1] == "rate_limited"
+    with clock.freeze(at(9.8) + timedelta(minutes=1)):
+        assert verify(client, b, code)["result"] == "allow"  # a new minute, no lockout carried over
     assert code not in str(
         scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.verify"))
     )
+
+
+def test_fifty_concurrent_wrong_codes_are_all_counted_and_staff_are_alerted_once(client, b, mailbox):
+    """The count is an atomic Redis INCR per door, so parallel guesses cannot slip past it; more than the
+    location's threshold of wrong codes in an hour alerts staff once and shows in the activity view."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.core import ratelimit
+
+    with clock.freeze(at(9.8)):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            answers = list(pool.map(lambda i: verify(client, b, f"{i:08d}")["result"], range(50)))
+        minute = int(clock.now().timestamp() // 60)
+        counted = ratelimit._redis().get(f"{ratelimit.PREFIX}:door-verify:{b.door}:{minute}")
+    assert answers == ["deny"] * 50 and int(counted) == 50
+    denied = details_of(b, "entry_denied")
+    assert denied.count("unknown_code") == 10 and denied.count("rate_limited") == 40
+    assert details_of(b, "bad_code_alert") == ["threshold:20"]
+    assert sum("wrong codes" in m.subject for m in mailbox) == 1
+
+
+def test_limiter_down_denies_and_verify_takes_constant_time(client, b, monkeypatch):
+    import time
+
+    import redis
+
+    from app.core import ratelimit
+
+    with clock.freeze(at(9.8)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        code = clear(b, codes(b, booking)[0])
+        monkeypatch.setattr(building, "VERIFY_FLOOR_SECONDS", 0.3)
+        timings = {}
+        for label, value in (("matched", code), ("unknown", wrong_for(code))):
+            began = time.monotonic()
+            verify(client, b, value)
+            timings[label] = time.monotonic() - began
+        assert min(timings.values()) >= 0.3, timings  # both padded to the same floor
+
+        class Down:
+            def pipeline(self):
+                raise redis.ConnectionError("down")
+
+        monkeypatch.setattr(ratelimit, "_redis", lambda: Down())
+        assert verify(client, b, code) == {"result": "deny", "unlock_seconds": 0}  # fail closed
+    assert details_of(b, "entry_denied")[-1] == "limiter_unavailable"
 
 
 def test_check_in_evaluation_refuses_blocked_and_unpaid_holders(client, tenant, owner, b, mailbox):

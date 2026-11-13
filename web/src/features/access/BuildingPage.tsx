@@ -235,7 +235,6 @@ function DoorsCard({ locationId, doors, timeZone, canUnlock, canManage }: { loca
               <div>
                 <p className="font-medium">{d.name} {!d.is_active && <Badge>Retired</Badge>}</p>
                 <p className="text-xs text-muted">
-                  {d.locked_until_at && new Date(d.locked_until_at) > new Date() ? `Keypad locked until ${formatDateTime(d.locked_until_at, timeZone)}. ` : ''}
                   Last heard from: {d.last_seen_at ? formatDateTime(d.last_seen_at, timeZone) : 'never'}
                 </p>
               </div>

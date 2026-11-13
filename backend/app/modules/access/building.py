@@ -15,16 +15,19 @@ in a row emails the location's alert address.
 Internal (no principal): `sync_booking_code`, `run_building_control`, `verify_code`, `deliver_code_to`. Staff and
 portal commands carry both gates."""
 
+import logging
 import secrets
+import time
 from datetime import datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import redis
 from sqlalchemy import column, delete, select, table
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, crypto, events
+from app.core import audit, clock, crypto, events, ratelimit
 from app.core.auth import Principal, authorize, scope_query, system_principal, tokens
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
@@ -41,10 +44,12 @@ DEVICE, UNLOCK, LIGHTS, READ = "access.device.manage", "access.door.unlock", "ac
 CODE_KINDS = ("rental", "session")  # bookings whose party gets a door code
 LIT_KINDS = ("rental", "session", "game")  # bookings that light their courts
 CODE_HORIZON = timedelta(days=7)  # codes are issued (and emailed) at most this long before the booking
-DOOR_BAD_CODES = 5  # wrong codes in a row before the keypad locks
-DOOR_LOCKOUT = timedelta(minutes=5)
+CODE_DIGITS = 8
+DOOR_VERIFIES_PER_MINUTE = 10  # per door, counted atomically in Redis; more is answered deny without evaluating
+VERIFY_FLOOR_SECONDS = 0.4  # every verify answers after this long, so a matched code is not slower than a wrong one
 FAILURES_BEFORE_ALERT = 3  # failed light commands in a row before staff are emailed
 _RESOURCE = table("resource", column("id"), column("location_id"))  # read under RLS; resources may not be imported
+log = logging.getLogger(__name__)
 
 notifications.register_template(
     "access.building_command_failed",
@@ -52,13 +57,19 @@ notifications.register_template(
     body="$what at $location has failed $count times in a row ($detail). The system keeps retrying every minute; "
     "check the controller, or switch it by hand.\n",
 )
+notifications.register_template(
+    "access.door_bad_codes",
+    subject="Building control: many wrong codes at $door, $location",
+    body="$door at $location has had more than $count wrong codes in the last hour. Someone may be guessing codes. "
+    "Each door answers at most $cap codes a minute, and the activity view shows every attempt.\n",
+)
 
 
 # --- shared --------------------------------------------------------------------------------------------------
 
 
 def _digest(location_id: UUID, code: str) -> str:
-    """Keyed hash: a six-digit code cannot be recovered from the column by trying every value offline."""
+    """Keyed hash: an eight-digit code cannot be recovered from the column by trying every value offline."""
     return crypto.mac(f"entry-code:{location_id}:{code}")
 
 
@@ -115,7 +126,7 @@ def door_view(row: DoorDevice) -> dict:
     return {
         "id": row.id, "location_id": row.location_id, "name": row.name, "device_ref": row.device_ref,
         "unlock_seconds": row.unlock_seconds, "is_active": row.is_active, "has_credential": row.token_hash is not None,
-        "locked_until_at": row.locked_until_at, "last_seen_at": row.last_seen_at, "created_at": row.created_at,
+        "last_seen_at": row.last_seen_at, "created_at": row.created_at,
     }  # fmt: skip
 
 
@@ -323,7 +334,7 @@ def _push(session: Session, row: EntryCode, code: str) -> None:
 def _issue(session: Session, booking: dict, window: tuple[datetime, datetime]) -> EntryCode:
     location_id = booking["location_id"]
     for _ in range(20):  # a clash with another live code at the location is rare; the index is the backstop
-        code = f"{secrets.randbelow(10**6):06d}"
+        code = f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
         digest = _digest(location_id, code)
         taken = session.scalar(select(EntryCode.id).where(
             EntryCode.location_id == location_id, EntryCode.code_hash == digest, EntryCode.status == "active"))  # fmt: skip
@@ -416,7 +427,9 @@ def door_for_token(session: Session, raw: str) -> DoorDevice | None:
     row = session.scalar(select(DoorDevice).where(DoorDevice.token_hash == tokens.digest(raw)))
     if row is None or not row.is_active:
         return None
-    row.last_seen_at = clock.now()
+    now = clock.now()
+    if row.last_seen_at is None or now - row.last_seen_at > timedelta(minutes=1):  # not a row lock per verify
+        row.last_seen_at = now
     return row
 
 
@@ -440,34 +453,60 @@ def _admit(session: Session, row: EntryCode, booking: dict | None):
     return (decision.denial_reason if check_in.result == "denied" else None), check_in
 
 
+def _count(key: str, window_sec: int) -> int | None:
+    """Atomic INCR with expiry (as the rate limits do); None when Redis cannot be reached."""
+    try:
+        pipe = ratelimit._redis().pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window_sec)
+        return int(pipe.execute()[0])
+    except redis.RedisError:
+        log.warning("door attempt counter unavailable")
+        return None
+
+
+def _note_bad_code(session: Session, door: DoorDevice) -> None:
+    """One more wrong (or over-the-cap) code this hour at the door; crossing the location threshold emails staff
+    once per hour (the INCR result is exact, so exactly one request sees threshold + 1)."""
+    hour = int(clock.now().timestamp() // 3600)
+    count = _count(f"{ratelimit.PREFIX}:door-bad:{door.id}:{hour}", 3600)
+    threshold = _cfg(session, door.location_id)["door_alert_bad_codes_per_hour"]
+    if count != threshold + 1:
+        return
+    _event(session, door.location_id, "bad_code_alert", door_device_id=door.id, detail=f"threshold:{threshold}")
+    location = platform.service.get_location(session, system_principal("access"), door.location_id)
+    to = location.alert_email or location.email
+    if to:
+        notifications.send(session, "access.door_bad_codes", to, {
+            "door": door.name, "location": location.name, "count": threshold, "cap": DOOR_VERIFIES_PER_MINUTE})  # fmt: skip
+
+
 def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
-    """Internal (device-authenticated): a keypad's code, allow or deny and nothing else. Wrong codes count on the
-    door and the fifth in a row locks the keypad for DOOR_LOCKOUT; the right one resets the count."""
-    now, location_id = clock.now(), door.location_id
+    """Internal (device-authenticated): a keypad's code, allow or deny and nothing else. Every attempt counts
+    atomically on the door (Redis, per minute); over DOOR_VERIFIES_PER_MINUTE, or with the counter unreachable, the
+    answer is deny without evaluating (fail closed). There is no lockout: a right code inside the cap always gets
+    in. Every answer waits until VERIFY_FLOOR_SECONDS so timing does not tell a matched code from a wrong one."""
+    began, location_id = time.monotonic(), door.location_id
     row, reason, check_in = None, None, None
-    if door.locked_until_at and door.locked_until_at > now:
-        reason = "keypad_locked"
+    attempts = _count(f"{ratelimit.PREFIX}:door-verify:{door.id}:{int(clock.now().timestamp() // 60)}", 60)
+    if attempts is None:
+        reason = "limiter_unavailable"
+    elif attempts > DOOR_VERIFIES_PER_MINUTE:
+        reason = "rate_limited"
     else:
-        candidate = session.scalar(select(EntryCode).where(
+        row = session.scalar(select(EntryCode).where(
             EntryCode.location_id == location_id, EntryCode.status == "active",
             EntryCode.code_hash == _digest(location_id, code)))  # fmt: skip
-        # Looked up by keyed hash: the timing of the index probe says nothing about how close a wrong code was.
-        if candidate is not None:
-            row = candidate
-            reason, check_in = _admit(session, row, _booking(session, row.booking_id))
-        else:
-            reason = "unknown_code"
-            door.bad_code_count += 1
-            if door.bad_code_count >= DOOR_BAD_CODES:
-                door.bad_code_count, door.locked_until_at = 0, now + DOOR_LOCKOUT
-    if reason is None:
-        door.bad_code_count = 0
+        reason, check_in = _admit(session, row, _booking(session, row.booking_id)) if row else ("unknown_code", None)
+    if reason in ("unknown_code", "rate_limited"):
+        _note_bad_code(session, door)
     kind = "entry_denied" if reason else "entry_granted"
     _event(session, location_id, kind, door_device_id=door.id, entry_code_id=row.id if row else None,
            check_in_id=check_in.id if check_in else None, detail=reason)  # fmt: skip
     audit.record(session, "access.door.verify", door, location_id=location_id,
-                 changes={"result": "deny" if reason else "allow", "reason": reason, **audit.diff(door)})  # fmt: skip
+                 changes={"result": "deny" if reason else "allow", "reason": reason})  # fmt: skip
     session.flush()
+    time.sleep(max(0.0, VERIFY_FLOOR_SECONDS - (time.monotonic() - began)))
     return {"result": "deny" if reason else "allow", "unlock_seconds": 0 if reason else door.unlock_seconds}
 
 

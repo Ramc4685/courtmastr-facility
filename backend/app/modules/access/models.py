@@ -321,6 +321,7 @@ class AccessSettings(TenantOwned, Timestamps, Base):
             " AND light_lead_in_min BETWEEN 0 AND 120 AND light_run_on_min BETWEEN 0 AND 120",
             name="building",
         ),
+        CheckConstraint("door_alert_bad_codes_per_hour BETWEEN 1 AND 10000", name="door_alert"),
     )
 
     location_id: Mapped[UUID]
@@ -336,6 +337,7 @@ class AccessSettings(TenantOwned, Timestamps, Base):
     light_lead_in_min: Mapped[int] = mapped_column(server_default=text("5"))
     light_run_on_min: Mapped[int] = mapped_column(server_default=text("5"))
     requires_paid_entry: Mapped[bool] = mapped_column(server_default=text("true"))
+    door_alert_bad_codes_per_hour: Mapped[int] = mapped_column(server_default=text("20"))  # staff emailed above it
 
 
 class AccessRule(TenantOwned, Timestamps, Base):
@@ -442,6 +444,7 @@ class BuildingEventKind(StrEnum):
     CODE_REVOKED = "code_revoked"
     COMMAND_FAILED = "command_failed"
     CODE_WITHHELD = "code_withheld"  # a rental held by a minor or someone of unknown age
+    BAD_CODE_ALERT = "bad_code_alert"  # a door passed the location's wrong codes per hour; staff were emailed
 
 
 class DoorDevice(TenantOwned, Timestamps, Base):
@@ -461,8 +464,6 @@ class DoorDevice(TenantOwned, Timestamps, Base):
     unlock_seconds: Mapped[int] = mapped_column(server_default=text("5"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
     token_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})
-    bad_code_count: Mapped[int] = mapped_column(server_default=text("0"))  # wrong codes since the last right one
-    locked_until_at: Mapped[datetime | None]  # keypad lockout after DOOR_BAD_CODES wrong codes
     last_seen_at: Mapped[datetime | None]
 
 

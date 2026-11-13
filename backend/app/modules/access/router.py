@@ -506,8 +506,6 @@ def exit_kiosk(body: s.KioskExitRequest, request: Request, response: Response, d
 
 # --- door controllers (device credential, no principal) --------------------------------------------------------
 
-DOOR_VERIFIES_PER_MINUTE = 30  # a keypad, one person at a time: more is a script
-
 
 def door_device(request: Request) -> DoorDevice:
     """The door behind `Authorization: Bearer fhb_...`, with its own audit actor."""
@@ -529,23 +527,7 @@ def door_device(request: Request) -> DoorDevice:
 Door = Annotated[DoorDevice, Depends(door_device)]
 
 
-def door_rate_limit(door: Door) -> None:
-    """Per door, like the kiosk: doors behind one NAT share an address. Fails open; the lockout still holds."""
-    if not get_settings().rate_limit.enabled:
-        return
-    key = f"rl:door-verify:{door.id}:{int(clock.now().timestamp() // 60)}"
-    try:
-        pipe = _redis().pipeline()
-        pipe.incr(key)
-        pipe.expire(key, 60)
-        count = pipe.execute()[0]
-    except Exception:  # noqa: BLE001 - a Redis outage must not keep people out
-        return
-    if count > DOOR_VERIFIES_PER_MINUTE:
-        raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
-
-
-@kiosk.post("/door/verify", response_model=s.DoorVerifyResult, dependencies=[Depends(door_rate_limit)])
+@kiosk.post("/door/verify", response_model=s.DoorVerifyResult)
 def verify_door_code(body: s.DoorVerifyRequest, request: Request, door: Door):
     """A keypad's code: allow (with how long to release the lock) or deny, and nothing else."""
     return building.verify_code(_session(request), door, body.code)

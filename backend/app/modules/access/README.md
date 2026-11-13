@@ -182,14 +182,14 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   asks `POST /door/verify` for every code; the simulated adapter says True and also answers verify). Only `SimulatedBuildingControl` exists: it records calls (never a
   code), can be scripted to fail or time out, and settings refuse it outside dev and test (unset means `none`
   there, so every command fails and is surfaced). No vendor is assumed.
-- **Tables.** `door_device` (token hash only, bad-code count, lockout), `lighting_zone` (override, last commanded
+- **Tables.** `door_device` (token hash only), `lighting_zone` (override, last commanded
   state, failure count) with `lighting_zone_resource`, `entry_code` (one active per booking), `building_event`
   (append-only activity, with `local_on` for the day filter). Five `access_settings` columns: `entry_code_early_min`
-  (15), `entry_code_grace_min` (10), `light_lead_in_min` (5), `light_run_on_min` (5), `requires_paid_entry` (true).
+  (15), `entry_code_grace_min` (10), `light_lead_in_min` (5), `light_run_on_min` (5), `requires_paid_entry` (true), and `door_alert_bad_codes_per_hour` (20, migration 1972).
 - **Keys.** `access.device.manage` (doors, zones, credentials), `access.door.unlock` (staff remote unlock, reason
   required), and one new key, `access.lighting.override` (Admin, Manager), added to the matrix because holding a
   court's lights for a period is a different power from managing devices. Reads use `access.checkin.read`.
-- **Codes.** One six-digit code per confirmed rental or session booking at a location with an active door, shared by
+- **Codes.** One eight-digit code per confirmed rental or session booking at a location with an active door, shared by
   its party, valid from start minus `entry_code_early_min` to end plus `entry_code_grace_min`, issued at most seven
   days ahead. Issued by the booking created, rescheduled and cancelled handlers, and by the minute tick (a checkout
   hold confirmed by `confirm_booking` publishes no event, and the tick catches anything a handler missed). A moved
@@ -213,9 +213,21 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   and the app read the same field. The location phone travels with the email, the portal list and the refusal,
   because the fallback when a code fails is a phone call and a staff remote unlock.
 - **The door.** `POST /door/verify` with `Authorization: Bearer fhb_...` (the door's own credential, shown once, rotatable;
-  retiring a door drops it), 30 a minute per door through Redis (fails open), five wrong codes in a row lock the
-  keypad for five minutes. It answers allow (with unlock seconds) or deny, nothing more. Lookup is by keyed hash, so
-  timing says nothing about how close a wrong code was. An admitted rental writes a `door` check-in for its holder.
+  retiring a door drops it). It answers allow (with unlock seconds) or deny, nothing more. Guessing (migration 1972):
+  every attempt is counted atomically per door per minute in Redis (`INCR` with expiry, the rate limiter's pattern), so
+  parallel guesses all count; over 10 a minute the answer is deny without evaluating the code, and when Redis cannot be
+  reached the answer is deny (fail closed; the email, the portal and every refusal carry the location phone, and staff
+  unlock remotely). There is no keypad lockout: a lockout lets anyone keep the building shut, so a right code inside
+  the cap always gets in. Wrong and over-the-cap codes are counted per door per hour; the one that passes the
+  location's `door_alert_bad_codes_per_hour` (default 20) emails the alert address once and writes a `bad_code_alert`
+  activity row. Every answer is padded to `VERIFY_FLOOR_SECONDS` (0.4 s), so a matched code (which runs the check-in
+  evaluation) is not slower than an unknown one; lookup is by keyed hash. An admitted rental writes a `door` check-in.
+- **Guess probability.** Eight digits is 10^8 codes; a door answers at most 10 a minute, 14,400 a day. With k codes
+  open at a location at once each guess hits with probability k / 10^8, so a full day of guessing succeeds with
+  about 14,400 k / 10^8: 0.014 % a day for one open code, 0.12 % a day with eight open at once (four courts, early
+  and grace windows overlapping, all day, which is the worst case). Staff are emailed within the first 21 wrong codes.
+  A person at the keypad can still slow it for everyone by using up the minute's cap; the portal "open the door" and
+  the phone line are the fallback.
   A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
   the keypad, opens every active door of the location) call the controller in the request: someone is waiting at the
   door and a queued unlock that lands late opens it for nobody. This is a deliberate exception to "only the payment
