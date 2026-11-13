@@ -47,6 +47,7 @@ class CredentialKind(StrEnum):
 class CredentialStatus(StrEnum):
     ACTIVE = "active"
     REVOKED = "revoked"
+    EXPIRED = "expired"  # its window ended; the sealed copy is cleared
 
 
 class CredentialSource(StrEnum):
@@ -519,6 +520,14 @@ class EntryCode(TenantOwned, Timestamps, Base):
         CheckConstraint("valid_until_at > valid_from_at", name="window"),
         CheckConstraint("status <> 'active' OR client_id IS NOT NULL", name="person"),
         CheckConstraint("(status = 'revoked') = (revoked_at IS NOT NULL)", name="revoked"),
+        CheckConstraint("status <> 'active' OR code_ciphertext IS NOT NULL", name="sealed"),
+        Index(
+            "ix_entry_code_open",
+            "tenant_id",
+            "location_id",
+            "valid_until_at",
+            postgresql_where=text("status = 'active'"),
+        ),  # fmt: skip
         Index(
             "uq_entry_code_active",
             "tenant_id",
@@ -541,7 +550,7 @@ class EntryCode(TenantOwned, Timestamps, Base):
     booking_id: Mapped[UUID]
     client_id: Mapped[UUID | None]  # whose code it is (a minor's goes to their adult guardians); None only on old rows
     code_hash: Mapped[str] = mapped_column(info={"audit": "never"})
-    code_ciphertext: Mapped[str] = mapped_column(info={"audit": "never"})
+    code_ciphertext: Mapped[str | None] = mapped_column(info={"audit": "never"})  # cleared once revoked or expired
     valid_from_at: Mapped[datetime]
     valid_until_at: Mapped[datetime]
     status: Mapped[str] = enum_column(server_default=text("'active'"))

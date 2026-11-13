@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.adapters.building_control import SimulatedBuildingControl
 from app.core import clock, crypto
@@ -370,6 +370,79 @@ def test_blocks_get_no_code_and_far_bookings_wait_for_the_horizon(b, mailbox):
     with clock.freeze(at(24 * 3)):
         tick(b)  # the tick catches it up once it is inside the horizon
         assert [c.status for c in codes(b, later)] == ["active"] and mailbox
+
+
+def test_a_code_expires_at_its_window_end_and_the_tick_reads_only_open_codes(client, b, monkeypatch):
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+    with clock.freeze(at(11) + timedelta(minutes=11)):  # the window closed at 11:10
+        tick(b)
+        [row] = codes(b, booking)
+        assert (row.status, row.code_ciphertext, row.revoked_at) == ("expired", None, None)
+        trail = scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.entry_code.expire"))
+        assert trail == {"status": ["active", "expired"]}  # the sealed code is cleared, never audited
+        listed = ok(client.get(f"{API}/portal/entry-codes", headers=portal(client, b.tenant, b.person)), 200)["data"]
+        assert listed == []
+    synced = []
+    monkeypatch.setattr(building, "sync_booking_code", lambda s, booking_id, view=None: synced.append(booking_id))
+    with clock.freeze(at(24 * 3)):  # the booking is out of the schedule window; its spent code is not re-read
+        tick(b)
+    assert UUID(booking) not in synced
+    index = scalar(b.tenant, select(text("indexdef")).select_from(text("pg_indexes")).where(
+        text("indexname = 'ix_entry_code_open'")))  # fmt: skip
+    assert "valid_until_at" in index and "status = 'active'" in index
+
+
+def test_spent_codes_and_old_building_events_are_purged_after_retention(b):
+    from app.modules.platform import retention
+
+    with clock.freeze(at(9)):
+        spent = book(b, 10, 11)
+        sync(b, spent)
+    with clock.freeze(at(12)):
+        tick(b)
+    later = at(12) + building.RETENTION + timedelta(days=1)
+    with clock.freeze(later):
+        fresh = book(b, 24 * (later - DAY).days + 34, 24 * (later - DAY).days + 35)  # tomorrow, 10:00
+        sync(b, fresh)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            gone = retention.purge(session)
+        assert gone["building_event"] >= 1 and gone["entry_code"] == 1
+        assert codes(b, spent) == [] and [c.status for c in codes(b, fresh)] == ["active"]
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            assert (
+                session.scalar(select(BuildingEvent.id).where(BuildingEvent.occurred_at < later - building.RETENTION))
+                is None
+            )
+            assert session.scalar(select(BuildingEvent.id).where(BuildingEvent.kind == "code_issued"))
+
+
+def test_merge_export_and_erasure_cover_entry_codes(client, owner, b, sim):
+    from app.modules.access import subject
+
+    other = adult(client, owner, b.location)
+    with clock.freeze(at(9)):
+        mine, theirs = book(b, 10, 11), book(b, 12, 13, holder=other["id"])
+        sync(b, mine)
+        sync(b, theirs)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            subject._repoint(session, other["id"], b.person["id"])
+        assert {str(c.client_id) for c in codes(b, mine) + codes(b, theirs)} == {b.person["id"]}
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            exported = subject._export(session, UUID(b.person["id"]))
+            assert len(exported["entry_codes"]) == 2 and "code" not in exported["entry_codes"][0]
+            assert {"valid_from_at", "valid_until_at", "status"} <= set(exported["entry_codes"][0])
+            erased = subject._erase(session, UUID(b.person["id"]))
+        assert erased["revoked_entry_codes"] == 2 and "entry_code" in subject._TABLES
+        for row in codes(b, mine) + codes(b, theirs):
+            assert (row.status, row.revoke_reason, row.code_ciphertext, row.client_id) == (
+                "revoked",
+                "erased",
+                None,
+                None,
+            )
+        assert ("revoke_code", "door-front", str(row.id)) in sim.calls
 
 
 # --- the door --------------------------------------------------------------------------------------------------

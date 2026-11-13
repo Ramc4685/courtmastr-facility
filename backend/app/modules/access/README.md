@@ -184,7 +184,7 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   code), can be scripted to fail or time out, and settings refuse it outside dev and test (unset means `none`
   there, so every command fails and is surfaced). No vendor is assumed.
 - **Tables.** `door_device` (token hash only), `lighting_zone` (override, last commanded
-  state, failure count) with `lighting_zone_resource`, `entry_code` (one active per booking), `building_event`
+  state, failure count) with `lighting_zone_resource`, `entry_code` (one active per booking and person), `building_event`
   (append-only activity, with `local_on` for the day filter). Five `access_settings` columns: `entry_code_early_min`
   (15), `entry_code_grace_min` (10), `light_lead_in_min` (5), `light_run_on_min` (5), `requires_paid_entry` (true), and `door_alert_bad_codes_per_hour` (20, migration 1972).
 - **Keys.** `access.device.manage` (doors, zones, credentials), `access.door.unlock` (staff remote unlock, reason
@@ -198,6 +198,14 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   to and revoked from controllers that store codes. A failed push is retried by the tick; a failed revoke is logged
   and not retried (the controller still stops honouring the code at its end time). Issue and revoke publish
   `access.entry_code.issued` and `access.entry_code.revoked`.
+- **Codes retire (migration 1976).** At its window's end a code becomes `expired` (audited, no event) and, like a
+  revoked one, loses its sealed copy, so only an open or upcoming code can ever be shown again. The tick reads only
+  open or upcoming codes, through the partial index `ix_entry_code_open`. Retention: building events (entry times are
+  movement data) and spent codes go after `building.RETENTION` (365 days, a module constant until a tenant asks for
+  another period), through the hourly platform purge; `building_event` stays append-only for `fh_app` and is purged
+  by the owner's `app.purge_building_event`, events first, then codes no event names. Merge moves codes to the
+  survivor; export lists each code's window and status (never the code; entries are the person's door check-ins);
+  erasure revokes live codes and unlinks every code from the person, so the log no longer leads to them.
 - **Code storage (decision).** A keyed HMAC (`crypto.mac`, per location) for lookup, plus the code sealed with the
   tenant data key (`crypto.encrypt`) so the portal and the app can show it again. Regenerating on view would change
   a code already emailed; a plain hash could not be shown again. Codes never appear in logs, the notification log

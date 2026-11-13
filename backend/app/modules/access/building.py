@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 import redis
 import redis.asyncio as aioredis
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select, text
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
 
@@ -58,6 +58,7 @@ FAILURES_BEFORE_ALERT = 3  # failed light commands in a row before staff are ema
 REASSERT_EVERY = timedelta(minutes=5)  # a lit zone is told "on" again this often when the controller cannot report
 MAX_OVERRIDE = timedelta(hours=24)
 MIN_RUN_ON = timedelta(minutes=1)  # a court in play is never cut within the same minute
+RETENTION = timedelta(days=365)  # building events and spent codes (entry times are movement data), then purged
 log = logging.getLogger(__name__)
 
 notifications.register_template(
@@ -398,7 +399,7 @@ def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datet
 
 
 def _revoke(session: Session, row: EntryCode, reason: str) -> None:
-    row.status, row.revoked_at, row.revoke_reason = "revoked", clock.now(), reason
+    row.status, row.revoked_at, row.revoke_reason, row.code_ciphertext = "revoked", clock.now(), reason, None
     audit.record(session, "access.entry_code.revoke", row, location_id=row.location_id, changes=audit.diff(row))
     events.publish(session, ev.EntryCodeRevoked(entry_code_id=row.id, booking_id=row.booking_id,
                                                 location_id=row.location_id, reason=reason), row.id)  # fmt: skip
@@ -903,14 +904,28 @@ def _retry_pushes(session: Session, location_id: UUID) -> None:
         _push(session, row, crypto.decrypt(row.code_ciphertext, session.info["tenant_id"]))
 
 
+def expire_codes(session: Session, location_id: UUID) -> int:
+    """Internal (the tick): codes whose window has ended become `expired` and lose their sealed copy, so the
+    tick and the door only ever read open or upcoming codes (ix_entry_code_open)."""
+    rows = session.scalars(select(EntryCode).where(
+        EntryCode.location_id == location_id, EntryCode.status == "active", EntryCode.valid_until_at <= clock.now(),
+    ).with_for_update(skip_locked=True)).all()  # fmt: skip
+    for row in rows:
+        row.status, row.code_ciphertext = "expired", None
+        audit.record(session, "access.entry_code.expire", row, location_id=location_id, changes=audit.diff(row))
+    session.flush()
+    return len(rows)
+
+
 def sync_location_codes(session: Session, location_id: UUID) -> None:
-    """Internal: every booking that may need a code at the location, and every live code, are synced (catches
-    a confirmation that published no event, and anything a handler missed)."""
+    """Internal: every booking that may need a code at the location, and every open or upcoming code, are synced
+    (catches a confirmation that published no event, and anything a handler missed). Spent codes expire first."""
+    expire_codes(session, location_id)
     now = clock.now()
     stmt = scheduling.service.booking_ids(location_id=location_id, starts_from=now - timedelta(days=1),
                                           starts_to=now + CODE_HORIZON)  # fmt: skip
-    ids = set(session.scalars(stmt)) | set(session.scalars(
-        select(EntryCode.booking_id).where(EntryCode.location_id == location_id, EntryCode.status == "active")))  # fmt: skip
+    ids = set(session.scalars(stmt)) | set(session.scalars(select(EntryCode.booking_id).where(
+        EntryCode.location_id == location_id, EntryCode.status == "active", EntryCode.valid_until_at > now)))  # fmt: skip
     views = scheduling.service.booking_views(session, ids)
     for booking_id in sorted(ids):
         sync_booking_code(session, booking_id, views.get(booking_id))
@@ -926,6 +941,49 @@ def run_building_control(session: Session) -> None:
         if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location_id, DoorDevice.is_active)):
             sync_location_codes(session, location_id)
         reconcile_lights(session, location_id)
+
+
+# --- retention and the data subject ---------------------------------------------------------------------------
+
+
+def purge_building_events(session: Session) -> int:
+    """Retention hook: building events older than RETENTION, one batch (append-only: through the owner's function)."""
+    return session.execute(text("SELECT app.purge_building_event(:cutoff, :n)"), {
+        "cutoff": clock.now() - RETENTION, "n": get_settings().retention.batch_rows}).scalar_one()  # fmt: skip
+
+
+def purge_spent_codes(session: Session) -> int:
+    """Retention hook: revoked or expired codes whose window ended more than RETENTION ago and that no remaining
+    building event names (events go first, in the same run)."""
+    batch = select(EntryCode.id).where(
+        EntryCode.status != "active", EntryCode.valid_until_at < clock.now() - RETENTION,
+        ~exists().where(BuildingEvent.entry_code_id == EntryCode.id),
+    ).limit(get_settings().retention.batch_rows)  # fmt: skip
+    return len(session.scalars(delete(EntryCode).where(EntryCode.id.in_(batch)).returning(EntryCode.id)).all())
+
+
+def export_client_codes(session: Session, client_id: UUID) -> list[dict]:
+    """Data subject export: the person's codes as windows and outcomes (never the code); entries are check-ins."""
+    rows = session.scalars(select(EntryCode).where(EntryCode.client_id == client_id).order_by(EntryCode.valid_from_at))
+    return [{"location_id": str(r.location_id), "booking_id": str(r.booking_id), "status": r.status,
+             "valid_from_at": r.valid_from_at.isoformat(), "valid_until_at": r.valid_until_at.isoformat()}
+            for r in rows]  # fmt: skip
+
+
+def erase_client_codes(session: Session, client_id: UUID) -> int:
+    """Data subject erasure: live codes are revoked (and taken off controllers); every code is unlinked from the
+    person, so the building log no longer leads to them. Returns the codes revoked."""
+    rows = session.scalars(select(EntryCode).where(EntryCode.client_id == client_id).with_for_update()).all()
+    live = 0
+    for row in rows:
+        row.client_id = None
+        if row.status == "active":
+            _revoke(session, row, "erased")  # one audit row, carrying the unlink too
+            live += 1
+        else:
+            audit.record(session, "access.entry_code.erase", row, location_id=row.location_id, changes=audit.diff(row))
+    session.flush()
+    return live
 
 
 # --- activity and status -------------------------------------------------------------------------------------
