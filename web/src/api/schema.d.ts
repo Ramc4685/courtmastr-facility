@@ -19989,8 +19989,6 @@ export interface components {
             season_id?: string | null;
             /** Show Players */
             show_players?: boolean | null;
-            /** Shows Roster Publicly */
-            shows_roster_publicly?: boolean | null;
             /**
              * Sport Id
              * Format: uuid
@@ -20259,8 +20257,6 @@ export interface components {
             season_id?: string | null;
             /** Show Players */
             show_players?: boolean | null;
-            /** Shows Roster Publicly */
-            shows_roster_publicly?: boolean | null;
             /** Standings Columns */
             standings_columns?: components["schemas"]["StandingsColumn"][] | null;
             /** Standings Sort */
