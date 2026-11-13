@@ -225,29 +225,32 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   and the app read the same field. The location phone travels with the email, the portal list and the refusal,
   because the fallback when a code fails is a phone call and a staff remote unlock.
 - **The door.** `POST /door/verify` with `Authorization: Bearer fhb_...` (the door's own credential, shown once, rotatable;
-  retiring a door drops it). It answers allow (with unlock seconds) or deny, nothing more. Guessing (migrations
-  1972 and 1974): before any database work, input that is not exactly eight digits is denied, then `door_enter`
-  queues the verify for the door's location in Redis: verifies at one location are serialised (a short Redis lock),
-  at most `DOOR_QUEUE` (3) wait behind the one being evaluated, and anything beyond is denied at once with no
-  database work, no event, no audit row and no sleep. Each verify then sleeps the location's delay, which grows with
-  each wrong code in the last five minutes (0.4 s, then 1, 2, 4, and 5 s from the fourth on) and decays as they age
-  out; only then is the database session opened and the code evaluated. So a right code is always admitted, at worst
-  about five seconds late, and there is no lockout anyone could use to keep the building shut. Redis unreachable:
-  deny (fail closed; the email, the portal and every refusal carry the location phone, and staff unlock remotely).
-  The bound is per location, across all its doors, so adding doors does not add guesses. The route is sync, so a
-  waiting verify holds a threadpool thread; the queue bounds that to four threads per location. The evaluation itself
-  answers after `EVAL_FLOOR_SECONDS` (0.25 s, inside the transaction; one at a time per location), so a matched code
-  is not slower than an unknown one; lookup is by keyed hash. Every evaluated verify writes one activity row and one
-  audit row. Wrong codes also count per door per hour; the one that passes `door_alert_bad_codes_per_hour` (default
-  20) emails the alert address once and writes a `bad_code_alert` row. Migration 1974 revoked every code issued
-  before eight digits; the tick reissues and re-sends them. An admitted code writes a `door` check-in for its person.
-- **Guess probability.** Eight digits is 10^8 codes. At the five-second ceiling a location answers at most 12 codes
-  a minute (plus the 0.25 s evaluation, so slightly fewer), 17,280 a day. With k codes open at the location at once,
-  each guess hits with probability k / 10^8, so a full day of guessing succeeds with about 17,280 k / 10^8: 0.017 %
-  a day with one open code, 0.14 % a day with eight open at once (four courts with early and grace windows
-  overlapping, all day: the worst case). Staff are emailed after the 21st wrong code at a door in an hour. A person at
-  the keypad can still slow it for everyone (up to five seconds a try); the portal "open the door" and the phone line
-  are the fallback.
+  retiring a door drops it). It answers allow (with unlock seconds) or deny, nothing more. The order is fixed
+  (migrations 1972 and 1974): (1) the credential, by indexed lookup on its hash in a short session closed at once,
+  never cached, so rotation and retirement apply to the next request; unknown or retired is `401` at once with no
+  queue, no sleep and no row, counted on the per-IP `door-auth` rate limit bucket (closed when Redis is down);
+  (2) input that is not exactly eight digits is denied unevaluated; (3) the door's own gate in Redis, keyed by door
+  id so one door never takes another's turn: verifies at a door are serialised (a short lock), at most `DOOR_QUEUE`
+  (3) wait behind the one being evaluated, anything beyond is denied at once with no event, no audit row and no
+  sleep, then the verify waits the door's delay, which grows with each wrong code at that door in the last five
+  minutes (0.4 s, then 1, 2, 4, and 5 s from the fourth on) and decays as they age out; the route is async and waits
+  with `asyncio.sleep`, so no thread and no database connection is held; (4) only then the request session opens and
+  the code is evaluated: one activity row and one audit row. A right code is always admitted, at worst about five
+  seconds late; there is no lockout anyone could use to keep the building shut. Redis unreachable: deny (fail closed;
+  the email, the portal and every refusal carry the location phone, and staff unlock remotely). The evaluation
+  answers after `EVAL_FLOOR_SECONDS` (0.25 s, inside the transaction; one at a time per door), so a matched code is
+  not slower than an unknown one; lookup is by keyed hash. Wrong codes are also counted across the location per hour
+  for the staff alert only (it blocks nothing): the one that passes `door_alert_bad_codes_per_hour` (default 20)
+  emails the alert address once and writes a `bad_code_alert` row. Migration 1974 revoked every code issued before
+  eight digits; the tick reissues and re-sends them. An admitted code writes a `door` check-in for its person.
+- **Guess probability.** Eight digits is 10^8 codes. At the five-second ceiling a door answers at most 12 codes a
+  minute (a little fewer with the 0.25 s evaluation), 17,280 a day. With k codes open at the location at once, each
+  guess hits with probability k / 10^8, so a full day of guessing at one door succeeds with about 17,280 k / 10^8:
+  0.017 % a day with one open code, 0.14 % a day with eight open at once (four courts with early and grace windows
+  overlapping, all day: the worst case). It scales with the number of doors an attacker can work at once: with d
+  doors, about 17,280 d k / 10^8 (CIRQT's one front door: d = 1). Staff are emailed after the 21st wrong code at the
+  location in an hour. A person at the keypad can still slow that door for everyone (up to five seconds a try); the
+  portal "open the door" and the phone line are the fallback.
   A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
   the keypad, opens every active door of the location) call the controller in the request: someone is waiting at the
   door and a queued unlock that lands late opens it for nobody. This is a deliberate exception to "only the payment

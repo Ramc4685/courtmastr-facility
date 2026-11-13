@@ -401,9 +401,13 @@ def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone
         assert verify(client, b, code) == {"result": "allow", "unlock_seconds": 5}
         check_in = scalar(b.tenant, select(CheckIn).where(CheckIn.client_id == UUID(b.person["id"])))
         assert (check_in.channel, check_in.result) == ("door", "granted")
+        import time
+
         for _ in range(20):
             assert verify(client, b, wrong_for(code))["result"] == "deny"
+            began = time.monotonic()
             assert verify(client, b, code)["result"] == "allow"  # at the ceiling delay, still admitted
+            assert time.monotonic() - began < building.DOOR_DELAYS[-1] + 1.0
     assert code not in str(
         scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.verify"))
     )
@@ -411,7 +415,7 @@ def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone
 
 def test_wrong_codes_raise_the_delay_which_decays(client, b):
     with clock.freeze(at(9.8)):
-        location = UUID(b.location)
+        location = UUID(b.door)  # the delay is the door's own
         assert building.door_delay(location) == building.DOOR_DELAYS[0]
         for n in range(1, 4):
             verify(client, b, f"{n:08d}")
@@ -426,13 +430,12 @@ def test_wrong_codes_raise_the_delay_which_decays(client, b):
 def test_fifty_concurrent_wrong_codes_are_mostly_refused_unevaluated_and_alert_at_most_once(
     client, b, mailbox, monkeypatch
 ):
-    """Verifies are serialised per location with a short queue: a flood beyond it is answered deny at once with
-    no database work, no event and no audit row."""
+    """Verifies are serialised per door with a short queue: a flood beyond it is answered deny at once with no
+    database work past authentication, no event and no audit row."""
     from concurrent.futures import ThreadPoolExecutor
 
     monkeypatch.setattr(building, "DOOR_DELAYS", (1.5,) * 5)  # the flood lands inside the first turn
     with clock.freeze(at(9.8)):
-        verify(client, b, "99999999")  # the door's location is known to the gate from now on
         before = len(details_of(b, "entry_denied"))
         with ThreadPoolExecutor(max_workers=8) as pool:
             answers = list(pool.map(lambda i: verify(client, b, f"{i:08d}")["result"], range(50)))
@@ -441,23 +444,76 @@ def test_fifty_concurrent_wrong_codes_are_mostly_refused_unevaluated_and_alert_a
     assert len(details_of(b, "bad_code_alert")) <= 1 and sum("wrong codes" in m.subject for m in mailbox) <= 1
 
 
-def test_the_flood_path_and_a_short_code_touch_no_database(client, b, monkeypatch):
+def test_the_flood_path_and_a_short_code_touch_no_database_past_authentication(client, b, monkeypatch):
     from app.core import ratelimit
     from app.modules.access import router
 
     with clock.freeze(at(9.8)):
-        verify(client, b, "99999999")
         before = events_count(b)
 
         def no_database(*args, **kwargs):
-            raise AssertionError("the database was used")
+            raise AssertionError("the request session was opened")
 
         monkeypatch.setattr(router, "request_session", no_database)
         assert verify(client, b, "123456") == {"result": "deny", "unlock_seconds": 0}  # not CODE_DIGITS long
-        ratelimit._redis().set(f"{ratelimit.PREFIX}:door-queue:loc:{b.location}", building.DOOR_QUEUE + 1, ex=60)
+        ratelimit._redis().set(f"{ratelimit.PREFIX}:door-queue:{b.door}", building.DOOR_QUEUE + 1, ex=60)
         assert verify(client, b, "12345678") == {"result": "deny", "unlock_seconds": 0}  # the queue is full
         monkeypatch.undo()
     assert events_count(b) == before
+
+
+def test_an_unknown_credential_is_401_at_once_with_no_row(client, b, monkeypatch):
+    import time
+
+    from app.modules.access import router
+
+    monkeypatch.setattr(building, "DOOR_DELAYS", (2.0,) * 5)
+    before = events_count(b)
+    monkeypatch.setattr(router, "request_session", lambda *a, **k: (_ for _ in ()).throw(AssertionError("session")))
+    began = time.monotonic()
+    bogus = {"Authorization": f"Bearer fhb_{b.tenant.id}_{'x' * 40}"}
+    assert client.post(f"{API}/door/verify", headers=bogus, json={"code": "12345678"}).status_code == 401
+    assert time.monotonic() - began < 1.0 and events_count(b) == before
+
+
+def test_a_flood_on_one_door_never_delays_or_denies_another_door(client, owner, b, monkeypatch):
+    import time
+
+    from app.core import ratelimit
+
+    side = ok(client.post(f"{API}/door-devices", headers=owner,
+                          json={"location_id": b.location, "name": "Side door", "device_ref": "door-side"}))  # fmt: skip
+    monkeypatch.setattr(building, "DOOR_DELAYS", (0.0, 0.5, 1.0, 1.5, 2.0))
+    with clock.freeze(at(9.8)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        code = clear(b, codes(b, booking)[0])
+        for n in range(1, 4):
+            verify(client, b, f"{n:08d}")  # the front door climbs its delay
+        r = ratelimit._redis()
+        r.set(f"{ratelimit.PREFIX}:door-queue:{b.door}", building.DOOR_QUEUE + 1, ex=60)  # and its queue is full
+        assert verify(client, b, code)["result"] == "deny"
+        began = time.monotonic()
+        other = {"Authorization": f"Bearer {side['credential']}"}
+        answer = ok(client.post(f"{API}/door/verify", headers=other, json={"code": code}), 200)
+        assert answer["result"] == "allow" and time.monotonic() - began < 0.5
+
+
+def test_no_connection_is_held_while_a_verify_waits(client, b, monkeypatch):
+    import threading
+    import time
+
+    from app.core.db import app_engine
+
+    monkeypatch.setattr(building, "DOOR_DELAYS", (1.0,) * 5)
+    pool = app_engine().pool
+    with clock.freeze(at(9.8)):
+        baseline = pool.checkedout()
+        waiting = threading.Thread(target=lambda: verify(client, b, "12345678"))
+        waiting.start()
+        time.sleep(0.5)  # inside the one-second wait
+        assert pool.checkedout() == baseline
+        waiting.join()
 
 
 def test_limiter_down_denies_and_verify_takes_constant_time(client, b, monkeypatch):

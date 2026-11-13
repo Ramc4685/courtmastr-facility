@@ -15,6 +15,7 @@ in a row emails the location's alert address.
 Internal (no principal): `sync_booking_code`, `run_building_control`, `verify_code`, `deliver_code_to`. Staff and
 portal commands carry both gates."""
 
+import asyncio
 import logging
 import secrets
 import time
@@ -46,7 +47,7 @@ LIT_KINDS = ("rental", "session", "game")  # bookings that light their courts
 CODE_HORIZON = timedelta(days=7)  # codes are issued (and emailed) at most this long before the booking
 CODE_DIGITS = 8
 DENY = {"result": "deny", "unlock_seconds": 0}
-DOOR_QUEUE = 3  # verifies that may wait behind the one being evaluated, per location; beyond it: deny, no DB work
+DOOR_QUEUE = 3  # verifies that may wait behind the one being evaluated, per door; beyond it: deny, no DB work
 DOOR_DELAYS = (0.4, 1.0, 2.0, 4.0, 5.0)  # seconds before evaluating, by wrong codes in the window (0, 1, 2, 3, 4+)
 DOOR_BAD_WINDOW = timedelta(minutes=5)  # wrong codes older than this stop counting: the delay decays
 DOOR_LOCK_WAIT = 30.0  # seconds a queued verify waits for its turn before it is denied
@@ -476,6 +477,8 @@ def _withhold(session: Session, booking: dict, client_id: UUID) -> None:
 
 
 def door_for_token(session: Session, raw: str) -> DoorDevice | None:
+    """The active door behind a credential: an indexed lookup on its SHA-256, read fresh on every request (nothing
+    cached), so rotation and retirement apply to the very next request."""
     row = session.scalar(select(DoorDevice).where(DoorDevice.token_hash == tokens.digest(raw)))
     if row is None or not row.is_active:
         return None
@@ -524,10 +527,10 @@ def _count(key: str, window_sec: int) -> int | None:
 
 
 def _note_bad_code(session: Session, door: DoorDevice) -> None:
-    """One more wrong code this hour at the door; crossing the location threshold emails staff
-    once per hour (the INCR result is exact, so exactly one request sees threshold + 1)."""
+    """One more wrong code this hour at the location (all its doors): it blocks nothing, it only alerts. Crossing
+    the location threshold emails staff once per hour (the INCR result is exact, so one request sees threshold+1)."""
     hour = int(clock.now().timestamp() // 3600)
-    count = _count(f"{ratelimit.PREFIX}:door-bad:{door.id}:{hour}", 3600)
+    count = _count(f"{ratelimit.PREFIX}:location-bad:{door.location_id}:{hour}", 3600)
     threshold = _cfg(session, door.location_id)["door_alert_bad_codes_per_hour"]
     if count != threshold + 1:
         return
@@ -539,32 +542,26 @@ def _note_bad_code(session: Session, door: DoorDevice) -> None:
             "door": door.name, "location": location.name, "count": threshold, "cap": int(DOOR_DELAYS[-1])})  # fmt: skip
 
 
-def _bad_key(location_id) -> str:
-    return f"{ratelimit.PREFIX}:door-bad:{location_id}"
+def _bad_key(door_id) -> str:
+    return f"{ratelimit.PREFIX}:door-bad:{door_id}"
 
 
-def door_delay(location_id: UUID | str | None, r=None) -> float:
-    """The wait before the next verify at the location: one step per wrong code inside DOOR_BAD_WINDOW."""
-    if location_id is None:
-        return DOOR_DELAYS[0]
+def door_delay(door_id: UUID | str, r=None) -> float:
+    """The wait before the next verify at this door: one step per wrong code there inside DOOR_BAD_WINDOW."""
     r = r or ratelimit._redis()
     since = (clock.now() - DOOR_BAD_WINDOW).timestamp()
-    wrong = int(r.zcount(_bad_key(location_id), f"({since}", "+inf"))
+    wrong = int(r.zcount(_bad_key(door_id), f"({since}", "+inf"))
     return DOOR_DELAYS[min(wrong, len(DOOR_DELAYS) - 1)]
 
 
-def door_enter(raw: str) -> tuple | None:
-    """Internal, Redis only (no database): queue for the door's location, wait for its turn (verifies there are
-    serialised), then sleep the current delay. A ticket for `door_leave`, or None meaning answer deny at once: the
-    queue is full, the turn never came, or Redis is unreachable (fail closed). The location comes from a cache the
-    first evaluated verify fills; until then the credential itself is the key."""
-    digest = tokens.digest(raw)[:32]
+async def door_enter(door_id: UUID) -> tuple | None:
+    """Internal, Redis only, for an authenticated door: join the door's queue, wait for its turn (verifies at one
+    door are serialised), then wait the door's current delay. Waits with asyncio.sleep, so no thread and no database
+    connection is held. A ticket for `door_leave`, or None meaning answer deny at once: the queue is full, the turn
+    never came, or Redis is unreachable (fail closed). Keyed by door, so one door never uses another's turn."""
     try:
         r = ratelimit._redis()
-        cached = r.get(f"{ratelimit.PREFIX}:door-loc:{digest}")
-        location = cached.decode() if cached else None
-        key = f"loc:{location}" if location else f"tok:{digest}"
-        queue, lock = f"{ratelimit.PREFIX}:door-queue:{key}", f"{ratelimit.PREFIX}:door-lock:{key}"
+        queue, lock = f"{ratelimit.PREFIX}:door-queue:{door_id}", f"{ratelimit.PREFIX}:door-lock:{door_id}"
         pipe = r.pipeline()
         pipe.incr(queue)
         pipe.expire(queue, 60)
@@ -576,21 +573,19 @@ def door_enter(raw: str) -> tuple | None:
             if time.monotonic() > deadline:
                 r.decr(queue)
                 return None
-            time.sleep(0.02)
-        time.sleep(door_delay(location, r))
+            await asyncio.sleep(0.02)
+        await asyncio.sleep(door_delay(door_id, r))
         return (queue, lock, mine)
     except redis.RedisError:
         log.warning("door gate unavailable")
         return None
 
 
-def door_leave(ticket: tuple, raw: str, location_id: UUID | None) -> None:
-    """Give up the turn and leave the queue; remember the door's location for the next gate."""
+def door_leave(ticket: tuple) -> None:
+    """Give up the turn and leave the queue."""
     queue, lock, mine = ticket
     try:
         r = ratelimit._redis()
-        if location_id is not None:
-            r.set(f"{ratelimit.PREFIX}:door-loc:{tokens.digest(raw)[:32]}", str(location_id), ex=86400)
         if r.get(lock) == mine.encode():
             r.delete(lock)
         r.decr(queue)
@@ -598,14 +593,13 @@ def door_leave(ticket: tuple, raw: str, location_id: UUID | None) -> None:
         log.warning("door gate unavailable on leave")  # the lock and the queue key expire on their own
 
 
-def _note_wrong(location_id: UUID) -> None:
+def _note_wrong(door_id: UUID) -> None:
     now = clock.now().timestamp()
     try:
-        r = ratelimit._redis()
-        pipe = r.pipeline()
-        pipe.zadd(_bad_key(location_id), {secrets.token_hex(8): now})
-        pipe.zremrangebyscore(_bad_key(location_id), "-inf", now - DOOR_BAD_WINDOW.total_seconds())
-        pipe.expire(_bad_key(location_id), int(DOOR_BAD_WINDOW.total_seconds()) + 60)
+        pipe = ratelimit._redis().pipeline()
+        pipe.zadd(_bad_key(door_id), {secrets.token_hex(8): now})
+        pipe.zremrangebyscore(_bad_key(door_id), "-inf", now - DOOR_BAD_WINDOW.total_seconds())
+        pipe.expire(_bad_key(door_id), int(DOOR_BAD_WINDOW.total_seconds()) + 60)
         pipe.execute()
     except redis.RedisError:
         log.warning("door wrong-code record unavailable")
@@ -622,7 +616,7 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
         EntryCode.code_hash == _digest(location_id, code)))  # fmt: skip
     reason, check_in = _admit(session, row, _booking(session, row.booking_id)) if row else ("unknown_code", None)
     if reason == "unknown_code":
-        _note_wrong(location_id)
+        _note_wrong(door.id)
         _note_bad_code(session, door)
     kind = "entry_denied" if reason else "entry_granted"
     _event(session, location_id, kind, door_device_id=door.id, entry_code_id=row.id if row else None,

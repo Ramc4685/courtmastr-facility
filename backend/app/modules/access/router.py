@@ -10,11 +10,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from starlette.concurrency import run_in_threadpool
 
-from app.core import clock
+from app.core import clock, context, ratelimit
 from app.core.api import TxRoute, camel_id
 from app.core.auth import Principal, tokens
 from app.core.auth.deps import Ctx, _host_tenant, current_ctx, public_session, request_session, require
+from app.core.db import tenant_session
 from app.core.errors import DomainError, NotFound, Unauthenticated
 from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
@@ -529,22 +531,41 @@ def door_device(request: Request) -> DoorDevice:
     return door
 
 
+def _authenticated_door(request: Request) -> UUID:
+    """Step 1, before anything else: the credential, by indexed lookup in a short session closed at once. Unknown
+    or retired: 401 at once (no queue, no sleep, no row), counted on the per-IP `door-auth` bucket (closed)."""
+    raw, tenant_id = _door_credential(request)
+    host = _host_tenant(request)
+    door_id = None
+    if host is None or host.id == tenant_id:
+        with tenant_session(tenant_id) as session:
+            door = building.door_for_token(session, raw)
+            door_id = door.id if door else None
+    if door_id is None:
+        ratelimit.hit("door-auth", context.client_ip.get() or "unknown")
+        raise Unauthenticated("Door credential required", code="device-unauthenticated")
+    return door_id
+
+
+def _evaluate(request: Request, code: str) -> dict:
+    door = door_device(request)  # the request session opens only now, after the wait
+    return building.verify_code(_session(request), door, code)
+
+
 @kiosk.post("/door/verify", response_model=s.DoorVerifyResult)
-def verify_door_code(body: s.DoorVerifyRequest, request: Request):
-    """A keypad's code: allow (with how long to release the lock) or deny, and nothing else. Before any database
-    work: a code that is not CODE_DIGITS long is denied, then `door_enter` queues the verify for its location,
-    serialises it and sleeps the current delay (Redis only); a full queue or an unreachable Redis is denied with
-    nothing written. The session is opened only after the delay. This sync route holds a threadpool thread while it
-    waits; the queue bounds that to DOOR_QUEUE + 1 threads per location (README)."""
-    raw, _ = _door_credential(request)
-    if len(body.code) != building.CODE_DIGITS:
+async def verify_door_code(body: s.DoorVerifyRequest, request: Request):
+    """A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the
+    credential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied
+    unevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held
+    (`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the
+    request transaction, one activity row and one audit row."""
+    door_id = await run_in_threadpool(_authenticated_door, request)
+    if len(body.code) != building.CODE_DIGITS or not body.code.isdigit():
         return building.DENY
-    ticket = building.door_enter(raw)
+    ticket = await building.door_enter(door_id)
     if ticket is None:
         return building.DENY
-    door = None
     try:
-        door = door_device(request)
-        return building.verify_code(_session(request), door, body.code)
+        return await run_in_threadpool(_evaluate, request, body.code)
     finally:
-        building.door_leave(ticket, raw, door.location_id if door else None)
+        building.door_leave(ticket)

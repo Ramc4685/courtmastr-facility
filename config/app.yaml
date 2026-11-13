@@ -90,6 +90,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     league-post:      {limit: 10, window_sec: 3600, closed: true}   # classifieds and pickup games posted, per IP
     league-post-contact: {limit: 20, window_sec: 900, closed: true} # relay messages to posters, per IP
     league-post-contact-sender: {limit: 10, window_sec: 3600, closed: true}  # relay messages, per signed-in identity
+    door-auth:        {limit: 20, window_sec: 60,   closed: true}   # failed door credentials (building control), per IP
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months
