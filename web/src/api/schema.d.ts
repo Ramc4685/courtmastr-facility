@@ -32434,11 +32434,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /**
-             * Is Adult
-             * @default false
-             */
-            is_adult: boolean;
+            /** Is Adult */
+            is_adult?: boolean | null;
             /**
              * Is My Ward
              * @default false

@@ -48667,9 +48667,15 @@
             "type": "string"
           },
           "is_adult": {
-            "default": false,
-            "title": "Is Adult",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Adult"
           },
           "is_my_ward": {
             "default": false,
