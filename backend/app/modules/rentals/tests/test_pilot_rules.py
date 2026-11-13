@@ -668,3 +668,25 @@ def test_a_refused_booking_neither_tells_staff_nor_burns_the_one_notice(client, 
     assert not [m for m in mailbox if m.to == "desk@example.com"]
     ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 17, 18)))  # a booking that lands
     assert len([m for m in mailbox if m.to == "desk@example.com"]) == 1
+
+
+def test_someone_booking_for_another_adult_gets_no_age_signal(client, owner, tenant, f):
+    """The entry-code notice says the holder's age waits for staff: only the person themselves is told, never a
+    manager (or anyone else) booking in their name."""
+    from app.modules import clients
+    from app.modules.clients.models import ClientPortalAccess
+
+    helper, theirs = portal_client(client, owner, tenant, f)
+    adult = new_client(client, owner, f.location, first_name="Ada", birth_on="1990-01-02")["id"]  # unconfirmed
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        identity = session.scalars(select(ClientPortalAccess.identity_id).where(
+            ClientPortalAccess.client_id == helper)).one()  # fmt: skip
+        clients.service.link_identity(session, adult, identity, is_primary=False)
+    checkout = ok(client.post(f"{API}/portal/rentals", headers=theirs, json=online(f, adult, 15, 16)))
+    assert checkout["entry_code_notice"] is None
+    paid = ok(client.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm",
+                          headers=theirs | {"Idempotency-Key": uuid4().hex},
+                          json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
+    assert paid["entry_code_notice"] is None
+    mine = ok(client.post(f"{API}/portal/rentals", headers=theirs, json=online(f, helper, 17, 18)))
+    assert mine["entry_code_notice"]  # their own booking: they are told

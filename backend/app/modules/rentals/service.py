@@ -1604,12 +1604,13 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     # only once the rental is written: a refusal above (some commit, like document-required) must not tell staff
     clients.service.note_unconfirmed_booking(session, client_id, data["starts_at"], rtype.location_id)
     return _checkout(
-        session, row, booking, quote, invoice_ids[0] if invoice_ids else None, hold is not None and due > 0
+        session, principal, row, booking, quote, invoice_ids[0] if invoice_ids else None, hold is not None and due > 0
     )
 
 
 def _checkout(
     session: Db,
+    principal: Principal,
     row: RentalBooking,
     booking,
     quote: dict | None,
@@ -1621,8 +1622,15 @@ def _checkout(
     return {
         "rental": _view(session, row), "quote": quote or empty, "expires_at": booking.expires_at, "invoice_id": invoice_id,
         "payment_required": required, "amount_due_minor": _amount_due(quote) if required else 0, "payment_status": status,
-        "entry_code_notice": clients.service.entry_code_notice(session, clients.service.get(session, booking.client_id), row.location_id),
+        "entry_code_notice": _entry_code_notice(session, principal, booking.client_id, row.location_id),
     }  # fmt: skip
+
+
+def _entry_code_notice(session: Db, principal: Principal, client_id: UUID, location_id: UUID) -> str | None:
+    """An age signal: only the person themselves is told, never someone booking in their name."""
+    if clients.households.can_act_for(session, principal.identity_id, client_id) != "self":
+        return None
+    return clients.service.entry_code_notice(session, clients.service.get(session, client_id), location_id)
 
 
 def _checkout_quote(session: Db, row: RentalBooking) -> tuple[dict, UUID | None]:
@@ -1657,7 +1665,7 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
     row, booking = _portal_rental(session, principal, rental_id, lock=True)
     quote, invoice_id = _checkout_quote(session, row)
     if booking.status == "confirmed":  # an idempotent replay of a paid confirm: already acknowledged
-        return _checkout(session, row, booking, quote, invoice_id, False)
+        return _checkout(session, principal, row, booking, quote, invoice_id, False)
     if booking.status != "tentative" or booking.expires_at <= clock.now():
         raise Conflict("The hold on this time has expired.", code="hold-expired")
     clients.terms.acknowledge(session, client_id=booking.client_id, terms_version_id=data.get("terms_version_id"),
@@ -1674,7 +1682,7 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
     )  # fmt: skip
     booking = scheduling.service.confirm_booking(session, booking.id)
     audit.record(session, UPDATE, row, location_id=row.location_id, changes={"status": ["tentative", "confirmed"]})
-    return _checkout(session, row, booking, quote, invoice_id, False, payment.status if payment else None)
+    return _checkout(session, principal, row, booking, quote, invoice_id, False, payment.status if payment else None)
 
 
 def abandon_portal_rental(session: Db, principal: Principal, rental_id: UUID) -> None:
