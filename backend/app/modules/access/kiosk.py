@@ -107,13 +107,17 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, fre
         raise see_staff()
     free_only = not _by_possession(row) if free_only is None else free_only
     try:
-        enrollment = programs.selfservice.kiosk_enroll(
-            session, row.client_id, row.location_id, session_id, _until(config), free_only=free_only
-        )
+        with session.begin_nested():  # a refusal undoes the seat it reserved, so "already enrolled" can go on
+            enrollment = programs.selfservice.kiosk_enroll(
+                session, row.client_id, row.location_id, session_id, _until(config), free_only=free_only
+            )
     except DomainError as exc:
-        if _by_possession(row) or exc.status >= 500:
+        if exc.code == "already-enrolled":
+            enrollment = None  # the place is held already (or pending, or just taken on another kiosk): check in to it
+        elif _by_possession(row) or exc.status >= 500:
             raise
-        raise see_staff() from None
+        else:
+            raise see_staff() from None
     marked = programs.service.mark_attended_by_check_in(
         session, client_id=row.client_id, location_id=row.location_id, at=clock.now(),
         early=timedelta(minutes=config["late_window_minutes"]), late=timedelta(minutes=config["early_window_minutes"]),
@@ -121,8 +125,12 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, fre
     )  # fmt: skip
     for enrollment_id, marked_session_id in marked:
         session.add(CheckInAttendance(
-            check_in_id=row.id, target_id=enrollment_id, session_id=marked_session_id, was_auto_booked=True
+            check_in_id=row.id, target_id=enrollment_id, session_id=marked_session_id,
+            was_auto_booked=enrollment is not None,
         ))  # fmt: skip
+    if enrollment is None:
+        session.flush()
+        return
     audit.record(
         session,
         ENROLL,

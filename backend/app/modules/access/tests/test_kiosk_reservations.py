@@ -18,6 +18,7 @@ from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db import tenant_session
 from app.main import app as fastapi_app
+from app.modules import clients
 from app.modules.access.domain import cards
 from app.modules.access.models import CheckIn, Credential, KioskDevice
 from app.modules.access.tests.test_checkin import _pair, ok
@@ -127,8 +128,8 @@ def test_the_reservation_page_lists_and_books_by_the_portal_rules(client, tenant
     assert next(s for s in done["sessions"] if s["target_id"] == now_free.id)["is_booked"]
     replay = book(client, entered, now_free.id, "kiosk-book-1")  # the answer carries a token: never stored
     assert replay.status_code == 409 and replay.json()["code"] == "response-not-stored"
-    again = book(client, done, now_free.id)
-    assert again.status_code == 409 and again.json()["code"] == "already-enrolled"
+    again = ok(book(client, done, now_free.id))  # a place already held is a check-in to it, not a refusal
+    done = again
     channel = scalar(tenant, select(Enrollment.channel).where(Enrollment.session_id == UUID(now_free.id)))
     assert channel == "kiosk"
     actions = scalar(tenant, select(func.array_agg(AuditEvent.action)).where(
@@ -411,3 +412,55 @@ def test_the_lockout_fails_closed_when_redis_is_down(client, tenant, owner, k, m
     scanned = client.post(f"{API}/kiosk/check-ins", json={"card_payload": card})
     assert scanned.status_code == 429 and scanned.json()["code"] == "kiosk-locked-out"
     assert enter(client, k.person)["status"] == "admitted"  # found by name
+
+
+def _places(tenant, k, session_id) -> list[str]:
+    return list(scalar(tenant, select(func.array_agg(Enrollment.status)).where(
+        Enrollment.client_id == UUID(k.person["id"]), Enrollment.session_id == UUID(session_id))) or [])  # fmt: skip
+
+
+def test_a_name_visit_booking_a_place_already_held_checks_in_to_it(client, tenant, owner, k):
+    seat = soon(client, owner, k.loc, 30)
+    ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": seat.id, "client_id": k.person["id"]}), 201)
+    entered = enter(client, k.person)  # by name: the page does not show the place it holds
+    done = book(client, entered, seat.id)
+    assert done.status_code == 200, done.text  # not see-staff, never a server error
+    assert _places(tenant, k, seat.id) == ["enrolled"]  # nothing new booked
+
+
+def test_auto_book_meeting_a_pending_place_still_checks_in(client, tenant, owner, k):
+    seat = soon(client, owner, k.loc, 20)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.add(Enrollment(
+            location_id=UUID(k.loc), client_id=UUID(k.person["id"]), session_id=UUID(seat.id), status="pending",
+            pricing="free", channel="portal", enrolled_at=clock.now(), hold_expires_at=clock.now() + timedelta(minutes=15),
+        ))  # fmt: skip
+    ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner, json={"is_auto_book": True}))
+    entered = enter(client, k.person, app_qr(tenant, k.person))
+    assert entered["status"] == "admitted" and entered["visit_token"]
+    assert scalar(tenant, select(CheckIn.result).where(CheckIn.id == UUID(entered["check_in_id"]))) == "granted"
+    assert _places(tenant, k, seat.id) == ["pending"]  # the checkout hold is left as it was
+
+
+def test_the_same_scan_on_two_kiosks_books_one_place_and_checks_in_twice(client, tenant, owner, k):
+    seat = soon(client, owner, k.loc, 20)
+    ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner, json={"is_auto_book": True}))
+    card = card_of(client, owner, k.person)
+    kiosks = [client, TestClient(fastapi_app)]
+    _pair(kiosks[1], tenant, owner, k.loc)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # first-use seeding, not raced here
+        clients.households.ensure_relationship_types(session)
+    barrier, codes = threading.Barrier(2), []
+
+    def scan(kiosk):
+        barrier.wait()
+        answer = kiosk.post(f"{API}/kiosk/check-ins", json={"card_payload": card})
+        codes.append((answer.status_code, answer.text if answer.status_code != 201 else ""))
+
+    threads = [threading.Thread(target=scan, args=(kiosk,)) for kiosk in kiosks]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert [c for c, _ in codes] == [201, 201], codes
+    assert _places(tenant, k, seat.id) == ["enrolled"]
