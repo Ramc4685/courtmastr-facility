@@ -83,6 +83,8 @@ export default function SignIn() {
         <Field label="Sign-in link" value={link} onChangeText={setLink} autoCapitalize="none" autoCorrect={false} placeholder="https://…#token=…" />
         <Button label="Use link" variant="secondary" onPress={onConsume} loading={busy === 'consume'} disabled={!link} />
       </Surface>
+      <Button label="New here? Request a free trial" variant="secondary" onPress={() => router.push('/try-us')} />
+      <Button label="Contacts" variant="secondary" onPress={() => router.push('/contacts')} />
       <Button label="Choose a different facility" variant="secondary" onPress={() => router.push('/facilities')} />
     </Screen>
   );

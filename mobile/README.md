@@ -35,6 +35,7 @@ tenant comes from the access token. With `EXPO_PUBLIC_PLATFORM_DOMAIN` set, requ
 |---|---|
 | `EXPO_PUBLIC_API_ORIGIN` | API origin in development; the tenant travels in `X-Tenant-Slug`. |
 | `EXPO_PUBLIC_PLATFORM_DOMAIN` | When set, requests go to `https://<slug>.<domain>` instead (production shape). |
+| `EXPO_PUBLIC_WEB_ORIGIN` | Member web portal origin (https) for tell-a-friend links (`<origin>/f/<slug>`); defaults to `https://<platform domain>`. Unset: no tell-a-friend row. |
 | `EXPO_PUBLIC_PORTAL_ADAPTER` | `api` (default) or `demo`. See below. |
 
 ## Real API vs demo adapter
@@ -44,6 +45,13 @@ With the default `api` adapter every member screen calls the real member-portal 
 (session listings, enrollments, package-backed booking), my bookings, the check-in card (`fhq.` rolling QR
 derived on the device from the seed `/portal/app-cards` issues), memberships, packages, progress
 (`/portal/assessment-bests`), invoices, paying with a saved card, the inbox and push-device registration.
+
+Phase 11 C2 adds news and info (`/portal/app-contents`, grouped by kind; pictures are not shown yet, the app has
+no authenticated image loader), location contacts and "Try us" (public, also reachable from sign-in; the trial
+form always shows the same thank-you), feedback, favourites with the next 14 days of matching sessions (removing
+only: no app list shows programs or booking types to favourite), sharing a booking and tell-a-friend through the
+system share sheet, and anonymous screen counts (`src/lib/usage.ts`: route names only, batches of 50, every 60 s
+and on background, only while signed in). Add-to-calendar is not built (no calendar module is bundled).
 
 Two things have no endpoint yet and show **not available yet** instead of guessing:
 

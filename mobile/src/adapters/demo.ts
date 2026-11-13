@@ -221,4 +221,13 @@ export const demoAdapter: PortalAdapter = {
     state.walletPass = null;
     return delay(undefined);
   },
+  // shortcut: the C2 content screens have no demo data; they show their empty states in demo mode.
+  listAppContents: () => delay([]),
+  listLocationContacts: () => delay([]),
+  requestTrial: () => delay(undefined),
+  sendFeedback: () => delay(undefined),
+  listFavorites: () => delay([]),
+  removeFavorite: () => delay(undefined),
+  listFavoriteSchedule: () => delay([]),
+  recordUsage: () => delay(undefined),
 };

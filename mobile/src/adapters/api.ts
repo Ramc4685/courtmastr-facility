@@ -256,4 +256,22 @@ export const apiAdapter: PortalAdapter = {
     const saved = await raw<S['PortalDeviceOut']>('/portal/devices', { method: 'POST', body: registration });
     return { ...registration, id: saved.id };
   },
+  listAppContents: (locationId) => all('/portal/app-contents', { location_id: locationId ?? undefined }),
+  listLocationContacts: async (locationId) =>
+    (await raw<S['PublicLocationContacts']>('/public/location-contacts', { query: { location_id: locationId } })).data,
+  requestTrial: async (request) => {
+    await raw('/public/trial-requests', { method: 'POST', body: request });
+  },
+  sendFeedback: async ({ clientId, message, rating }) => {
+    await raw('/portal/feedback', { method: 'POST', body: { client_id: clientId, message, rating } });
+  },
+  listFavorites: async (clientId) => (await raw<S['PortalFavorites']>('/portal/favorites', { query: { client_id: clientId } })).data,
+  removeFavorite: async (id) => {
+    await raw(`/portal/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  listFavoriteSchedule: async ({ clientId, from, to }) =>
+    (await raw<S['PortalFavoriteSchedule']>('/portal/favorites/schedule', { query: { client_id: clientId, from, to } })).data,
+  recordUsage: async (items) => {
+    await raw('/portal/app-usage', { method: 'POST', body: { items } });
+  },
 };

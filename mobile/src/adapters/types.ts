@@ -1,5 +1,8 @@
 // The app-facing shapes. api.ts maps the real member-portal API (backend/openapi.json) onto them, so screens
 // and the demo adapter share one shape. Fields the portal does not return are null or empty, never guessed.
+import type { components } from '../api/schema';
+
+type S = components['schemas'];
 
 /** The portal has no endpoint for this yet; the screen shows a "not available yet" state. */
 export class NotAvailable extends Error {
@@ -199,6 +202,14 @@ export type DeviceRegistration = {
   is_push_enabled?: boolean;
 };
 
+/** Phase 11 C2 (APP-07..14, APP-17): these match the portal schemas one to one. */
+export type AppContent = S['PortalAppContent'];
+export type LocationContact = S['PublicLocationContact'];
+export type TrialRequest = S['PublicTrialRequestIn'];
+export type Favorite = S['PortalFavorite'];
+export type FavoriteSession = S['PortalFavoriteScheduleItem'];
+export type UsageItem = S['PortalAppUsageItem'];
+
 /** Everything the member app reads from the portal. One implementation per data source. */
 export interface PortalAdapter {
   readonly isDemo: boolean;
@@ -230,4 +241,16 @@ export interface PortalAdapter {
   listInbox(): Promise<InboxItem[]>;
   markInboxRead(id: string): Promise<InboxItem>;
   registerDevice(registration: DeviceRegistration): Promise<DeviceRegistration>;
+  /** Published news, announcements, promotions, gallery and info pages: tenant-wide plus the location's. */
+  listAppContents(locationId?: string | null): Promise<AppContent[]>;
+  /** Public: works signed out. */
+  listLocationContacts(locationId: string): Promise<LocationContact[]>;
+  /** Public "Try us". The server answers the same whether or not anything was stored. */
+  requestTrial(request: TrialRequest): Promise<void>;
+  sendFeedback(args: { clientId: string; message: string; rating: number | null }): Promise<void>;
+  listFavorites(clientId: string): Promise<Favorite[]>;
+  removeFavorite(id: string): Promise<void>;
+  listFavoriteSchedule(args: { clientId: string; from: string; to: string }): Promise<FavoriteSession[]>;
+  /** Anonymous screen counts (APP-17): 1-50 items, no ids or personal data in names. */
+  recordUsage(items: UsageItem[]): Promise<void>;
 }

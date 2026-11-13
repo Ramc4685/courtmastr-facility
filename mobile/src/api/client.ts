@@ -84,5 +84,7 @@ export async function raw<T>(path: string, { method = 'GET', query, body, idempo
     }),
   );
   if (!response.ok) throw await problemFrom(response);
-  return (response.status === 204 ? undefined : await response.json()) as T;
+  // 202 and 204 may have no body (e.g. POST /public/trial-requests).
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }

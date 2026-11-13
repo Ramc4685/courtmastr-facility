@@ -190,6 +190,45 @@ describe('api adapter', () => {
     expect(calls[0]!.url).toContain('/api/v1/public/app-config');
   });
 
+  it('calls the member app content, contact, trial, feedback, favourite and usage routes', async () => {
+    const base = 'http://localhost:8150/api/v1';
+    let calls = mockFetch([() => json(page([{ id: 'n1', kind: 'news' }]))]);
+    expect(await apiAdapter.listAppContents('l1')).toEqual([{ id: 'n1', kind: 'news' }]);
+    expect(calls[0]!.url).toBe(`${base}/portal/app-contents?location_id=l1&limit=200`);
+
+    calls = mockFetch([() => json({ data: [{ id: 'k1', kind: 'department', name: 'Front desk', phone: '+1 555', email: null, role: null }] })]);
+    expect(await apiAdapter.listLocationContacts('l1')).toMatchObject([{ name: 'Front desk' }]);
+    expect(calls[0]!.url).toBe(`${base}/public/location-contacts?location_id=l1`);
+
+    calls = mockFetch([() => new Response(null, { status: 202 })]);
+    const trial = { name: 'Pat', email: 'pat@example.com', phone: null, interest: 'Tennis', message: null, location_id: 'l1' };
+    await apiAdapter.requestTrial(trial);
+    expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/public/trial-requests`, body: trial });
+
+    calls = mockFetch([() => json({ id: 'fb1' }, 201)]);
+    await apiAdapter.sendFeedback({ clientId: 'c1', message: 'Great courts', rating: 5 });
+    expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/portal/feedback`, body: { client_id: 'c1', message: 'Great courts', rating: 5 } });
+
+    calls = mockFetch([() => json({ data: [{ id: 'f1', kind: 'program_group', target_id: 'g1' }] })]);
+    expect(await apiAdapter.listFavorites('c1')).toMatchObject([{ id: 'f1' }]);
+    expect(calls[0]!.url).toBe(`${base}/portal/favorites?client_id=c1`);
+
+    calls = mockFetch([() => new Response(null, { status: 204 })]);
+    await apiAdapter.removeFavorite('f1');
+    expect(calls[0]).toMatchObject({ method: 'DELETE', url: `${base}/portal/favorites/f1` });
+
+    calls = mockFetch([() => json({ data: [{ session_id: 's1', title: 'Drills' }] })]);
+    expect(await apiAdapter.listFavoriteSchedule({ clientId: 'c1', from: '2026-11-13T00:00:00Z', to: '2026-11-27T00:00:00Z' })).toMatchObject([{ session_id: 's1' }]);
+    const url = new URL(calls[0]!.url);
+    expect([url.pathname, url.searchParams.get('client_id'), url.searchParams.get('from'), url.searchParams.get('to')]).toEqual([
+      '/api/v1/portal/favorites/schedule', 'c1', '2026-11-13T00:00:00Z', '2026-11-27T00:00:00Z',
+    ]);
+
+    calls = mockFetch([() => new Response(null, { status: 204 })]);
+    await apiAdapter.recordUsage([{ kind: 'screen', name: 'screen.news', count: 2 }]);
+    expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/portal/app-usage`, body: { items: [{ kind: 'screen', name: 'screen.news', count: 2 }] } });
+  });
+
   it('surfaces problem+json from a missing endpoint as an ApiError', async () => {
     mockFetch([() => json({ status: 404, code: 'not-found', title: 'Not found' }, 404)]);
     await expect(apiAdapter.listInbox()).rejects.toMatchObject({ status: 404, code: 'not-found' });

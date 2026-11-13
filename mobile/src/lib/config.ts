@@ -12,7 +12,14 @@ export const config = {
   // Expo Go serialises a null extra as {}, so accept a non-empty string only.
   pinnedTenant: typeof pinned === 'string' && pinned ? pinned : null,
   appVersion: Constants.expoConfig?.version ?? '0.0.0',
+  // The member web portal, for tell-a-friend links; https only, so unset in plain local development.
+  webOrigin: process.env.EXPO_PUBLIC_WEB_ORIGIN || (process.env.EXPO_PUBLIC_PLATFORM_DOMAIN ? `https://${process.env.EXPO_PUBLIC_PLATFORM_DOMAIN}` : null),
 };
+
+/** Tell-a-friend link to the facility's public pages (web `/f/:slug`), or null without an https web origin. */
+export function shareUrl(slug: string): string | null {
+  return config.webOrigin?.startsWith('https://') ? `${config.webOrigin}/f/${encodeURIComponent(slug)}` : null;
+}
 
 /**
  * Base URL for a tenant: per-tenant host in production, one origin plus X-Tenant-Slug in development. The API

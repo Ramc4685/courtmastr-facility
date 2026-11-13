@@ -16,12 +16,16 @@ export function useLocations() {
   });
 }
 
-/** Zone for schedule times: the acting client's home location, else the first location, else the tenant's. */
-export function useZone(): string {
+/** The acting client's home location, else the first location. */
+export function useHomeLocation() {
   const { data } = useLocations();
   const { actingFor } = useHousehold();
-  const home = data?.find((l) => l.id === actingFor?.client.home_location_id);
-  return home?.time_zone ?? data?.[0]?.time_zone ?? 'UTC';
+  return data?.find((l) => l.id === actingFor?.client.home_location_id) ?? data?.[0];
+}
+
+/** Zone for schedule times: the home location's (above), else UTC. */
+export function useZone(): string {
+  return useHomeLocation()?.time_zone ?? 'UTC';
 }
 
 /** getPublicAppConfig for the active facility: home layout and feature switches (the theme is applied by
