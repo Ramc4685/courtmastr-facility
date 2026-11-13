@@ -19,6 +19,7 @@ import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
 import { CampaignsPage } from '../features/engagement/CampaignsPage'
 import { EngagementLayout } from '../features/engagement/EngagementLayout'
 import { SegmentsPage, TemplatesPage as MessageTemplatesPage } from '../features/engagement/LibraryPages'
+import { MEMBER_CONTENT_KEYS, MemberContentPage } from '../features/engagement/MemberContentPage'
 import { MessageLogPage, SuppressionsPage } from '../features/engagement/MessagesPages'
 import { PortalSettingsPage } from '../features/engagement/PortalPage'
 import { UnsubscribePage } from '../features/engagement/UnsubscribePage'
@@ -203,6 +204,7 @@ export function AppRoutes() {
           <Route path="reminders" element={<RequirePermission permission="engagement.notification_rule.manage"><RemindersPage /></RequirePermission>} />
           <Route path="portal" element={<PortalSettingsPage />} />
           <Route path="app" element={<RequirePermission permission="engagement.app_content.manage"><AppConfigPage /></RequirePermission>} />
+          <Route path="app-content" element={<RequirePermission permission={MEMBER_CONTENT_KEYS}><MemberContentPage /></RequirePermission>} />
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
