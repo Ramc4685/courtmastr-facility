@@ -136,7 +136,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`. Docs batch.
 - [x] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769). Docs batch.
 
-### integrations (54 open, 25 closed) — [evidence](drift/integrations.md)
+### integrations (62 open, 25 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -231,6 +231,14 @@ INT-13 analytics on registration pages (new 2026-11-13):
 - [ ] [contract] 22 engagement operations in `docs/api/openapi-programs.yaml` (lines 5648 to 5993, e.g. `scheduleCampaign`, portal content) declare no `security`, so the contract never says a key may call them although their permission is in `service.KEY_PERMISSIONS` (2026-11-13).
 - [ ] [undocumented] Bulk-send (`B`) scopes `engagement.campaign.send` and `engagement.push.send` go on a key without `confirm_sensitive_scopes`; only `$` and `P` need it (`service.py:56`). Decide whether `B` should join the confirmed set.
 - [ ] [undocumented] Migration 1705 was edited in place to keep the seven engagement keys; a database that ran the earlier 1705 keeps the stripped scopes. Nothing is deployed, so no new revision was added.
+- [ ] [undocumented] `KEY_WITHHELD` (`rentals.portal_setting.manage`) is applied at runtime only (`backend/app/modules/integrations/service.py:84-91`, `auth.py:62-64`); migration 1705 keeps every `rentals.*` scope, so a withheld scope can stay stored, though README line 46 says 1705 stripped any stored. No effect at runtime.
+- [ ] [wording] The `ApiKey` docstring says a key's grants are "scopes intersected with the creator's current grants"; `auth._bounded` also drops scopes off the allow-list (`backend/app/modules/integrations/models.py:60-61`, `auth.py:49-66`).
+- [ ] [contract] `testWebhookEndpoint` says "202 Accepted; poll the returned resource"; the code sends the attempt synchronously and returns the finished delivery (`backend/app/modules/integrations/service.py:371-385`, `router.py:119-122`).
+- [ ] [wording] The doc number `FH-<LOCATION SLUG>-<YYYYMMDD>` upper-cases and cuts the slug to 12 characters, so two locations sharing a 12-character prefix collide for a day (`backend/app/modules/integrations/service.py:813`).
+- [ ] [undocumented] `portal_meetings` walks enrolments through the private `feeds._pages` (stops at 1000 places), applies no time filter, and includes household places (`backend/app/modules/integrations/meetings.py:19, 253-266`).
+- [ ] [undocumented] Member feed delete is audited as `integrations.calendar_feed.delete`; `DELETE /portal/calendar-feeds` answers 204 with no feed and a staff caller gets 403; portal create returns `{id, name, last_fetched_at, created_at, url_token}` (`backend/app/modules/integrations/feeds.py:136-157`, `router.py:358-370`).
+- [ ] [undocumented] `/portal/calendar-feeds` and `/portal/enrollments/{id}/join` are classified open during the past-due lockout only in billing's test (`backend/app/modules/billing/tests/test_collections.py:33-34`, `backend/app/modules/billing/collections.py:211-248`); the README does not say every new portal POST needs classifying there.
+- [ ] [undocumented] Each page of the member feed reads sessions three times (enrolment list, `get_sessions`, `booking_views`), against the comment "one read, not one per place" (`backend/app/modules/integrations/feeds.py:292-311`).
 
 ### leagues (5) — [evidence](drift/leagues.md)
 
