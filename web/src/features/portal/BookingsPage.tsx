@@ -200,7 +200,9 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
         )}
         {forChild && (
           <p role="note" className="rounded-md border border-border px-3 py-2 text-sm">
-            Children cannot hold a court booking on their own. This books the court in your name, {self.preferred_name || self.first_name}, with {actingFor.preferred_name || actingFor.first_name} playing; you pay and come along.
+            {mayPlay(actingFor)
+              ? `Children cannot hold a court booking on their own. This books the court in your name, ${self.preferred_name || self.first_name}, with ${actingFor.preferred_name || actingFor.first_name} playing; you pay and come along.`
+              : `Only a parent or guardian can bring ${actingFor.preferred_name || actingFor.first_name} to a court booking. This books the court in your name, ${self.preferred_name || self.first_name}, for you and any adults you add.`}
           </p>
         )}
         {household.length > 0 && (

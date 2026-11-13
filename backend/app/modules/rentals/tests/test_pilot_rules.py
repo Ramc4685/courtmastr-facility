@@ -234,6 +234,23 @@ def test_portal_parent_books_in_own_name_with_the_child_playing(client, owner, t
                        json=online(f, me, 16, 17) | {"player_client_ids": [stranger]}).status_code == 404  # fmt: skip
 
 
+def test_only_a_guardian_brings_a_child_a_delegate_does_not(client, owner, tenant, f):
+    """A grandparent with acting rights (a delegate) may book for the family, but a child plays only on a booking
+    held by one of their guardians: the person answerable for them at the court."""
+    grandparent, theirs = portal_client(client, owner, tenant, f)
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    minds = ok(client.post(f"{API}/relationship-types", headers=owner, json={
+        "code": "grandparent", "label": "Grandparent", "grants_acting_rights": True}))  # fmt: skip
+    ok(client.post(f"{API}/clients/{grandparent}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": minds["id"]}))  # fmt: skip
+    seen = ok(client.get(f"{API}/portal/clients/{kid}", headers=theirs), 200)
+    assert (seen["authority"], seen["is_adult"], seen["is_my_ward"]) == ("delegate", False, False)
+    refused(client.post(f"{API}/portal/rentals", headers=theirs,
+                        json=online(f, grandparent, 15, 16) | {"player_client_ids": [kid]}), 422,
+            "minor-needs-guardian")  # fmt: skip
+    ok(client.post(f"{API}/portal/rentals", headers=theirs, json=online(f, grandparent, 15, 16)))  # alone is fine
+
+
 def test_coaching_keeps_its_rules_a_parent_registers_a_child(client, owner, tenant, f):
     """Sessions are not rentals: a parent may still register a child alone (dropped off at coaching)."""
     policy(client, owner, f)

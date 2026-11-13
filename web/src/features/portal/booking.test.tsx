@@ -148,6 +148,21 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(calls.find((c) => c.url.includes('/portal/rental-availability'))?.url).toContain('client_id=c1')
   })
 
+  it('tells a grandparent (delegate) that only a parent or guardian can bring the child', async () => {
+    const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
+    open('/portal/bookings', {
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c2', 'Kit', 'delegate')] } },
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+      'GET /api/v1/portal/rental-availability': page([]),
+    })
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Acting for' }), 'c2')
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    expect(within(dialog).getByRole('note')).toHaveTextContent('Only a parent or guardian can bring Kit to a court booking.')
+    expect(within(dialog).queryByRole('checkbox', { name: 'Kit' })).toBeNull()
+  })
+
   it('asks for a birth date before the signed-in person can book a court', async () => {
     const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
     const calls = open('/portal/bookings', {

@@ -199,7 +199,11 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
 - **Portal.** A parent books in their own name and names household members who will play
   (`player_client_ids`, each one the identity can act for, else 404). Acting for someone who is not an adult
   (`is_adult` false), the booking dialog books in the signed-in person's name, ticks the child as a player when
-  they are the parent's ward, and says why; a signed-in person without a birth date is asked to add one first. The portal rental view still carries no
+  they are the parent's ward, and says why; a signed-in person without a birth date is asked to add one first.
+- **Who may bring a child.** Only a guardian (`guardian_ids`: a guardianship relationship such as parent or
+  guardian). A delegate with acting rights (a grandparent or minder) may book for themselves, but a child on their
+  booking is refused (`minor-needs-guardian`); the dialog says "Only a parent or guardian can bring ..." and does not
+  offer the child as a player. Decided for the pilot: the guardian is the person answerable for the child at the court. The portal rental view still carries no
   co-party ids (S-06).
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
 - **Out of scope** (seen, not built): online recurring bookings by members, club contracts, no-show and overstay
