@@ -163,6 +163,59 @@ describe('PortalApp', { timeout: 20_000 }, () => {
   })
 })
 
+describe('Portal online sessions and calendar feed', { timeout: 20_000 }, () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const listing = (id: string, startsInMin: number) => ({
+    session_id: id, title: id === 's1' ? 'Online yoga' : 'Later class', starts_at: new Date(Date.now() + startsInMin * 60_000).toISOString(),
+    ends_at: new Date(Date.now() + (startsInMin + 60) * 60_000).toISOString(), location_id: 'l1', is_bookable: false, can_join_waitlist: false, reason: null, spots_left: null,
+  })
+  const enrolment = (id: string, session: string) => ({ id, client_id: 'c1', session_id: session, status: 'enrolled', target_kind: 'session', program_group_id: null, enrolled_at: null, cancel_kind: null, cancelled_at: null })
+
+  it('offers Join online only inside the window, opens the link, and surfaces a refusal', async () => {
+    const user = userEvent.setup()
+    let refuse = false
+    const tab = { opener: {} as unknown, location: { href: '' }, close: vi.fn() }
+    vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window)
+    const calls = open('/portal/sessions', {
+      'GET /api/v1/portal/session-listings': { status: 200, body: [listing('s1', 5), listing('s2', 2 * 24 * 60)] },
+      'GET /api/v1/portal/enrollments': page([enrolment('e1', 's1'), enrolment('e2', 's2')]),
+      'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
+      'POST /api/v1/portal/enrollments/e1/join': () =>
+        refuse ? { status: 409, body: { status: 409, code: 'invalid-state-transition', detail: 'This session has no online meeting.' } } : { status: 200, body: { join_url: 'https://meet.example.com/yoga', passcode: null } },
+    })
+    const join = await screen.findByRole('button', { name: 'Join online for Morgan Member' })
+    expect(screen.getAllByRole('button', { name: /^Join online/ })).toHaveLength(1) // the class in two days is not joinable yet
+    await user.click(join)
+    await vi.waitFor(() => expect(tab.location.href).toBe('https://meet.example.com/yoga'))
+    expect(tab.opener).toBeNull()
+    expect(calls.filter((c) => c.url.endsWith('/join'))).toHaveLength(1)
+
+    refuse = true
+    await user.click(screen.getByRole('button', { name: 'Join online for Morgan Member' }))
+    expect(await screen.findByText('This session has no online meeting.')).toBeInTheDocument()
+    expect(tab.close).toHaveBeenCalled()
+  })
+
+  it('stops the calendar feed after a confirmation', async () => {
+    const user = userEvent.setup()
+    const calls = open('/portal/sessions', {
+      'GET /api/v1/portal/session-listings': { status: 200, body: [] },
+      'GET /api/v1/portal/enrollments': page([]),
+      'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
+      'DELETE /api/v1/portal/calendar-feeds': { status: 204 },
+    })
+    await user.click(await screen.findByRole('button', { name: 'Stop my calendar feed' }))
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+    await user.click(within(await screen.findByRole('dialog', { name: 'Stop your calendar feed?' })).getByRole('button', { name: 'Stop feed' }))
+    expect(await screen.findByText(/Your calendar feed is stopped/)).toBeInTheDocument()
+    expect(calls.filter((c) => c.method === 'DELETE' && c.url === '/api/v1/portal/calendar-feeds')).toHaveLength(1)
+  })
+})
+
 describe('Portal statement', { timeout: 20_000 }, () => {
   afterEach(() => vi.unstubAllGlobals())
 

@@ -141,3 +141,25 @@ test('member views invoices, buys a package, books and cancels a rental, and act
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/sign-in/)
 })
+
+// The Join online button depends on the clock (10 minutes before a start), so the Vitest suite covers it.
+test('a member gets a calendar address and stops the feed, and the dialogs pass axe', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/portal/sessions')
+  await expect(page.getByRole('heading', { name: 'Your calendar' })).toBeVisible()
+  await page.getByRole('button', { name: 'Get my calendar address' }).click()
+  const address = page.getByRole('dialog', { name: 'Your calendar address' }).getByRole('textbox', { name: 'Secret' })
+  const url = await address.inputValue()
+  expect((await page.request.get(url)).headers()['content-type']).toContain('text/calendar')
+  await scan(page, 'calendar address dialog')
+  await page.getByRole('button', { name: 'I have copied it' }).click()
+
+  await page.getByRole('button', { name: 'Stop my calendar feed' }).click()
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await scan(page, 'stop feed dialog dark')
+  await page.getByRole('dialog', { name: 'Stop your calendar feed?' }).getByRole('button', { name: 'Stop feed' }).click()
+  await expect(page.getByText(/Your calendar feed is stopped/)).toBeVisible()
+  expect((await page.request.get(url)).status()).toBe(404)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await scan(page, 'portal sessions')
+})
