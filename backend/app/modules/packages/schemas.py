@@ -263,6 +263,7 @@ class PortalPackageOut(Out):
     is_renewal_due: bool
     share_count: int
     status: Status
+    billing_mode: Literal["prepaid", "post_billed"] = "prepaid"
 
 
 class PackageOut(PortalPackageOut):
@@ -411,3 +412,88 @@ class PackageSeriesOut(Out):
     is_auto_renew: bool
     status: Literal["active", "completed", "cancelled"]
     created_at: datetime
+
+
+# --- post-billed packages (PKG-11) and the period close (BIL-18) -------------------------------------------------
+
+
+class PostBilledRateCreate(In):
+    reservation_type_id: UUID
+    min_sessions: Count = 1
+    per_session_minor: Minor
+    revenue_category_id: UUID | None = None
+
+
+class PostBilledRateUpdate(In):
+    min_sessions: Count | None = None
+    per_session_minor: Minor | None = None
+    revenue_category_id: UUID | None = None
+    is_active: bool | None = None
+
+
+class PostBilledRateOut(Out):
+    id: UUID
+    reservation_type_id: UUID
+    min_sessions: int
+    per_session_minor: int
+    revenue_category_id: UUID | None
+    is_active: bool
+
+
+class PostBilledPackageOpen(In):
+    client_id: UUID
+    location_id: UUID
+    reservation_type_id: UUID
+    name: Name | None = None
+    is_autopay: bool = False
+    is_auto_renew: bool = True
+    share_with_related: bool = False
+
+
+class PostBilledCloseIn(In):
+    location_id: UUID
+    closing_on: date
+    client_package_ids: Annotated[list[UUID], Field(min_length=1, max_length=500)] | None = None
+
+
+class PostBilledPreviewLine(Out):
+    client_package_id: UUID
+    client_id: UUID
+    client_name: str | None
+    package_name: str
+    session_count: int
+    unsettled_count: int
+    per_session_minor: int | None
+    total_minor: int
+    skipped_reason: Literal["no-usage", "no-rate"] | None
+
+
+class PostBilledPreviewOut(Out):
+    location_id: UUID
+    closing_on: date
+    post_billed_close_id: UUID | None = Field(description="Set when this period is already closed.")
+    lines: list[PostBilledPreviewLine]
+
+
+class PostBilledLineOut(Out):
+    id: UUID
+    client_package_id: UUID
+    client_id: UUID
+    client_name: str | None
+    session_count: int
+    per_session_minor: int
+    total_minor: int
+    charge_id: UUID | None
+    invoice_id: UUID | None
+
+
+class PostBilledCloseOut(Out):
+    id: UUID
+    location_id: UUID
+    closing_on: date
+    closed_by_staff_user_id: UUID | None
+    package_count: int
+    session_count: int
+    total_minor: int
+    created_at: datetime
+    lines: list[PostBilledLineOut]

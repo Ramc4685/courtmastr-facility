@@ -1,23 +1,26 @@
-"""scheduling HTTP surface (docs/api/openapi-core.yaml, tag scheduling). Not built: direct links, the public
-schedule and series merge (see README)."""
+"""scheduling HTTP surface (docs/api/openapi-core.yaml, tag scheduling). Not built: the public schedule and slot
+offer direct links (see README)."""
 
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import AwareDatetime
 
 from app.core.api import TxRoute, camel_id
-from app.core.auth.deps import Ctx, require
+from app.core.auth import system_principal
+from app.core.auth.deps import Ctx, public_session, require
 from app.core.errors import ValidationFailed
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
-from app.modules.scheduling import offers, service
+from app.core.ratelimit import rate_limit
+from app.modules.scheduling import offers, service, sharing
 from app.modules.scheduling import schemas as s
 
 router = APIRouter(
     route_class=TxRoute, tags=["scheduling"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
 )
+public = APIRouter(route_class=TxRoute, tags=["scheduling"], generate_unique_id_function=camel_id)
 Lists = Annotated[ListQuery, Depends(list_query)]
 Staff = Depends(require())
 Read = Depends(require(service.READ))
@@ -322,3 +325,67 @@ def list_slot_offer_slots(slot_offer_id: UUID, from_: Instant | None = Query(Non
 def book_slot_offer_slot(slot_offer_id: UUID, body: s.SlotBook, ctx: Ctx = Depends(require(service.CREATE))):
     """Take one slot: its session is created (or the existing one returned) so clients can be registered."""
     return offers.book_slot(ctx.session, ctx.principal, slot_offer_id, body.starts_at)
+
+
+# --- direct registration links (SCH-16) --------------------------------------------------------------------
+
+
+@router.post("/sessions/{schedule_session_id}/direct-link", response_model=s.DirectLinkOut)
+def create_session_direct_link(schedule_session_id: UUID, ctx: Ctx = Depends(require(sharing.LINK))):
+    """Turn on the session's reusable link, or return it when it is on. Share `path` (token in the fragment)."""
+    return sharing.create_link(ctx.session, ctx.principal, schedule_session_id)
+
+
+@router.delete("/sessions/{schedule_session_id}/direct-link", status_code=204)
+def revoke_session_direct_link(schedule_session_id: UUID, ctx: Ctx = Depends(require(sharing.LINK))):
+    """Stop the link; every copy already sent stops working. A new link has a new token."""
+    sharing.revoke_link(ctx.session, ctx.principal, schedule_session_id)
+    return Response(status_code=204)
+
+
+@public.post("/public/direct-links/resolve", response_model=s.PublicDirectLinkOut,
+             dependencies=[Depends(rate_limit("direct-link"))])  # fmt: skip
+def resolve_direct_link(body: s.DirectLinkResolve, request: Request):
+    """The session a direct link names, listed or not. The token travels in the body, never the URL. Tenant from
+    the host or X-Tenant-Slug. Booking it is the portal's enrolment. Errors: link-invalid (404)."""
+    session = public_session(request)
+    session.info["actor"] = system_principal("public")
+    return sharing.resolve_link(session, body.token)
+
+
+# --- shared bookings (SCH-17, SSP-09) ----------------------------------------------------------------------
+
+
+@router.get("/bookings/{booking_id}/participants", response_model=list[s.ParticipantOut])
+def list_booking_participants(booking_id: UUID, ctx: Ctx = Read):
+    return sharing.list_participants(ctx.session, ctx.principal, booking_id)
+
+
+@router.post("/bookings/{booking_id}/participants", response_model=list[s.ParticipantOut], status_code=201)
+def add_booking_participant(body: s.ParticipantAdd, booking_id: UUID, ctx: Ctx = Depends(require(sharing.ENROLL))):
+    """Share the booking with a related client of its organiser. Returns everyone on it. Errors: already-enrolled."""
+    return sharing.add_participant(ctx.session, ctx.principal, booking_id, body.client_id)
+
+
+@router.patch("/bookings/{booking_id}/participants/{participant_id}", response_model=s.ParticipantOut)
+def update_booking_participant(
+    booking_id: UUID, participant_id: UUID, body: s.ParticipantUpdate, ctx: Ctx = Depends(require(sharing.MARK))
+):
+    """Mark one participant's attendance (no-show needs scheduling.attendance.mark_exception)."""
+    return sharing.mark_attendance(ctx.session, ctx.principal, booking_id, participant_id, body.attendance)
+
+
+@router.delete("/bookings/{booking_id}/participants/{participant_id}", status_code=204)
+def remove_booking_participant(booking_id: UUID, participant_id: UUID, ctx: Ctx = Depends(require(sharing.UNENROLL))):
+    sharing.remove_participant(ctx.session, ctx.principal, booking_id, participant_id)
+    return Response(status_code=204)
+
+
+# --- series merge (SCH-21) ---------------------------------------------------------------------------------
+
+
+@router.post("/bookings/{booking_id}/merge", response_model=s.SeriesOut)
+def merge_booking_series(booking_id: UUID, body: s.SeriesMerge, ctx: Ctx = Depends(require(service.UPDATE_SERIES))):
+    """Link the booking with that number (or its whole series) into this booking's series. Errors:
+    already-linked, merge-mismatch (another location, kind or client)."""
+    return service.merge_series(ctx.session, ctx.principal, booking_id, body.model_dump())

@@ -117,3 +117,11 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
 - `waiver_missing` (`documents.document.read`): only when the documents settings require a waiver for check-in or booking.
 
 "Today" is the client's home-location day. Assumption: 14 days counts as "expiring soon" (`EXPIRING_SOON_DAYS`).
+
+## Agreement binding (DOC-11, Phase 14 C2)
+
+`PUT /membership-contracts/{id}/agreement {client_document_id}` binds an issued agreement to the contract
+(`memberships.contract.update`, plus read reach on the document). The document must be a live document of the
+contract's owner (not voided or deleted); a contract still waiting on its gating document keeps that one.
+Erasure keeps both: contracts are financial records and signed documents are retained as evidence.
+Assumption: one bound document per contract (rebinding replaces it, audited).

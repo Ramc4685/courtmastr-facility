@@ -53,3 +53,13 @@ class CreditReservationFailed(Event):
     source_type: str
     source_id: UUID
     code: str
+
+
+class PostBilledPeriodClosed(Event):
+    """A post-billed period close billed its packages (BIL-18)."""
+
+    aggregate_type: ClassVar[str] = "post_billed_close"
+    type: Literal["packages.post_billed.period_closed"] = "packages.post_billed.period_closed"
+    post_billed_close_id: UUID
+    location_id: UUID
+    package_count: int

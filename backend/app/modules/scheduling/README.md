@@ -101,10 +101,27 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 
 ## Not built
 
-Portal slot booking (programs calls `materialise_slot`), direct registration links (SCH-16; the token
-columns exist and are filled), public
-schedule (SCH-20), calendar feeds (SCH-19), series merge (SCH-21), the `rpt_booking` and `rpt_session_fill`
-views, `enrollment_action` on reschedule. (Merge and erasure are handled since integration: `subject.py`.)
+Portal slot booking (programs calls `materialise_slot`), direct links for slot offers, public schedule
+(SCH-20), calendar feeds (SCH-19), the `rpt_booking` and `rpt_session_fill` views, `enrollment_action` on
+reschedule, a portal view of shared bookings. (Merge and erasure are handled since integration: `subject.py`.)
+
+## Direct links, shared bookings and series merge (Phase 14 C2, `sharing.py`)
+
+- **Direct registration link (SCH-16).** `POST /sessions/{id}/direct-link` turns the session's link on and
+  returns `path` (`/direct-link#token=...`): the token rides in the URL fragment and reaches the API only in
+  the body of `POST /public/direct-links/resolve` (anonymous, rate limited `direct-link`, minimal fields).
+  `DELETE` turns it off and rotates the token, so every copy sent before stops working. Booking from the page
+  is the portal's ordinary enrolment, so a visitor signs in to the member portal first. Assumption: one link
+  per session (not per client), resolving only while the session is ahead and not cancelled.
+- **Shared bookings (SCH-17, SSP-09).** `booking_participant` lists the clients on one booking, each with
+  their own `attendance` (`scheduled`, `attended`, `no_show`; a no-show needs `mark_exception`). Only the
+  organiser's active relatives can join; the organiser is listed once it is shared and cannot be removed.
+  Package credit is untouched here (scheduling does not import packages). Gates reuse the enrolment and
+  attendance keys. Client merge drops a loser's duplicate row; erasure keeps rows (bookings are kept).
+- **Series merge (SCH-21).** `POST /bookings/{id}/merge {booking_number}` moves the other reservation and its
+  series into this booking's series, creating one when this booking stands alone, and deletes the emptied
+  series. Same location, kind and client only (`merge-mismatch`); blocks and cancelled bookings are refused;
+  holds are not touched (times do not change). Needs `update_series` on both bookings.
 
 ## Security hardening (wave 1, S-02 to S-04)
 

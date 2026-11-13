@@ -404,6 +404,10 @@ class ContractUpdate(In):
     invoice_description: Annotated[str, StringConstraints(max_length=100)] | None = None
 
 
+class AgreementIn(In):
+    client_document_id: UUID
+
+
 class SoldByIn(In):
     sold_by_staff_user_id: UUID | None
 

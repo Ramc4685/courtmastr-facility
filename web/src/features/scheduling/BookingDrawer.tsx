@@ -13,6 +13,7 @@ import { ConflictList, OccurrenceTable, SeriesScopeDialog, WarningNote, warningT
 import { BLOCK_KINDS, conflictsOf, useSchedulingSettings, type Booking, type ReservationType } from './queries'
 import { defaultRule, describeRule, RecurrenceEditor, type Rule } from './RecurrenceEditor'
 import { SessionPanel } from './SessionPanel'
+import { MergeSeriesForm, ParticipantsCard } from './sharing'
 import { formatSpan, hhmm, parseHhmm, today, toInstant, zoned, zoneLabel } from './time'
 import { useMove } from './useMove'
 
@@ -481,6 +482,13 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
       {b.kind === 'session' && b.session && !cancelled && (
         <div className="border-t border-border pt-5">
           <SessionPanel sessionId={b.session.id} canEdit={editable} />
+        </div>
+      )}
+
+      {b.kind !== 'block' && !cancelled && (
+        <div className="space-y-4 border-t border-border pt-5">
+          <ParticipantsCard bookingId={b.id} editable={editable} />
+          {editable && can('scheduling.booking.update_series') && <MergeSeriesForm bookingId={b.id} onDone={onClose} />}
         </div>
       )}
 

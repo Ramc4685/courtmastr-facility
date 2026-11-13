@@ -41,14 +41,31 @@ its own savepoint; idempotent through `uq_client_package_previous` and the serie
 
 ## Not built (by name)
 
-- **Post-billed packages and batch close (PKG-11, P2).** The data model reserves nothing for them;
-  `packages.period.close` is registered and unused.
+- Post-billed: extra billed items on a rate, refunds when a billed credit is restored later, a scheduled
+  (automatic) close.
 - "Account credit applied by default" at sale (the setting is stored). Autopay of package invoices and the POS
   sale (PKG-08) were wired at integration (`docs/status/README.md`). Reports (PKG-15), API keys (PKG-16), the expiry
   notice (`expiry_notice_days` is stored), ad-hoc packages built at sale without a plan, coupons.
 - `setClientPackageRenewal` as its own route: renewal settings are part of `updateClientPackage`.
 
 Web screens exist since the integration (staff and portal; `docs/status/README.md` module 5).
+
+## Post-billed packages and the period close (PKG-11, BIL-18; `postbilled.py`)
+
+- A post-billed package is an unlimited `client_package` with `billing_mode = 'post_billed'` and price 0,
+  opened with `POST /client-packages/post-billed`: nothing is charged at the sale. Its reservation type needs
+  an active `post_billed_rate`.
+- **Rates.** Tiers per reservation type (`min_sessions`, `per_session_minor`, optional revenue category). A
+  close bills every session of a package at the tier with the highest `min_sessions` its count reaches
+  (assumption: whole-count tiers, not marginal bands).
+- **Usage** is the package's existing ledger: credits consumed whose consume falls on or before `closing_on`
+  in the location's time zone. `post_billed_usage` records each billed source so it is never billed twice.
+- **The close** (`POST /post-billed-closes`, gate `packages.period.close`, location scoped) writes one
+  `post_billed_close` per location and date, then per package a `post_billed_line`, one
+  `billing.service.post_charge` and one `create_invoice_for_charges`. Idempotent per period: a repeat returns
+  the first. `closing_on` cannot be after the location's today. A package without auto-renew ends at its
+  close. `POST /post-billed-closes/preview` shows the same lines without writing.
+- `post_billed_line` is a financial record: merge repoints its client, erasure keeps it.
 
 ## Assumptions and deviations
 

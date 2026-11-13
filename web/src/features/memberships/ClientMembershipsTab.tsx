@@ -414,6 +414,58 @@ function RenewDialog({ contract, done, onClose }: { contract: ContractOut; done:
   )
 }
 
+/** DOC-11: bind an issued agreement (one of the owner's documents) to the contract. */
+function AgreementDialog({ contract, onClose }: { contract: ContractOut; onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const docs = useQuery({
+    queryKey: ['client-documents', 'client', contract.owner_client_id],
+    queryFn: () => api.get('/api/v1/client-documents', { query: { client_id: contract.owner_client_id, limit: 100 } }),
+  })
+  const live = (docs.data?.data ?? []).filter((d) => d.status !== 'voided')
+  const [docId, setDocId] = useState(contract.client_document_id ?? '')
+  const bind = useMutation({
+    mutationFn: () => api.put('/api/v1/membership-contracts/{contract_id}/agreement', { path: { contract_id: contract.id }, body: { client_document_id: docId } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['membership-contracts'] })
+      toast('success', 'Agreement bound to the contract')
+      onClose()
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`${contract.name}: agreement`}
+      description="The document stays with the contract, and is kept if the client's data is erased."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!docId || docId === contract.client_document_id} loading={bind.isPending} onClick={() => bind.mutate()}>
+            Bind agreement
+          </Button>
+        </>
+      }
+    >
+      {docs.isPending ? (
+        <LoadingState />
+      ) : live.length === 0 ? (
+        <EmptyState title="No documents">Issue the agreement from the client's documents first.</EmptyState>
+      ) : (
+        <Select
+          label="Agreement document"
+          value={docId}
+          onChange={(e) => setDocId(e.target.value)}
+          options={[{ value: '', label: 'Choose…' }, ...live.map((d) => ({ value: d.id, label: `${d.title} (${d.status}, ${formatDate(d.issued_at.slice(0, 10))})` }))]}
+        />
+      )}
+    </Dialog>
+  )
+}
+
 function SharesDialog({ contract, onClose }: { contract: ContractOut; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
@@ -688,7 +740,7 @@ function DetailsDialog({ contract, onClose }: { contract: ContractOut; onClose: 
   )
 }
 
-type Open = { kind: 'sell' } | { kind: 'freeze' | 'suspend' | 'cancel' | 'renew' | 'change' | 'share' | 'details'; contract: ContractOut } | null
+type Open = { kind: 'sell' } | { kind: 'freeze' | 'suspend' | 'cancel' | 'renew' | 'change' | 'share' | 'details' | 'agreement'; contract: ContractOut } | null
 
 export function ClientMembershipsTab({ client }: { client: Client }) {
   const qc = useQueryClient()
@@ -755,6 +807,7 @@ export function ClientMembershipsTab({ client }: { client: Client }) {
                     {c.is_cancel_scheduled && <Badge tone="warning">Cancels {formatDate(c.end_on)}</Badge>}
                     {c.covered_client_count > 1 && <Badge>Shared</Badge>}
                     {s === 'upcoming' && c.client_document_id && <Badge tone="warning">Waiting for document</Badge>}
+                    {s !== 'upcoming' && c.client_document_id && <Badge tone="info">Agreement on file</Badge>}
                   </p>
                   <p className="text-xs text-muted">
                     {formatDate(c.start_on)} – {formatDate(c.end_on)} · {money(c.term_fee_minor)} every {c.billing_interval_count > 1 ? `${c.billing_interval_count} ` : ''}
@@ -774,6 +827,7 @@ export function ClientMembershipsTab({ client }: { client: Client }) {
                   {running && !c.successor_contract_id && can('memberships.contract.renew') && btn('Renew', () => setOpen({ kind: 'renew', contract: c }), c.name)}
                   {running && can('memberships.contract.cancel') && can('memberships.contract.sell') && btn('Change plan', () => setOpen({ kind: 'change', contract: c }), c.name)}
                   {running && can('memberships.contract.update') && btn(c.is_auto_renew ? 'Turn off auto-renew' : 'Turn on auto-renew', () => act.mutate({ c, action: 'auto-renew' }), c.name)}
+                  {(running || s === 'upcoming') && can('memberships.contract.update') && can('documents.document.read') && btn('Agreement', () => setOpen({ kind: 'agreement', contract: c }), c.name)}
                   {(running || s === 'upcoming') && can('memberships.contract.share') && btn('Share', () => setOpen({ kind: 'share', contract: c }), c.name)}
                   {(running || s === 'upcoming') && can('memberships.contract.cancel') && btn('Cancel', () => setOpen({ kind: 'cancel', contract: c }), c.name)}
                   {(c.is_cancel_scheduled || s === 'cancelled') && can('memberships.contract.cancel') && btn('Undo cancel', () => act.mutate({ c, action: 'undo' }), c.name)}
@@ -791,6 +845,7 @@ export function ClientMembershipsTab({ client }: { client: Client }) {
       {open?.kind === 'renew' && <RenewDialog contract={open.contract} done={done} onClose={() => setOpen(null)} />}
       {open?.kind === 'share' && <SharesDialog contract={open.contract} onClose={() => setOpen(null)} />}
       {open?.kind === 'details' && <DetailsDialog contract={open.contract} onClose={() => setOpen(null)} />}
+      {open?.kind === 'agreement' && <AgreementDialog contract={open.contract} onClose={() => setOpen(null)} />}
     </div>
   )
 }

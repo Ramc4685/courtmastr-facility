@@ -11,6 +11,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 
 ### Added
+- Sessions have a direct registration link staff can copy and turn off; anyone with the link can book the session from the member portal, even when it is not listed online.
+- Bookings can be shared with the organiser's related clients, each with their own attendance; two reservations can be linked into one repeating series.
+- Post-billed packages: set per-session rate tiers, open a package with nothing charged up front, and close a period to bill each client for the sessions they used.
+- A membership agreement can be bound to its contract and is kept with it if the client's data is erased.
 - Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.
 - Leagues: double elimination with a reset game, three games guaranteed, and pool-to-bracket crossover.
 - Leagues: league venues, per-team scheduling preferences, ladders, player stat tables with formula stats, and game card PDFs.

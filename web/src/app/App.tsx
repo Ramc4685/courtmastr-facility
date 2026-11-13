@@ -29,6 +29,7 @@ import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
 import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
+import { PublicDirectLinkPage } from '../features/scheduling/sharing'
 import { PortalApp } from '../features/portal/PortalApp'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
@@ -122,6 +123,7 @@ export function AppRoutes() {
       <Route path="/auth/oidc/link" element={<OidcLinkPage />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
+      <Route path="/direct-link" element={<PublicDirectLinkPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
       <Route path="/forms/:id" element={<PublicFormPage />} />

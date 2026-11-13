@@ -43,6 +43,7 @@ from app.modules.packages.models import (
     PackageSeries,
     PackageSettings,
     PackageShare,
+    PostBilledLine,
 )
 
 _READ, _SELL, _MANAGE = "packages.package.read", "packages.package.sell", "packages.plan.manage"
@@ -1373,6 +1374,7 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
         update(PackageSeries).where(PackageSeries.owner_client_id == loser_id).values(owner_client_id=survivor_id)
     )
     session.execute(text("SELECT app.repoint_credit_ledger_client(:a, :b)"), {"a": loser_id, "b": survivor_id})
+    session.execute(update(PostBilledLine).where(PostBilledLine.client_id == loser_id).values(client_id=survivor_id))
     for row in session.scalars(select(share).where(share.client_id == loser_id)):
         duplicate = session.scalar(select(share.id).where(
             share.client_package_id == row.client_package_id, share.client_id == survivor_id, share.revoked_at.is_(None)
@@ -1413,7 +1415,8 @@ def _erase(session: Session, client_id: UUID) -> dict:
     return {"retained_packages": kept, "revoked_shares": revoked}
 
 
-_TABLES = ("client_package", "package_series", "package_share", "credit_ledger_entry")
+# post_billed_line keeps billed usage, a financial record, on erasure as the packages are kept.
+_TABLES = ("client_package", "package_series", "package_share", "credit_ledger_entry", "post_billed_line")
 clients.merge.register_merge_handler("packages", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("packages", tables=_TABLES, export=_export, erase=_erase)
 
