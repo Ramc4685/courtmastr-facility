@@ -48,6 +48,11 @@ def test_policy_default_override_and_scope(client, owner, tenant, f):
     assert len(listed) == 2
     desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
     assert client.put(path, headers=desk, json={"booking_cutoff_minutes": 5}).status_code == 403
+    # engagement.portal_settings.manage (admin, manager) or, for league admins, programs.registration_config.manage:
+    # they keep booking policies without the rest of the portal settings.
+    league = login(client, tenant, add_staff(tenant, "league_admin", location_ids=[f.location])[0])
+    assert client.put(path, headers=league, json={"booking_cutoff_minutes": 5}).status_code == 200
+    assert client.get(f"{API}/locations/{f.location}/portal-settings", headers=league).status_code == 403
     elsewhere = facility(client, owner, "America/New_York")
     admin = login(client, tenant, add_staff(tenant, "admin", location_ids=[elsewhere.location])[0])
     assert client.put(path, headers=admin, json={"booking_cutoff_minutes": 5}).status_code == 404
@@ -154,12 +159,27 @@ def test_series_batch_rebook_and_roster_message(client, owner, tenant, f, mailbo
     sent = client.post(f"{API}/sessions/{other}/roster/messages", headers=owner,
                        json={"subject": "Court change", "body_html": "We moved to court 2."})  # fmt: skip
     assert ok(sent, 202)["status"] == "succeeded"
+    league = login(client, tenant, add_staff(tenant, "league_admin", location_ids=[f.location])[0])
+    by_league = client.post(  # the roster message is scheduling.enrollment.create, which league admins lack
+        f"{API}/sessions/{other}/roster/messages", headers=league, json={"subject": "x", "body_html": "y"}
+    )
+    assert by_league.status_code == 403, by_league.text
     elsewhere = facility(client, owner, "America/New_York")
     desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[elsewhere.location])[0])
     blocked = client.post(
         f"{API}/sessions/{other}/roster/messages", headers=desk, json={"subject": "x", "body_html": "y"}
     )
     assert blocked.status_code == 404
+    # A restricted reservation type: only staff granted it may message its sessions.
+    granted_email, granted_id = add_staff(tenant, "front_desk", location_ids=[f.location])
+    unlisted = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
+    grants = {"staff_user_ids": [str(granted_id)]}
+    ok(client.put(f"{API}/reservation-types/{f.type}/grants", headers=owner, json=grants), 200)
+    message = {"subject": "x", "body_html": "y"}
+    refused = client.post(f"{API}/sessions/{other}/roster/messages", headers=unlisted, json=message)
+    assert refused.status_code == 403, refused.text
+    granted = login(client, tenant, granted_email)
+    assert client.post(f"{API}/sessions/{other}/roster/messages", headers=granted, json=message).status_code == 202
 
 
 def test_portal_queue_and_booking_obey_the_whole_policy(client, owner, tenant, f, mailbox):

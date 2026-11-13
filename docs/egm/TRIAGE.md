@@ -35,6 +35,17 @@ where being wrong costs nothing.
 
 `platform-4a` and `platform-4b` are one backlog item (platform 4), counted once.
 
+## Fix log (branch `claude/egm-drift-fixes-8810b9`)
+
+| Item | Commit | Note |
+|---|---|---|
+| platform-4a, platform-4b (backlog platform 4) | bbec55d | `currency` dropped from `TenantUpdate`; `register_location_archive_check` + scheduling's `location-has-future-bookings` |
+| rentals-9 | c3a42e9 | members pass `_is_member`; assumption `active_members` = `paid_up_members` in the rentals README |
+| programs-1, engagement-4 | 7168997 | engagement keys swapped in; `getPortalVideo` served |
+| billing-11, integrations-7 | 5664dd3 | location mode capped at 1000; `billing.service.ledger_day_totals` |
+| imports-1, imports-2, integrations-2, scheduling-2, packages-9, access-3, access-4 | 96dbe58 | yaml synced; `access.checkin.delete` and `deleteCheckIn` deleted. integrations-2 and access-4 keep their README halves for the docs batch |
+| documents-1 | not fixed, handed back | the import contract forbids `rentals` -> `documents` (`backend/pyproject.toml`); needs an `ignore_imports` line or dropping `rental_plan` from the binding kinds (Q2) |
+
 ## New owner questions
 
 - **Q1 (pos-3).** `/pos-reports/*` is gated by `pos.sale.read` (`pos/router.py:502-525`) while the report centre's

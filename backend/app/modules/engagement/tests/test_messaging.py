@@ -410,6 +410,10 @@ def test_portal_settings_public_config_and_videos(client, tenant, owner, site):
     hidden = ok(client.post(f"{API}/videos", headers=owner, json=draft), 201)
     portal = _member(client, tenant, _person(client, owner, site, "watch@example.com", tenant=tenant, opted_in=False))
     assert [v["id"] for v in ok(client.get(f"{API}/portal/videos", headers=portal))["data"]] == [video["id"]]
+    one = ok(client.get(f"{API}/portal/videos/{video['id']}", headers=portal))
+    assert one == {k: video[k] for k in ("id", "location_id", "title", "description", "url")}
+    assert client.get(f"{API}/portal/videos/{hidden['id']}", headers=portal).status_code == 404  # unpublished
+    assert client.get(f"{API}/portal/videos/{video['id']}", headers=owner).status_code in (401, 403, 404)
     ok(client.patch(f"{API}/videos/{hidden['id']}", headers=owner, json={"is_published": True}))
     assert len(ok(client.get(f"{API}/videos", headers=owner))["data"]) == 2
     ok(client.delete(f"{API}/videos/{hidden['id']}", headers=owner), 204)

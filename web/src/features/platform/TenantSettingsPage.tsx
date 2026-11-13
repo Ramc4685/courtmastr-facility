@@ -12,7 +12,7 @@ import { BrandingCard } from './branding'
 function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const [form, setForm] = useState({ name: tenant.name, default_time_zone: tenant.default_time_zone, currency: tenant.currency, locale: tenant.locale })
+  const [form, setForm] = useState({ name: tenant.name, default_time_zone: tenant.default_time_zone, locale: tenant.locale })
   const save = useMutation({
     mutationFn: () => api.patch('/api/v1/tenant', { body: form }),
     onSuccess: (t) => {
@@ -43,7 +43,7 @@ function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
           options={timeZoneOptions(form.default_time_zone)}
           onChange={(e) => setForm({ ...form, default_time_zone: e.target.value })}
         />
-        <Input label="Currency" hint="ISO code, e.g. USD" maxLength={3} value={form.currency} error={errors.currency} onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })} />
+        <Input label="Currency" value={tenant.currency} disabled hint="Set when the account was created; every amount is stored in it." />
         <Input label="Locale" hint="Formats dates and numbers, e.g. en-US" value={form.locale} error={errors.locale} onChange={(e) => setForm({ ...form, locale: e.target.value })} />
         <Input label="Account address" value={`${tenant.slug}`} disabled hint="Your sign-in address; contact support to change it." />
         <div className="sm:col-span-2">

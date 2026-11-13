@@ -680,6 +680,8 @@ def list_history(session: Session, principal: Principal, query: ListQuery) -> di
 
 # --- bulk invoicing (BIL-02) -------------------------------------------------------------------------------
 
+BULK_INVOICE_MAX = 1000  # the request runs in one transaction; the same cap as BulkInvoiceRequest.charge_ids
+
 
 def bulk_invoice(session: Session, principal: Principal, data: dict) -> dict:
     """Invoice many uninvoiced items at once: ONE INVOICE PER CLIENT. Items of different clients are never
@@ -699,7 +701,13 @@ def bulk_invoice(session: Session, principal: Principal, data: dict) -> dict:
             stmt = stmt.where(Charge.created_by_staff_user_id == principal.staff_user_id)
     else:
         raise ValidationFailed("Select items or a location.", pointer="/charge_ids")
-    charges = session.scalars(scope_query(stmt, principal, Charge.location_id).order_by(Charge.id)).all()
+    stmt = scope_query(stmt, principal, Charge.location_id).order_by(Charge.id).limit(BULK_INVOICE_MAX + 1)
+    charges = session.scalars(stmt).all()
+    if len(charges) > BULK_INVOICE_MAX:
+        raise ValidationFailed(
+            f"More than {BULK_INVOICE_MAX} uninvoiced items here. Select them with charge_ids, a batch at a time.",
+            pointer="/location_id",
+        )
     groups: dict = defaultdict(list)
     for charge in charges:
         authorize(principal, "billing.invoice.bulk_create", location_id=charge.location_id)
