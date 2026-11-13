@@ -80,7 +80,7 @@ def _low_usage(session: Session, p: LowUsageParams, scope: Scope) -> dict:
     if p.client_category_ids:
         where.append(c.client_category_id.in_(p.client_category_ids))
     if p.membership_statuses or p.membership_type_ids:
-        held = [m.client_id == c.client_id]
+        held = [m.client_id == c.client_id, _in(v.contract, scope)]
         if p.membership_statuses:
             held.append(m.status.in_(p.membership_statuses))
         if p.membership_type_ids:
@@ -219,7 +219,8 @@ def _demographics(session: Session, p: DemographicsParams, scope: Scope) -> dict
     where = [c.status == "active"]
     if p.last_session_on:
         where.append(exists(select(a.enrollment_id).where(
-            a.client_id == c.client_id, a.session_on >= p.last_session_on, a.status.not_in(CANCELLED)
+            a.client_id == c.client_id, a.session_on >= p.last_session_on, a.status.not_in(CANCELLED),
+            _in(v.attendance, scope),
         )))  # fmt: skip
     age = extract("year", func.age(literal(clock.now().date()), c.birth_on))
     band = case(*((age < upper, label) for upper, label in AGE_BANDS), (c.birth_on.is_not(None), "65 and over"),
@@ -388,7 +389,7 @@ def _non_training(session: Session, p: NonTrainingParams, scope: Scope) -> dict:
         select(a.client_id, func.max(a.session_on).label("last_on"))
         .where(a.status.not_in(CANCELLED), _in(v.attendance, scope)).group_by(a.client_id).subquery()
     )  # fmt: skip
-    live = [k.client_id == c.client_id, k.status == "active"]
+    live = [k.client_id == c.client_id, k.status == "active", _in(v.client_package, scope)]
     if p.ignore_empty_packages:
         live.append(or_(k.is_unlimited, k.sessions_remaining > 0))
     has_package = exists(select(k.client_package_id).where(*live))
