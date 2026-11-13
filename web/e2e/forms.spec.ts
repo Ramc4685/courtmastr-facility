@@ -1,14 +1,12 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { MEMBER, signIn } from './a11y'
+import { scan as axeScan, MEMBER, signIn } from './a11y'
 
 // Seeded demo data (backend/seeds/programs.py): a free "Open Day sign-up" form with a shirt cap, a priced
 // "Awards night" form, three classifiers and the "Summer Sports Camp" program at Downtown.
 
 async function scan(page: Page, label: string) {
   await expect(page.getByText(/^Loading/)).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+  await axeScan(page, label)
 }
 
 test('staff build event forms and use the group tools; every screen passes axe', async ({ page }) => {

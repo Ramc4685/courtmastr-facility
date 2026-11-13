@@ -1,17 +1,11 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import { scan } from './a11y'
 
 // Phase 14 C2: post-billed rates and the period close (PKG-11, BIL-18), opening a post-billed package and binding
 // a membership agreement (DOC-11) from the client profile, and the public direct-link page (SCH-16).
 // Seeded demo data (docs/dev/demo-accounts.md): Morgan Member (M-1001) holds a membership; Downtown has
 // "Private Lesson" sessions.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /^(Loading|Checking)/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 async function signIn(page: Page, path: string) {
   await page.goto(path)

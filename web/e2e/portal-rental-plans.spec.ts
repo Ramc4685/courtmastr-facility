@@ -1,17 +1,11 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect as baseExpect, test, type Page } from '@playwright/test'
+import { expect as baseExpect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 const expect = baseExpect.configure({ timeout: 30_000 })
 
 // Seeded demo data (docs/dev/demo-accounts.md): Morgan Member signs in to the portal; the "10-hour court pack"
 // rental plan is sold online and renews automatically.
 const MEMBER = { email: 'member@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('a member buys a rental plan online with the test card and stops its renewal', async ({ page }) => {
   test.setTimeout(120_000)

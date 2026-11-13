@@ -1,20 +1,10 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { scan } from './a11y'
 
 // Seeded demo owner (docs/dev/demo-accounts.md). Needs `make api` in dev, where webhooks may target loopback.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  // Let colour transitions finish: right after emulateMedia, transition-colors buttons are mid-fade and fail contrast.
-  // Transitions only (spinners loop forever); a cancelled one rejects with AbortError and counts as settled.
-  await page.evaluate(() =>
-    Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => undefined))),
-  )
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 async function signIn(page: Page) {
   await page.goto('/integrations')

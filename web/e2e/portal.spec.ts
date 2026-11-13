@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect as baseExpect, test, type Page } from '@playwright/test'
+import { scan } from './a11y'
 
 // Generous waits: the API and Vite share a busy development machine with other lanes.
 const expect = baseExpect.configure({ timeout: 30_000 })
@@ -8,13 +8,6 @@ const expect = baseExpect.configure({ timeout: 30_000 })
 // stored test card, has open invoices, and "Ten private lessons" and "Court rental" are sold online.
 const MEMBER = { email: 'member@courtside-demo.example.com', password: 'courtside-demo-2026' }
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  // Every LoadingState has role=status and ends in an ellipsis; scan once none is left.
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 async function signIn(page: Page) {
   await page.goto('/portal')

@@ -1,6 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect as baseExpect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
-import { ADMIN, MEMBER, PASSWORD } from './a11y'
+import { ADMIN, MEMBER, PASSWORD, scan } from './a11y'
 
 // Phase 11 chip B (portal booking and buying). Seeded demo data (docs/dev/demo-accounts.md): Morgan Member holds a
 // stored test card and a lesson package, "Summer Sports Camp" is published at Downtown, and Downtown has a
@@ -8,12 +7,6 @@ import { ADMIN, MEMBER, PASSWORD } from './a11y'
 // the staff API and puts it back afterwards. No fixed dates: sessions are picked from the live listing.
 const expect = baseExpect.configure({ timeout: 30_000 })
 const SLUG = { 'x-tenant-slug': 'courtside-demo' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 /** A signed-in member in a context of their own (the web sign-in form is staff-only; the portal app signs in by API). */
 async function memberPage(browser: Browser) {

@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect as baseExpect, test, type Page } from '@playwright/test'
+import { expect as baseExpect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 test.use({ actionTimeout: 30_000 })
 
@@ -8,12 +8,6 @@ const expect = baseExpect.configure({ timeout: 30_000 })
 
 // Seeded demo owner (docs/dev/demo-accounts.md); the member app settings are tenant-wide (APP-04, APP-05, APP-18).
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('staff edit the member app home with a live preview, save it, and the screen passes axe', async ({ page }) => {
   test.setTimeout(300_000)

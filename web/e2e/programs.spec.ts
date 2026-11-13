@@ -1,14 +1,9 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo data (backend/seeds/programs.py): a published "Summer Sports Camp" at Downtown, and a client login.
 const ADMIN = { email: 'admin@courtside-demo.example.com', password: 'courtside-demo-2026' }
 const MEMBER = { email: 'member@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('staff open the programs screens and every one passes axe', async ({ page }) => {
   test.setTimeout(120_000) // eleven axe scans on a shared machine

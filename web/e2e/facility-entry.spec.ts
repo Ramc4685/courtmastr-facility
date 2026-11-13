@@ -1,18 +1,11 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect as baseExpect, test, type Page } from '@playwright/test'
-import { ADMIN, PASSWORD } from './a11y'
+import { expect as baseExpect, test } from '@playwright/test'
+import { ADMIN, PASSWORD, scan } from './a11y'
 
 // Phase 11 chip A: the public facility pages under /f/:slug (SSP-01, 05, 15, REG-12) and the staff settings
 // behind them (SSP-13, 07). Seeded demo tenant: courtside-demo (docs/dev/demo-accounts.md).
 const expect = baseExpect.configure({ timeout: 30_000 })
 const SLUG = 'courtside-demo'
 const TENANT = { 'x-tenant-slug': SLUG }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('the public facility pages pass the axe WCAG 2.1 AA scan', async ({ page }) => {
   test.setTimeout(300_000)
