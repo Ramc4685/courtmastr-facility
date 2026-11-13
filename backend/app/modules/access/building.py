@@ -61,7 +61,7 @@ REASSERT_EVERY = timedelta(minutes=5)  # a lit zone is told "on" again this ofte
 MAX_OVERRIDE = timedelta(hours=24)
 MIN_RUN_ON = timedelta(minutes=1)  # a court in play is never cut within the same minute
 DEVICE_TIMEOUT = 3.0  # seconds an in-request unlock may take before it counts as failed
-RETENTION = timedelta(days=365)  # building events and spent codes (entry times are movement data), then purged
+RETENTION = timedelta(days=365)  # building events and spent codes (movement data); 1976 floors the purge at this too
 log = logging.getLogger(__name__)
 
 notifications.register_template(

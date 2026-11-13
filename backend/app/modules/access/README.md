@@ -209,7 +209,7 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   open or upcoming codes, through the partial index `ix_entry_code_open`. Retention: building events (entry times are
   movement data) and spent codes go after `building.RETENTION` (365 days, a module constant until a tenant asks for
   another period), through the hourly platform purge; `building_event` stays append-only for `fh_app` and is purged
-  by the owner's `app.purge_building_event`, events first, then codes no event names. Merge moves codes to the
+  by the owner's `app.purge_building_event` (it floors any cutoff at 365 days by the database clock and refuses a batch outside 1..50000, so the app role cannot erase recent entries), events first, then codes no event names. Merge moves codes to the
   survivor; export lists each code's window and status (never the code; entries are the person's door check-ins);
   erasure revokes live codes and unlinks every code from the person, so the log no longer leads to them.
 - **Code storage (decision).** A keyed HMAC (`crypto.mac`, per location) for lookup, plus the code sealed with the

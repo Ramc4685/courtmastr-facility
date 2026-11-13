@@ -501,27 +501,47 @@ def test_a_code_expires_at_its_window_end_and_the_tick_reads_only_open_codes(cli
 
 
 def test_spent_codes_and_old_building_events_are_purged_after_retention(b):
+    """The purge function keeps its own floor at the database's clock, so this test runs in real time: the
+    spent booking happened more than RETENTION ago, the fresh one is tomorrow."""
+    from datetime import UTC, datetime
+
     from app.modules.platform import retention
 
-    with clock.freeze(at(9)):
-        spent = book(b, 10, 11)
+    hours = lambda when: (when - DAY).total_seconds() / 3600  # noqa: E731
+    then = datetime.now(UTC).replace(hour=9, minute=0, second=0, microsecond=0) - building.RETENTION - timedelta(days=3)
+    with clock.freeze(then):
+        spent = book(b, hours(then) + 1, hours(then) + 2)
         sync(b, spent)
-    with clock.freeze(at(12)):
+    with clock.freeze(then + timedelta(hours=3)):
         tick(b)
-    later = at(12) + building.RETENTION + timedelta(days=1)
-    with clock.freeze(later):
-        fresh = book(b, 24 * (later - DAY).days + 34, 24 * (later - DAY).days + 35)  # tomorrow, 10:00
-        sync(b, fresh)
-        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
-            gone = retention.purge(session)
-        assert gone["building_event"] >= 1 and gone["entry_code"] == 1
-        assert codes(b, spent) == [] and [c.status for c in codes(b, fresh)] == ["active"]
-        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
-            assert (
-                session.scalar(select(BuildingEvent.id).where(BuildingEvent.occurred_at < later - building.RETENTION))
-                is None
-            )
-            assert session.scalar(select(BuildingEvent.id).where(BuildingEvent.kind == "code_issued"))
+    now = datetime.now(UTC)
+    tomorrow = now.replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    fresh = book(b, hours(tomorrow), hours(tomorrow) + 1)
+    sync(b, fresh)
+    with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+        gone = retention.purge(session)
+    assert gone["building_event"] >= 1 and gone["entry_code"] == 1
+    assert codes(b, spent) == [] and [c.status for c in codes(b, fresh)] == ["active"]
+    with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+        assert (
+            session.scalar(select(BuildingEvent.id).where(BuildingEvent.occurred_at < now - building.RETENTION)) is None
+        )
+        assert session.scalar(select(BuildingEvent.id).where(BuildingEvent.kind == "code_issued"))
+
+
+def test_the_app_role_cannot_purge_a_recent_building_event_or_pass_a_bad_batch(client, owner, b):
+    """app.purge_building_event is SECURITY DEFINER: whatever cutoff the caller passes, nothing younger than the
+    retention period goes, and a non-positive or oversized batch is refused."""
+    from sqlalchemy.exc import DBAPIError
+
+    ok(client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Delivery"}))
+    before = events_count(b)
+    with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+        far = session.execute(text("SELECT app.purge_building_event(now() + interval '1 day', 100)")).scalar_one()
+    assert far == 0 and events_count(b) == before
+    for batch in (0, -1, 50_001):
+        with pytest.raises(DBAPIError), tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            session.execute(text("SELECT app.purge_building_event(now(), :n)"), {"n": batch})
 
 
 def test_merge_export_and_erasure_cover_entry_codes(client, owner, b, sim):
