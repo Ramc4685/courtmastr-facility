@@ -1,14 +1,16 @@
 """PAY-05 refunds: the refund row committed before the processor call, the sweep that finishes or cancels it,
 the release-then-refund composite, and replays (retry, duplicate webhook) that never refund twice."""
 
+import importlib
 from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, func, select, text
 
 from app.core import clock, idempotency
 from app.core.errors import Conflict, ValidationFailed
+from app.core.settings import get_settings
 from app.modules.billing import webhooks
 from app.modules.billing.models import PaymentAllocation, Refund
 from app.modules.billing.tests.test_billing import API, assert_books_agree, card, cash, charge, key, svc, work
@@ -491,3 +493,22 @@ def test_an_abandoned_credit_refund_plan_frees_its_reservations(shop):
         assert session.scalars(select(Refund.status)).all() == ["cancelled"]
         assert session.get(svc.Payment, older).unapplied_minor == 500
         assert_books_agree(session)
+
+
+def test_the_1801_downgrade_guard_sees_initiated_refunds_through_forced_rls(shop):
+    """The owner reads no tenant rows under forced RLS, so a plain count let the downgrade drop `initiated`."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 500)
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=300, reason="Leaving", idempotency_key=uuid4().hex)
+        raise RuntimeError("died after planning")  # the plan's short transaction committed an `initiated` leg
+    migration = importlib.import_module("migrations.versions.1801_billing_refund_initiated")
+    owner = create_engine(get_settings().db_url("owner"))
+    try:
+        with owner.connect() as conn:
+            assert conn.execute(text("SELECT count(*) FROM refund WHERE status = 'initiated'")).scalar() == 0
+            assert migration.count_initiated(conn) >= 1
+            conn.rollback()
+    finally:
+        owner.dispose()

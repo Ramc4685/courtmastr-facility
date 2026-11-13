@@ -10,9 +10,9 @@ Re-verified after the README edit at L352-364: the 1804 attribution, API-key act
 
 ### Account-credit refund plan (PAY-05, migration 1805)
 
-The README bullet at L305-318 matches the code: the stored plan and its replay under `<key>:<payment id>` (`service.py:1600-1645`), every leg written as an `initiated` refund in the plan's short transaction (`_write_plan`, `service.py:1672-1717`; record-only legs finish without a processor call, `service.py:1136`, `:1300`), `refund-plan-incomplete`, the merge, export and erasure registration (`subject.py:60`, `:108`, `:147-150`, `:177`), and the contract's problem codes for `refundAccountCredit` and `applyAccountCredit` (`openapi-money.yaml:1730-1731`, `:1756-1757`). One item left:
+The README bullet at L305-318 matches the code: the stored plan and its replay under `<key>:<payment id>` (`service.py:1600-1645`), every leg written as an `initiated` refund in the plan's short transaction (`_write_plan`, `service.py:1672-1717`; record-only legs finish without a processor call, `service.py:1136`, `:1300`), `refund-plan-incomplete`, the merge, export and erasure registration (`subject.py:60`, `:108`, `:147-150`, `:177`), and the contract's problem codes for `refundAccountCredit` and `applyAccountCredit` (`openapi-money.yaml:1730-1731`, `:1756-1757`).
 
-- [wording] The same-key check compares client, amount and reason only (`service.py:1619-1620`); the caller's `location_ids` are not part of it. The README bullet's "another client, amount or reason" matches the code but does not state that.
+No drift detected in this section. The README now states that the caller's location scope is not part of the same-key check (L310; `service.py:1619-1620`). Migration 1801's `count_initiated` (downgrade guard) is not described by the README and changes nothing it states.
 
 ### Contract operations and schemas (carried over; re-verified against the current tree)
 
