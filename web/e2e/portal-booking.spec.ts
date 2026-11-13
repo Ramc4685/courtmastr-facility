@@ -175,6 +175,9 @@ test('portal booking and buying: saved cards, calendar, virtual session, payment
       await scan(anonymous, `${colorScheme} public progress`)
       await m.getByRole('button', { name: `Turn off link E2E ${tag} ${colorScheme}` }).click()
       await expect(m.getByText('The link no longer works.')).toBeVisible()
+      // Open the link afresh: from /progress, a goto that only adds the fragment is a same-document navigation and
+      // the page (which reads the token once, on load) never sees it.
+      await anonymous.goto('about:blank')
       await anonymous.goto(`/progress${new URL(url).hash}`)
       await expect(anonymous.getByText('This link has expired or was turned off.')).toBeVisible()
       await scan(anonymous, `${colorScheme} public progress expired`)
