@@ -159,6 +159,7 @@ def configure(level: int = logging.INFO) -> None:
     logging.captureWarnings(True)  # py.warnings, through the root handler below
     sys.excepthook = _log_uncaught
     threading.excepthook = lambda hook: _log_uncaught(hook.exc_type, hook.exc_value, hook.exc_traceback)
+    sys.unraisablehook = lambda hook: _log_uncaught(hook.exc_type, hook.exc_value, hook.exc_traceback)
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(JsonFormatter())
     logging.basicConfig(level=level, handlers=[handler], force=True)

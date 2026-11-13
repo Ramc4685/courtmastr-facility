@@ -2,6 +2,7 @@
 inbound provider payloads are emptied after 90 days (ADR 0007 section 9) (the row stays, so a late duplicate is still deduplicated)."""
 
 import json
+import logging
 from datetime import timedelta
 from uuid import uuid4
 
@@ -77,7 +78,7 @@ def _suspend(tenant_id, status: str) -> None:
         conn.execute(text("UPDATE tenant SET status = :s WHERE id = :id"), {"s": status, "id": tenant_id})
 
 
-def test_finished_inbound_payloads_are_emptied_after_90_days(tenant):
+def test_finished_inbound_payloads_are_emptied_after_90_days(tenant, caplog):
     """Past the window every event loses payload and error text, whatever its status, attempt count or tenant
     state. A failed or never-processed event is made terminal (attempt count at the cap) in the same statement,
     so the retry sweep never picks up an emptied event. Inside the window a failure keeps both and is retried."""
@@ -96,7 +97,10 @@ def test_finished_inbound_payloads_are_emptied_after_90_days(tenant):
                           "WHERE id IN (:a, :b, :c)"), {"a": failed_once, "b": recent_failed, "c": processed})  # fmt: skip
     _suspend(tenant.id, "suspended")  # its sweep never runs; the purge must not depend on it
     try:
-        assert inbound_webhooks.purge_payloads() >= 4
+        with caplog.at_level(logging.WARNING, logger="app.inbound_webhooks"):
+            assert inbound_webhooks.purge_payloads() >= 4
+        made = [int(r.args[0]) for r in caplog.records if r.msg.startswith("retention made %d unfinished")]
+        assert made and made[0] >= 2  # failed_once and never_run, at least
     finally:
         _suspend(tenant.id, "active")
     for gone in (processed, ignored, failed_once, never_run):

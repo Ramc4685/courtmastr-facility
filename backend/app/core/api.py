@@ -33,8 +33,9 @@ _SECRET_PATH_PREFIXES = ("/api/v1/public/calendar-feeds/",)
 
 
 def _loggable_path(path: str) -> str:
+    folded = re.sub("/+", "/", path).casefold()  # routing may not match these, but the log line comes first
     for prefix in _SECRET_PATH_PREFIXES:
-        if path.startswith(prefix):
+        if folded.startswith(prefix):
             return prefix + "[redacted]"
     return path
 

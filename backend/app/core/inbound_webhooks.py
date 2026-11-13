@@ -6,6 +6,7 @@ on the global allow-list of overview 3.1. `integrations` owns them once it is bu
 """
 
 import json
+import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -18,6 +19,8 @@ from app.core.db.base import Base
 from app.core.db.platform import platform_engine
 from app.core.ids import new_id
 from app.core.settings import get_settings
+
+log = logging.getLogger("app.inbound_webhooks")
 
 
 class ProviderAccountLookup(Base):
@@ -122,19 +125,28 @@ def purge_payloads() -> int:
     with platform_engine().begin() as conn:
         # shortcut: no index covers processed rows by age, so each run scans them; add a partial index on
         # COALESCE(processed_at, received_at) WHERE payload <> '{}' when this shows up in the slow-query log.
-        return conn.execute(
-            text(
-                "UPDATE inbound_webhook_event SET payload = '{}'::jsonb, error = NULL, "
-                "status = CASE WHEN status = 'received' THEN 'failed' ELSE status END, "
-                "attempt_count = CASE WHEN status IN ('received', 'failed') THEN GREATEST(attempt_count, :cap) "
-                "ELSE attempt_count END "
-                "WHERE id IN (SELECT id FROM inbound_webhook_event WHERE "
-                "(payload <> '{}'::jsonb OR error IS NOT NULL OR status = 'received' "
-                "OR (status = 'failed' AND attempt_count < :cap)) "
-                "AND COALESCE(processed_at, received_at) < :before LIMIT :n FOR UPDATE SKIP LOCKED)"
-            ),
-            {"before": before, "n": cfg.batch_rows, "cap": RETRY_ATTEMPTS},
-        ).rowcount
+        unfinished = (
+            conn.execute(
+                text(
+                    "WITH due AS (SELECT id, (status = 'received' OR (status = 'failed' AND attempt_count < :cap)) "
+                    "AS unfinished FROM inbound_webhook_event WHERE "
+                    "(payload <> '{}'::jsonb OR error IS NOT NULL OR status = 'received' "
+                    "OR (status = 'failed' AND attempt_count < :cap)) "
+                    "AND COALESCE(processed_at, received_at) < :before LIMIT :n FOR UPDATE SKIP LOCKED) "
+                    "UPDATE inbound_webhook_event e SET payload = '{}'::jsonb, error = NULL, "
+                    "status = CASE WHEN e.status = 'received' THEN 'failed' ELSE e.status END, "
+                    "attempt_count = CASE WHEN due.unfinished THEN GREATEST(e.attempt_count, :cap) "
+                    "ELSE e.attempt_count END "
+                    "FROM due WHERE e.id = due.id RETURNING due.unfinished"
+                ),
+                {"before": before, "n": cfg.batch_rows, "cap": RETRY_ATTEMPTS},
+            )
+            .scalars()
+            .all()
+        )
+    if made := sum(unfinished):  # never processed: an operator should know these were given up on
+        log.warning("retention made %d unfinished inbound webhook events terminal", made)
+    return len(unfinished)
 
 
 def get(row_id: UUID):

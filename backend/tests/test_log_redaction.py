@@ -355,28 +355,44 @@ def test_short_credential_keys_are_masked(key):
 def test_warnings_and_uncaught_exceptions_go_through_the_formatter(capsys):
     import subprocess
     import sys
+    from types import SimpleNamespace
 
     from app.core import logging as app_logging
 
     root = logging.getLogger()
-    saved_handlers, saved_level, saved_hook = root.handlers[:], root.level, sys.excepthook
+    saved_handlers, saved_level = root.handlers[:], root.level
+    saved_hook, saved_unraisable = sys.excepthook, sys.unraisablehook
     try:
         app_logging.configure()
         try:
             raise ValueError(f"card {PAN}")
         except ValueError as exc:
             sys.excepthook(type(exc), exc, exc.__traceback__)
+            # a __del__ or finaliser error: Python's default hook prints it raw to stderr
+            unraisable = SimpleNamespace(exc_type=type(exc), exc_value=exc, exc_traceback=exc.__traceback__)
+            sys.unraisablehook(unraisable)  # type: ignore[arg-type]
         err = capsys.readouterr().err
     finally:
         root.handlers[:] = saved_handlers
         root.setLevel(saved_level)
-        sys.excepthook = saved_hook
+        sys.excepthook, sys.unraisablehook = saved_hook, saved_unraisable
         logging.captureWarnings(False)
     lines = [json.loads(line) for line in err.strip().splitlines()]
-    assert any("ValueError" in line.get("exc", "") for line in lines)
+    assert sum("ValueError" in line.get("exc", "") for line in lines) == 2
     assert "4111" not in err
     # pytest records warnings itself, so the warnings path runs in a fresh interpreter
     script = f"from app.core import logging as L; L.configure(); import warnings; warnings.warn('from {EMAIL}')"
     done = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60, check=True)
     warned = json.loads(done.stderr.strip().splitlines()[-1])
     assert warned["logger"] == "py.warnings" and EMAIL not in done.stderr
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/api/v1/public/calendar-feeds/fhc_secret", "/API/v1/Public/Calendar-Feeds/fhc_secret",
+     "//api/v1//public/calendar-feeds//fhc_secret", "/api/v1/public/calendar-feeds/fhc_secret/x"],
+)  # fmt: skip
+def test_a_feed_token_never_reaches_the_request_log_whatever_the_case_or_slashes(path):
+    from app.core.api import _loggable_path
+
+    assert "fhc_secret" not in _loggable_path(path)
