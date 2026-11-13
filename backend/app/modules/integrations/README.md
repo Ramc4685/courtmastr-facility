@@ -95,8 +95,8 @@ through `service.adapter_for`.
 - **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
   a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
   secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
-  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and POST, PUT and DELETE
-  our own 405 with `Allow`, so no method reaches the framework's 405 (the one hidden route `tests/test_security.py`
+  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204, PROPFIND 404, and every other HTTP and
+  WebDAV/CalDAV method (`router._OTHER_METHODS`: PATCH, REPORT, MKCALENDAR, ...) our own 405 with `Allow`, so no known method reaches the framework's 405 (the one hidden route `tests/test_security.py`
   allows), which logs the raw path (handover: redact in `core.api`).
   A per-IP bucket (`calendar-feed-ip`, generous, because calendar services fetch every feed from a few
   addresses) runs first; the per-feed bucket (`calendar-feed`, 12 an hour) counts only once the token opens an
@@ -188,6 +188,10 @@ through `service.adapter_for`.
   refused move marks the meeting failed (`reschedule-failed`). Disconnecting Zoom audits each meeting it fails.
   `host_external_user_id` is a Zoom user id or an email (no `%` or `+`), never a path segment such as `..`; the
   adapter also percent-encodes it as one path segment.
+- The public schedule has an anonymous web page, `/schedule/public/:locationId` (`web/src/features/integrations/
+  PublicSchedulePage.tsx`), which other sites may frame (owner decision 2026-11-13, question 5; proxy `@embeddable`).
+  The settings screen gives its iframe snippet. The page shows what `GET /public/schedule` returns, so the listing
+  rules and the location's settings stay in one place; the JSON route still sends no CORS headers.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because
   scheduling was owned by another builder in Phase 15; it reads through `scheduling.service.booking_ids` and
   `booking_views`. Moving it is a file move.

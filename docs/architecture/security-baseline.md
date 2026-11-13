@@ -499,9 +499,10 @@ Cross-Origin-Opener-Policy: same-origin
 - `camera=(self)` is for photo capture (CLI-12) and kiosk scanning. `style-src-attr 'unsafe-inline'` exists
   because React sets style attributes for theme variables; no inline `<style>` or `<script>` is permitted.
 - Embeddable public routes replace `frame-ancestors 'none'`. Owner decision 2026-11-13 (question 5): the public
-  league pages and the TV board (`/leagues/public*`, `/leagues/board/*`) send `frame-ancestors *` and no
-  `X-Frame-Options`; no per-tenant origin allow-list. They set no cookies and expose only C1 data. The public
-  schedule (SCH-20) is a JSON route fetched by the club's own script, not a framed page.
+  league pages, the TV board and the public schedule page (`/leagues/public*`, `/leagues/board/*`,
+  `/schedule/public/*`) send `frame-ancestors *` and no `X-Frame-Options`; no per-tenant origin allow-list. They
+  set no cookies, expose only C1 data and take no payment, so their CSP names no Stripe origin (`script-src 'self';
+  connect-src 'self'`).
 - CSP violations report to an endpoint that is rate-limited and logs the directive and blocked host only.
 - **[test]** `test_security_headers`: every route class returns the expected header set; Playwright runs fail
   on any CSP violation logged during the end-to-end suite.

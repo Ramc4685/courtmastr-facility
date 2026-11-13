@@ -150,7 +150,8 @@ games to score.
   cap); they are served by our own public routes, published photos and active sponsors only.
 - **Embedding (LGE-21) is enabled for the public league pages and the TV board only** (owner decision 2026-11-13,
   question 5). The proxy (`infra/proxy/Caddyfile`, `@embeddable`) drops `X-Frame-Options` and sends
-  `frame-ancestors *` for `/leagues/public`, `/leagues/public/*` and `/leagues/board/*`; every other path keeps
+  `frame-ancestors *` for `/leagues/public`, `/leagues/public/*` and `/leagues/board/*` (and the public schedule page,
+  `/schedule/public/*`, integrations), with a CSP that names no Stripe origin; every other path keeps
   `X-Frame-Options: DENY` and `frame-ancestors 'none'` (`infra/docker/smoke.sh` checks both). The staff site screen
   gives an iframe snippet (`?embed=1` drops the page chrome). When framed the web app renders only those routes and
   refuses every other screen, because the app is one document and any route could load behind an embeddable path. The second line of defence is the session cookie,

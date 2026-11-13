@@ -117,7 +117,7 @@ describe('inside a frame', SCREEN, () => {
     expect(screen.getByRole('link', { name: 'Open it in its own window' })).toHaveAttribute('target', '_top')
   })
 
-  it.each(['/sign-in', '/portal', '/portal/invoices', '/pay', '/kiosk', '/forms/f1', '/settings', '/leagues/publicity'])(
+  it.each(['/sign-in', '/portal', '/portal/invoices', '/pay', '/kiosk', '/forms/f1', '/settings', '/leagues/publicity', '/schedule/public'])(
     'refuses %s inside a frame',
     async (path) => {
       framed(path)

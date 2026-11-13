@@ -123,17 +123,27 @@ test('the accounting mappings dialog of the seeded connection passes axe', async
   await dialog.getByRole('button', { name: 'Cancel' }).click()
 })
 
-test('the public schedule settings save and show the embed snippet, and pass axe', async ({ page }) => {
+test('the public schedule is published, its framed page lists it, and every screen passes axe', async ({ page, browser }) => {
   await signIn(page)
   await page.getByRole('tab', { name: 'Public schedule' }).click()
-  const snippet = page.getByRole('textbox', { name: 'Embed snippet' })
-  await expect(snippet).toHaveValue(/\/api\/v1\/public\/schedule\?location_id=/)
-  await expect(page.getByText(/not turned on at our proxy yet/)).toBeVisible()
-  await page.getByRole('button', { name: 'Save settings' }).click() // unchanged values: saving is harmless
-  await expect(page.getByText(/Public schedule saved/)).toBeVisible()
+  const publish = page.getByLabel("Publish this location's schedule")
+  if (!(await publish.isChecked())) await publish.check()
+  await page.getByRole('button', { name: 'Save settings' }).click()
+  await expect(page.getByText('Public schedule saved and published.')).toBeVisible()
+  const snippet = await page.getByRole('textbox', { name: 'Embed snippet' }).inputValue()
+  const src = /<iframe src="([^"]+)"/.exec(snippet)?.[1]
+  expect(src).toMatch(/\/schedule\/public\/[0-9a-f-]{36}$/)
   await scan(page, 'public schedule')
   await page.emulateMedia({ colorScheme: 'dark' })
   await scan(page, 'public schedule dark')
+
+  const visitor = await (await browser.newContext()).newPage() // anonymous
+  await visitor.goto(new URL(src!).pathname)
+  await expect(visitor.getByRole('heading', { level: 1, name: 'Schedule' })).toBeVisible()
+  await expect(visitor.getByRole('heading', { name: 'Sessions' })).toBeVisible()
+  await scan(visitor, 'public schedule page')
+  await visitor.setContent(`<iframe src="${src}" title="Club schedule" width="800" height="600"></iframe>`)
+  await expect(visitor.frameLocator('iframe').getByRole('heading', { level: 1, name: 'Schedule' })).toBeVisible()
 })
 
 test('the API reference lists operations with their scopes, filters, and passes axe', async ({ page }) => {
