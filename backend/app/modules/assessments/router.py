@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import ValidationFailed
-from app.core.idempotency import idempotency
+from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
 from app.modules.assessments import schemas as s
@@ -140,6 +140,7 @@ def list_portal_progress_share_links(ctx: Portal, client_id: ActFor = None):
 
 
 @router.post("/portal/progress-share-links", response_model=s.PortalShareLinkCreated, status_code=201)
+@secret_response
 def create_portal_progress_share_link(body: s.PortalShareLinkCreate, ctx: Portal):
     """A revocable read-only link; the token is in the URL fragment and shown once."""
     return service.portal_create_share_link(ctx.session, ctx.principal, body.model_dump())

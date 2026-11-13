@@ -13,6 +13,7 @@ from app.core import clock
 from app.core.audit import AuditEvent
 from app.core.auth import passwords, system_principal
 from app.core.db import tenant_session
+from app.core.idempotency import IdempotencyKey
 from app.modules import clients
 from app.modules.access.domain import cards
 from app.modules.access.models import CheckIn, Credential
@@ -20,6 +21,12 @@ from app.modules.platform.models import Identity
 from conftest import PASSWORD, add_staff, login, make_tenant, new_client, populate, scalar
 
 API = "/api/v1"
+
+
+def not_stored(tenant, key: str, secret: str) -> None:
+    """A secret response leaves no plaintext in the idempotency store: the claim completes with no body."""
+    row = scalar(tenant, select(IdempotencyKey).where(IdempotencyKey.key == key))
+    assert row.status == "completed" and row.response_body is None and secret not in str(row.response_body)
 
 
 def ok(response, status=(200, 201)):
@@ -280,9 +287,10 @@ def _portal(client, tenant, owner, loc):
 
 def test_app_cards_for_self_and_household_scan_at_the_kiosk(client, tenant, owner, f):
     parent, portal = _portal(client, tenant, owner, f.loc)
-    issued = ok(client.post(f"{API}/portal/app-cards", headers=portal,
+    issued = ok(client.post(f"{API}/portal/app-cards", headers=portal | {"Idempotency-Key": "app-card-1"},
                             json={"client_id": parent["id"], "device_label": "Phone"}), 201)  # fmt: skip
     assert issued["card_payload"].startswith(issued["credential_id"])
+    not_stored(tenant, "app-card-1", issued["card_payload"])
     # A stranger's card is out of reach; the staff principal cannot use portal card routes.
     stranger = client.post(f"{API}/portal/app-cards", headers=portal, json={"client_id": f.person["id"]})
     assert stranger.status_code == 404
@@ -340,9 +348,11 @@ def test_wallet_pass_has_its_own_revocable_credential_accepted_at_the_door(clien
     import json
 
     parent, portal = _portal(client, tenant, owner, f.loc)
-    issued = ok(client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": parent["id"]}), 201)
+    keyed = portal | {"Idempotency-Key": "wallet-pass-1"}
+    issued = ok(client.post(f"{API}/portal/wallet-passes", headers=keyed, json={"client_id": parent["id"]}), 201)
     assert issued["format"] == "fake" and issued["is_signed"] is False
     token = json.loads(issued["content"])["barcode"]["message"]
+    not_stored(tenant, "wallet-pass-1", token)
     assert token.startswith("FHW") and len(token) == 43
     # Only the token's hash is stored; the staff list never shows it.
     stored = scalar(tenant, select(Credential.value).where(Credential.id == issued["credential_id"]))

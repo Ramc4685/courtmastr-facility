@@ -1,7 +1,7 @@
 """Registration baskets (REG-09, 10, 12): held places, one invoice, documents before confirm, the portal paying
 through secure_online_checkout as the strictest program asks, ownership by identity, and hold expiry."""
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -9,6 +9,7 @@ import pytest
 from app.core import clock
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
+from app.modules import billing
 from app.modules.documents.tests.support import template
 from app.modules.programs import checkout
 from app.modules.programs.models import RegistrationCheckout
@@ -239,3 +240,10 @@ def test_reg_10_deposit_and_instalment_plans(client, owner, tenant, f, mailbox):
         (3000, 3000), (2000, 0), (2000, 0), (2000, 0)]  # fmt: skip
     methods = ok(client.get(f"{API}/portal/payment-methods", headers=portal), 200)
     assert any(m["is_autopay"] for m in methods)  # the card stays on file for the instalments
+    assert bill["is_autopay"] is True
+    # on the first instalment date the autopay run collects it from that card (no dunning, no lockout)
+    with clock.freeze(datetime(2031, 6, 1, 18, tzinfo=UTC)), tenant_session(tenant.id, actor=system_principal("tests")) as session:  # fmt: skip
+        run = billing.autopay.run_location(session, UUID(f.location))
+        assert (run.succeeded_count, run.collected_minor) == (1, 2000)
+    bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
+    assert (bill["balance_minor"], bill["status"], bill["dunning_state"]) == (4000, "partially_paid", "none")

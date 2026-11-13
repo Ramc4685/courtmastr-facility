@@ -12,6 +12,7 @@ from app.core.audit import AuditEvent
 from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.core.events import OutboxEvent
+from app.core.idempotency import IdempotencyKey
 from app.modules import clients
 from app.modules.assessments import subject
 from app.modules.platform.models import Identity
@@ -257,8 +258,13 @@ def test_fit_05_share_link_is_revocable_and_expires(client, tenant, owner, locat
     public = {"X-Tenant-Slug": tenant.slug}
     assert client.post(links, headers=portal, json={}).status_code == 404  # sharing off
     ok(client.patch(f"{API}/assessment-settings", headers=owner, json={"is_portal_sharing_enabled": True}))
-    made = ok(client.post(links, headers=portal, json={"label": "Coach Sam", "expires_in_days": 7}), 201)
+    keyed = portal | {"Idempotency-Key": "share-link-1"}
+    made = ok(client.post(links, headers=keyed, json={"label": "Coach Sam", "expires_in_days": 7}), 201)
     token = made["token"]
+    row = scalar(tenant, select(IdempotencyKey).where(IdempotencyKey.key == "share-link-1"))
+    assert row.status == "completed" and row.response_body is None  # the token is never kept at rest
+    replay = client.post(links, headers=keyed, json={"label": "Coach Sam", "expires_in_days": 7})
+    assert (replay.status_code, replay.json()["code"]) == (409, "response-not-stored") and token not in replay.text
     assert made["url"].endswith(f"/progress#token={token}") and made["is_active"]
     [listed] = ok(client.get(links, headers=portal))
     assert listed["id"] == made["id"] and "token" not in listed

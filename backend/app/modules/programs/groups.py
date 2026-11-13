@@ -848,11 +848,13 @@ def bill(session: Db, row: Enrollment, fees: list[ProgramFee]) -> list[UUID]:
     return ids
 
 
-def invoice(session: Db, charge_ids: list[UUID], payer_client_id: UUID | None, origin: str = "staff"):
+def invoice(
+    session: Db, charge_ids: list[UUID], payer_client_id: UUID | None, origin: str = "staff", is_autopay: bool = False
+):
     if not charge_ids:
         return None
     return billing.service.create_invoice_for_charges(
-        session, charge_ids, bill_to_client_id=payer_client_id, origin=origin
+        session, charge_ids, bill_to_client_id=payer_client_id, origin=origin, is_autopay=is_autopay
     )
 
 

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock
@@ -19,7 +19,7 @@ from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import clients, memberships, platform, scheduling
 from app.modules.programs import groups, service
-from app.modules.programs.models import Enrollment, SessionBookingPolicy, WaitlistEntry
+from app.modules.programs.models import Enrollment, ProgramSession, SessionBookingPolicy, WaitlistEntry
 
 POLICY = "engagement.portal_settings.manage"  # engagement owns the key; programs may not import engagement
 # League managers kept booking policies through this key; it stays accepted so no role loses them without the
@@ -284,9 +284,13 @@ def portal_join_link(session: Db, principal: Principal, session_id: UUID) -> dic
     """SSP-18: the join link of a virtual session, only for the identity's own enrolment or one it acts for, from
     15 minutes before the start to the end. Not virtual, not enrolled or cancelled: 404; outside the window: 409."""
     actable = clients.households.actable_client_ids(session, _identity(principal))
+    # a group registration takes a seat in the sessions linked to its group or an ancestor (CLS-10)
+    linked = session.scalar(select(ProgramSession.program_group_id).where(ProgramSession.session_id == session_id))
+    group_ids = [linked, *groups._subtree_ids(session, linked)] if linked else []
     enrolled = session.scalar(
         select(func.count()).select_from(Enrollment).where(
-            Enrollment.session_id == session_id, Enrollment.status == "enrolled", Enrollment.client_id.in_(actable)
+            or_(Enrollment.session_id == session_id, Enrollment.program_group_id.in_(group_ids)),
+            Enrollment.status == "enrolled", Enrollment.client_id.in_(actable),
         )
     )  # fmt: skip
     meeting = scheduling.service.meeting_for(session, session_id) if enrolled else None

@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from app.core import clock
 from app.modules.programs.tests.test_checkout import member
+from app.modules.programs.tests.test_groups import program, register
 from app.modules.programs.tests.test_selfservice import POLICY, SOON
 from app.modules.programs.tests.test_sessions import enroll
 from app.modules.scheduling.tests.helpers import API, at, book, facility, ok
@@ -49,3 +50,24 @@ def test_meeting_and_join_window(client, owner, tenant, mailbox):
     ok(client.post(f"{API}/bookings/{booking['id']}/cancel", headers=owner, json={"version": booking["version"]}), 200)
     assert ok(client.get(path, headers=owner), 200)["is_virtual"] is False  # cancelling drops the meeting
     assert client.get(join, headers=portal).status_code == 404
+
+
+def test_program_enrolment_gets_the_join_link_of_its_sessions(client, owner, tenant, mailbox):
+    """A group registration (no session_id on the enrolment) takes a seat in every session linked to its group or
+    an ancestor, so it reaches their join links too; someone not registered does not."""
+    f = facility(client, owner)
+    made = ok(book(client, owner, f, [f.court], at(10, SOON), at(11, SOON), kind="session", session={"capacity": 4}))
+    seat = made["booking"]["session"]["id"]
+    meeting = ok(client.put(f"{API}/sessions/{seat}/meeting", headers=owner), 200)
+    camp = program(client, owner, f, kind="camp")
+    week = ok(client.post(f"{API}/program-groups", headers=owner, json={"parent_id": camp["id"], "name": "Wk 1"}))
+    ok(client.post(f"{API}/program-groups/{camp['id']}/sessions", headers=owner, json={"session_ids": [seat]}), 200)
+    person, _ = member(client, tenant, owner, f, mailbox)
+    stranger, _ = member(client, tenant, owner, f, mailbox)
+    ok(register(client, owner, week["id"], person["id"]))
+    join = f"{API}/portal/sessions/{seat}/join-link"
+    with clock.freeze(SOON + timedelta(hours=10, minutes=-5)):
+        mine = login(client, tenant, person["primary_email"], audience="client")
+        assert ok(client.get(join, headers=mine), 200)["join_url"] == meeting["join_url"]
+        theirs = login(client, tenant, stranger["primary_email"], audience="client")
+        assert client.get(join, headers=theirs).status_code == 404

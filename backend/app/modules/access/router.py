@@ -288,6 +288,7 @@ def list_app_cards(ctx: Portal, client_id: Annotated[UUID | None, Query()] = Non
 
 
 @router.post("/portal/app-cards", response_model=s.PortalAppCardIssued, status_code=201)
+@secret_response
 def issue_app_card(body: s.PortalAppCardCreate, ctx: Portal):
     """A digital member card for this device; the payload is shown once and drives rotating QR codes offline."""
     return service.issue_app_card(ctx.session, ctx.principal, body.model_dump())
@@ -307,6 +308,7 @@ def list_wallet_passes(ctx: Portal, client_id: Annotated[UUID | None, Query()] =
 
 
 @router.post("/portal/wallet-passes", response_model=s.PortalWalletPassIssued, status_code=201)
+@secret_response
 def issue_wallet_pass(body: s.PortalWalletPassCreate, ctx: Portal):
     """A wallet pass with its own long-lived credential; issuing again revokes the client's previous pass."""
     return service.issue_wallet_pass(ctx.session, ctx.principal, body.model_dump())

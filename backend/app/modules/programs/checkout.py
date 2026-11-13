@@ -183,13 +183,13 @@ def _acknowledge_terms(session: Db, checkout: RegistrationCheckout, items: list[
                               sale_kind="program", subject_id=items[0].program_group_id)  # fmt: skip
 
 
-def _bill(session: Db, checkout: RegistrationCheckout, items: list[Enrollment]):
+def _bill(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], *, is_autopay: bool = False):
     charge_ids = []
     for row in items:
         fee = session.get(ProgramFee, row.program_fee_id) if row.program_fee_id else None
         charge_ids += groups.bill(session, row, [fee] if fee is not None else [])
     origin = "staff" if checkout.channel == "staff" else "portal"
-    return groups.invoice(session, charge_ids, checkout.payer_client_id, origin=origin)
+    return groups.invoice(session, charge_ids, checkout.payer_client_id, origin=origin, is_autopay=is_autopay)
 
 
 def _complete(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], accepted: list[UUID]) -> None:
@@ -380,7 +380,8 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
     later = _later(session, checkout, items)
     if later:
         _check_plan_checkout(session, checkout, data)
-    found = _bill(session, checkout, items)
+    # a plan's later rows are collected by the autopay run, which only selects autopay invoices
+    found = _bill(session, checkout, items, is_autopay=bool(later))
     checkout.invoice_id = found.id if found is not None else None
     if later and found is not None:
         _secure_plan(session, checkout, found, later, data, idempotency_key)
