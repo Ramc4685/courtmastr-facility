@@ -66,24 +66,48 @@ def _error(row_id):
         return conn.execute(text("SELECT error FROM inbound_webhook_event WHERE id = :id"), {"id": row_id}).scalar()
 
 
-def test_finished_inbound_payloads_are_emptied_after_90_days(tenant):
-    """Terminal events only: processed, ignored, and failed at the retry cap lose payload and error text after
-    90 days. A failure the sweep would still retry keeps both, however old, as does a recent failure."""
-    processed, ignored, recent, failed, recent_failed, retryable = (
-        _event("processed", 91, tenant.id), _event("ignored", 91), _event("processed", 89, tenant.id),
-        _event("failed", 91, tenant.id), _event("failed", 1, tenant.id), _event("failed", 91, tenant.id),
-    )  # fmt: skip
+def _row(row_id):
+    with platform_engine().connect() as conn:
+        return conn.execute(text("SELECT status, attempt_count FROM inbound_webhook_event WHERE id = :id"),
+                            {"id": row_id}).one()  # fmt: skip
+
+
+def _suspend(tenant_id, status: str) -> None:
     with platform_engine().begin() as conn:
-        conn.execute(text("UPDATE inbound_webhook_event SET error = 'card declined for j@x.io' WHERE id IN (:a, :b, :c)"),
-                     {"a": failed, "b": recent_failed, "c": retryable})  # fmt: skip
-        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id IN (:a, :b)"),
-                     {"n": inbound_webhooks.RETRY_ATTEMPTS, "a": failed, "b": recent_failed})  # fmt: skip
-        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = 1 WHERE id = :c"), {"c": retryable})
-    assert inbound_webhooks.purge_payloads() >= 3
-    assert _payload(processed) == {} and _payload(ignored) == {} and _payload(failed) == {}
-    assert _error(failed) is None
-    assert _payload(recent) and _payload(recent_failed) and _error(recent_failed)
-    assert _payload(retryable) and _error(retryable)  # stale() still hands it to the sweep
+        conn.execute(text("UPDATE tenant SET status = :s WHERE id = :id"), {"s": status, "id": tenant_id})
+
+
+def test_finished_inbound_payloads_are_emptied_after_90_days(tenant):
+    """Past the window every event loses payload and error text, whatever its status, attempt count or tenant
+    state. A failed or never-processed event is made terminal (attempt count at the cap) in the same statement,
+    so the retry sweep never picks up an emptied event. Inside the window a failure keeps both and is retried."""
+    processed, ignored, recent = (
+        _event("processed", 91, tenant.id),
+        _event("ignored", 91),
+        _event("processed", 89, tenant.id),
+    )
+    failed_once, recent_failed, never_run = (
+        _event("failed", 91, tenant.id),
+        _event("failed", 1, tenant.id),
+        _event("received", 91, tenant.id),
+    )
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET error = 'card declined for j@x.io', attempt_count = 1 "
+                          "WHERE id IN (:a, :b, :c)"), {"a": failed_once, "b": recent_failed, "c": processed})  # fmt: skip
+    _suspend(tenant.id, "suspended")  # its sweep never runs; the purge must not depend on it
+    try:
+        assert inbound_webhooks.purge_payloads() >= 4
+    finally:
+        _suspend(tenant.id, "active")
+    for gone in (processed, ignored, failed_once, never_run):
+        assert _payload(gone) == {} and _error(gone) is None, gone
+    assert _row(processed) == ("processed", 1) and _row(ignored).status == "ignored"
+    assert _row(failed_once) == ("failed", inbound_webhooks.RETRY_ATTEMPTS)
+    assert _row(never_run) == ("failed", inbound_webhooks.RETRY_ATTEMPTS)
+    stale = inbound_webhooks.stale(tenant.id, clock.now(), inbound_webhooks.RETRY_ATTEMPTS)
+    assert failed_once not in stale and never_run not in stale  # never retried
+    assert recent_failed in stale and _payload(recent_failed) and _error(recent_failed)  # kept, and retried
+    assert _payload(recent)
     assert inbound_webhooks.purge_payloads() == 0  # idempotent
     with platform_engine().connect() as conn:
         event_id = conn.execute(text("SELECT provider_event_id FROM inbound_webhook_event WHERE id = :id"),

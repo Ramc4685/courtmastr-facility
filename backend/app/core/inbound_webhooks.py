@@ -110,12 +110,13 @@ def stale(tenant_id: UUID, before: datetime, max_attempts: int) -> list[UUID]:
 
 
 def purge_payloads() -> int:
-    """Retention (security-baseline 2.3): empty the payload and error text of terminal events (processed,
-    ignored, or failed `RETRY_ATTEMPTS` times) last touched more than `retention.inbound_payload_days` ago, at
-    most `retention.batch_rows` per call. A failure the sweep would still retry keeps both, however old. The row
-    stays so a late redelivery is still a duplicate. Idempotent. Run
-    hourly by the clock (app.scheduler.tick_hour) as fh_platform: the table is global, and ignored events have no
-    tenant."""
+    """Retention (security-baseline 2.3): every event last touched more than `retention.inbound_payload_days` ago
+    loses its payload and error text (where personal data sits), whatever its status, attempt count or tenant's
+    state, at most `retention.batch_rows` per call. An unfinished one (received, or failed under the cap) is made
+    terminal in the same statement: `failed` with `attempt_count` at `RETRY_ATTEMPTS`, which `stale()` never
+    returns, so the retry sweep can never pick up an emptied event. Nothing new is written about the event. The row
+    stays so a late redelivery is still a duplicate. Idempotent. Run hourly by the clock (app.scheduler.tick_hour)
+    as fh_platform: the table is global, and ignored events have no tenant."""
     cfg = get_settings().retention
     before = clock.now() - timedelta(days=cfg.inbound_payload_days)
     with platform_engine().begin() as conn:
@@ -123,12 +124,14 @@ def purge_payloads() -> int:
         # COALESCE(processed_at, received_at) WHERE payload <> '{}' when this shows up in the slow-query log.
         return conn.execute(
             text(
-                "UPDATE inbound_webhook_event SET payload = '{}'::jsonb, error = NULL WHERE id IN (SELECT id FROM "
-                "inbound_webhook_event WHERE (status IN ('processed', 'ignored') OR (status = 'failed' AND "
-                "attempt_count >= :cap)) "
-                "AND (payload <> '{}'::jsonb OR error IS NOT NULL) AND "
-                "COALESCE(processed_at, received_at) < :before LIMIT :n "
-                "FOR UPDATE SKIP LOCKED)"
+                "UPDATE inbound_webhook_event SET payload = '{}'::jsonb, error = NULL, "
+                "status = CASE WHEN status = 'received' THEN 'failed' ELSE status END, "
+                "attempt_count = CASE WHEN status IN ('received', 'failed') THEN GREATEST(attempt_count, :cap) "
+                "ELSE attempt_count END "
+                "WHERE id IN (SELECT id FROM inbound_webhook_event WHERE "
+                "(payload <> '{}'::jsonb OR error IS NOT NULL OR status = 'received' "
+                "OR (status = 'failed' AND attempt_count < :cap)) "
+                "AND COALESCE(processed_at, received_at) < :before LIMIT :n FOR UPDATE SKIP LOCKED)"
             ),
             {"before": before, "n": cfg.batch_rows, "cap": RETRY_ATTEMPTS},
         ).rowcount
