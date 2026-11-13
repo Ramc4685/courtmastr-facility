@@ -5016,7 +5016,7 @@ export interface paths {
         };
         /**
          * List Forms
-         * @description Filters: location_id, status, is_template. Sort: name, created_at, event_starts_on. q: name, event name.
+         * @description Filters: location_id, status, is_template. Sort: name, created_at. q: name, event name.
          */
         get: operations["listForms"];
         put?: never;

@@ -109,8 +109,8 @@ Assumptions (chip A):
 - **Summaries (REG-22):** the form is loaded before the summary key is checked, so an unknown key on a form
   you can see is 422, and a form you cannot see is 404. Counts and sums are grouped in SQL. The demographic
   summary still reads each distinct registrant once, because clients has no batch reader.
-- **Anonymous abuse limits:** the submit POST has its own closed bucket, `public-form-submit` (5 per 15
-  minutes per IP), and a second bucket keyed on the lowercased contact address, `public-form-email` (5 per
+- **Anonymous abuse limits:** the submit POST has its own closed bucket, `public-form-submit` (20 per 15
+  minutes per IP, so a family on a venue's Wi-Fi is not stopped after the fifth sign-up), and a second bucket keyed on the lowercased contact address, `public-form-email` (5 per
   hour). The form GET and header image use `public-form` (60 per minute). Each form holds one live anonymous
   registration per address (`already-registered`), enforced by the partial unique index
   `uq_form_submission_public_email`. Portal registrations are exempt, because a parent may register several
@@ -143,3 +143,13 @@ only).
 register someone else's email (squatting a one-per-email place), and the duplicate-email reply tells a visitor
 that an address is already registered. Owner decision 2026-11-12: double opt-in, planned as a follow-up (not
 the generic-reply workaround); tracked as a P1 deferred item under Phase 14 in `docs/planning/phase-features.md`.
+The same follow-up removes the `already-registered` reply as an address oracle (anyone can test whether an
+address is signed up).
+
+**Known gaps in the abuse limits** (deferred rows under Phase 14 in `docs/planning/phase-features.md`):
+- Address variants (plus-tags, dots, a trailing dot) count as different addresses: `core/ratelimit.py` and
+  `uq_form_submission_public_email` only lowercase, so they bypass the per-address limit and the index.
+- The per-address bucket is per address, not per form, so a third party can burn an address's hourly allowance
+  by submitting it to five forms.
+- Erased rows share `forms.ERASED_EMAIL` and are left out of `uq_form_submission_public_email`; the index
+  predicate repeats that literal, and a test checks the two agree.

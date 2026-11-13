@@ -709,8 +709,10 @@ class FormSubmission(TenantOwned, Timestamps, Base):
         CheckConstraint("total_minor >= 0", name="total"),
         Index("ix_form_submission_form", "tenant_id", "form_id", "status", "id"),
         # One live anonymous registration per address per form: the public link cannot drain places in bulk.
+        # Erased rows share one placeholder address (forms.ERASED_EMAIL), so they are left out of the index.
         Index("uq_form_submission_public_email", "tenant_id", "form_id", text("lower(contact_email)"), unique=True,
-              postgresql_where=text("status <> 'cancelled' AND channel = 'public_link'")),
+              postgresql_where=text("status <> 'cancelled' AND channel = 'public_link' "
+                                    "AND contact_email <> 'erased@invalid.example'")),
     )  # fmt: skip
 
     form_id: Mapped[UUID]

@@ -423,3 +423,43 @@ def test_export_refuses_more_than_the_cap_and_anonymous_rows_age_out(client, own
         assert forms.purge_anonymous(session) == 0  # idempotent
     row = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"][0]
     assert (row["contact_name"], row["contact_email"]) == ("Erased", forms.ERASED_EMAIL)
+
+
+def test_purging_several_anonymous_rows_on_one_form_keeps_the_one_per_address_index(client, owner, tenant, f):
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules.programs.models import FormSubmission
+
+    index = next(i for i in FormSubmission.__table__.indexes if i.name == "uq_form_submission_public_email")
+    assert forms.ERASED_EMAIL in str(index.dialect_options["postgresql"]["where"])  # model and constant agree
+    form = new_form(client, owner, f, items=[NOTE], event_starts_on="2020-01-01")
+    ok(submit(client, tenant, form["id"], []))
+    ok(submit(client, tenant, form["id"], [], contact_email="lee@example.com"))
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert forms.purge_anonymous(session) == 2  # two rows now share the erased address
+    ok(submit(client, tenant, form["id"], []))  # a purged row is not "already registered"
+    assert code(submit(client, tenant, form["id"], [])) == (409, "already-registered")  # live rows still unique
+
+
+def test_erasing_clients_linked_to_public_link_rows_on_one_form(client, owner, tenant, f):
+    from sqlalchemy import update
+
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules.programs import subject
+    from app.modules.programs.models import FormSubmission
+    from conftest import new_client
+
+    form = new_form(client, owner, f, items=[NOTE])
+    ok(submit(client, tenant, form["id"], [], contact_email="a@example.com"))
+    ok(submit(client, tenant, form["id"], [], contact_email="b@example.com"))
+    rows = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"]
+    people_ids = [new_client(client, owner, f.location)["id"] for _ in rows]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        for row, person in zip(rows, people_ids, strict=True):
+            session.execute(update(FormSubmission).where(FormSubmission.id == row["id"])
+                            .values(registrant_client_id=person, account_client_id=person))  # fmt: skip
+    for person in people_ids:  # one erasure after the other, as two subject requests would run
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            assert subject._erase(session, person)["erased_form_submissions"] == 1
+    ok(submit(client, tenant, form["id"], [], contact_email="a@example.com"))  # erased rows block no one

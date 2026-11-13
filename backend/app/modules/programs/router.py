@@ -560,7 +560,7 @@ def export_program_group(program_group_id: UUID, ctx: Ctx = Depends(require(tool
 
 @router.get("/forms", response_model=s.Page[s.EventFormOut])
 def list_forms(query: Lists, ctx: Ctx = FormManage):
-    """Filters: location_id, status, is_template. Sort: name, created_at, event_starts_on. q: name, event name."""
+    """Filters: location_id, status, is_template. Sort: name, created_at. q: name, event name."""
     return forms.list_forms(ctx.session, ctx.principal, query)
 
 

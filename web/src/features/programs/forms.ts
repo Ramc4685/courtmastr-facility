@@ -50,6 +50,8 @@ const ERROR_TEXT: Record<string, string> = {
   'already-cancelled': 'This registration is already cancelled.',
   'not-waitlisted': 'Only a wait-listed registration can be promoted.',
   'answer-required': 'Answer every required question.',
+  'already-registered': 'This email address is already registered for this event.',
+  'rate-limited': 'Too many registrations from here just now. Try again later.',
   'in-use': 'Programs use this classifier. Deactivate it instead.',
   'already-exists': 'That name is already taken.',
 }

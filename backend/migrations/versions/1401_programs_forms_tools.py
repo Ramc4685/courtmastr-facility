@@ -387,7 +387,10 @@ def upgrade() -> None:
         "form_submission",
         ["tenant_id", "form_id", sa.text("lower(contact_email)")],
         unique=True,
-        postgresql_where=sa.text("status <> 'cancelled' AND channel = 'public_link'"),
+        # Erased rows share one placeholder address (programs.forms.ERASED_EMAIL), so they stay out of the index.
+        postgresql_where=sa.text(
+            "status <> 'cancelled' AND channel = 'public_link' AND contact_email <> 'erased@invalid.example'"
+        ),
     )
     op.create_index(op.f("ix_form_submission_invoice_id"), "form_submission", ["tenant_id", "invoice_id"], unique=False)
     op.create_index(

@@ -152,6 +152,18 @@ describe('PublicFormPage', SCREEN, () => {
     expect(calls.some((c) => c.url.includes('/portal/'))).toBe(false)
   })
 
+  it('says plainly when the address is already registered', async () => {
+    renderAsStaff(at('/forms/f1', <PublicFormPage />, '/forms/:id'), [], {
+      'GET /api/v1/public/forms/f1': { status: 200, body: publicForm([shirt]) },
+      'POST /api/v1/public/forms/f1/submissions': { status: 409, body: { status: 409, code: 'already-registered', detail: 'Conflict' } },
+    })
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Your name' }), 'Sam Lee')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Email' }), 'sam@example.com')
+    await userEvent.click(screen.getByRole('radio', { name: /Small/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Register' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('This email address is already registered for this event.')
+  })
+
   it('asks for sign-in once a priced choice is picked', async () => {
     renderAsStaff(at('/forms/f1', <PublicFormPage />, '/forms/:id'), [], { 'GET /api/v1/public/forms/f1': { status: 200, body: publicForm([shirt, tickets]) } })
     await userEvent.click(await screen.findByRole('radio', { name: /Small/ }))
