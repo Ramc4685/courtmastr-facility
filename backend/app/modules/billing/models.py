@@ -48,7 +48,7 @@ ReleaseReason = _values(
     "invoice_voided",
 )  # fmt: skip
 RefundMethod = _values("original", "external")
-RefundStatus = _values("pending", "succeeded", "failed", "cancelled")
+RefundStatus = _values("initiated", "pending", "succeeded", "failed", "cancelled")
 LedgerKind = _values(
     "charge_posted", "payment_settled", "allocation_applied", "allocation_released", "refund_succeeded",
     "refund_returned", "payment_voided", "dispute_opened", "dispute_won", "dispute_lost", "correction",
@@ -486,6 +486,11 @@ class Refund(TenantOwned, Timestamps, Base):
             "ix_refund_batch", "tenant_id", "refund_batch_id", postgresql_where=text("refund_batch_id IS NOT NULL")
         ),
         Index("ix_refund_pending", "tenant_id", "created_at", postgresql_where=text("status = 'pending'")),
+        Index("ix_refund_initiated", "tenant_id", "created_at", postgresql_where=text("status = 'initiated'")),
+        Index(
+            "uq_refund_idempotency_key", "tenant_id", "idempotency_key", unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
     )  # fmt: skip
 
     payment_id: Mapped[UUID]
@@ -502,6 +507,7 @@ class Refund(TenantOwned, Timestamps, Base):
     refund_batch_id: Mapped[UUID | None]
     failure_message: Mapped[str | None]
     issued_by_staff_user_id: Mapped[UUID | None]
+    idempotency_key: Mapped[str | None]  # a processed refund's row is found again by it (written before the call)
 
 
 class Dispute(TenantOwned, Timestamps, Base):

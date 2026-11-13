@@ -66,7 +66,8 @@ take_payment(session, *, client_id, location_id, amount_minor, tender_kind, idem
 confirm_payment(session, payment_id); cancel_payment(session, payment_id)
 allocate(session, payment_id, *, invoice_id=None, allocations=None); release_allocation(session, payment_id, allocation_id)
 refund(session, payment_id, *, amount_minor, reason, idempotency_key=None, method=None, comments=None,
-       refund_batch_id=None) -> Refund;  confirm_refund(session, refund_id)
+       refund_batch_id=None, release_allocation_ids=()) -> Refund;  confirm_refund(session, refund_id)
+resume_refund(session, refund_id, *, abandon=False) -> Refund        # the sweep's half of the pre-provider row
 reverse(session, charge_id, *, reason, revenue_on=None) -> Charge       # the negating charge
 void_charge(session, charge_id, *, reason) -> Charge
 adjust_charge(session, charge_id, *, reason, quantity=None, unit_price_minor=None, discount_minor=None,
@@ -94,7 +95,8 @@ Rules a caller must know:
   (`"<context>:<what>:<id>"`): the same key always returns the first payment, whatever the other arguments.
   Processed tenders need it. Their row is committed as `initiated` before the provider call, so a transaction
   that dies afterwards is finished by a retry with the same key or by `webhooks.reconcile`.
-- **A refund returns unapplied money only.** `reverse()` or `release_allocation()` first, then `refund()`.
+- **A refund returns unapplied money only.** `reverse()` or `release_allocation()` first, then `refund()`, or
+  pass `release_allocation_ids` to `refund()` to do both in one call.
 - **Edits to money are `adjust_charge`**, which emits `billing.charge.adjusted`, not `.reversed`: do not
   cancel what was sold when you see it. `billing.charge.voided` and `.reversed` do mean the item is gone.
 - **Dates are local** to the charge's or payment's location; instants are UTC. A posting dated on or before
@@ -242,9 +244,24 @@ handlers re-read the object from the provider.
   has not committed and must not wait on the caller's own locks, so it gives up after 500 ms and the payment
   is inserted in the caller's transaction (replay still safe, crash recovery not). The staff, portal, pay-link
   and autopay paths all get the committed row once the tenant's tender rows exist.
-- **Refunds do not have a pre-provider row.** Replay is safe through the provider's idempotency key and
-  `find_refund`; a process that dies between the provider's answer and commit leaves a provider refund with
-  no row until someone retries with the same key.
+- **A processed refund has a pre-provider row (PAY-05, Phase 9 orphans).** `refund(method="original")` commits
+  a `refund` row as `initiated` with its `idempotency_key` (migration 1801) in a short transaction before it
+  locks the payment and calls the processor, with the same 500 ms fallback as payments. A retry with the key
+  finishes that row (same provider key, so the card is refunded once); `webhooks.reconcile` finishes an
+  `initiated` refund older than five minutes from `find_refund` and cancels one the processor never heard of
+  after 30 minutes. A refund the processor made is applied by the sweep even if the money was spent since (it
+  left the account either way; the remainder check constraint then refuses and the sweep fails loudly).
+  The early amount check runs before the row is written, so a plain mistake leaves no row; the
+  locked re-check after it can still refuse a race, which leaves an `initiated` row for the sweep to cancel.
+  A replay with the key and a different amount is 409 `idempotency-key-reused`. Record-only (`external`)
+  refunds have no row before anything, as there is no call to make, and no replay key.
+- **Release-then-refund (PAY-05).** `release_allocation_ids` on `refund()` and `POST /payments/{id}/refunds`
+  releases those allocations of the same payment (to credit, posted) and then refunds, in one transaction and
+  one audit row for the payment; the staff route also needs `billing.payment.reallocate` at the payment's
+  location, as the separate release does. A replay with the key returns the first refund before releasing
+  anything. What is released but not refunded stays as account credit. Not built: a refund the processor
+  reverses after it succeeded (Stripe `refund.failed` after `succeeded`); the `refund_returned` ledger kind
+  is reserved for it.
 - **A voided invoice has total 0** (totals are projections of its items, and it has none); the audit event
   keeps what it was.
 - **Tax-exclusive only** (ADR 0003 section 10). **No late fees or interest** (ADR 0005: the reference shows

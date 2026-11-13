@@ -6446,7 +6446,7 @@ components:
         location_id: {type: string, format: uuid}
         amount_minor: {type: integer, format: int64}
         method: {type: string, enum: [original, external]}
-        status: {type: string, enum: [pending, succeeded, failed, cancelled]}
+        status: {type: string, enum: [initiated, pending, succeeded, failed, cancelled]}
         refund_on: {type: string, format: date}
         reason: {type: string}
         comments: {type: [string, 'null']}
@@ -6456,8 +6456,9 @@ components:
         created_at: {type: string, format: date-time}
     RefundCreate:
       type: object
-      description: '`amount_minor` is bounded by the payment''s `unapplied_minor`. `original` goes through the provider
-        port (PAY-05).'
+      description: '`amount_minor` is bounded by the payment''s `unapplied_minor`, after releasing the allocations in
+        `release_allocation_ids` (release-then-refund, which also needs `billing.payment.reallocate`). `original`
+        goes through the provider port (PAY-05).'
       required: [amount_minor, method, reason]
       properties:
         amount_minor: {type: integer, format: int64}
@@ -6465,6 +6466,7 @@ components:
         reason: {type: string}
         comments: {type: [string, 'null']}
         refund_on: {type: string, format: date}
+        release_allocation_ids: {type: array, maxItems: 100, items: {type: string, format: uuid}}
     AccountCredit:
       type: object
       description: Credit is the pooled unapplied remainder of the client's payments.

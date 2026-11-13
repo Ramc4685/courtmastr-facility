@@ -110,8 +110,8 @@ def retry_provider_events(session: Session) -> None:
 
 def reconcile(session: Session) -> dict:
     """The sweep: finish what a webhook or a dying request left behind. Re-reads every payment that is not in
-    a final state and every pending refund; an `initiated` payment the provider has no record of after 30
-    minutes is cancelled. Idempotent; run it as often as you like."""
+    a final state and every pending or `initiated` refund; an `initiated` payment or refund the provider has no
+    record of after 30 minutes is cancelled. Idempotent; run it as often as you like."""
     now, counts = clock.now(), {"payments": 0, "cancelled": 0, "refunds": 0}
     unsettled = session.scalars(
         select(Payment.id)
@@ -130,6 +130,12 @@ def reconcile(session: Session) -> dict:
             counts["cancelled"] += 1
     for refund_id in session.scalars(select(Refund.id).where(Refund.status == "pending")).all():
         service.confirm_refund(session, refund_id)
+        counts["refunds"] += 1
+    orphans = session.execute(
+        select(Refund.id, Refund.created_at).where(Refund.status == "initiated", Refund.created_at < now - STALE_AFTER)
+    ).all()
+    for refund_id, created_at in orphans:  # a refund whose request died around the processor call (PAY-05)
+        service.resume_refund(session, refund_id, abandon=created_at < now - ABANDON_AFTER)
         counts["refunds"] += 1
     return counts
 

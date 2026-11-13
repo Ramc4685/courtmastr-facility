@@ -415,3 +415,18 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
 - [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
 - [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
+
+### billing (+12, refresh 2026-11-13) — [evidence](drift/billing.md)
+
+- [ ] [contract] README:135-136 `/catalog-items` list and get not gated by `billing.item.manage` (router.py:324-325, 335-336)
+- [ ] [contract] README:26,326-328 disputes "no route"; contract has listDisputes, getDispute, submitDisputeEvidence (openapi-money.yaml:2656-2678); permissions.py:54 unused
+- [ ] [contract] no route for issueAccountCredit, setCollectionsStatus, listProcessorPayouts(+Lines), createLedgerExport, verifyPortalBankAccount (openapi-money.yaml:1688, 2592, 2624, 2634, 2646, 2483)
+- [ ] [contract] RefundCreate requires `method` and has `refund_on`; code has method optional, no refund_on (openapi-money.yaml:6457-6470; schemas.py:154-159)
+- [ ] [contract] contract problem code refund-exceeds-remainder (openapi-money.yaml:1570) vs code refund-exceeds-unapplied (service.py:1120)
+- [ ] [contract] contract Refund has no `currency`; RefundOut does (openapi-money.yaml:6439-6455; schemas.py:166)
+- [ ] [wording] README:256-257 replay with different amount is 409 only for an `initiated` row (service.py:1049-1053, 1066-1068)
+- [ ] [undocumented] early amount check skipped when release_allocation_ids given (service.py:1056-1057; README:254-255)
+- [ ] [undocumented] documents.browser_processor (documents.py:288; portal.py:239; programs/checkout.py:643) not in README:108-114
+- [ ] [undocumented] secure_online_checkout amount_minor cap and partially_paid replay rule (checkout.py:94, 155-156; README:110-112)
+- [ ] [undocumented] portal lockout is allow-by-omission, POST only, open set lives in tests (collections.py:216-222, 236; tests/test_collections.py:20-40; README:199-204)
+- [ ] [undocumented] bulk invoicing one invoice per client, is_dry_run, only_mine (schemas.py:589-593; documents.py:696-744; README:288-290)

@@ -156,6 +156,7 @@ class RefundCreate(In):
     reason: Text
     method: Literal["original", "external"] | None = None
     comments: Text | None = None
+    release_allocation_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
 class RefundOut(Out):
@@ -164,7 +165,7 @@ class RefundOut(Out):
     amount_minor: int
     currency: str
     method: Literal["original", "external"]
-    status: Literal["pending", "succeeded", "failed", "cancelled"]
+    status: Literal["initiated", "pending", "succeeded", "failed", "cancelled"]
     refund_on: date
     refund_batch_id: UUID | None
     reason: str
@@ -1012,7 +1013,7 @@ class PortalRefundOut(Out):
     amount_minor: int
     currency: str
     method: Literal["original", "external"]
-    status: Literal["pending", "succeeded", "failed", "cancelled"]
+    status: Literal["initiated", "pending", "succeeded", "failed", "cancelled"]
     refund_on: date
     created_at: datetime
 
