@@ -409,11 +409,19 @@ INT-13 analytics on registration pages (new 2026-11-13):
 ## Added on this branch (drift refresh 2026-11-12)
 Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
 
-### access (+3) — [evidence](drift/access.md)
+### access (+11) — [evidence](drift/access.md)
 
 - [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
 - [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
 - [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
+- [ ] [contract] (2026-11-13) Redis-outage 429 kiosk-locked-out not in KioskCheckInCreate/KioskLookupRequest; lookup does not say unknown values count
+- [ ] [undocumented] (2026-11-13) README cites none of the kiosk security tests (test_kiosk_reservations.py, test_isolation.py visit-token case); they need Redis
+- [ ] [undocumented] (2026-11-13) POSSESSION_KINDS also drives the plain-lookup exclusion (service.py:128); README names only the possession test
+- [ ] [wording] (2026-11-13) README calls a wallet pass a possession secret (107-108) and a static bearer barcode (purchase bullet); say which rule holds
+- [ ] [undocumented] (2026-11-13) household lockout is symmetric (clients/households.py:353); README names only child-billed-to-parent; no access test for the reverse
+- [ ] [undocumented] (2026-11-13) kiosk name-search limits (3 letters, 5 results, disabled hidden, lookup-method-disabled, card-invalid) and 400-day kiosk cookie not in README
+- [ ] [undocumented] (2026-11-13) access.check_in.session_booked event absent from the current README although the earlier item is ticked
+- [ ] [undocumented] (2026-11-13) POST /credentials/resolve not listed as a route in the README
 
 ### platform (+3) — [evidence](drift/platform.md)
 

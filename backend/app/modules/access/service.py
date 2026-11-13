@@ -115,13 +115,18 @@ def _wallet_pass(session: Session, text: str) -> Credential | None:
 
 
 def resolve(session: Session, value: str) -> tuple[clients.models.Client, Credential | None]:
-    """Internal: a scanned or typed value to its client. An app-card QR, then an active credential, then the
-    member number on the client record (the number's owner, MEM-19). Unknown is 404 credential-not-found."""
+    """Internal: a scanned or typed value to its client. A verified app-card QR or live wallet-pass token, then an
+    active physical credential (never an app card or pass by its stored value), then the member number on the
+    client record (the number's owner, MEM-19). Unknown is 404 credential-not-found."""
     card = _app_card(session, value) or _wallet_pass(session, value)
     if card is not None:
         return clients.service.get(session, card.client_id), card
     normal = _normalize(value)
-    row = session.scalar(select(Credential).where(Credential.value == normal, Credential.status == "active"))
+    # Digital credentials resolve only through their verified paths above: an app card's static number or a wallet
+    # pass's stored hash sent as a plain value must not stand in for the rotating QR or the live token.
+    row = session.scalar(select(Credential).where(
+        Credential.value == normal, Credential.status == "active", Credential.kind.notin_(POSSESSION_KINDS)
+    ))  # fmt: skip
     if row is not None:
         return clients.service.get(session, row.client_id), row
     client = clients.service.find_by_member_number(session, normal) if normal else None
@@ -782,23 +787,37 @@ def _count_unknown(device_id: UUID) -> None:
 def _kiosk_value(session: Session, device: KioskDevice, value: str):
     """`resolve` for a value read at a kiosk, behind the device's lockout, checked first: KIOSK_UNKNOWN_VALUES unknown
     values within KIOSK_UNKNOWN_WINDOW stop value reads on this device for a window, whatever resolved in between
-    (name search still works). Redis, outside the request transaction, so a refused check-in still counts; it fails
-    open like the rate limits."""
+    (name search still works). Redis, outside the request transaction, so a refused check-in still counts. It fails
+    closed: without Redis there is no count, so value reads are refused as locked."""
+    locked = DomainError("Please see the front desk.", status=429, code="kiosk-locked-out")
     try:
         until = _redis().get(_unknown_keys(device.id)[1])
     except redis.RedisError:
-        until = None
-        log.warning("kiosk lockout unavailable")
+        _redis_down()
+        raise locked from None
     if until is not None and float(until) > clock.now().timestamp():
-        raise DomainError("Please see the front desk.", status=429, code="kiosk-locked-out")
+        raise locked
     try:
         return resolve(session, value)
     except NotFound:
         try:
             _count_unknown(device.id)
         except redis.RedisError:
-            log.warning("kiosk lockout unavailable")
+            _redis_down()
+            raise locked from None
         raise
+
+
+_redis_warned_at = 0.0
+
+
+def _redis_down() -> None:
+    """Log the outage once per window, not per request."""
+    global _redis_warned_at
+    now = clock.now().timestamp()
+    if now - _redis_warned_at >= KIOSK_UNKNOWN_WINDOW.total_seconds():
+        _redis_warned_at = now
+        log.warning("kiosk lockout store unavailable: kiosk value reads refused")
 
 
 def _from_match(session: Session, device: KioskDevice, token: str):

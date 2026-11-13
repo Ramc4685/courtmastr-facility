@@ -108,7 +108,11 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   (it rotates every 30 seconds) or an active wallet-pass token (`service.POSSESSION_KINDS`). A barcode, fob number or
   member number is static, so however it arrives (typed into a lookup, or sent as `card_payload` as the tablet does
   with scanner bursts) it is `name_search`; nothing relies on scanner timing or any flag the tablet sends, because
-  the tablet is the client. Every lookup match token is `name_search` too. Such a visit may book only sessions that
+  the tablet is the client. Possession comes from the verified path, not the credential's kind: the plain value
+  lookup excludes app cards and wallet passes, so an app card's static number or a pass's stored hash sent as a value
+  resolves to nothing (at the staff window and `POST /credentials/resolve` too; staff find those clients by name).
+  A physical fob may check in (which marks an existing enrolment present) and book a session that consumes nothing
+  where the location allows; it never spends a credit, charges or pays. Every lookup match token is `name_search` too. Such a visit may book only sessions that
   allow free booking, so
   nothing is spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal
   is 409 `see-staff`, `is_booked` is always false on its page, and it never learns the client's packages, balance or
@@ -119,8 +123,10 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   (429 `kiosk-locked-out` on lookups and check-ins alike, lock end in `kiosk-locked:<device>`, logged); a known value in between does not reset the count,
   and name search still works. The lock is checked before the value is resolved. The count is a sliding window in
   Redis (`kiosk-unknown:<device>`, one MULTI per unknown value, so concurrent requests never lose a count) and sits
-  outside the request transaction, so a refused scan still counts. Like the rate limits, it fails open when Redis
-  is down. The staff window has no such lock (staff are signed in).
+  outside the request transaction, so a refused scan still counts. Unlike the rate limits (which fail open), it
+  fails closed: when Redis is unreachable every value read, an unknown one included, answers the same 429 (logged
+  once per window per worker process) while name search keeps working. The staff window has no such lock (staff
+  are signed in).
 - **Kiosk package purchase: not built (review 2026-11-13).** A first version was dropped before merge: a routine
   check-in scan authorised a one-tap charge that could repeat (each purchase handed back a fresh visit token), a
   wallet pass is a static bearer barcode, and an app QR could be replayed at a second kiosk inside its step. A future

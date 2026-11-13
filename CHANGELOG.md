@@ -8,7 +8,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 
 ### Added
 - Kiosk: after checking in, members see the classes starting soon and book one on the tablet, by the same rules as online booking; a location can have the kiosk book the next open class automatically, and sets how far ahead classes are listed and how long the list stays up.
-- Kiosk: booking a class that uses a package needs the member's card or app code; someone found by name can book only free classes (a location can turn that off), and the tablet forgets the visit as soon as it returns to the start screen.
+- Kiosk: booking a class that uses a package needs the member's app code or wallet pass; a key fob, barcode or member number counts like a name, so it can book only free classes (a location can turn that off), and the tablet forgets the visit as soon as it returns to the start screen.
 - Rental plans: a waiver bound to a plan must be signed before the plan is sold, at the desk or online, and again on each purchase when it is set to every purchase.
 - Rental plans: someone a plan is shared with signs its waiver before booking on it, and an automatic renewal that needs a signature waits for it (the member is emailed) and renews as soon as it is signed.
 - Calendar feeds: subscribe to your bookings and shifts, or a team's games, from any calendar app; the address is shown once.

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+import redis
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -353,3 +354,55 @@ def test_concurrent_unknown_values_are_all_counted(client, tenant, owner, k):
     assert service.unknown_value_count(_device_id(tenant)) == codes.count(200) >= service.KIOSK_UNKNOWN_VALUES
     locked = client.post(f"{API}/kiosk/lookups", json={"credential_value": "NOPE"})
     assert locked.status_code == 429 and locked.json()["code"] == "kiosk-locked-out"
+
+
+def _digital(tenant, person, kind: str, value: str, secret: bytes | None = None) -> UUID:
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        row = Credential(client_id=person["id"], kind=kind, value=value, source="app_issued",
+                         secret_ciphertext=secret, issued_at=clock.now())  # fmt: skip
+        session.add(row)
+        session.flush()
+        return row.id
+
+
+def test_only_a_verified_digital_scan_is_possession(client, tenant, owner, k):
+    """Possession comes from how the value verified, not from the credential's kind: an app card's static number
+    or a wallet pass's stored hash sent as a plain value does not resolve at all. The rotating QR and the live
+    wallet token do. A physical fob checks in like a name (see test_a_static_card_value_is_never_possession)."""
+    from app.modules.access import service
+
+    paid = soon(client, owner, k.loc, 30, free=False)
+    give_package(client, owner, tenant, k, paid.type_id)
+    secret, static = secrets.token_bytes(32), f"APP{secrets.token_hex(8).upper()}"
+    card_id = _digital(tenant, k.person, "app_card", static, secret)
+    token = service.WALLET_PREFIX + secrets.token_hex(20).upper()
+    _digital(tenant, k.person, "wallet_pass", service._wallet_value(token))
+    for value in (static, service._wallet_value(token)):
+        assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": value}))["matches"] == []  # typed
+        scanned = client.post(f"{API}/kiosk/check-ins", json={"card_payload": value})
+        assert scanned.status_code == 422 and scanned.json()["code"] == "card-invalid"
+    for value in (cards.qr_text(cards.seed(card_id, secret), clock.now()), token):
+        visit = enter(client, k.person, value)
+        assert next(s for s in visit["sessions"] if s["target_id"] == paid.id)["is_bookable"]
+
+
+class _DownRedis:
+    def __getattr__(self, name):
+        def fail(*args, **kwargs):
+            raise redis.RedisError("down")
+
+        return fail
+
+
+def test_the_lockout_fails_closed_when_redis_is_down(client, tenant, owner, k, monkeypatch):
+    """No counter, no value reads: a Redis outage must not lift the brute-force limit. Name search still works."""
+    from app.modules.access import service
+
+    card = card_of(client, owner, k.person)
+    monkeypatch.setattr(service, "_redis", lambda: _DownRedis())
+    for body in ({"credential_value": card}, {"credential_value": "NOPE"}):
+        refused = client.post(f"{API}/kiosk/lookups", json=body)
+        assert refused.status_code == 429 and refused.json()["code"] == "kiosk-locked-out"
+    scanned = client.post(f"{API}/kiosk/check-ins", json={"card_payload": card})
+    assert scanned.status_code == 429 and scanned.json()["code"] == "kiosk-locked-out"
+    assert enter(client, k.person)["status"] == "admitted"  # found by name
