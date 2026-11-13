@@ -781,6 +781,19 @@ def test_member_opens_the_door_from_the_portal_inside_the_window_only(client, te
     assert "member_unlock" in kinds(b)
 
 
+def test_remote_unlock_needs_a_recent_step_up_and_api_keys_never_open_doors_or_hold_lights(client, tenant, b, sim):
+    from app.core.auth.permissions import CATALOGUE
+    from app.modules.integrations import service as integrations
+
+    stale = login(client, tenant, elevated=False)
+    refused = client.post(f"{API}/door-devices/{b.door}/unlock", headers=stale, json={"reason": "Phone call"})
+    assert refused.status_code == 403 and refused.json()["code"] == "step-up-required"
+    assert not [c for c in sim.calls if c[0] == "unlock"]
+    assert "+" in CATALOGUE["access.door.unlock"].flags
+    for key in ("access.door.unlock", "access.lighting.override"):
+        assert key in integrations.KEY_WITHHELD and not integrations.grantable_to_key(CATALOGUE[key])
+
+
 def door_check_ins(f) -> int:
     with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
         return len(session.scalars(select(CheckIn.id).where(CheckIn.channel == "door")).all())

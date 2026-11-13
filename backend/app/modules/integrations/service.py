@@ -82,8 +82,9 @@ KEY_PERMISSIONS = frozenset({
 
 
 # Single keys withheld from a listed context: portal on/off switches and online defaults, a person's decision like
-# engagement's portal settings (which never made the list above).
-KEY_WITHHELD = frozenset({"rentals.portal_setting.manage"})
+# engagement's portal settings (which never made the list above); and opening an unmanned building's doors or holding
+# its court lights, which a person at the facility's end of a phone line decides, never an integration.
+KEY_WITHHELD = frozenset({"rentals.portal_setting.manage", "access.door.unlock", "access.lighting.override"})
 
 
 def grantable_to_key(permission: Permission) -> bool:

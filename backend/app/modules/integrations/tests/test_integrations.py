@@ -166,13 +166,13 @@ def test_keys_hold_only_the_documented_api_resources(client, owner, scope):
 # The whole key-grantable set, pinned: a new permission, or a change to the allow-list, fails here until someone
 # decides whether a machine may hold it. Counts per context; the keys a listed context withholds, by name.
 _GRANTABLE_COUNTS = {
-    "access": 11, "assessments": 5, "billing": 38, "clients": 16, "documents": 6, "engagement": 7, "leagues": 16,
+    "access": 10, "assessments": 5, "billing": 38, "clients": 16, "documents": 6, "engagement": 7, "leagues": 16,
     "memberships": 13, "packages": 10, "pos": 14, "programs": 12, "rentals": 11, "resources": 4, "scheduling": 21,
 }  # fmt: skip
 _WITHHELD_IN_LISTED_CONTEXTS = {
     "access.kiosk.manage", "access.device.manage", "billing.tax.manage", "billing.settings.manage",
     "billing.provider.manage", "pos.terminal.manage", "resources.padlock.reveal_combination",
-    "rentals.portal_setting.manage",
+    "rentals.portal_setting.manage", "access.door.unlock", "access.lighting.override",
 }  # fmt: skip
 _ENGAGEMENT = {
     "engagement.app_content.manage", "engagement.campaign.create", "engagement.campaign.edit",

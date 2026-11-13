@@ -188,8 +188,10 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   (append-only activity, with `local_on` for the day filter). Five `access_settings` columns: `entry_code_early_min`
   (15), `entry_code_grace_min` (10), `light_lead_in_min` (5), `light_run_on_min` (5), `requires_paid_entry` (true), and `door_alert_bad_codes_per_hour` (20, migration 1972).
 - **Keys.** `access.device.manage` (doors, zones, credentials), `access.door.unlock` (staff remote unlock, reason
-  required), and one new key, `access.lighting.override` (Admin, Manager), added to the matrix because holding a
-  court's lights for a period is a different power from managing devices. Reads use `access.checkin.read`.
+  required, and a `+` key: a step-up in the last 10 minutes, Owners included, since it opens an unmanned building),
+  and one new key, `access.lighting.override` (Admin, Manager), added to the matrix because holding a
+  court's lights for a period is a different power from managing devices. Neither `access.door.unlock` nor
+  `access.lighting.override` can be granted to an API key (`integrations.service.KEY_WITHHELD`). Reads use `access.checkin.read`.
 - **Codes.** One eight-digit code per person entitled to a confirmed booking at a location with an active door (a
   rental's holder; each client enrolled on a session; migration 1973 adds `entry_code.client_id`), never shared, valid from start minus `entry_code_early_min` to end plus `entry_code_grace_min`, issued at most seven
   days ahead. Issued by the booking created, rescheduled and cancelled handlers, and by the minute tick (a checkout
