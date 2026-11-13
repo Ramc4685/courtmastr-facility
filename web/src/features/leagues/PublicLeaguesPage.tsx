@@ -10,7 +10,7 @@ import { Badge } from '../../components/Badge'
 import { Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
-import { formatDate, formatDateTime, formatMoney } from '../../lib/format'
+import { formatDate, formatDateTime } from '../../lib/format'
 import { label } from './queries'
 import { List } from './shared'
 
@@ -149,7 +149,6 @@ function SiteSections({ site }: { site: Site }) {
                   <p className="text-sm text-muted">{label(c.kind)} · {c.location_name}{c.starts_on ? ` · from ${formatDate(c.starts_on)}` : ''}</p>
                   {c.description && <p className="mt-2 text-sm">{c.description}</p>}
                   <p className="mt-2 text-sm">
-                    {c.price_minor !== null && c.price_minor !== undefined ? `${formatMoney(c.price_minor)} · ` : ''}
                     {c.is_open ? (c.spots_left !== null && c.spots_left !== undefined ? `${c.spots_left} spots left` : 'Open') : 'Registration closed'}
                   </p>
                   {c.is_open && <Link className="mt-2 inline-block text-sm text-primary hover:underline" to="/portal/programs">Register in the member portal</Link>}
@@ -194,7 +193,7 @@ function SiteSections({ site }: { site: Site }) {
         <Section id="links" title="Links">
           <ul className="space-y-1">
             {links.data?.map((l) => (
-              <li key={l.id}><a className="text-primary hover:underline" href={l.url} rel="noopener noreferrer" target="_blank">{l.title}</a>{l.category ? <span className="text-sm text-muted"> · {l.category}</span> : null}</li>
+              <li key={l.url}><a className="text-primary hover:underline" href={l.url} rel="noopener noreferrer" target="_blank">{l.title}</a>{l.category ? <span className="text-sm text-muted"> · {l.category}</span> : null}</li>
             ))}
           </ul>
         </Section>

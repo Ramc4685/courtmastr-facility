@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
+import { FramedRoutes, isFramed } from '../../app/App'
 import { makePortalValue, PortalProvider, type PortalClient } from '../portal/shared'
 import { LOCATION, page, renderAsStaff, SCREEN } from '../scheduling/testing'
 import { PortalLeaguePostsPage } from './PortalPostsPage'
@@ -78,6 +79,47 @@ describe('LeagueSitePage', SCREEN, () => {
     expect(calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ is_enabled: true, shows_pickup_games: true, title: 'Club leagues' })
     expect((screen.getByLabelText('Embed code') as HTMLTextAreaElement).value).toContain('/leagues/public?embed=1')
     expect(screen.queryByRole('tab', { name: 'Sponsors' })).toBeNull()
+  })
+
+  it('escapes the site title in the embed code', async () => {
+    renderAsStaff(<LeagueSitePage />, ['leagues.public_site.manage'], {
+      'GET /api/v1/league-site': { status: 200, body: { ...site, title: 'A "B" <C>' } },
+    })
+    await screen.findByLabelText('Publish the league site')
+    const code = (screen.getByLabelText('Embed code') as HTMLTextAreaElement).value
+    expect(code).toContain('title="A &quot;B&quot; &lt;C&gt;"')
+  })
+})
+
+describe('inside a frame', SCREEN, () => {
+  const framed = (path: string) => renderAsStaff(
+    <Routes><Route path="/" element={<Navigate to={path} />} /><Route path="*" element={<FramedRoutes />} /></Routes>, [], {
+      'GET /api/v1/public/league-site': { status: 200, body: { ...site, facilities: [] } },
+      'GET /api/v1/public/competitions': { status: 200, body: [competition] },
+      'GET /api/v1/public/league-site/news': { status: 200, body: [] },
+      'GET /api/v1/public/league-site/posts': { status: 200, body: [] },
+    })
+
+  it('detects the frame', () => {
+    const top = Object.getOwnPropertyDescriptor(window, 'top')
+    Object.defineProperty(window, 'top', { configurable: true, value: {} })
+    try {
+      expect(isFramed()).toBe(true)
+    } finally {
+      if (top) Object.defineProperty(window, 'top', top)
+    }
+    expect(isFramed()).toBe(false)
+  })
+
+  it('renders the public league pages', async () => {
+    framed('/leagues/public')
+    expect(await screen.findByText('Club leagues')).toBeVisible()
+  })
+
+  it('refuses staff and portal screens', async () => {
+    framed('/billing/invoices/i1/document')
+    expect(await screen.findByRole('heading', { name: 'This page cannot be shown inside another site' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Open it in its own window' })).toHaveAttribute('target', '_top')
   })
 })
 

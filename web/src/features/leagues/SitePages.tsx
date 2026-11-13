@@ -33,6 +33,9 @@ function useInvalidate(key: string) {
   return () => void qc.invalidateQueries({ queryKey: [key] })
 }
 
+/** Escape a value for a double-quoted HTML attribute in the copy-paste embed code. */
+const attr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
 function OptionsTab() {
   const toast = useToast()
   const site = useQuery({ queryKey: ['league-site'], queryFn: () => api.get('/api/v1/league-site') })
@@ -47,7 +50,7 @@ function OptionsTab() {
   if (site.isPending || !f) return site.isError ? <ErrorState error={site.error} onRetry={() => site.refetch()} /> : <LoadingState />
   const set = (patch: Partial<SiteIn>) => setF({ ...f, ...patch })
   const e = fieldErrors(save.error)
-  const embed = `<iframe src="${window.location.origin}/leagues/public?embed=1" title="${f.title ?? 'Leagues'}" width="100%" height="800" loading="lazy"></iframe>`
+  const embed = `<iframe src="${window.location.origin}/leagues/public?embed=1" title="${attr(f.title ?? 'Leagues')}" width="100%" height="800" loading="lazy"></iframe>`
   return (
     <div className="space-y-6">
       <form className="grid gap-4 sm:grid-cols-2" noValidate aria-label="League site options" onSubmit={(ev) => { ev.preventDefault(); save.mutate(f) }}>

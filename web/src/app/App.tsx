@@ -112,7 +112,26 @@ export function makeQueryClient() {
   })
 }
 
+/** True inside an iframe. The proxy lets other sites frame the public league pages and the TV board only; this keeps
+ * every other screen out of a frame too, since the app is one document and any route can load behind those paths. */
+export function isFramed(): boolean {
+  return window.top !== window.self
+}
+
+/** What a framed app may render: the embeddable public league routes, and a refusal for everything else. */
+export function FramedRoutes() {
+  return (
+    <Routes>
+      <Route path="/leagues/public" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
+      <Route path="*" element={<main className="p-6"><h1 className="text-lg font-semibold">This page cannot be shown inside another site</h1><a className="text-primary hover:underline" href={window.location.href} target="_top">Open it in its own window</a></main>} />
+    </Routes>
+  )
+}
+
 export function AppRoutes() {
+  if (isFramed()) return <FramedRoutes />
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInPage />} />

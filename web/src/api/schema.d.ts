@@ -33092,8 +33092,6 @@ export interface components {
             location_name: string;
             /** Name */
             name: string;
-            /** Price Minor */
-            price_minor: number | null;
             /** Spots Left */
             spots_left: number | null;
             /** Starts On */
@@ -33382,6 +33380,15 @@ export interface components {
             status: string;
             /** Venue */
             venue: string | null;
+        };
+        /** PublicLeagueLinkOut */
+        PublicLeagueLinkOut: {
+            /** Category */
+            category: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /** PublicLeagueNewsOut */
         PublicLeagueNewsOut: {
@@ -68866,7 +68873,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LeagueLinkOut"][];
+                    "application/json": components["schemas"]["PublicLeagueLinkOut"][];
                 };
             };
         };

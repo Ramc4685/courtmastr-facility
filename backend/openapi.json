@@ -55701,17 +55701,6 @@
             "title": "Name",
             "type": "string"
           },
-          "price_minor": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Price Minor"
-          },
           "spots_left": {
             "anyOf": [
               {
@@ -55744,7 +55733,6 @@
           "description",
           "starts_on",
           "ends_on",
-          "price_minor",
           "is_open",
           "spots_left"
         ],
@@ -56680,6 +56668,36 @@
           "away_score"
         ],
         "title": "PublicGameOut",
+        "type": "object"
+      },
+      "PublicLeagueLinkOut": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url",
+          "category"
+        ],
+        "title": "PublicLeagueLinkOut",
         "type": "object"
       },
       "PublicLeagueNewsOut": {
@@ -135500,7 +135518,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/LeagueLinkOut"
+                    "$ref": "#/components/schemas/PublicLeagueLinkOut"
                   },
                   "title": "Response Listpublicleaguelinks",
                   "type": "array"

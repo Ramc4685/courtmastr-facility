@@ -5,7 +5,7 @@ command for billing a team fee). Phase 14 chip B1 (ours, `depth`): venues, team 
 ladders, stat tables and player stats, the team fee split, publishing a program group, game-card PDFs and the
 captain's portal roster. Phase 14 chip B2 (ours, `site`): the public league site (options, links, gallery, sponsors,
 news, classes, teams, brackets, player stats, the TV board) and moderated classifieds and pickup games. Every
-anonymous route shares the `public-site` rate limit. Not routed (see README): league alert settings, portal games."""
+anonymous route shares the `public-site` rate limit, except images and logos (`public-site-media`). Not routed (see README): league alert settings, portal games."""
 
 from datetime import date
 from typing import Annotated, Any, Literal
@@ -30,6 +30,14 @@ public = APIRouter(  # anonymous: published data only, one per-IP bucket for the
     tags=["leagues"],
     generate_unique_id_function=camel_id,
     dependencies=[Depends(rate_limit("public-site"))],
+)
+media = (
+    APIRouter(  # anonymous gallery images and sponsor logos: their own bucket, so a big gallery cannot 429 a TV board
+        route_class=TxRoute,
+        tags=["leagues"],
+        generate_unique_id_function=camel_id,
+        dependencies=[Depends(rate_limit("public-site-media"))],
+    )
 )
 Lists = Annotated[ListQuery, Depends(list_query)]
 Public = Annotated[Session, Depends(public_session)]
@@ -766,7 +774,7 @@ def get_public_league_site(session: Public):
     return site.public_site(session)
 
 
-@public.get("/public/league-site/links", response_model=list[s.LeagueLinkOut])
+@public.get("/public/league-site/links", response_model=list[s.PublicLeagueLinkOut])
 def list_public_league_links(session: Public):
     return site.public_links(session)
 
@@ -776,7 +784,7 @@ def list_public_league_photos(session: Public):
     return site.public_photos(session)
 
 
-@public.get("/public/league-site/photos/{photo_id}/image", response_class=Response, responses=_IMAGE)
+@media.get("/public/league-site/photos/{photo_id}/image", response_class=Response, responses=_IMAGE)
 def get_public_league_photo_image(photo_id: UUID, session: Public):
     return _image(site.public_photo_image(session, photo_id))
 
@@ -786,7 +794,7 @@ def list_public_league_sponsors(session: Public):
     return site.public_sponsors(session)
 
 
-@public.get("/public/league-site/sponsors/{sponsor_id}/logo", response_class=Response, responses=_IMAGE)
+@media.get("/public/league-site/sponsors/{sponsor_id}/logo", response_class=Response, responses=_IMAGE)
 def get_public_league_sponsor_logo(sponsor_id: UUID, session: Public):
     return _image(site.public_sponsor_logo(session, sponsor_id))
 
@@ -995,3 +1003,4 @@ router = APIRouter()
 router.include_router(staff)
 router.include_router(portal)
 router.include_router(public)
+router.include_router(media)

@@ -13,7 +13,7 @@ from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.modules import clients
 from app.modules.leagues import site, subject
-from app.modules.leagues.models import LeaguePost
+from app.modules.leagues.models import BracketSlot, Game, LeaguePost, LeagueSite
 from app.modules.leagues.tests.test_leagues import get, league, post, score, staff
 from app.modules.platform.models import Identity
 from app.modules.scheduling.tests.helpers import API, DAY, at, facility, ok
@@ -142,6 +142,9 @@ def test_public_teams_players_stats_and_brackets(client, owner, tenant, f):
     (row,) = get(client, public, f"/public/competitions/{comp['id']}/player-stats")
     assert row["player_name"] == "Ana Goal" and row["team_name"] == comp["teams"][0]["name"]
     assert float(row["stats"]["G"]) == 2
+    ok(client.delete(f"{API}/roster-entries/{ana['id']}", headers=owner), 204)
+    assert get(client, public, f"/public/competitions/{comp['id']}/player-stats") == []  # removed: no longer named
+    assert get(client, owner, f"/competitions/{comp['id']}/player-stats")  # staff keep the history
 
     seeds = [t["id"] for t in comp["teams"]]
     ok(client.put(f"{API}/competitions/{comp['id']}/seeding", headers=owner, json={"competition_team_ids": seeds}), 200)
@@ -152,6 +155,13 @@ def test_public_teams_players_stats_and_brackets(client, owner, tenant, f):
     shown = get(client, public, f"/public/competitions/{comp['id']}/brackets")
     assert len(shown) == 1 and shown[0]["slots"]
     assert not {"game_id", "home_team_id", "winner_competition_team_id"} & set(shown[0]["slots"][0])
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        slot = session.scalar(select(BracketSlot).where(BracketSlot.game_id.is_not(None)).limit(1))
+        session.get(Game, slot.game_id).status = "proposed"  # not on the public schedule
+        session.get(Game, slot.game_id).starts_at = DAY
+        where = (slot.round_no, slot.position)
+    again = get(client, public, f"/public/competitions/{comp['id']}/brackets")[0]["slots"]
+    assert next(x for x in again if (x["round_no"], x["position"]) == where)["starts_at"] is None
 
 
 def test_competition_filters(client, owner, tenant, f):
@@ -256,11 +266,25 @@ def test_classes_come_from_portal_published_programs(client, owner, tenant, f):
     clinic = post(client, owner, "/program-groups", {"location_id": f.location, "name": "Junior clinic",
                                                     "kind": "clinic", "ends_on": "2031-05-05"})  # fmt: skip
     post(client, owner, "/program-groups", {"location_id": f.location, "name": "Unpublished camp", "kind": "camp"})
+    closed = post(client, owner, "/program-groups", {"location_id": f.location, "name": "Closed camp", "kind": "camp",
+                                                     "description": "Staff notes", "price_minor": 5000})  # fmt: skip
+    ok(client.put(f"{API}/program-groups/{closed['id']}/registration-config", headers=owner,
+                  json={"is_enabled": True, "payment_requirement": "pay_later_allowed"}), 200)  # fmt: skip
+    ok(client.post(f"{API}/program-groups/{closed['id']}/publish", headers=owner), 200)
+    ok(
+        client.put(
+            f"{API}/program-groups/{closed['id']}/registration-config",
+            headers=owner,
+            json={"is_enabled": False, "payment_requirement": "pay_later_allowed"},
+        ),
+        200,
+    )  # online sign-up off
     ok(client.put(f"{API}/program-groups/{clinic['id']}/registration-config", headers=owner,
                   json={"is_enabled": True, "payment_requirement": "pay_later_allowed"}), 200)  # fmt: skip
     ok(client.post(f"{API}/program-groups/{clinic['id']}/publish", headers=owner), 200)
     listed = get(client, public, "/public/league-site/classes")
     assert [(c["name"], c["kind"], c["is_open"]) for c in listed] == [("Junior clinic", "clinic", True)]
+    assert "price_minor" not in listed[0] and listed[0]["description"] is None  # staff description stays private
     with clock.freeze(DAY + timedelta(hours=27)):  # 6 May in UTC, still the last day in Chicago
         assert [c["name"] for c in get(client, public, "/public/league-site/classes")] == ["Junior clinic"]
     with clock.freeze(DAY + timedelta(hours=30)):  # 01:00 on 6 May in Chicago: over
@@ -315,7 +339,9 @@ def test_post_limit_holds_under_parallel_submissions(client, owner, tenant, f):
     racer = threading.Thread(target=lambda: result.update(r=client.post(f"{API}/portal/league-posts", headers=portal,
                                                                         json=body)))  # fmt: skip
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
-        site._lock_poster(session, UUID(poster["id"]))  # a parallel submission, mid-way through adding the fifth
+        site._xact_lock(
+            session, f"league-post:{poster['id']}"
+        )  # a parallel submission, mid-way through adding the fifth
         session.get(LeaguePost, UUID(ids[0])).status = "pending"
         session.flush()
         racer.start()
@@ -323,3 +349,17 @@ def test_post_limit_holds_under_parallel_submissions(client, owner, tenant, f):
         assert racer.is_alive()  # waits for the lock instead of counting four
     racer.join(timeout=15)
     assert result["r"].status_code == 409 and result["r"].json()["code"] == "post-limit"
+
+
+def test_first_site_save_waits_instead_of_colliding(client, owner, tenant, f):
+    result: dict = {}
+    racer = threading.Thread(target=lambda: result.update(r=client.put(f"{API}/league-site", headers=owner, json=SITE)))
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        site._xact_lock(session, "league-site")  # a parallel first save, mid-way through its insert
+        session.add(LeagueSite(**SITE | {"title": "First"}))
+        session.flush()
+        racer.start()
+        racer.join(timeout=1.5)
+        assert racer.is_alive()
+    racer.join(timeout=15)
+    assert result["r"].status_code == 200 and result["r"].json()["title"] == SITE["title"]

@@ -113,8 +113,14 @@ def get_site(session: Db, principal: Principal) -> dict:
     return site_view(_site_row(session))
 
 
+def _xact_lock(session: Db, key: str) -> None:
+    """A transaction-scoped advisory lock, for check-then-insert paths a row lock cannot cover (no row yet)."""
+    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0))))
+
+
 def put_site(session: Db, principal: Principal, data: dict) -> dict:
     authorize_tenant_wide(principal, SITE)
+    _xact_lock(session, "league-site")  # the first save of two at once would collide on uq_league_site_tenant
     row = session.scalar(select(LeagueSite).with_for_update())
     if row is None:
         row = LeagueSite(**data)
@@ -197,7 +203,7 @@ def _photos(session: Db, published_only: bool = False) -> list[LeagueSitePhoto]:
     stmt = select(LeagueSitePhoto).order_by(LeagueSitePhoto.album.nulls_last(), LeagueSitePhoto.sort_order,
                                             LeagueSitePhoto.created_at)  # fmt: skip
     if published_only:
-        stmt = stmt.where(LeagueSitePhoto.is_published.is_(True))
+        stmt = stmt.where(LeagueSitePhoto.is_published.is_(True)).limit(100)  # shortcut: newest albums later
     return list(session.scalars(stmt))
 
 
@@ -370,7 +376,7 @@ def public_classes(session: Db, location_id: UUID | None = None) -> list[dict]:
     earliest = clock.now().date() - timedelta(days=1)  # no zone is more than a day behind UTC; exact per group below
     stmt = (
         select(pg, rc).join(rc, rc.program_group_id == pg.id)
-        .where(rc.is_portal_visible.is_(True), pg.deleted_at.is_(None), pg.status == "active", pg.depth == 0,
+        .where(rc.is_portal_visible.is_(True), rc.is_enabled.is_(True), pg.deleted_at.is_(None), pg.status == "active", pg.depth == 0,
                pg.kind.in_(_CLASS_KINDS), or_(pg.ends_on.is_(None), pg.ends_on >= earliest))
         .order_by(pg.starts_on.nulls_last(), pg.name)
     )  # fmt: skip
@@ -385,13 +391,13 @@ def public_classes(session: Db, location_id: UUID | None = None) -> list[dict]:
         today = clock.now().astimezone(ZoneInfo(place["time_zone"])).date()
         if group.ends_on is not None and group.ends_on < today:
             continue
-        open_now = config.is_enabled and (config.opens_on is None or config.opens_on <= today) and (
+        open_now = (config.opens_on is None or config.opens_on <= today) and (
             config.closes_on is None or config.closes_on >= today)  # fmt: skip
         out.append({
             "id": group.id, "location_name": place["public_name"], "kind": group.kind,
             "name": config.portal_publish_name or group.name,
-            "description": config.online_description or group.description, "starts_on": group.starts_on,
-            "ends_on": group.ends_on, "price_minor": group.price_minor, "is_open": open_now,
+            "description": config.online_description, "starts_on": group.starts_on,
+            "ends_on": group.ends_on, "is_open": open_now,
             "spots_left": programs.groups.spots_left(session, group) if config.displays_openings else None,
         })  # fmt: skip
     return out
@@ -432,7 +438,11 @@ def public_player_stats(session: Db, competition_id: UUID) -> list[dict]:
     competition = _public(session, competition_id)
     if not competition.show_players:
         raise NotFound()
-    rows = depth.player_totals(session, competition)
+    active = set(session.scalars(
+        select(RosterEntry.id).join(CompetitionTeam, CompetitionTeam.id == RosterEntry.competition_team_id)
+        .where(CompetitionTeam.competition_id == competition.id, RosterEntry.status == "active")
+    ))  # fmt: skip
+    rows = [r for r in depth.player_totals(session, competition) if r["roster_entry_id"] in active]
     names = core._names(session, [r["competition_team_id"] for r in rows])
     return [{"player_name": r["player_name"], "team_name": names.get(r["competition_team_id"], ""), "stats": r["stats"]}
             for r in rows]  # fmt: skip
@@ -452,7 +462,8 @@ def public_brackets(session: Db, competition_id: UUID) -> list[dict]:
         .order_by(BracketSlot.side.desc(), BracketSlot.round_no, BracketSlot.position)
     ))  # fmt: skip
     games = {g["id"]: g for g in core.game_views(session, list(session.scalars(
-        select(Game).where(Game.id.in_([s.game_id for s in slots if s.game_id]))
+        select(Game).where(Game.id.in_([s.game_id for s in slots if s.game_id]),
+                           Game.status.in_((*core._PLACED, "cancelled")))  # what the public schedule shows
     )))}  # fmt: skip
     names: dict = core._names(session, [i for s in slots for i in (s.home_team_id, s.away_team_id)])
     by_bracket: dict[UUID, list[dict]] = {b.id: [] for b in brackets}
@@ -606,11 +617,6 @@ def portal_list_posts(session: Db, principal: Principal) -> list[dict]:
     return views
 
 
-def _lock_poster(session: Db, client_id: UUID) -> None:
-    """Serialise one client's submissions until commit, so two parallel posts cannot both pass the live-post cap."""
-    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(f"league-post:{client_id}", 0))))
-
-
 def portal_create_post(session: Db, principal: Principal, data: dict) -> dict:
     """Waits for staff approval; shown for 30 days from posting. Errors: post-limit (5 live posts)."""
     me = _me(session, principal)
@@ -624,7 +630,7 @@ def portal_create_post(session: Db, principal: Principal, data: dict) -> dict:
         if data.get("starts_at") is None or data["starts_at"] <= now:
             raise ValidationFailed("A pickup game needs a start time in the future.", pointer="/starts_at")
         data["category"] = "other"
-    _lock_poster(session, me)
+    _xact_lock(session, f"league-post:{me}")  # two parallel posts cannot both pass the cap
     live = session.scalar(
         select(func.count()).select_from(LeaguePost)
         .where(LeaguePost.client_id == me, LeaguePost.status.in_(("pending", "approved")), LeaguePost.expires_at > now)

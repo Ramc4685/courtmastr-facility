@@ -997,6 +997,12 @@ class LeagueLinkOut(Out):
     sort_order: int
 
 
+class PublicLeagueLinkOut(Out):
+    title: str
+    url: str
+    category: str | None
+
+
 class LeaguePhotoUpdate(In):
     caption: Annotated[str, Field(max_length=300)] | None = None
     album: Short | None = None
@@ -1101,7 +1107,6 @@ class PublicClassOut(Out):
     description: str | None
     starts_on: date | None
     ends_on: date | None
-    price_minor: int | None
     is_open: bool
     spots_left: int | None
 
