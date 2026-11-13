@@ -442,6 +442,8 @@ def test_money_on_account_is_spent_oldest_first_and_refunded_newest_first(shop):
         assert svc.credit_balance(session, shop.client_id) == 150
         with clock.freeze(NOON + timedelta(hours=2)):
             newest = card(session, shop, 300)
+    # the payments commit first, as in production: a credit refund plans in a short transaction of its own
+    with work(shop.tenant) as session:
         with refused("refund-exceeds-unapplied", ValidationFailed):
             svc.refund_credit(session, shop.client_id, amount_minor=451, reason="Leaving", idempotency_key="a" * 12)
         refunds = svc.refund_credit(
@@ -801,8 +803,9 @@ def test_books_agree_after_a_random_sequence_including_every_undo(shop):
         return rows[0] if rows else None
 
     live = (Charge.status == "active", Charge.kind != "reversal")
-    with work(shop.tenant) as session:
-        for _step in range(160):
+    for _step in range(160):
+        # one transaction per step, as one request each: a credit refund plans only over committed payments
+        with work(shop.tenant) as session:
             action = rng.choice(steps)
             if action == "charge":
                 charge(session, shop, rng.randint(1, 5000), quantity=Decimal(rng.choice(["1", "3", "0.5"])))
@@ -874,6 +877,7 @@ def test_books_agree_after_a_random_sequence_including_every_undo(shop):
             )
             for invoice in session.scalars(select(Invoice).where(Invoice.status != "voided")):
                 assert planned[invoice.id] == max(invoice.total_minor, 0)
+    with work(shop.tenant) as session:
         assert transactions(session) > 100 and session.scalar(select(func.count()).select_from(Refund)) > 0
     with tenant_session(shop.tenant.id) as session:  # and it all committed: the deferred triggers agreed
         assert sum(balances(session).values()) == 0

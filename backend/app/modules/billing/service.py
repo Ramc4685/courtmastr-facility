@@ -1677,11 +1677,10 @@ def refund_credit(
     current balances, which the first attempt's `initiated` legs already lowered (re-planning would pay twice). A
     leg that can no longer be refunded is 409 `refund-plan-incomplete`: what was paid stays within the plan."""
     plan = session.scalar(select(RefundCreditPlan).where(RefundCreditPlan.idempotency_key == idempotency_key))
-    if plan is not None:
-        if (plan.client_id, plan.amount_minor, plan.reason) != (client_id, amount_minor, reason):
-            raise Conflict("This Idempotency-Key was used for another refund.", code="idempotency-key-reused")
-    else:
+    if plan is None:
         plan = _plan_credit_refund(session, client_id, amount_minor, reason, idempotency_key, location_ids)
+    if (plan.client_id, plan.amount_minor, plan.reason) != (client_id, amount_minor, reason):
+        raise Conflict("This Idempotency-Key was used for another refund.", code="idempotency-key-reused")
     refunds = []
     for leg in plan.legs:
         payment_id = UUID(leg["payment_id"])
@@ -1718,16 +1717,23 @@ def _plan_credit_refund(
     refund row per leg: every leg's amount is reserved before any processor call, so another refund (or autopay,
     or a staff allocation) can never take an unstarted leg's credit. A plan that dies is finished or cancelled leg
     by leg by the sweep (`webhooks.reconcile`: 30 minutes for a leg the processor never saw, which frees its
-    reservation). The same 500 ms fallback as the refund rows: then it rides in the caller's transaction."""
+    reservation). There is no fallback: a plan written in the caller's transaction would be uncommitted while the
+    processor pays, and a request that then died would leave a payout with no row the sweep could find. So a lock
+    held past 500 ms is 409 `request-in-progress` before any processor call, and a same-key twin that committed
+    first is replayed (the caller checks it is the same request)."""
     try:
         with tenant_session(session.info["tenant_id"], actor=session.info.get("actor")) as short:
             short.execute(text("SET LOCAL lock_timeout = '500ms'"))
             plan_id = _write_plan(short, client_id, amount_minor, reason, idempotency_key, location_ids).id
-    except (IntegrityError, OperationalError, ValidationFailed):
-        # The short transaction cannot see the caller's uncommitted payments, or lost a race: plan again in the
-        # caller's transaction (a twin with this key that committed first makes it 409 request-in-progress; a
-        # plan that took the credit meanwhile makes it refund-exceeds-unapplied).
-        return _write_plan(session, client_id, amount_minor, reason, idempotency_key, location_ids)
+    except OperationalError as error:
+        raise Conflict(
+            "Another request is using this client's credit. Try again in a moment.", code="request-in-progress"
+        ) from error
+    except (IntegrityError, ValidationFailed):
+        twin = session.scalar(select(RefundCreditPlan).where(RefundCreditPlan.idempotency_key == idempotency_key))
+        if twin is None:
+            raise
+        return twin
     return session.get(RefundCreditPlan, plan_id)
 
 

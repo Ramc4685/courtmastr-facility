@@ -661,3 +661,45 @@ def test_the_1801_downgrade_guard_sees_initiated_refunds_through_forced_rls(shop
             conn.rollback()
     finally:
         owner.dispose()
+
+
+def test_a_credit_refund_under_a_held_payment_lock_pays_nothing_and_is_told_to_retry(shop):
+    """Another request holds one of the client's payments past the plan's 500 ms lock wait: the plan and its leg
+    reservations can no longer be committed first, so the request is 409 `request-in-progress` before any processor
+    call (it never falls back to planning, uncommitted, in its own transaction). A same-key twin is 409 too, the
+    retry pays once, and a new key then finds no credit: the processor never pays more than the books."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        item = charge(session, shop, 1000)  # 1083 with tax
+        paid = card(session, shop, 1000, allocations=[(item.id, 500)]).id  # 500 applied, 500 credit
+    locked, release = threading.Event(), threading.Event()
+
+    def hold():
+        with work(shop.tenant) as other:
+            other.get(svc.Payment, paid, with_for_update={"key_share": True})
+            locked.set()
+            release.wait(15)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    try:
+        assert locked.wait(10)
+        for _attempt in ("first", "same-key twin"):
+            with pytest.raises(Conflict) as refused, work(shop.tenant) as session:
+                svc.refund_credit(session, shop.client_id, amount_minor=500, reason="Leaving", idempotency_key="k1")
+                raise AssertionError("the request should have stopped before the processor")
+            assert refused.value.code == "request-in-progress"
+    finally:
+        release.set()
+        holder.join(20)
+    with work(shop.tenant) as session:
+        assert session.scalar(select(func.count()).select_from(Refund)) == 0
+        assert (_provider_refunded(session, paid), session.get(svc.Payment, paid).unapplied_minor) == (0, 500)
+        rows = svc.refund_credit(session, shop.client_id, amount_minor=500, reason="Leaving", idempotency_key="k1")
+        assert [r.status for r in rows] == ["succeeded"]
+    with pytest.raises(ValidationFailed), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=500, reason="Leaving", idempotency_key="k2")
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, paid)
+        assert _provider_refunded(session, paid) == payment.refunded_minor == 500
+        assert_books_agree(session)
