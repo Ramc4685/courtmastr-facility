@@ -19,10 +19,11 @@ from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import platform
+from app.modules.reporting.catalogue import REGISTRY
 from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.events import ExportCompleted
 from app.modules.reporting.models import ExportJob, ReportRun, RunStatus, SavedReport
-from app.modules.reporting.registry import MAX_ROWS, REGISTRY, ReportSpec, Scope, too_large
+from app.modules.reporting.registry import MAX_ROWS, ReportSpec, Scope, too_large
 
 RUN_KEYS = tuple(sorted({spec.permission for spec in REGISTRY.values()}))
 EXPORT = "reporting.report.export"
@@ -97,8 +98,9 @@ def _parse(spec: ReportSpec, raw: dict):
 
 
 def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict):
-    """Validated, frozen parameters and the row scope. Relative periods and the as-of default resolve against
-    "today" at the one chosen location, or the earliest today across the tenant when several are in play."""
+    """Validated, frozen parameters and the row scope. A relative period resolves at each location in its own
+    zone; explicit-date defaults and the as-of default use the one chosen location's today, or the earliest
+    today across the tenant when several are in play."""
     params = _parse(spec, raw)
     chosen = list(dict.fromkeys(params.location_ids or []))
     for location_id in chosen:
@@ -114,14 +116,23 @@ def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict)
     else:
         today = platform.service.earliest_today(session)
     changes: dict = {"location_ids": list(locations) if locations is not None else None}
+    day_ranges = None
     if spec.is_ranged:
         if params.period:
-            start, end = periods.resolve(params.period, today)
+            # Each location's own "today": a single range cut at the earliest one dropped the start of the day
+            # at locations further east. The frozen from/to span every location's range.
+            local = {
+                location_id: periods.resolve(params.period, day)
+                for location_id, day in platform.service.location_todays(session, locations).items()
+            } or {None: periods.resolve(params.period, today)}
+            start, end = min(r[0] for r in local.values()), max(r[1] for r in local.values())
+            if len(set(local.values())) > 1:
+                day_ranges = local
         else:
             start, end = params.from_on or today, params.to_on or today
         if end < start:
             raise ValidationFailed("The end date is before the start date", pointer="/params/to_on")
-        if (end - start).days >= periods.MAX_DAYS:
+        if day_ranges is None and (end - start).days >= periods.MAX_DAYS:  # presets fit by construction
             raise ValidationFailed(f"A report covers at most {periods.MAX_DAYS} days", pointer="/params/to_on")
         changes |= {"from_on": start, "to_on": end}
     if hasattr(params, "as_of_on"):
@@ -131,7 +142,7 @@ def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict)
     if own_only and not spec.own_reach:
         raise PermissionDenied(f"Requires {spec.permission} for every row", required=spec.permission)
     own = platform.service.linked_resource_id(session, principal.staff_user_id) if own_only else None
-    return params.model_copy(update=changes), Scope(locations, own_only, own)
+    return params.model_copy(update=changes), Scope(locations, own_only, own, day_ranges)
 
 
 # --- runs ----------------------------------------------------------------------------------------------------

@@ -56,6 +56,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sending a campaign to every client needs its own permission.
 
 ### Fixed
+- Reports with a relative period over locations in different time zones use each location's own days; a late-evening run no longer drops the start of the day at an eastern location.
 - Signing in no longer flashes the sign-in page again before opening the page you asked for.
 - Accessibility: form errors are announced to screen readers, date and time fields show a focus ring on every Tab stop, the member portal's skip link moves focus, checkboxes have larger targets, and the calendar and portal no longer scroll sideways on narrow screens.
 - POS sales and payments make fewer database round trips.

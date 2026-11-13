@@ -11,7 +11,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import false, func, or_, select
+from sqlalchemy import and_, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
@@ -34,6 +34,9 @@ class Scope:
     location_ids: tuple[UUID, ...] | None  # None: every location of the tenant
     own_only: bool = False  # `own` reach: rows of the caller's linked trainer resource only
     own_resource_id: UUID | None = None
+    # A relative period over locations whose "today" differs, resolved at each location (service.resolve);
+    # None when one range fits every location.
+    day_ranges: dict[UUID, tuple[date, date]] | None = None
 
 
 class Params(BaseModel):
@@ -83,6 +86,16 @@ def _loc(stmt, view, scope: Scope):
     return stmt.limit(MAX_ROWS + 1)
 
 
+def _between(column, p, scope: Scope):
+    """`column` (a local date in a view with `location_id`) inside the run's period. With per-location ranges
+    each location's rows use its own, so an eastern location keeps the first hour of its day while a central
+    one is still on the day before."""
+    if scope.day_ranges is None:
+        return column.between(p.from_on, p.to_on)
+    location = column.table.c.location_id
+    return or_(*(and_(location == lid, column.between(start, end)) for lid, (start, end) in scope.day_ranges.items()))
+
+
 def _sum(column, name: str):
     return func.coalesce(func.sum(column), 0).label(name)
 
@@ -111,7 +124,7 @@ class RevenueParams(RangeParams):
 
 def _revenue(session: Session, p: RevenueParams, scope: Scope) -> dict:
     c = v.charge.c
-    where = [c.status != "voided", c.revenue_on.between(p.from_on, p.to_on)]
+    where = [c.status != "voided", _between(c.revenue_on, p, scope)]
     if p.revenue_category_ids:
         where.append(c.revenue_category_id.in_(p.revenue_category_ids))
     money = ("discount_minor", "net_minor", "tax_minor", "total_minor")
@@ -132,10 +145,10 @@ def _revenue(session: Session, p: RevenueParams, scope: Scope) -> dict:
     pay, ref = v.payment.c, v.refund.c
     received = session.execute(_loc(
         select(_sum(pay.amount_minor, "received"), _sum(pay.unapplied_minor, "unapplied"))
-        .where(pay.status.in_(COUNTED_PAYMENTS), pay.received_on.between(p.from_on, p.to_on)), v.payment, scope,
+        .where(pay.status.in_(COUNTED_PAYMENTS), _between(pay.received_on, p, scope)), v.payment, scope,
     )).one()  # fmt: skip
     refunded = session.scalar(_loc(
-        select(_sum(ref.amount_minor, "refunded")).where(ref.status == "succeeded", ref.refund_on.between(p.from_on, p.to_on)),
+        select(_sum(ref.amount_minor, "refunded")).where(ref.status == "succeeded", _between(ref.refund_on, p, scope)),
         v.refund, scope,
     ))  # fmt: skip
     totals = {k: sum(row[k] for row in rows) for k in ("charge_count", *money)} | {
@@ -155,7 +168,7 @@ _MONEY = (Col("discount_minor", "Discounts", "money"), Col("net_minor", "Net rev
 
 def _deposits(session: Session, p: RangeParams, scope: Scope) -> dict:
     pay, ref = v.payment.c, v.refund.c
-    in_range = pay.received_on.between(p.from_on, p.to_on)
+    in_range = _between(pay.received_on, p, scope)
     by = (pay.tender_kind, pay.tender_label)
     found: dict[tuple, dict] = {}
 
@@ -188,7 +201,7 @@ def _deposits(session: Session, p: RangeParams, scope: Scope) -> dict:
     for r in session.execute(
         _loc(
             select(ref.tender_kind, ref.tender_label, _sum(ref.amount_minor, "amount"))
-            .where(ref.status == "succeeded", ref.refund_on.between(p.from_on, p.to_on))
+            .where(ref.status == "succeeded", _between(ref.refund_on, p, scope))
             .group_by(ref.tender_kind, ref.tender_label),
             v.refund,
             scope,
@@ -220,7 +233,7 @@ class InvoiceParams(RangeParams):
 def _invoices(session: Session, p: InvoiceParams, scope: Scope) -> dict:
     i = v.invoice.c
     stmt = select(i.invoice_id, i.number, i.invoice_on, i.due_on, i.client_name, i.organization_name, i.origin,
-                  i.status, i.total_minor, i.balance_minor).where(i.invoice_on.between(p.from_on, p.to_on))  # fmt: skip
+                  i.status, i.total_minor, i.balance_minor).where(_between(i.invoice_on, p, scope))  # fmt: skip
     if p.statuses:
         stmt = stmt.where(i.status.in_(p.statuses))
     rows = [dict(r._mapping) for r in session.execute(_loc(stmt.order_by(i.invoice_on, i.number), v.invoice, scope))]
@@ -326,7 +339,7 @@ class AttendanceParams(RangeParams):
 
 def _attendance_where(p: AttendanceParams, scope: Scope) -> list:
     a = v.attendance.c
-    where = [a.session_on.between(p.from_on, p.to_on)]
+    where = [_between(a.session_on, p, scope)]
     if p.statuses:
         where.append(a.status.in_(p.statuses))
     if p.reservation_type_ids:
@@ -405,7 +418,7 @@ def _pos_sales(session: Session, p: PosSalesParams, scope: Scope) -> dict:
     s = v.sale_line.c
     key_name, label_name = SALES_GROUPS[p.group_by]
     key, label = getattr(s, key_name), getattr(s, label_name)
-    where = [s.sold_on.between(p.from_on, p.to_on)]
+    where = [_between(s.sold_on, p, scope)]
     if p.group_by in _PRODUCT_GROUPS:
         where.append(s.line_kind == "product")
     grouped = session.execute(_loc(
@@ -442,12 +455,12 @@ def _daily_register(session: Session, p: RangeParams, scope: Scope) -> dict:
     for r in session.execute(_loc(
         select(sale.register_id, sale.register_name, func.count().label("sale_count"), _sum(sale.total_minor, "total_minor"),
                _sum(sale.tax_minor, "tax_minor"), _sum(sale.discount_minor, "discount_minor"))
-        .where(sale.sold_on.between(p.from_on, p.to_on)).group_by(sale.register_id, sale.register_name), v.sale, scope,
+        .where(_between(sale.sold_on, p, scope)).group_by(sale.register_id, sale.register_name), v.sale, scope,
     )):  # fmt: skip
         row(r.register_id, r.register_name).update(_int(r, "sale_count", "total_minor", "tax_minor", "discount_minor"))
     for r in session.execute(_loc(
         select(tender.register_id, tender.tender, tender.tender_kind, _sum(tender.amount_minor, "amount"))
-        .where(tender.sold_on.between(p.from_on, p.to_on))
+        .where(_between(tender.sold_on, p, scope))
         .group_by(tender.register_id, tender.tender, tender.tender_kind), v.tender, scope,
     )):  # fmt: skip
         if r.tender == "payment":
@@ -458,7 +471,7 @@ def _daily_register(session: Session, p: RangeParams, scope: Scope) -> dict:
     for r in session.execute(_loc(
         select(ret.register_id, ret.register_name, func.count().label("return_count"),
                _sum(ret.refunded_minor, "refunded_minor"), _sum(ret.cash_refunded_minor, "cash_refunded_minor"))
-        .where(ret.processed_on.between(p.from_on, p.to_on)).group_by(ret.register_id, ret.register_name),
+        .where(_between(ret.processed_on, p, scope)).group_by(ret.register_id, ret.register_name),
         v.pos_return, scope,
     )):  # fmt: skip
         row(r.register_id, r.register_name).update(_int(r, "return_count", "refunded_minor", "cash_refunded_minor"))
@@ -466,7 +479,7 @@ def _daily_register(session: Session, p: RangeParams, scope: Scope) -> dict:
         select(drawer.register_id, drawer.register_name, func.count().label("drawer_count"),
                _sum(drawer.expected_cash_minor, "expected_cash_minor"), _sum(drawer.counted_cash_minor, "counted_cash_minor"),
                _sum(drawer.variance_minor, "variance_minor"))
-        .where(drawer.opened_on.between(p.from_on, p.to_on), drawer.status == "closed")
+        .where(_between(drawer.opened_on, p, scope), drawer.status == "closed")
         .group_by(drawer.register_id, drawer.register_name), v.drawer, scope,
     )):  # fmt: skip
         row(r.register_id, r.register_name).update(
@@ -494,7 +507,7 @@ class TimeClockParams(RangeParams):
 
 def _time_clock(session: Session, p: TimeClockParams, scope: Scope) -> dict:
     t = v.time_entry.c
-    where = [t.work_on.between(p.from_on, p.to_on)]
+    where = [_between(t.work_on, p, scope)]
     if p.staff_user_ids:
         where.append(t.staff_user_id.in_(p.staff_user_ids))
     grouped = session.execute(_loc(
@@ -597,7 +610,7 @@ POS, TIME_CLOCK = "reporting.pos.run", "reporting.time_clock.run"
 LEAGUE = "reporting.league.run"
 CLIENT = "reporting.client.run"
 
-_SPECS = (
+SPECS = (
     ReportSpec(
         "revenue_summary",
         "Revenue summary",
@@ -945,4 +958,3 @@ _SPECS = (
         ("RPT-35",),
     ),  # fmt: skip
 )
-REGISTRY: dict[str, ReportSpec] = {spec.key: spec for spec in _SPECS}

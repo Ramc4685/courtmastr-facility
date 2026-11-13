@@ -188,7 +188,23 @@ def test_relative_periods_resolve_in_the_location_time_zone(client, tenant, worl
         new_york = ran(client, headers, "deposits", period="today", location_ids=[world.north])
         both = ran(client, headers, "deposits", period="today")
     assert chicago["params"]["from_on"] == "2026-03-07" and new_york["params"]["from_on"] == "2026-03-08"
-    assert both["params"]["from_on"] == "2026-03-07"  # the location furthest behind
+    assert (both["params"]["from_on"], both["params"]["to_on"]) == ("2026-03-07", "2026-03-08")  # each its own day
+
+
+def test_last_30_days_over_two_zones_keeps_each_location_s_own_days(client, tenant, world):
+    """Regression: between 23:00 and 24:00 Chicago a multi-location `last_30_days` ended on Chicago's date, so a
+    New York sale just after midnight there dropped out. Each location now uses its own 30 days."""
+    with clock.freeze(datetime(2026, 4, 14, 17, 0, tzinfo=UTC)):  # noon 14 April in Chicago: day 1 of 30 there
+        headers = login(client, tenant)
+        _sale(client, headers, world.person, world.main, world.category, 2000)
+    with clock.freeze(datetime(2026, 5, 14, 4, 15, tzinfo=UTC)):  # 23:15 on the 13th in Chicago, 00:15 the 14th in NY
+        headers = login(client, tenant)
+        _sale(client, headers, world.person, world.north, world.category, 3000)
+        revenue = ran(client, headers, "revenue_summary", period="last_30_days")
+        deposits = ran(client, headers, "deposits", period="last_30_days")
+    assert (revenue["params"]["from_on"], revenue["params"]["to_on"]) == ("2026-04-14", "2026-05-14")
+    assert revenue["totals"]["net_minor"] == 5000  # Chicago's first day and New York's last both count
+    assert deposits["totals"]["received_minor"] == 5500
 
 
 def test_parameters_are_validated_with_a_pointer(client, owner, world):
