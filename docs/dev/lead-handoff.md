@@ -10,14 +10,17 @@ Update or delete this file once you have taken over; it is a snapshot, not a liv
   Focused tests on main after the merge: 1,678 passed (programs forms and tools, lockers and plans, league depth,
   billing collections, `tests/test_security.py`). The phase branch's full gate passed on `ac16d7b`; `31a6176`
   added the erasure/index fix with 3,455 targeted tests.
-- **Not done on main after the merge:** the browser self-test of the new screens (event forms, public form page,
-  group tools, league depth, lockers, portal rental plans). Skipped because swap was 11.5 of 12 GB. Do it first
-  after the restart: `make api`, `make web`, sign in with `docs/dev/demo-accounts.md`, then stop the servers.
-- **Pushing:** the owner pushed main at `a20a3ec` on 2026-11-13; check that run's CI result first (`gh run list`).
-  The owner still pushes main. Since 2026-11-13 builders may push `claude/<name>` branches and open pull requests
-  so CI runs the full gate (`agent-roles.md`, "Gating through pull requests"). The guard rule for this was edited
-  but its tests could not be run here, and the mod loads at app start: before relying on it, confirm that
-  `git push --dry-run origin main` is still blocked.
+- **Browser self-test on main, 2026-11-13 00:25:** as the demo owner, the twelve new staff screens (lockers,
+  event forms, program setup, leagues, venues, stats, scores, rentals, rental setup, collections, notices,
+  expiring cards) render with no error alert and no failed API call; an anonymous registration on the public
+  Open Day form returned a confirmation and the staff list count moved to 1 of 120. Not checked: the member
+  portal rental-plan purchase, and any create or edit on the league and locker screens.
+- **CI does not run.** Every job on main (latest `3bc2f60`, and the four runs before it) fails in two seconds
+  with GitHub's annotation "recent account payments have failed or your spending limit needs to be increased".
+  Until the owner fixes Billing & plans, a pull request gates nothing: the full gate still runs on the laptop.
+- **Pushing:** main is at `3bc2f60` and matches origin. The owner still pushes main. Builders may push
+  `claude/<name>` branches (`agent-roles.md`, "Gating through pull requests"). Guard confirmed 2026-11-13:
+  `git push --dry-run origin main` is blocked.
 - **Features:** 283 planned across Phases 8 to 15. Done on main: Phases 8, 9, 10 (81) plus Phase 14 batch 1 (40) = 121.
 
 ## Work left, in order
@@ -48,7 +51,6 @@ first facility) stay parked. After Phase 15: final acceptance against `docs/BRIE
 | Phase 11 chip A: portal entry and accounts | `infallible-greider-c965ff` | `claude/infallible-greider-c965ff` | 5 | **12** | `facilityhub_p11a` |
 | Phase 11 chip B: portal booking and buying | `compassionate-tu-167363` | `claude/compassionate-tu-167363` | 6 | **15** | `facilityhub_p11b` |
 | Phase 11 chip C1: member app core | `eager-elion-8095b5` | `claude/eager-elion-8095b5` | 6 | **18** | `facilityhub_p11c1` |
-| Phase 14 coordinator (merged, safe to remove) | `phase10-wave2-b907a2` | `claude/phase14-wave6-a2a1ff` | 0 | 0 | `facilityhub_p10` |
 | "What's New" side work (owner has not decided whether to keep it) | `brave-heisenberg-bef4b6` | `claude/brave-heisenberg-bef4b6` | 0 | 3 | none |
 
 **Do not remove a worktree with uncommitted files** (Phase 11 chips, brave-heisenberg). Commit them as WIP on
@@ -71,6 +73,7 @@ their branch first, or have the new chip start in that worktree.
 
 ## Waiting on the owner
 
+- GitHub Actions billing (see "CI does not run" above): fix the payment method or raise the spending limit.
 - Catalog-item list access: require `billing.item.manage`, or keep it open to any signed-in staff member.
 - Platform models: relax the rule that only platform code reads them, or change the six modules that do.
 - Billing collections (`billing/collections.py`): expiring-cards list and collections profile/report are not
