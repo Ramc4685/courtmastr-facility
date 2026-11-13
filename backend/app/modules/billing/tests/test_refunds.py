@@ -9,8 +9,9 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import create_engine, func, select, text, update
 
-from app.core import clock, idempotency
+from app.core import clock, idempotency, inbound_webhooks
 from app.core.audit import AuditEvent
+from app.core.db.platform import platform_engine
 from app.core.errors import Conflict, ValidationFailed
 from app.core.settings import get_settings
 from app.modules.billing import webhooks
@@ -744,3 +745,27 @@ def test_a_pending_refund_that_fails_after_the_payer_link_ended_is_recorded_and_
             AuditEvent.entity_id == row.id, AuditEvent.action == "billing.refund.confirm")).one()  # fmt: skip
         assert confirm.changes["not_reapplied_minor"] == [None, 1083]
         assert confirm.changes["not_reapplied_reason"] == [None, "payer-mismatch"]
+
+
+def _event_error(row_id):
+    with platform_engine().connect() as conn:
+        return conn.execute(text("SELECT error FROM inbound_webhook_event WHERE id = :id"), {"id": row_id}).scalar()
+
+
+@pytest.mark.parametrize("error", [RuntimeError("UPDATE client SET email='jane@example.com'"),
+                                   Conflict("jane@example.com", code="refund-unreconcilable")])  # fmt: skip
+def test_a_failed_provider_event_stores_and_logs_a_code_only(shop, monkeypatch, caplog, error):
+    """Error text can carry SQL and its parameters: the stored event and the log get a code and a fixed sentence."""
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", None, "refund.updated",
+                                     {"kind": "refund", "object": "fake_ref_x"})  # fmt: skip
+    monkeypatch.setattr(webhooks, "apply_event", lambda *_: (_ for _ in ()).throw(error))
+    code = getattr(error, "code", "internal-error")
+    with pytest.raises(type(error)):
+        webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert _event_error(stored[0]) == f"Could not apply the event ({code}); it is retried."
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "
+                          "WHERE id = :id"), {"id": stored[0]})  # fmt: skip
+    webhooks.retry_provider_events.fn(str(shop.tenant.id))
+    assert _event_error(stored[0]) == f"Could not apply the event ({code}); it is retried."
+    assert "jane" not in caplog.text

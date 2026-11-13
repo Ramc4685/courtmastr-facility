@@ -76,6 +76,15 @@ def apply_event(session: Session, kind: str, object_ref: str | None, account_ref
             methods.refresh_provider_account(session, account_id)
 
 
+def _code(error: Exception) -> str:
+    # Error text can carry SQL and its parameters: stored rows and the log get the code only, never the text.
+    return error.code if isinstance(error, DomainError) else "internal-error"
+
+
+def _event_failure(error: Exception) -> str:
+    return f"Could not apply the event ({_code(error)}); it is retried."
+
+
 @tenant_actor
 def process_provider_event(session: Session, row_id: str) -> None:
     row = inbound_webhooks.get(UUID(row_id))
@@ -84,7 +93,7 @@ def process_provider_event(session: Session, row_id: str) -> None:
     try:
         apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
     except Exception as error:
-        inbound_webhooks.finish(UUID(row_id), error=str(error)[:500])
+        inbound_webhooks.finish(UUID(row_id), error=_event_failure(error))
         raise
     # Marked only once our transaction has committed: a failed commit leaves the event to be retried.
     session.info.setdefault("after_commit", []).append(lambda: inbound_webhooks.finish(UUID(row_id)))
@@ -102,8 +111,8 @@ def retry_provider_events(session: Session) -> None:
             with session.begin_nested():
                 apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
         except Exception as error:  # noqa: BLE001  (recorded on the event; the next sweep tries again)
-            log.warning("webhook %s failed again: %s", row_id, error)
-            inbound_webhooks.finish(row_id, error=str(error)[:500])
+            log.warning("webhook %s failed again: %s (%s)", row_id, _code(error), type(error).__name__)
+            inbound_webhooks.finish(row_id, error=_event_failure(error))
             continue
         session.info.setdefault("after_commit", []).append(lambda done=row_id: inbound_webhooks.finish(done))
 
@@ -150,8 +159,7 @@ def _isolated(session: Session, refund_id: UUID, work) -> bool:
         with session.begin_nested():
             work()
     except Exception as error:  # noqa: BLE001  (recorded on the row; retried by the next sweep)
-        # Error text can carry SQL and its parameters: staff and the log get the code only, never the text.
-        code = error.code if isinstance(error, DomainError) else "internal-error"
+        code = _code(error)
         log.warning("refund %s could not be reconciled: %s (%s)", refund_id, code, type(error).__name__)
         session.execute(
             update(Refund)
