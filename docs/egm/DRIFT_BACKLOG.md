@@ -294,7 +294,7 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 
 - [ ] [wording] README:98-100 says no method may reach the framework's 405 because it logs the raw path ("handover: redact in `core.api`"); `core.api` now redacts the calendar-feed token prefix for every method, trailing slash and deeper path (`backend/app/core/api.py:29-38, 196`, uncommitted), so the method list is no longer the guard and the router's `_redact` (`backend/app/modules/integrations/router.py:373-375, 423`) is a redundant second layer.
 
-### leagues (5) — [evidence](drift/leagues.md)
+### leagues (10: 5 closed, 5 open) — [evidence](drift/leagues.md)
 
 - [x] [undocumented] The README never mentions discipline caps. `competition.max_forfeits` and `competition.max_defaults` (`backend/app/modules/leagues/models.py:254-255`) feed `standing.is_over_discipline_cap` (`models.py:547`), which every standings rebuild recomputes (`backend/app/modules/leagues/service.py:1279-1282`). README:27-30 ("Standings are rebuilt") leaves the flag out. Docs batch.
 - [x] [undocumented] README:94-95 lists the P1/P2 features that have no routes, but leaves out discipline and suspensions. The key `leagues.discipline.manage` ("Manage discipline caps and suspensions") is registered (`backend/app/modules/leagues/permissions.py:24`), yet no route in `backend/app/modules/leagues/router.py:26-36` uses it. Docs batch.

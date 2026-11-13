@@ -183,7 +183,8 @@ def test_every_html_request_field_has_a_maximum_the_scan_covers():
 
 
 def _request_string_fields() -> set[str]:
-    """Names of string properties reachable from every JSON request body in the OpenAPI document."""
+    """Names of string properties reachable from every request body in the OpenAPI document, plus the string query
+    and path parameters of every write."""
     from app.main import app
 
     doc = app.openapi()
@@ -226,10 +227,14 @@ def _request_string_fields() -> set[str]:
             walk(sub)
 
     for operations in doc["paths"].values():
-        for operation in operations.values():
-            body = operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema")
-            if body:
-                walk(body)
+        for method, operation in operations.items():
+            for content in operation.get("requestBody", {}).get("content", {}).values():  # JSON, multipart, form
+                walk(content.get("schema", {}))
+            if method in ("get", "head"):
+                continue  # read filters are not stored; TxRoute scans the query values of writes
+            for param in operation.get("parameters", []):
+                if param["in"] in ("query", "path") and stringy(param.get("schema", {})):
+                    found.add(param["name"])
     return found
 
 

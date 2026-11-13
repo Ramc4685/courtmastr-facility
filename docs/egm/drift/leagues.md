@@ -1,6 +1,6 @@
 # Drift report: leagues
 
-State reported: working tree of worktree `Facility Software.agent-a71f666c7993aa621` on 2026-11-13 (branch `claude/hardening-pass`, uncommitted README, Caddyfile, smoke.sh and web changes read as they are). Line numbers are for this tree. Read-only; no tests run. Scope: `backend/app/modules/leagues/README.md` against the code, plus the leagues tag of `docs/api/openapi-programs.yaml`. This report replaces the previous one.
+State reported: working tree of worktree `Facility Software.agent-a71f666c7993aa621` on 2026-11-13 (branch `claude/hardening-pass`, uncommitted README, Caddyfile, smoke.sh and web changes read as they are). Line numbers are for this tree. Read-only; no tests run. Scope: `backend/app/modules/leagues/README.md` against the code, plus the leagues tag of `docs/api/openapi-programs.yaml`. This report replaces the previous one (re-check after the card-scan test in `tests/test_site.py`: every item below was re-anchored and still holds).
 
 Checked and matching (not listed as drift): 30 tables = 16 (`1101`) + 8 (`1421`) + 6 (`1441`); the embed decision (Caddyfile `@embeddable` 55-63, `smoke.sh` 50-60, `web/src/app/App.tsx:125-135` framed routes, snippet in `SitePages.tsx:74-77`); error codes, events, merge tables, discipline flag, cited test names, web routes.
 
@@ -25,6 +25,10 @@ The YAML has no leagues change in this tree. README:98-99 and `router.py:1-8` ac
 - [contract] `getLeagueAlertSettings`, `putLeagueAlertSettings` (`openapi-programs.yaml:3971`) and `listPortalGames` (`:4079`) are unrouted (acknowledged at README:127 and `router.py:8`).
 - [contract] Path and shape mismatches: team preferences are `/scheduling-preferences` in the YAML (`:3853`) and `/preferences` in code (`router.py:576,581`); `putStatTables` (`:3883`) is a single replacing `PUT`, the code has `GET`/`POST /sports/{id}/stat-tables` and granular edits (`router.py:626-646`); `createGameCardExport`, `POST /game-card-exports` (`:3918`) is served as PDF `GET /game-cards` (`router.py:715`).
 - [contract] About 67 code routes have no YAML operation (league links, photos, sponsors, posts, `/league-site`, venues, portal teams, `/competitions/from-program-group` at `router.py:695`, game cards). Their README coverage is by prose only; `schemas.py:1-3` says the data model wins. `docs/api/breaking-allow.txt` has no leagues entry.
+
+## Re-check note
+
+The new `tests/test_site.py:92-94` case (photo upload with a card number in `caption` is refused, 422 `card-data-not-allowed`, pointer `/caption`) pins behaviour of the shared `TxRoute` scan in `core/api.py`, not of leagues code (`router.py:885-891` is unchanged), so it adds no divergence. Totals: 14 items (undocumented 5, wording 3, contract 6, stale-not-built 0, missing 0).
 
 ## Closed since the previous report
 

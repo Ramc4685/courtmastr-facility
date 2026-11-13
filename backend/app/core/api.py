@@ -21,7 +21,8 @@ from app.core import context, crypto, idempotency, networks
 from app.core.db.session import run_after_commit
 from app.core.errors import DomainError, PermissionDenied
 from app.core.ids import new_id
-from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL
+from app.core.pan import contains_card_number
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL, NOT_FREE_TEXT
 from app.core.settings import get_settings
 
 log = logging.getLogger("app.request")
@@ -36,6 +37,7 @@ def _loggable_path(path: str) -> str:
         if path.startswith(prefix):
             return prefix + "[redacted]"
     return path
+
 
 # Constraint name -> problem code, for constraints whose meaning is richer than "already exists".
 # Contexts register theirs (ex_resource_hold_overlap -> booking-conflict). Unmapped = 500 = a bug.
@@ -114,6 +116,21 @@ def _check_origin(request: Request) -> None:
         raise PermissionDenied("Cross-site request refused.", code="csrf-failed")
 
 
+def _refuse_card_data_in_query(request: Request) -> None:
+    """A write's query values are stored like body fields (a photo caption), so In's card scan applies to them by
+    the same name rules. Path segments are ids and keys, and reads only filter. shortcut: no route takes a form
+    (python-multipart is not installed); scan form values here when one is added."""
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+    errors = [
+        {"type": CARD_DATA, "loc": ("query", name), "msg": CARD_DATA_DETAIL}
+        for name, value in request.query_params.multi_items()
+        if name not in NOT_FREE_TEXT and contains_card_number(value)
+    ]
+    if errors:
+        raise RequestValidationError(errors)
+
+
 class TxRoute(APIRoute):
     """One transaction per request, committed before the response is sent (never in a dependency teardown,
     which may run after it). Also where an Idempotency-Key is honoured."""
@@ -123,6 +140,7 @@ class TxRoute(APIRoute):
 
         async def handler(request: Request):
             _check_origin(request)
+            _refuse_card_data_in_query(request)
             if "idempotency-key" in request.headers:
                 raw = request.method.encode() + request.url.path.encode() + await request.body()
                 request.state.body_hash = crypto.mac_bytes(raw)

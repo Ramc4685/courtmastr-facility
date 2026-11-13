@@ -30,7 +30,7 @@ NOT_FREE_TEXT = frozenset({
     "provider_payment_token", "push_token", "refresh_token", "token", "content_sha256", "signature_png",
     # machine keys and enumerations kept as plain strings
     "choice_key", "choice_keys", "field_key", "item_key", "key", "local_key", "permission_key", "question_key",
-    "report_key", "event_types", "exit_event_types", "trigger_event_type", "type", "scopes", "sort",
+    "report_key", "page_key", "provider", "event_types", "exit_event_types", "trigger_event_type", "type", "scopes", "sort",
     "accepted_card_brands", "app_version", "locale", "currency", "country_code", "time_zone", "default_time_zone",
     "slug", "public_slug", "accent_color", "brand_accent_color", "brand_primary_color", "color",
     # contact details, addresses on the wire and networks: phone numbers are digit runs
