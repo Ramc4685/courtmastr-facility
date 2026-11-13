@@ -162,3 +162,96 @@ def test_a_database_error_that_becomes_a_500_logs_no_values():
     assert "unhandled error" in output and "DataError" in output
     assert "parameters hidden" in output  # hide_parameters, not only the formatter, kept the values out
     _assert_clean(output)
+
+
+UUID7 = "01a1d568-42a6-7fc1-8780-123456789012"  # digit runs across the dashes reach 9 digits
+ROW_DETAIL = "DETAIL:  Failing row contains (" + ", ".join(["Jane", "1 Main St", "20140309"]) + ")."
+
+
+def test_uuids_dates_and_times_pass_through_untouched():
+    from uuid import UUID
+
+    logger, stream = _capture("test.redaction.ids")
+    logger.info("tenant %s at 2026-11-13 10:00 and 2026-11-13T10:00:00.123+00:00, 2026-11-13 to 2026-11-20",
+                UUID7, extra={"tenant_id": UUID(UUID7), "path": f"/api/v1/clients/{UUID7}", "ids": [UUID7]})  # fmt: skip
+    entry = json.loads(stream.getvalue())
+    assert entry["tenant_id"] == UUID7 and entry["path"].endswith(UUID7) and entry["ids"] == [UUID7]
+    assert UUID7 in entry["msg"] and "2026-11-13 10:00" in entry["msg"]
+    assert "2026-11-13T10:00:00.123+00:00" in entry["msg"] and "2026-11-20" in entry["msg"]
+    assert scrub(f"{UUID7} 4111 1111 1111 1111") == f"{UUID7} [digits]"  # the rest is still masked
+
+
+def test_postgres_detail_and_context_lines_are_dropped():
+    logger, stream = _capture("test.redaction.detail")
+    error = "\n".join(['null value in column "x"', ROW_DETAIL, 'CONTEXT:  SQL function "f" statement 1'])
+    try:
+        raise ValueError(error)  # the traceback quotes this source line, so the text lives in a variable
+    except ValueError:
+        logger.exception("failed")
+    output = stream.getvalue()
+    for leak in ("Jane", "Main St", "20140309", "SQL function"):
+        assert leak not in output, leak
+    assert "null value in column" in output
+
+
+def test_a_record_that_cannot_be_formatted_logs_a_safe_placeholder():
+    from uuid import uuid4
+
+    logger, stream = _capture("test.redaction.broken")
+    logger.info("card %s %s", PAN)  # bad % args
+    logger.info("ok", extra={"detail": {uuid4(): EMAIL}})  # non-string key
+    output = stream.getvalue()
+    assert PAN not in output and EMAIL not in output and "4111" not in output
+    assert len(output.strip().splitlines()) == 2
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["api_key", "x-api-key", "apikey", "tokens", "refreshTokens", "client_secrets", "passwords", "credentials",
+     "phone_numbers"],
+)  # fmt: skip
+def test_more_deny_listed_keys_and_plurals(key):
+    logger, stream = _capture("test.redaction.more")
+    logger.info("event", extra={"detail": {key: "value-xyz"}})
+    assert "value-xyz" not in stream.getvalue()
+
+
+def test_dict_keys_are_scrubbed():
+    logger, stream = _capture("test.redaction.dictkeys")
+    logger.info("event", extra={"detail": {EMAIL: 1, PAN: 2}})
+    assert EMAIL not in stream.getvalue() and "4111" not in stream.getvalue()
+
+
+def test_uvicorn_and_dramatiq_loggers_go_through_the_redacting_formatter(capsys):
+    """uvicorn's own config gives `uvicorn` a plain handler with propagate False, so its "Exception in ASGI
+    application" traceback would bypass the formatter; configure() must take those loggers over."""
+    import logging.config
+
+    from uvicorn.config import LOGGING_CONFIG
+
+    from app.core import logging as app_logging
+
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    names = ("uvicorn", "uvicorn.error", "uvicorn.access", "dramatiq", "dramatiq.worker")
+    kept = {n: (logging.getLogger(n).handlers[:], logging.getLogger(n).propagate, logging.getLogger(n).disabled)
+            for n in names}  # fmt: skip
+    try:
+        logging.config.dictConfig(LOGGING_CONFIG)  # what uvicorn does before it imports the app
+        app_logging.configure()
+        for name in ("uvicorn.error", "dramatiq.worker"):
+            try:
+                with app_engine().connect() as conn:
+                    conn.execute(text("SELECT CAST(:v AS int)"), {"v": EMAIL})
+            except Exception:
+                logging.getLogger(name).exception("Exception in ASGI application")
+        err = capsys.readouterr().err
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+        for n, (handlers, propagate, disabled) in kept.items():
+            lg = logging.getLogger(n)
+            lg.handlers[:], lg.propagate, lg.disabled = handlers, propagate, disabled
+    lines = [json.loads(line) for line in err.strip().splitlines()]
+    assert {line["logger"] for line in lines} == {"uvicorn.error", "dramatiq.worker"}
+    assert all("DataError" in line["exc"] for line in lines) and "jane.doe" not in err
