@@ -89,6 +89,8 @@ Counts: P0 13 done; P1 36 done, 3 partial (RPT-29, RPT-38, FIT-04).
 - PDF and XLSX money formatting (`domain/report_files.py`) assumes a currency with two decimal places.
 - `schedules.py` reads `platform.models.StaffUser` directly for recipient names (an open owner decision on a
   platform staff lookup), and the view SQL for about twelve other contexts lives in reporting's migrations.
+- A data erasure re-sends only the schedules that ran in the last day; an earlier scheduled export (a weekly one
+  sent days before) keeps a dead link until its next send.
 - The PDF caps detail rows at 5,000 (`report_files.py`) but not summary rows; a huge summary renders in full.
 
 ## Open questions

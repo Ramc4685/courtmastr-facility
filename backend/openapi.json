@@ -49789,7 +49789,7 @@
       },
       "PortalRentalConfirm": {
         "additionalProperties": false,
-        "description": "A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.",
+        "description": "A PaymentProvider client token; never raw card data. This route takes a one-off token, not a stored method.",
         "properties": {
           "provider_payment_token": {
             "maxLength": 200,
@@ -76837,7 +76837,7 @@
             "anyOf": [
               {
                 "maxLength": 128,
-                "pattern": "^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+)$",
+                "pattern": "^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._-]{1,64}@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+)$",
                 "type": "string"
               },
               {

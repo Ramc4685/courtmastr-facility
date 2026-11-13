@@ -19,8 +19,8 @@ def deliver_webhook(session: Session, delivery_id: str) -> None:
 @tenant_actor(max_retries=0)
 def sweep_webhook_deliveries(session: Session) -> None:
     """Re-enqueue pending deliveries that are due, in case a message was lost (Redis restart).
-    shortcut: nothing schedules this yet (no periodic scheduler exists); run it from cron or the scheduler
-    module when one ships. A duplicate message is harmless: attempt_delivery locks and re-checks the row."""
+    The scheduler enqueues this every minute (app/scheduler.py). A duplicate message is harmless:
+    attempt_delivery locks and re-checks the row."""
     for delivery_id in service.due_deliveries(session):
         service._enqueue(session, delivery_id)
 

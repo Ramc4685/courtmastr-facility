@@ -14,7 +14,9 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `transport.py` | resolves and checks a webhook URL, then sends pinned to the checked address (no redirects) |
 | `service.py` | staff commands with both permission gates and audit, then fan-out, delivery, re-evaluation, export, directory |
 | `handlers.py` | the outbox subscriber that fans events out, and the staff-deactivated handler |
-| `jobs.py` | `deliver_webhook` (one attempt, reschedules itself), an unscheduled sweep, and `sync_accounting_job` (chunked: one QuickBooks day per chunk; its dead letter marks the sync failed). The sync start is audited as `integrations.sync.start`; each day as `integrations.sync.run` under the system actor `integrations.sync` |
+| `jobs.py` | `deliver_webhook` (one attempt, reschedules itself), `sweep_webhook_deliveries` (every minute), and `sync_accounting_job` (chunked: one QuickBooks day per chunk; its dead letter marks the sync failed). The sync start is audited as `integrations.sync.start`; each day as `integrations.sync.run` under the system actor `integrations.sync` |
+| `events.py` | `integrations.webhook_endpoint.disabled`, which carries a `reason` and is never delivered to webhooks (`webhook = false`) |
+| `permissions.py` | the module's keys: `api_key.manage` (step-up), `webhook.manage`, `connection.manage`, `sync.run`, `delivery.read`, `calendar_feed.revoke_any` |
 | `router.py` | the endpoints in `docs/api/openapi-programs.yaml` tag integrations, all `require()`-gated; `inbound` holds the provider webhooks, registered before billing's `/webhooks/{provider}` |
 | `reference.py` | the generated public API reference: `x-api-key-scopes` on every operation a key may call (added in `app.main`'s OpenAPI hook), listed by `GET /api-reference` |
 | `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |

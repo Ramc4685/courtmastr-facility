@@ -6,18 +6,25 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 
 | File | What it holds |
 |---|---|
-| `models.py` | every billing table (catalogue, receivables, money, the append-only ledger, settings, coupons, schedules, stored methods, autopay, notices, deliveries, pay links) |
-| `domain/money.py`, `schedule.py`, `dunning.py` | pure logic: rounding, instalment generator and rebalance, largest-remainder split, retry decision, ageing buckets |
+| `models.py` | every billing table (catalogue, receivables, money, the append-only ledger, settings, coupons, schedules, stored methods, autopay, notices, deliveries, pay links, disputes, statement batches, pre-defined items, provider customers) |
+| `domain/money.py`, `schedule.py`, `dunning.py`, `recurrence.py` | pure logic: rounding, instalment generator and rebalance, largest-remainder split, retry decision, ageing buckets, pre-defined item occurrences and renewal dates |
 | `service.py` | the kernel plus the internal money functions: charges, invoices, payments, allocation, refunds, the undo operations, account credit, schedules |
 | `desk.py` | staff commands for items, invoices, payments and credit (authorize, then call `service`) |
 | `catalogue.py` | revenue categories, taxes and dated rates, tender types, billing settings, period lock, coupons |
+| `catalog.py` | pre-defined items (BIL-14): selling, renewing and cancelling item sales, membership add-on terms |
 | `methods.py` | the processor connection and stored payment methods |
 | `autopay.py` | collection runs, dunning, the autopay-error queue, billing notices, the daily pass |
 | `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history, bulk invoicing |
 | `statements.py` | statement batches: one stored row per recipient with its status, run in the request or as a job, resend |
 | `webhooks.py` | provider webhook intake, the tenant actor that applies an event, the reconciliation sweep, `billing_daily` |
+| `checkout.py` | online checkout (`secure_online_checkout`), the payment-link confirm and the coupon release handler |
+| `collections.py` | collections tags and client profiles, the collections report, expiring cards, the portal past-due guard |
 | `portal.py` | the client surface (own invoices, payments, stored methods, statement, invoice and statement PDFs) |
-| `router.py` | staff, portal, public pay-link and webhook routes |
+| `router.py` | staff, portal (receipts and receipt PDFs, payment confirm, coupon quotes, billing summary), public pay-link and webhook routes, and `POST /public/fake-processor/authentications`, a dev and test stand-in for 3-D Secure (404 unless the fake processor is registered) |
+| `events.py` | the events billing publishes |
+| `subject.py` | the merge repoint and the data-subject export and erasure handlers |
+| `permissions.py` | billing's permission keys; `billing.dispute.manage` is registered but nothing checks it |
+| `schemas.py` | request and response schemas |
 
 Ports and adapters: `app/ports/payment_provider.py`; `app/adapters/fake_payments.py` (scripted by token: see
 its docstring; emits signed webhook events into `outbox`); `app/adapters/stripe_connect.py`, selected by
@@ -49,12 +56,13 @@ units. `billing.service`:
 post_charge(session, *, client_id, location_id, description, unit_price_minor, source_context, source_type,
             source_id, source_line_no=0, quantity=1, discount_minor=0, revenue_category_id=None,
             revenue_on=None, exclude_tax_ids=(), additional_description=None, internal_remarks=None,
-            service_starts_on=None, service_ends_on=None, coupon_id=None) -> Charge
+            service_starts_on=None, service_ends_on=None, coupon_id=None, tax_ids=None) -> Charge
 create_invoice_for_charges(session, charge_ids, *, bill_to_client_id=None, due_on=None, origin="staff",
                            is_autopay=False, comments=None) -> Invoice
 take_payment(session, *, client_id, location_id, amount_minor, tender_kind, idempotency_key=None,
-             method_token=None, payment_method_id=None, off_session=False, tender_type_id=None,
-             origin="staff", invoice_id=None, allocations=None, external_reference=None, memo=None) -> Payment
+             method_token=None, payment_method_id=None, off_session=False, save_method=False,
+             tender_type_id=None, origin="staff", invoice_id=None, allocations=None,
+             external_reference=None, memo=None, audit_changes=None, internal_tender=False) -> Payment
 confirm_payment(session, payment_id); cancel_payment(session, payment_id)
 allocate(session, payment_id, *, invoice_id=None, allocations=None); release_allocation(session, payment_id, allocation_id)
 refund(session, payment_id, *, amount_minor, reason, idempotency_key=None, method=None, comments=None,
@@ -67,7 +75,7 @@ void_invoice(session, invoice_id, *, reason, release_allocations=False); void_pa
 attach_charges(session, invoice_id, charge_ids); detach_charge(session, invoice_id, charge_id, *, to_invoice_id=None)
 reassign_payer(session, invoice_id, bill_to_client_id); set_schedule(session, invoice_id, rows, *, basis)
 credit_balance(session, client_id); spend_credit(session, client_id, *, invoice_id=None, allocations=None, limit=None)
-refund_credit(session, client_id, *, amount_minor, reason, idempotency_key) -> list[Refund]
+refund_credit(session, client_id, *, amount_minor, reason, idempotency_key, location_ids=None) -> list[Refund]
 ```
 
 `billing.catalogue`: `settings_for(session, location_id=None)`, `quote_coupon`, `redeem_coupon(session, code, *,
@@ -92,7 +100,8 @@ Rules a caller must know:
 - **Dates are local** to the charge's or payment's location; instants are UTC. A posting dated on or before
   `tenant.billing_locked_through_on` is `409 period-locked`.
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
-  `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
+  `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`,
+  `billing.statement_batch.completed`, `billing.catalog_item_sale.sold|renewed|ended`.
 
 ## PDF documents (`app/core/pdf.py`)
 
@@ -163,10 +172,11 @@ from money taken that day). A tender with a `system_key` is never listed by `GET
 kind's default, refuses `PATCH` (409 `tender-system`; tenders have no delete), and takes a payment only when
 `take_payment(internal_tender=True)` is passed, which only `post_opening_balance` does and no router can. Its
 label carries no meaning: a tenant tender renamed "Opening balance" is an ordinary tender.
-with the import job as its `external_reference` and the importing staff user's id in its audit row. Both are
-idempotent on the key the importer passes (the resolved client, as-of date, direction and amount, never the job),
-and say whether they posted (`created`). `take_payment` gained `audit_changes` (merged into its one audit row).
-`tax_ids_by_code` resolves tax codes without case.
+The credit payment takes the importer's `reference` as its external reference, and `submitted_by` (the importing
+staff user) goes in its audit row. Both are idempotent on the key the importer passes (the resolved client, as-of
+date, direction and amount, never the job), and say whether they posted (`created`). `take_payment` gained
+`audit_changes` (merged into its one audit row). `tax_ids_by_code` is internal, for the POS import rather than
+Imports: it resolves tax codes without case.
 
 ## Collections and dunning (Phase 9 chip D, `collections.py`)
 
@@ -260,8 +270,8 @@ handlers re-read the object from the provider.
   handed to the notification port.
 - **Emails link to the PDF instead of attaching it.** The notification port has no attachments; the email
   carries a portal link (`/portal/invoices?invoice=`, `/portal/statement?from_on=&to_on=`) where the member
-  downloads it, and the stored file is kept for staff. Swap to `files.download_url` (Phase 8) for a direct
-  signed link once it lands.
+  downloads it, and the stored file is kept for staff. `platform.files.download_url` already signs a direct
+  link; billing keeps the portal link on purpose.
 - **Statement periods and the AR "as at" cut use the location's day.** A statement's dates are read in the
   client's home location's zone; ageing cuts each charge at the end of the "as at" day in its own location's
   zone (UTC only when a location has no zone). The default "as at" is the earliest local today of the tenant.
@@ -273,7 +283,9 @@ handlers re-read the object from the provider.
   address becomes `erased@erased.invalid` because the row must keep one. Invoices and payments stay.
 - **A statement batch belongs to one location** (`location_id` NOT NULL, where the data model allows null), so
   the location gate applies; its requester is null when an API key asked. Recipients are the payers of non-void
-  invoices at that location in the period. A recipient row keeps no message id: engagement returns none
+  invoices at that location in the period, read on `due_on` or `invoice_on` per `date_basis`. `is_open_only` keeps
+  only open invoices with a balance, and `client_filter` narrows to the listed client ids. A recipient row keeps
+  no message id: engagement returns none
   yet, so a sent row cannot be traced to its message (add the column when it does). Resend is refused while
   a batch is still sending.
 - **AR ageing ages a charge from its invoice's due date**, not instalment by instalment.
@@ -287,7 +299,8 @@ handlers re-read the object from the provider.
   and prevented disputes (no money withdrawn) are ignored. Shortcut: one dispute per payment for its disputed
   amount; a second one on a disputed payment moves no money. While open, the money stays in `client_credit` in
   the ledger and is parked in `disputed_funds` (the books check adds open disputes to credit). No staff screen
-  or route: evidence is submitted in the tenant's Stripe dashboard. Events `billing.payment.disputed`,
+  or route: evidence is submitted in the tenant's Stripe dashboard. `billing.dispute.manage` is registered but nothing
+  checks it. Events `billing.payment.disputed`,
   `billing.payment.dispute_closed`.
 - **Stripe requests use dynamic payment methods** (`automatic_payment_methods`, redirects off), never
   `payment_method_types`; `create_setup`'s `kinds` is therefore advisory for Stripe.

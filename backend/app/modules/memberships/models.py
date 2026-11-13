@@ -1,8 +1,9 @@
 """memberships tables (docs/architecture/data-model-people.md section 3, the schema of record).
 
-Deviations, recorded in the module README. Not created, because the tables they point at do not exist yet:
-`coupon_id`, `payment_method_id` (billing, build module 8) and `catalog_item_id` (BIL-14), so an add-on is a
-package plan only. `membership_visit.check_in_id` has no foreign key (the `access` context owns `check_in`).
+Deviations, recorded in the module README. `coupon_id` and `payment_method_id` are not created (their tables exist
+in billing; the columns are left out on purpose). `catalog_item_id` is on the add-on and period tables, so an add-on
+is a package plan or a catalog item. `membership_visit.check_in_id` has no foreign key (the `access` context owns
+`check_in`).
 Added: `membership_contract.end_on_before_cancel` (what undo-cancel restores) and, on `billing_schedule_period`,
 `charge_sequence` (the billing origin line of the next charge after a reversal), `pre_freeze` (the dates a freeze
 replaced, so editing or removing it is exact) and `cancelled_reason`. The exclusion constraints live in the

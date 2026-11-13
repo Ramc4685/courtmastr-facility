@@ -45,6 +45,7 @@ where being wrong costs nothing.
 | billing-11, integrations-7 | 5664dd3 | location mode capped at 1000; `billing.service.ledger_day_totals` |
 | imports-1, imports-2, integrations-2, scheduling-2, packages-9, access-3, access-4 | 96dbe58 | yaml synced; `access.checkin.delete` and `deleteCheckIn` deleted. integrations-2 and access-4 keep their README halves for the docs batch |
 | documents-1 | not fixed, handed back | the import contract forbids `rentals` -> `documents` (`backend/pyproject.toml`); needs an `ignore_imports` line or dropping `rental_plan` from the binding kinds (Q2) |
+| Docs batch (package 6) | one `docs(<module>)` commit per module on `claude/egm-drift-docs-8810b9` | DOCS rows and README halves of CONTRACT and DEAD rows, plus the stale comments in `documents/service.py`, `integrations/jobs.py`, `memberships/models.py`, `rentals/schemas.py` and `rentals/__init__.py`; backlog lines end in "Docs batch." |
 
 ## New owner questions
 

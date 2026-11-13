@@ -4,14 +4,18 @@ the report snapshots and export files that may name them."""
 
 from uuid import UUID
 
-from sqlalchemy import select
+import pytest
+from sqlalchemy import select, text, update
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
+from app.core import clock
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.modules import platform
-from app.modules.platform.models import StaffUser, StoredFile
-from app.modules.reporting import schedules
+from app.modules.platform.models import StaffUser, StoredFile, UserLocationAccess
+from app.modules.reporting import schedules, service
 from app.modules.reporting.models import ExportJob, ReportRun, ReportSchedule
 from app.modules.reporting.tests import test_exports_schedules as sched
 from app.modules.reporting.tests.test_reporting import API, code, drain, ok, ran
@@ -76,6 +80,26 @@ def test_a_deactivated_owners_schedule_stops_and_says_why(client, tenant, owner,
     assert mailbox == []  # the owner (a recipient) gets nothing from a schedule its author may no longer run
 
 
+@pytest.mark.parametrize("lost", ["keys", "location"])
+def test_an_owner_who_lost_the_keys_or_the_location_stops_the_schedule(client, tenant, owner, world, team, lost):
+    saved = _saved(client, team.manager)
+    made = ok(client.post(f"{API}/report-schedules", headers=team.manager,
+                          json=_schedule_body(saved, world, [tenant.owner_id])), 201)  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        if lost == "keys":  # front desk runs no financial reports
+            session.get_one(StaffUser, team.manager_id).role_id = platform.staff.ensure_system_roles(session)[
+                "front_desk"
+            ].id
+        else:  # still a manager, now at North only: the schedule's location is Main
+            session.execute(update(UserLocationAccess).where(UserLocationAccess.staff_user_id == team.manager_id)
+                            .values(location_id=world.north))  # fmt: skip
+    _ticks(tenant)
+    drain()
+    with tenant_session(tenant.id) as session:
+        assert session.get_one(ReportSchedule, made["id"]).is_active is False
+        assert session.scalars(select(ExportJob).where(ExportJob.notify_on_complete)).all() == []
+
+
 def test_an_admin_sees_and_deletes_any_schedule_in_their_locations(client, tenant, owner, world, team):
     saved = _saved(client, team.manager)
     made = ok(client.post(f"{API}/report-schedules", headers=team.manager,
@@ -117,3 +141,91 @@ def test_erasing_a_client_purges_report_snapshots_and_export_files(client, tenan
         assert {session.get_one(StoredFile, f).status for f in (run_file, export_file)} == {"purged"}
         stopped = session.get_one(ExportJob, pending["id"])
         assert stopped.partial is None and stopped.status == "failed"
+
+
+def test_an_erasure_request_clears_reports_and_lets_todays_schedules_send_again(client, tenant, owner, world):
+    done = ran(client, owner, "client_export")
+    job = ok(client.post(f"{API}/export-jobs", headers=owner, json={"report_run_id": done["id"], "format": "csv"}), 202)
+    drain()
+    made = ok(client.post(f"{API}/report-schedules", headers=owner,
+                          json=_schedule_body(_saved(client, owner), world, [tenant.owner_id])), 201)  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        session.get_one(ReportSchedule, made["id"]).last_run_on = clock.now().date()  # sent today: links now dead
+    request = ok(client.post(f"{API}/data-subject-requests", headers=owner,
+                             json={"client_id": world.person, "kind": "erasure", "reason": "Asked by email"}), 201)  # fmt: skip
+    finished = ok(client.post(f"{API}/data-subject-requests/{request['id']}/confirm", headers=owner,
+                              json={"confirmation": "ERASE", "is_blocker_override": True}))  # fmt: skip
+    assert finished["status"] == "completed"
+    assert code(client.get(f"{API}/report-runs/{done['id']}/rows", headers=owner), 404) == "not-found"
+    assert code(client.get(f"{API}/export-jobs/{job['id']}/download", headers=owner), 404) == "not-found"
+    with tenant_session(tenant.id) as session:
+        assert session.get_one(ReportSchedule, made["id"]).last_run_on is None  # re-sent with fresh links
+
+
+def test_snapshot_writers_take_the_erasure_lock_shared_and_erasure_takes_it_exclusive(
+    client, tenant, owner, world, monkeypatch
+):
+    taken: list[bool] = []
+    real = service._snapshot_lock
+    monkeypatch.setattr(service, "_snapshot_lock", lambda session, *, exclusive=False: (
+        taken.append(exclusive), real(session, exclusive=exclusive))[1])  # fmt: skip
+    done = ran(client, owner, "revenue_summary")
+    ok(client.post(f"{API}/export-jobs", headers=owner, json={"report_run_id": done["id"]}), 202)
+    drain()
+    with tenant_session(tenant.id, actor=system_principal("test")) as session:
+        service.erase_client(session, UUID(world.person))
+    assert taken[0] is False and False in taken[1:-1] and taken[-1] is True  # run, export chunk(s), erase
+
+
+def test_an_erasure_waits_for_a_snapshot_in_flight(tenant):
+    with tenant_session(tenant.id) as writer:
+        service._snapshot_lock(writer)  # a run building its snapshot, not yet committed
+        with tenant_session(tenant.id) as eraser:
+            eraser.execute(text("SET LOCAL lock_timeout = '200ms'"))
+            with pytest.raises(OperationalError):
+                service._snapshot_lock(eraser, exclusive=True)
+            eraser.rollback()
+
+
+def test_a_schedule_whose_zone_cannot_be_read_fails_once_and_the_next_still_runs(
+    client, tenant, owner, world, monkeypatch
+):
+    bad = ok(client.post(f"{API}/report-schedules", headers=owner, json=_schedule_body(
+        _saved(client, owner, "revenue_summary"), world, [tenant.owner_id], location_id=world.north)), 201)  # fmt: skip
+    good = ok(client.post(f"{API}/report-schedules", headers=owner,
+                          json=_schedule_body(_saved(client, owner, "deposits"), world, [tenant.owner_id])), 201)  # fmt: skip
+    assert bad["id"] < good["id"]  # the unreadable one is met first
+    real = schedules.platform.service.location_time_zone
+
+    def zone(session, location_id):
+        if str(location_id) == world.north:
+            raise LookupError("no zone")
+        return real(session, location_id)
+
+    monkeypatch.setattr(schedules.platform.service, "location_time_zone", zone)
+    _ticks(tenant)  # fails the test if the job keeps re-sending itself
+    _ticks(tenant)  # a second hourly run records nothing more
+    drain()
+    with tenant_session(tenant.id) as session:
+        broken = session.get_one(ReportSchedule, bad["id"])
+        assert (broken.is_active, broken.last_run_on) == (False, None)  # needs a staff fix, never claimed
+        actions = session.scalars(select(AuditEvent.action).where(AuditEvent.entity_id == UUID(bad["id"]))).all()
+        assert actions.count("reporting.report_schedule.deactivate") == 1
+        assert "reporting.report_schedule.run" not in actions
+        assert session.get_one(ReportSchedule, good["id"]).last_run_on is not None
+
+
+def test_the_schedule_job_takes_the_erasure_lock_before_locking_schedule_rows(tenant, monkeypatch):
+    order: list[str] = []
+    monkeypatch.setattr(schedules.service, "_snapshot_lock", lambda session, *, exclusive=False: order.append("lock"))
+    real_scalars = Session.scalars
+
+    def scalars(self, stmt, *args, **kwargs):
+        if "report_schedule" in str(stmt) and "FOR UPDATE" in str(stmt).upper():
+            order.append("rows")
+        return real_scalars(self, stmt, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "scalars", scalars)
+    with tenant_session(tenant.id, actor=system_principal("test")) as session:
+        schedules.run_due_schedule(session)
+    assert order[:2] == ["lock", "rows"]

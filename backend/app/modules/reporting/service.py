@@ -154,7 +154,8 @@ def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict)
     if own_only and not spec.own_reach:
         raise PermissionDenied(f"Requires {spec.permission} for every row", required=spec.permission)
     own = platform.service.linked_resource_id(session, principal.staff_user_id) if own_only else None
-    return params.model_copy(update=changes), Scope(locations, own_only, own, day_ranges)
+    permitted = None if principal.kind == "system" or principal.location_ids is None else tuple(principal.location_ids)
+    return params.model_copy(update=changes), Scope(locations, own_only, own, day_ranges, permitted)
 
 
 # --- runs ----------------------------------------------------------------------------------------------------
@@ -200,6 +201,17 @@ def _snapshot(spec: ReportSpec, result: dict) -> bytes:
     }, default=str).encode()  # fmt: skip
 
 
+_SNAPSHOT_LOCK = 1601  # advisory lock class; the object is the tenant
+
+
+def _snapshot_lock(session: Session, *, exclusive: bool = False) -> None:
+    """Held until commit. Anything that reads client data into a stored snapshot or export takes it shared; a
+    data subject erasure takes it exclusive. So an erasure waits for runs and export chunks in flight to commit,
+    then purges them too, and nothing started after it reads the erased client or keeps a file it missed."""
+    lock = func.pg_advisory_xact_lock if exclusive else func.pg_advisory_xact_lock_shared
+    session.execute(select(lock(_SNAPSHOT_LOCK, func.hashtext(str(session.info["tenant_id"])))))
+
+
 def create_run(session: Session, principal: Principal, data: dict) -> dict:
     staff_user_id = _staff(principal)
     spec = _spec(principal, data["report_key"])
@@ -214,6 +226,7 @@ def create_run(session: Session, principal: Principal, data: dict) -> dict:
             raise ValidationFailed("The saved report is for another report", pointer="/saved_report_id")
         raw = {**saved.params, **(raw or {})}
     params, scope = resolve(session, principal, spec, raw or {})
+    _snapshot_lock(session)
     started = clock.now()
     result = spec.build(session, params, scope)
     if len(result["rows"]) + len(result["details"] or []) > MAX_ROWS:
@@ -480,7 +493,11 @@ def erase_client(session: Session, client_id: UUID) -> dict:
     """Internal, reporting's data subject erase handler (security-baseline 4.2). Snapshot and export rows carry
     no client id (most reports drop it, or never select it), so a run that names the client cannot be told
     apart: every live snapshot, export file and partial export in the tenant goes. Runs and exports then read
-    `expired`, queued or running exports fail; rerunning a report rebuilds it without the erased client."""
+    `expired`, queued or running exports fail; rerunning a report rebuilds it without the erased client.
+    shortcut: tenant-wide because a snapshot's rows do not say which clients they hold; store the client ids
+    per run if erasures become frequent enough for the lost cache to matter.
+    Schedules that already ran today lose their claim, so their recipients get fresh links at the next tick."""
+    _snapshot_lock(session, exclusive=True)
     now, live = clock.now(), (RunStatus.QUEUED, RunStatus.RUNNING)
     purged = platform.files.purge(
         session, select(ReportRun.result_file_id).where(ReportRun.result_file_id.is_not(None))
@@ -495,7 +512,10 @@ def erase_client(session: Session, client_id: UUID) -> dict:
                 error=case((ExportJob.status.in_(live), "Stopped by a data erasure"), else_=ExportJob.error),
                 partial=None, finished_at=func.coalesce(ExportJob.finished_at, now))
     ).rowcount  # fmt: skip
-    return {"purged_files": purged, "stopped_exports": stopped}
+    resent = session.execute(update(ReportSchedule).where(  # a day either side of UTC covers every zone's today
+        ReportSchedule.is_active, ReportSchedule.last_run_on >= now.date() - timedelta(days=1)
+    ).values(last_run_on=None)).rowcount  # fmt: skip
+    return {"purged_files": purged, "stopped_exports": stopped, "resent_schedules": resent}
 
 
 EXPORT_CHUNK_ROWS = 1_000  # rows rendered per job message (ADR 0008 section 3)
@@ -506,6 +526,7 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     job's CSV from its run snapshot; True while rows remain. The cursor and the bytes so far live on the locked
     job row, so a crash or a redelivery re-renders at most one chunk. A job no longer queued or running is left
     alone."""
+    _snapshot_lock(session)  # before the row lock, in the order erase_client takes them
     job = session.scalars(select(ExportJob).where(ExportJob.id == job_id).with_for_update()).one_or_none()
     if job is None or job.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
         return False

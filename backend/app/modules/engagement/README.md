@@ -11,7 +11,7 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
 | `service.py` | preferences; `_deliver` (the one send path); templates, segments, campaigns, messages, suppressions, delivery events, public preference centre, portal inbox and devices, reminders, automations, alert routes, portal settings, videos |
 | `handlers.py` | bookings and enrollments schedule or cancel reminders; triggers run automations; waitlist promotions and declined payments alert staff |
 | `jobs.py` | `send_due_messages` every minute (app/scheduler.py): scheduled campaigns, due reminders and delayed automations |
-| `subject.py` | merge and data-subject handlers for message, device_registration, inbox_item, scheduled_notification |
+| `subject.py` | merge and data-subject handlers for message, device_registration, inbox_item, scheduled_notification. The handlers for communication_preference and consent_event are in `service.py`, registered as `engagement` |
 | `router.py` | staff routes, `/portal/*` (current_ctx) and `/public/*` (anonymous, rate-limited) |
 | `web/src/features/engagement/` | staff screens: campaigns, templates and segments, automations and reminders, settings |
 
@@ -53,7 +53,15 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
   so that field alone never skips consent, and a system template's category cannot be edited. A push
   automation checks `is_subscribed` before writing the inbox item.
 - **Delivery events** (`record_delivery_event`) only move a message forward, count each step once, suppress on
-  bounce or complaint (permanently after a release), and opt out on unsubscribe.
+  bounce or complaint (permanently after a release), and opt out on unsubscribe. Releasing an address that failed
+  again after a release is refused with `409 suppression-permanent`; a second release gets `409 invalid-state-transition`.
+- **Events.** The context emits `engagement.campaign.sent`, `engagement.message.bounced` and
+  `engagement.consent.changed` (`events.py`).
+- **Built-in segments and templates.** Built-in segments are seeded by `ensure_builtin_segments` and are read-only:
+  an edit or delete gets `409 segment-read-only`. System notices come from `SYSTEM_TEMPLATES`, copied into the
+  tenant on first use. `POST /segments/preview` returns an audience size without saving a segment.
+- **Portal inbox expiry.** Announcement and automation items expire 30 days after publication (`INBOX_DAYS`);
+  expired items leave the inbox and the unread count.
 - **Reminders** are materialised as `scheduled_notification` rows (two offsets at most, unique per subject,
   offset and client) and re-checked at send time; a cancelled booking or enrollment cancels them.
 - **Automations** fire on a fixed catalogue of events (`service.TRIGGERS`); delay 0 sends in the handler's
@@ -103,18 +111,23 @@ automation handlers for `clients.client.created` and `memberships.contract.activ
 
 ## Endpoints the mobile app depends on (keep stable)
 
-`GET /portal/inbox` (page of `{id, campaign_id, title, body, link_url, read_at, created_at}`; optional
-`client_id`, default the login's own record), `GET /portal/inbox/unread-count` (same `client_id`), `POST /portal/inbox/{id}/read`, `POST /portal/devices`
-(`{platform: ios|android, push_token, location_id?, app_version?, locale?, is_push_enabled?}`),
-`DELETE /portal/devices/{id}`, `GET /portal/videos`, `GET /public/portal-config` (tenant from host or
-`X-Tenant-Slug`), and `GET|PUT /portal/clients/{client_id}/communication-preferences`.
+Used by the mobile app today: `GET /portal/inbox` (page of `{id, campaign_id, title, body, link_url, read_at,
+created_at}`; optional `client_id`, default the login's own record), `POST /portal/inbox/{id}/read` and
+`POST /portal/devices` (`{platform: ios|android, push_token, location_id?, app_version?, locale?, is_push_enabled?}`).
 
-The other portal routes the mobile adapter (`mobile/src/api/api.ts`) maps belong to their own contexts and are
+Reserved for the app, not called by the adapter yet: `GET /portal/inbox/unread-count` (same `client_id`),
+`DELETE /portal/devices/{id}`, `GET /portal/videos` and `GET /portal/videos/{id}` (unpublished: 404),
+`GET /public/portal-config` (tenant from host or `X-Tenant-Slug`), and
+`GET|PUT /portal/clients/{client_id}/communication-preferences`.
+
+The other portal routes the mobile adapter (`mobile/src/adapters/api.ts`) maps belong to their own contexts and are
 unchanged by this module: `/portal/clients`, `/portal/membership-contracts`, `/portal/client-packages`,
-`/portal/invoices`, `/portal/payment-methods` and `POST /portal/payments`.
+`/portal/invoices`, `/portal/payment-methods`, `POST /portal/payments`, `/portal/session-listings`,
+`/portal/enrollments` (and `/cancel`), `/portal/app-cards` and `/portal/assessment-bests`.
 
 ## Not built
 
 The HTML builder and image library (MKT-04, MKT-06), CSV export of campaign history, the daily staff summary
 (MKT-14), SMS (MKT-15), targeted push (MKT-17), portal theming and terms acknowledgment at checkout (SSP-14),
-and slug routing in the web app (SSP-01).
+and slug routing in the web app (SSP-01). Replying to client messages (`engagement.inbox.reply` is registered, but no
+route uses it). SMS (MKT-15) also has its `engagement.sms_campaign.send` key registered with no caller.

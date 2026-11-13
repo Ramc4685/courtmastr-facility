@@ -9,8 +9,8 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Registry, not a table.** `registry.py` holds every `ReportSpec`: key, family permission, parameter model
   (its JSON Schema is served on the definition and drives the web form), columns, totals, detail columns and the
   builder. Adding a report is one spec plus one builder.
-- **Read models.** Builders read other contexts only through the `rpt_*` views (`views.py`, migration
-  `0953_reporting_core`). The views are `security_invoker`, so RLS on the base tables still applies; each view
+- **Read models.** Builders read other contexts only through the `rpt_*` views (`views.py`: migration
+  `0953_reporting_core` created the first 13; `rpt_locker` came with 1461, the rest with 1621, 1641 and 1661). The views are `security_invoker`, so RLS on the base tables still applies; each view
   carries `tenant_id`. `test_view_columns_match_the_contract` pins their columns.
 - **Runs** (`report_run`) execute inline in the request, store the result (summary rows, totals and detail
   rows) as a JSON file through `platform.files` (purpose `report_result`), and keep the totals on the row. Rows
@@ -19,10 +19,13 @@ Status per feature: `docs/status/15-reporting.md`.
   run, in the location's time zone.
 - **Exports** (`export_job`) are queued and rendered by `jobs.run_export` from the run's snapshot (purpose
   `report_export`). The download streams the file.
+- **Events.** `reporting.export.completed` (`events.py`) is published when an export has stored its file. It
+  carries the export job id and the requesting staff user.
 
 ## Gates
 
-- Router: any family key (`reporting.<family>.run`) opens the centre; `reporting.report.export` for exports.
+- Router: holding any family key that a registered report uses (`service.RUN_KEYS`, derived from the registry)
+  opens the centre; `reporting.report.export` for exports.
 - Service: `authorize(principal, spec.permission)` per report; location ids are checked with
   `platform.service.get_location` (404 outside scope); an omitted location list means the caller's locations.
 - Runs and exports belong to the staff user who requested them (404 for anyone else). Each read re-checks the
@@ -100,6 +103,9 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Membership revenue (RPT-11)** has no future presets (`periods.py` is shared); pick dates ahead to forecast.
   Amounts are before tax on both sides: a billed period shows its charge's net, a scheduled one its period amount,
   which billing turns into the charge's unit price and taxes on top.
+  **Deferred membership revenue** is the other basis: billed and paid include tax, because it follows the cash
+  allocated to each charge (splitting a payment into net and tax would round each line twice). Both report
+  descriptions say which basis they use.
 - **Membership actions and attrition (RPT-13, RPT-14)** derive from contracts, freezes and suspensions (removed
   ones excluded); there is no status-event table. A contract is lost in the month of a voluntary cancellation or of
   an end without a renewal. No "both dates" option for actions. A month without losses has no drill-down.
@@ -140,16 +146,22 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Dashboard tiles** build their reports totals-only (no detail rows; attendance counts per status in SQL). A tile
   whose report would pass the row cap stays on the board as unavailable (`available: false`, totals null) rather
   than vanishing; a tile the caller may not run is still left out.
+- **Expiring memberships** treat a contract as renewed when a newer one exists at any location the caller may see,
+  whether or not the run selects that location; one the caller cannot see is ignored.
 - **Package session value** is carried unrounded in the views (price over sessions granted) and rounded half-up
   once on each report line or sum, so an untouched 100.00 pack of three is worth 100.00, not 99.99.
 - **Receivables and open invoices** leave settled invoices out in SQL, so the row cap counts open invoices only.
 - **Schedules**: one that crashes keeps its day's claim (logged, audited `failed`) so the tenant's others still run;
-  one whose owner is deactivated or lost the report or export key is switched off at its next due time (audited
-  `reporting.report_schedule.deactivate`). `reporting.report_schedule.manage` (Admin) lists, reads and deletes any
+  one whose owner is deactivated, lost the report or export key, or lost the schedule's location is switched off at its next due time (audited
+  `reporting.report_schedule.deactivate`), as is one whose location's time zone cannot be read (once, unclaimed). `reporting.report_schedule.manage` (Admin) lists, reads and deletes any
   staff user's schedule in its locations; settings stay the owner's. With it, `GET /report-schedules` lists everyone's.
 - **Erasure** (`service.erase_client`, privacy handler `reporting`): snapshots carry no client id, so erasing one
   client purges every live run snapshot, export file and partial export in the tenant (runs and exports read
-  `expired`; queued or running exports fail). They are derived data and rebuild on rerun. The data-subject export
+  `expired`; queued or running exports fail). They are derived data and rebuild on rerun. Schedules that ran in the
+  last day lose their claim and send again with fresh links. Limit: an earlier delivery (a weekly report sent
+  Monday, erased Tuesday) is not re-sent; its link reads expired until the next scheduled send. A tenant advisory lock closes the race: runs and export
+  chunks hold it shared until commit, the erasure exclusive, so it waits for snapshots in flight and nothing that
+  starts after it reads the erased client. The data-subject export
   hands over nothing here: the source contexts export the records themselves.
 - `/pos-reports/*` stays gated by `pos.sale.read` while report-centre POS reports use `reporting.pos.run` (owner
   question, unchanged).

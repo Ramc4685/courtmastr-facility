@@ -20,16 +20,27 @@ The stored status changes in one function, `_converge`, which moves it to the da
 `domain.effective_status`; every command converges first, and entitlement reads use the function directly, so
 a late job never admits or refuses anyone wrongly. One live contract per owner is the exclusion constraint
 `ex_membership_contract_term_overlap` (409 `membership-overlap`); one successor per contract is
-`uq_membership_contract_previous`.
+`uq_membership_contract_previous` (409 `already-renewed`).
 
 **Internal interface (no permission check, ADR 0009 section 9).** `eligibility(session, client_id, on=None)`,
 `is_member(...)`, `record_visit(session, client_id=, check_in_id=, location_id=)` for `access`;
-`status_of(session, contract_id)` and `addon_grants(session, contract_id)` for `packages`.
+`status_of(session, contract_id)` and `addon_grants(session, contract_id)` for `packages`;
+`seller_periods(...)` for payroll in `staff`. `get_contract(session, principal, contract_id)` is also called by
+`access`, with a system principal, so it authorizes like a staff read. `run_daily` and `import_contract` are
+described below.
 
 **The daily job.** `run_daily(session)` / the actor `run_membership_day`: per live contract, in its own
 savepoint, converge the status, create the successor when `renew_on` has come, bill periods whose `bill_on`
 has come. Idempotent; a missed day is caught up by the next run. `app/scheduler.py` enqueues it hourly per
 tenant (`EVERY_HOUR`).
+
+**Events.** `memberships.contract.activated`, `renewed` (with the successor's id, start and term fee), `frozen`,
+`unfrozen`, `suspended`, `cancelled` (with the reason and the packages answer) and `expired`. They carry ids and
+the transition, no personal data (`events.py`).
+
+**Client merge and erasure.** `service.py` registers the merge and erasure handlers. A merge is refused up front
+when it would leave one client with two live memberships over the same dates (`_merge_precheck`); staff end or
+re-date one first.
 
 ## Imported contracts (Phase 8 I1, MEM-23)
 
@@ -46,13 +57,14 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
 
 - Account credit auto-applied at sale. Since integration an invoice billed for an autopay contract is an
   autopay invoice, and billing's autopay run collects it from the client's stored method.
-- Coupons on a contract.
+- Coupons on a contract. The portal sale accepts a `coupon_code` that discounts the sale invoice; no coupon is
+  stored on the contract, and staff sales take none.
 - `POST /plan-changes` (deferred by ADR 0005's reconciliation): upgrade and downgrade are "renew into another
   plan" (`renews_as_plan_id` on the contract or on a manual renew) or cancel with a reason and sell anew.
 - Backdated freezes and suspensions (they start today or later); freeze limits and freeze fees (not in the
   reference).
-- MEM-21 reports and `rpt_*` views, MEM-22 API keys, MEM-23 checklist, member card rendering (MEM-19: the
-  number lives on `client`; `ensure_member_number` is called at sale).
+- MEM-22 API keys (the `api_key` table is in `integrations`; whether its scopes cover memberships is
+  unverified), MEM-23 checklist.
 
 ## Billing settings that take effect (Phase 9 chip D)
 
@@ -77,11 +89,16 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
 
 ## Assumptions and deviations
 
-- **Schema.** `coupon_id`, `payment_method_id`, `catalog_item_id` are not created (their tables do not exist);
-  `membership_visit.check_in_id` has no FK (the `access` context owns `check_in`). Added:
+- **Schema.** `coupon_id` and `payment_method_id` are not created: their tables exist in `billing`, and the columns
+  are deliberately left out. `catalog_item_id` is on `membership_plan_addon`, `membership_contract_addon` and
+  `billing_schedule_period`, with a composite FK to billing's `catalog_item`. `membership_visit.check_in_id` has no
+  FK (the `access` context owns `check_in`). Added:
   `membership_contract.end_on_before_cancel`; `billing_schedule_period.charge_sequence`, `.pre_freeze`,
   `.cancelled_reason`. Events: suspension end emits `memberships.contract.activated` with
   `reason = "unsuspended"` (data model), not a separate `.unsuspended`.
+- **Cards and reports.** The printed member card (MEM-19) is built in `access` (`IdCardTemplate`); the number lives
+  on `client`, and `ensure_member_number` is called at sale. MEM-21 is the `rpt_membership_contract` view in
+  `reporting`.
 - **Proration** is offered for monthly and yearly cadences only. A stub divides by the days of the full period
   that ends (first stub) or starts (last stub) at the 1st. A discount applies after proration; a flat discount
   is capped at the period amount.
