@@ -20,6 +20,7 @@ from app.modules import clients, scheduling
 from app.modules.access import building, handlers, jobs
 from app.modules.access.models import BuildingEvent, CheckIn, EntryCode
 from app.modules.platform.models import Identity, Location
+from app.modules.scheduling.models import Session
 from app.modules.scheduling.tests.helpers import API, DAY, facility, ok
 from app.ports import building_control
 from conftest import PASSWORD, add_staff, login, new_client, scalar
@@ -42,7 +43,7 @@ def sim():
 def b(client, tenant, owner, sim):
     f = facility(client, owner)
     f.tenant = tenant
-    f.person = new_client(client, owner, f.location, primary_email=f"pat-{uuid4().hex[:6]}@example.com")
+    f.person = adult(client, owner, f.location)
     door = ok(client.post(f"{API}/door-devices", headers=owner,
                           json={"location_id": f.location, "name": "Front door", "device_ref": "door-front"}))  # fmt: skip
     assert door["credential"].startswith("fhb_") and "token_hash" not in door
@@ -56,12 +57,21 @@ def b(client, tenant, owner, sim):
     return f
 
 
-def book(f, start: float, end: float, *, resources=None, kind="rental", buffer_min: int | None = None) -> str:
+def adult(client, owner, location: str, **fields) -> dict:
+    """A client a door code may go to: a known birth date over the minor age."""
+    body = {"primary_email": f"p-{uuid4().hex[:6]}@example.com", "birth_on": "1990-01-01"} | fields
+    return new_client(client, owner, location, **body)
+
+
+def book(f, start: float, end: float, *, resources=None, kind="rental", buffer_min: int | None = None,
+         holder: str | None = None) -> str:  # fmt: skip
     """A confirmed booking through scheduling's internal create (rentals are not importable from access)."""
     with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
         row = scheduling.service.create_booking(
             session, location_id=UUID(f.location), kind=kind, starts_at=at(start), ends_at=at(end),
-            resource_ids=[UUID(r) for r in resources or [f.court]], client_id=UUID(f.person["id"]),
+            resource_ids=[UUID(r) for r in resources or [f.court]],
+            client_id=None if kind == "session" else UUID(holder or f.person["id"]),
+            reservation_type_id=UUID(f.type) if kind == "session" else None,
             block_kind="unavailable" if kind == "block" else None, buffer_before_min=buffer_min,
             buffer_after_min=buffer_min,
         )  # fmt: skip
@@ -185,6 +195,42 @@ def test_reschedule_reissues_and_cancel_revokes_through_the_handlers(b, sim, mai
             ("revoked", "rescheduled"),
             ("revoked", "cancelled"),
         ]
+
+
+def test_codes_never_go_to_a_minor_or_someone_of_unknown_age(client, tenant, owner, b, mailbox):
+    """Rentals held by a minor or a dateless client get no code (logged once); on a session, an adult gets their
+    own, a minor's goes to their adult guardian, and a minor with no adult guardian's goes to nobody."""
+    dateless = adult(client, owner, b.location, birth_on=None)
+    child = adult(client, owner, b.location, birth_on="2020-01-01")
+    lone_child = adult(client, owner, b.location, birth_on="2019-01-01")
+    parent = adult(client, owner, b.location)
+    kinds_of = {t["code"]: t["id"] for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200)}
+    ok(client.post(f"{API}/clients/{parent['id']}/relationships", headers=owner,
+                   json={"other_client_id": child["id"], "relationship_type_id": kinds_of["guardian_of"]}))  # fmt: skip
+    with clock.freeze(at(9)):
+        rental = book(b, 10, 11, holder=dateless["id"])
+        tick(b)
+        tick(b)
+        assert codes(b, rental) == [] and kinds(b).count("code_withheld") == 1
+        lesson = book(b, 12, 13, kind="session", resources=[b.court2])
+    seat = scalar(tenant, select(Session.id).where(Session.booking_id == UUID(lesson)))
+    for person in (b.person, child, lone_child):
+        ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": str(seat), "client_id": person["id"]}))
+    mailbox.clear()
+    with clock.freeze(at(9)):
+        sync(b, lesson)
+        to = sorted(m.to for m in mailbox)
+    assert to == sorted([b.person["primary_email"], parent["primary_email"]])
+    assert child["primary_email"] not in to and lone_child["primary_email"] not in to
+    with clock.freeze(at(9)):  # the portal shows a code only to a caller of known adult age
+        held = book(b, 14, 15)
+        sync(b, held)
+        member = portal(client, tenant, b.person)
+        assert len(ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]) == 1
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            clients.service.get(session, UUID(b.person["id"])).birth_on = None
+        assert ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"] == []
+        assert client.post(f"{API}/portal/bookings/{held}/door-unlock", headers=member).status_code == 404
 
 
 def test_blocks_get_no_code_and_far_bookings_wait_for_the_horizon(b, mailbox):

@@ -201,6 +201,12 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   tenant data key (`crypto.encrypt`) so the portal and the app can show it again. Regenerating on view would change
   a code already emailed; a plain hash could not be shown again. Codes never appear in logs, the notification log
   or audit: audit changes carry `"code": true` only.
+- **Minors (unmanned building rule).** A code is never delivered to, or shown to, a minor or a person of unknown
+  age: `building.is_known_adult` (a known birth date at or over `platform.service.minor_age`, today at the location)
+  is the one check. A rental whose holder fails it gets no code and one `code_withheld` activity row. On a session, a
+  minor's code goes to their adult guardians (`clients.households.guardian_ids`), never the child; a minor with no
+  adult guardian gets none sent. The portal list and "open the door" answer only a caller who is a known adult.
+  Shortcut: the enrollment's payer is not consulted (programs does not expose it); guardianship links decide.
 - **Delivery.** Email through the email port directly (`send_after_commit`), not the engagement notification log,
   which stores bodies. A rental's holder gets it; every client registered on a session gets it, at issue and on later
   enrollment (`programs.enrollment.created`). There is no SMS channel, so no SMS. The portal (`GET /portal/entry-codes`)

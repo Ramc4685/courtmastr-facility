@@ -441,6 +441,7 @@ class BuildingEventKind(StrEnum):
     CODE_ISSUED = "code_issued"
     CODE_REVOKED = "code_revoked"
     COMMAND_FAILED = "command_failed"
+    CODE_WITHHELD = "code_withheld"  # a rental held by a minor or someone of unknown age
 
 
 class DoorDevice(TenantOwned, Timestamps, Base):

@@ -1,40 +1,111 @@
 ## backend/app/modules/billing/README.md
 
-- [undocumented] `documents.browser_processor(session)` (documents.py:288) is a new internal helper (provider plus Stripe.js keys for anonymous pages). `invoice_by_link` now calls it (documents.py:285) and programs guest checkout calls it (programs/checkout.py:538). The "Phase 11 B additions" block (README L97-104) lists `amount_minor`, `get_invoice_row` and `equal_instalments` but not this helper.
-- [undocumented] README L187-190 and L335 describe the portal lockout list but not its Phase 11 growth. `PORTAL_PURCHASE_ROUTES` (collections.py:216-222) now includes `/portal/client-packages/quote`. The README names no list of routes, and the test's open list (tests/test_collections.py:20-35) gained wallet passes, progress share links, feedback, favourites and app usage, with no doc note. Style: the changed line is over the file's width (collections.py:217).
-- [undocumented] `secure_online_checkout` with `amount_minor` (checkout.py:53, checkout.py:86-87) has behaviours README L97-101 omits. A part payment replay counts as covered only when the payment is at least that part and the invoice is `partially_paid` (checkout.py:143-148). The amount is capped at the balance (`min`, checkout.py:86). The `payment-method-not-usable` check applies only on the no-invoice path (checkout.py:123-127).
-- [wording] checkout.py:13-27 module docstring and README L97-101 describe `payment_method_id` as used "with no invoice", while the invoice path also passes it to `take_payment` (checkout.py:105). Not drift in behaviour; the wording is narrower than the code.
-- [contract] L124-125 says `/catalog-items` "(list, create, get, update) behind `billing.item.manage`". Only create and update are gated by that key (router.py:331, router.py:341). List and get use `Staff` = `require()`, which lets any signed-in staff user in (router.py:167, router.py:325, router.py:336), limited by location scope (catalog.py:85-87, catalog.py:97-100).
-- [stale-not-built] L269-271 says to "Swap to `files.download_url` (Phase 8) for a direct signed link once it lands". It has landed: `platform/files.py:178` `download_url(session, file_id)`, already used by `platform/tenant_export.py:136`. Billing emails still carry portal links (documents.py:240, documents.py:406, documents.py:582 via `autopay.portal_link`), and nothing in billing calls `download_url`.
-- [undocumented] L94-95 "Events emitted" leaves out `billing.statement_batch.completed` (events.py:107, published statements.py:115) and `billing.catalog_item_sale.renewed` / `.ended` (events.py:130, events.py:135; published catalog.py:381, catalog.py:330). `billing.catalog_item_sale.sold` appears only in passing at L157-158 (events.py:126; catalog.py:262, catalog.py:375).
-- [undocumented] L49-52: the `post_charge` signature leaves out the `tax_ids: Iterable[UUID] | None = None` parameter (service.py:358). Opening balances use it to post untaxed charges (service.py:1277).
-- [undocumented] L70: the `refund_credit` signature leaves out `location_ids: Iterable[UUID] | None = None` (service.py:1372). That parameter is how the M-03 rule at L250-251 ("a credit refund draws only on payments taken at the caller's locations") reaches the service (desk.py:327).
-- [wording] L55-57: the `take_payment` signature in the interface block leaves out `save_method`, `audit_changes` and `internal_tender` (service.py:660, service.py:667-668). They are described only in prose: `audit_changes` and `internal_tender` in the Imports paragraph (L165-176), `save_method` at L344-348.
-- [undocumented] The file table (L7-20) leaves out `catalog.py` (only named at L118), `collections.py` (only named in the L179 heading; it holds `PORTAL_PURCHASE_ROUTES`, `_portal_guard`, `unpaid_past_due`, `still_owing`: collections.py:216, collections.py:235, collections.py:253, collections.py:265), `checkout.py` (`secure_online_checkout`, `release_checkout_coupon`: checkout.py:30, checkout.py:210-211), `events.py`, `subject.py` (merge repoint, export and erasure handlers, `ERASED_EMAIL`: subject.py:31-145), `permissions.py` and `schemas.py`.
-- [undocumented] L10 lists the pure-logic files as `money.py`, `schedule.py` and `dunning.py`. It leaves out `domain/recurrence.py` (`occurrences`, `term_end`, `renew_on`, `discount`, `MAX_OCCURRENCES = 366`: domain/recurrence.py:11-48), which drives the BIL-14 occurrence and renewal rules at L142-159.
-- [undocumented] L9 claims `models.py` holds "every billing table" with a list that leaves out `dispute` (models.py:507), `provider_customer` (models.py:722), `statement_batch` / `statement_recipient` (models.py:909, models.py:932), `catalog_item` / `catalog_item_sale` (models.py:960, models.py:1020) and `collections_tag` / `client_collections_profile` (models.py:1058, models.py:1069).
-- [undocumented] L19-20: the portal surface also has receipts and receipt PDFs, payment confirm, coupon quotes and billing summary (portal.py:175-224; router.py:909-931). The router also exposes `POST /public/fake-processor/authentications`, a dev and test stand-in for 3-D Secure (router.py:1002-1010), which the README never mentions.
-- [wording] L261 says "Bulk invoicing runs in the request (up to 1000 items)". The 1000 cap applies only to `charge_ids` (schemas.py:587). The `location_id` mode (with optional `only_mine`) selects every uninvoiced item at the location with no cap (documents.py:700-703). Results are one invoice per client, with a dry-run option (documents.py:685-691, documents.py:719), and the README does not say this.
-- [wording] L174: a sentence fragment is left over from an edit ("with the import job as its `external_reference` and the importing staff user's id in its audit row."). It follows a complete sentence and has no subject. In code the external reference is the caller's `reference` argument (service.py:1265) and the staff id is `submitted_by` (service.py:1266; the importer passes `import-job:{job_id}`, imports/kinds.py:325).
-- [wording] L177 lists `tax_ids_by_code` under Imports (Phase 8 I1), but its docstring says "Internal (pos import)" (service.py:1307-1308).
-- [undocumented] L281-283 says statement-batch recipients "are the payers of non-void invoices at that location in the period". The code also applies `is_open_only` (only open invoices with a balance) and `client_filter.client_ids` (statements.py:44-47; models.py:925), and the period is read on `due_on` or `invoice_on` according to `date_basis` (statements.py:33).
-- [undocumented] `billing.dispute.manage` is registered (permissions.py:54) but nothing checks it (no other reference in backend/app or web/src). L290-298 says disputes have no route but does not mention the key.
+Fresh report, 2026-11-13, on branch `claude/building-control` (working tree, uncommitted changes included). Compared
+the README (365 lines) with the code under `backend/app/modules/billing/` and the operations tagged `billing` in
+`docs/api/*.yaml` (all in `docs/api/openapi-money.yaml`). Read-only; no tests run. Only divergences are listed. Paths
+are under `backend/app/modules/billing/` unless they start with `docs/`, `backend/` or another module name. The only
+billing change in the working tree is `tests/test_collections.py:39`, which adds the access route
+`/portal/bookings/{booking_id}/door-unlock` to the routes left open during the past-due lockout.
 
-## Backlog entries
+Counts: 14 items. [contract] 6, [undocumented] 5, [wording] 3, [stale-not-built] 0, [missing] 0.
 
-- billing: README L97-104 lacks `documents.browser_processor`, the `amount_minor` replay and cap rules, and the Phase 11 lockout route additions (checkout.py:86, collections.py:216, documents.py:288).
-- billing: Carried from earlier reports, re-verified at the lines cited above: `/catalog-items` list and get are not gated by `billing.item.manage` (router.py:325, router.py:336); `files.download_url` exists but billing emails still use portal links (README L270); `billing.dispute.manage` is unused (permissions.py:54).
-- [contract] L116-117 says `/catalog-items` "(list, create, get, update) behind `billing.item.manage`". Only create and update carry that key (router.py:330, router.py:340). List and get use `Staff` = `require()`, which any signed-in staff user passes (router.py:167, router.py:324, router.py:335), limited by location scope in catalog.py.
-- [contract] L283-291 says disputes have "no staff screen or route", but the API contract defines `GET /disputes`, `GET /disputes/{dispute_id}` and `POST /disputes/{dispute_id}/evidence` (docs/api/openapi-money.yaml:2654), gated by `billing.dispute.manage`. The code registers that key (permissions.py:54) and nothing checks it (no reference in backend/app or web/src).
-- [contract] The contract operations `POST /clients/{client_id}/account-credit/issue` (openapi-money.yaml:1686), `POST /clients/{client_id}/collections-status` (openapi-money.yaml:2590), `/processor-payouts` (openapi-money.yaml:2622), `POST /ledger-exports` (openapi-money.yaml:2644) and `POST /portal/payment-methods/{id}/verify` (openapi-money.yaml:2481) have no route in router.py. The README names none of them as not built. The staff verify route exists (router.py:733), the portal one does not.
-- [undocumented] L253-255 does not say that bulk invoicing makes one invoice per client in a savepoint each, supports `is_dry_run`, or has an `only_mine` filter in `location_id` mode (schemas.py:589-592; documents.py:685-702, documents.py:727). The cap and the 422 on `/location_id` match the README (schemas.py:587; documents.py:683, documents.py:704-708).
+### Contract
 
-Fresh report, 2026-11-13, on `claude/fix-phase15-portal-guards` (working tree, uncommitted changes included). Read-only; no tests run. Paths are under `backend/app/modules/billing/` unless they start with `docs/`, `web/` or `backend/`. The only billing change in the working tree is `tests/test_collections.py`: `OPEN_PORTAL_POSTS` gained `/portal/calendar-feeds` and `/portal/enrollments/{enrollment_id}/join` (lines 33-34), both left open during the past-due lockout. The README text and the lockout code (`collections.py:211-248`) are untouched.
+- [contract] README:133-134 says `/catalog-items` "(list, create, get, update) behind `billing.item.manage`". Only
+  create and update carry that key (router.py:331, router.py:342). List and get use `Staff` = `require()`, any
+  signed-in staff user (router.py:167, router.py:324-327, router.py:335-338), limited by location scope
+  (catalog.py:85-87, catalog.py:97-100). The contract agrees with the code: `listCatalogItems` and `getCatalogItem`
+  declare `x-permission: authenticated-staff` (docs/api/openapi-money.yaml:450-455, :494-499). The README is the odd one out.
+- [contract] README:303-312 says disputes have "no staff screen or route" and `billing.dispute.manage` "is registered
+  but nothing checks it" (permissions.py:54; no other reference in `backend/app` or `web/src`). The contract defines
+  `listDisputes`, `getDispute` and `submitDisputeEvidence` (`GET /disputes`, `GET /disputes/{dispute_id}`,
+  `POST /disputes/{dispute_id}/evidence`, docs/api/openapi-money.yaml:2656, :2666, :2678) gated by that key. The README
+  does not say the contract is ahead of the code.
+- [contract] Contract operations with no route in router.py, none named as not built in the README (README:5 points
+  to `docs/status/08-billing-payments.md` instead): `issueAccountCredit` (openapi-money.yaml:1688),
+  `verifyPortalBankAccount` (:2483; the staff verify route exists, router.py:733), `setCollectionsStatus`
+  (`PUT /clients/{client_id}/collections-status`, :2592; the code serves `/clients/{id}/collections-profile` instead,
+  router.py:825-841), `previewSurcharge` (:2614), `listProcessorPayouts` and `listProcessorPayoutLines` (:2624, :2634),
+  `createLedgerExport` (:2646), `getBillingBulkAction` and `listBillingBulkActionItems` (:1247, :1265). README:251
+  ("No surcharging") and README:271-273 ("there is no `billing_bulk_action` table") explain two of these gaps but do
+  not name the contract operations.
+- [contract] The contract serves the provider webhook unversioned at `POST /webhooks/stripe`, "not under `/api/v1`"
+  (`receiveStripeWebhook`, openapi-money.yaml:2122-2131). The code serves `POST /webhooks/{provider}` on the billing
+  router (router.py:1019), mounted under `API_PREFIX` (backend/app/main.py:59-60), and README:41 tells developers to
+  forward to `/api/v1/webhooks/stripe` with no note that this departs from the contract.
+- [contract] README:274-278 says the PDF sits on a separate `/pdf` path "instead of the contract's content negotiation
+  by `Accept`". That holds only for the statement (`/clients/{client_id}/statement`, "JSON or PDF by Accept",
+  openapi-money.yaml:2568-2572). The contract already has `GET /invoices/{invoice_id}/pdf` (`getInvoicePdf`, :1199),
+  which the code matches (router.py:506). For receipts the contract's `GET /payments/{payment_id}/receipt` is the PDF
+  (`getReceiptPdf`, :1632-1636), while the code returns JSON there (router.py:579) and the PDF at `/receipt/pdf`
+  (router.py:584). `GET /invoices/{id}/document` (router.py:500) has no contract operation at all.
+- [contract] Routes the code serves that no contract operation declares (README documents most of them but never says
+  they are outside the contract): `GET/PUT /billing-settings/period-lock` (router.py:273, :278), `/collections-tags`
+  GET, POST, PATCH (router.py:805, :811, :816), `/clients/{id}/collections-profile` GET, PUT, DELETE (router.py:825,
+  :831, :839), `GET /collections-report` (router.py:844), `GET /expiring-cards` (router.py:850),
+  `GET /receivables-ageing` (router.py:537), `POST /clients/{id}/statement/deliveries` (router.py:648),
+  `GET /statement-batches` (router.py:662), `POST /statement-batches/{id}/resend` (router.py:679),
+  `GET /portal/payment-methods/processor` (router.py:947), `POST /portal/coupon-quotes` (router.py:926),
+  `POST /public/invoice-links/payments/confirm` (router.py:997) and `POST /public/fake-processor/authentications`
+  (router.py:1008). `GET /coupons/{coupon_id}/redemptions` is served by billing (router.py:316) but tagged `pos` in
+  the contract (openapi-money.yaml:3943-3946).
 
-Counts: 5 open, 0 closed. The four items of the last report still stand with README line numbers moved (the README is 356 lines; match by quoted text), and one is new.
+### Internal interface
 
-- [undocumented] The portal lockout is an allow-by-omission list, and its open side lives only in a test. README lines 189-193 say "Paying, profile edits and documents stay open" and that the classification test "classifies every portal POST", but do not say the open set (`OPEN_PORTAL_POSTS`, `tests/test_collections.py:22-35`) now includes other contexts' routes: `/portal/calendar-feeds` and `/portal/enrollments/{enrollment_id}/join` (integrations, `integrations/router.py:336, 358`), and league, relationship, device and app-card routes. The guard refuses only `PORTAL_PURCHASE_ROUTES` (`collections.py:216-223`, `_portal_guard` :235-248), so a new portal POST anywhere in the app is open until someone adds it to the buy list, and `test_portal_post_routes_are_each_locked_or_deliberately_open` (:54-60) fails the build to force that choice. Neither rule is in the README, the README's "covers buying and booking only" bullet (lines 341-342) does not name the join or the feed, and the integrations README does not name the dependency. The guard also matches only `POST` (`collections.py:236`), so a locked client can still `PUT` or `PATCH` any portal route; none buys anything today, but the test checks POST only.
-- [contract] README lines 125-126 say `/catalog-items` "(list, create, get, update) behind `billing.item.manage`". Only create and update carry that key (`router.py:330-331, 340-342`). List and get use `Staff` = `require()`, which any signed-in staff user passes (`router.py:324, 335`), limited by location scope in `catalog.py`.
-- [contract] README lines 301-303 say disputes have "no staff screen or route" and `billing.dispute.manage` "is registered but nothing checks it" (also the `permissions.py` row, line 26). That matches the code (`permissions.py:54`; no other reference in `backend/app` or `web/src`), but the API contract defines `GET /disputes`, `GET /disputes/{dispute_id}` and `POST /disputes/{dispute_id}/evidence` (`docs/api/openapi-money.yaml:2654, 2664, 2676`; operation ids `listDisputes`, `getDispute`, `submitDisputeEvidence`), gated by that key. The README gives no pointer that the contract is ahead of the code.
-- [contract] The contract operations `issueAccountCredit` (`POST /clients/{client_id}/account-credit/issue`, openapi-money.yaml:1686), `setCollectionsStatus` (`POST /clients/{client_id}/collections-status`, :2590), `listProcessorPayouts` and `listProcessorPayoutLines` (`/processor-payouts`, :2622, 2632), `createLedgerExport` (`POST /ledger-exports`, :2644) and `verifyPortalBankAccount` (`POST /portal/payment-methods/{payment_method_id}/verify`, :2481) have no route in `router.py`. The README names none of them as not built (it points to `docs/status/08-billing-payments.md` for that, line 5). The staff verify route exists (`router.py:733`); the portal one does not.
-- [undocumented] README lines 263-265 say bulk invoicing "runs in the request (up to 1000 items ...) and is not stored" but not that it makes one invoice per client in its own savepoint, supports `is_dry_run`, or has an `only_mine` filter in `location_id` mode (`schemas.py:589-592`; `documents.py:685-702, 727`). The cap and the 422 on `/location_id` match (`schemas.py:587`; `documents.py:683, 704-708`).
+- [undocumented] README:81-84 lists what other contexts may call outside `billing.service`, and README:55-79 the
+  service interface. Other contexts call many more billing functions, none listed: `service.charge_states`
+  (service.py:1623; rentals/service.py, programs/groups.py, programs/forms.py), `get_charge` (service.py:2054;
+  memberships, packages, pos/sales.py), `charge_payments` (service.py:2059; memberships/service.py),
+  `charge_ids_for_source` (service.py:1662; packages/postbilled.py, programs), `source_totals` (service.py:2066;
+  staff/service.py), `default_revenue_category` (service.py:296; pos, rentals), `create_revenue_category` and
+  `create_tax` (service.py:306, :323), `ensure_defaults` (service.py:262), `taxes_in_force` (service.py:1718;
+  pos/sales.py), `category_taxes`, `excluded_tax_ids`, `invoice_charge_ids` (service.py:1677, :1650, :1657;
+  rentals/service.py), `schedule_of` (service.py:1532; programs/checkout.py), `ledger_day_totals` (service.py:1637;
+  integrations/service.py), `find_payment`, `refundable_minor` (service.py:780, :785; pos), `related_clients`
+  (service.py:949; leagues, programs), `get_invoice` and `get_payment` (service.py:173, :199; integrations,
+  engagement), `catalogue.list_tender_types`, `membership_autopay_default`, `get_revenue_category` (pos, memberships,
+  leagues) and `collections.is_suspension_rule_on` (memberships/service.py).
+- [undocumented] README:106-112 (Phase 11 B additions) leaves out `documents.browser_processor(session)`
+  (documents.py:288), the provider plus Stripe.js keys for an anonymous page, called by programs guest checkout
+  (programs/checkout.py:643), the pay-link lookup (documents.py:285) and the portal processor route (portal.py:239).
+  It also omits two `amount_minor` rules: the part is capped at the invoice balance (checkout.py:94), and a replay
+  with the same key secures a part payment when the invoice is `partially_paid` and at least that part landed on it
+  (checkout.py:150-158), not only when the invoice is covered as README:267-268 says.
+
+### Collections and portal lockout
+
+- [undocumented] README:197-202 and README:349-350 name what stays open during the past-due lockout (paying, profile
+  edits, documents). The open set is `OPEN_PORTAL_POSTS` in a test (tests/test_collections.py:20-40), which now also
+  holds other contexts' routes: `/portal/bookings/{booking_id}/door-unlock` (new on this branch, line 39;
+  access/router.py:402), `/portal/enrollments/{enrollment_id}/join`, `/portal/calendar-feeds`, league posts and
+  rosters, relationships, devices, wallet passes and app cards. The README does not say that a new portal POST is open
+  unless someone adds it to `PORTAL_PURCHASE_ROUTES` (collections.py:216-222), with the classification test as the
+  only stop.
+
+### Models and file table
+
+- [undocumented] README:9 says `models.py` holds "every billing table" but its list leaves out `provider_account`
+  (models.py:165), `collections_tag` (models.py:1061) and `client_collections_profile` (models.py:1073).
+
+### Bulk invoicing
+
+- [undocumented] README:271-273 gives the cap and the 422 on `/location_id` (both match: schemas.py:587,
+  documents.py:710-716) but not that the call makes one invoice per client and location, each in its own savepoint
+  with failures reported per row, supports `is_dry_run`, filters `only_mine` in location mode, and returns `skipped`
+  rows for `charge_ids` it cannot invoice (documents.py:692-744; schemas.py:589-592). The checklist item that said this
+  was ticked as fixed in 5664dd3, which changed only the cap wording.
+
+### Wording
+
+- [wording] README:198 says `PORTAL_PURCHASE_ROUTES` is "buying or booking" and README:338 that
+  `POST /portal/coupon-quotes` "only previews", yet the lockout list includes three preview routes:
+  `/portal/client-packages/quote`, `/portal/coupon-quotes` and `/portal/membership-contracts/quote`
+  (collections.py:217-218). A locked client cannot get a quote either.
+- [wording] The new comment on the door-unlock entry says "a balance due already refuses entry"
+  (tests/test_collections.py:39). Access refuses for a balance due only where the location sets `requires_paid_entry`
+  (access/building.py:106-107).
+- [wording] README:11-12 puts staff commands in `desk.py` and "the kernel plus the internal money functions" in
+  `service.py`. `service.py` also holds the kernel's staff commands that take a principal (service.py:100-260: invoices,
+  payments, refunds, ledger entries). Two of them, `service.create_charge` and `service.list_charges` (service.py:109,
+  :116), are shadowed by `desk.create_charge` and `desk.list_charges` (desk.py:92, :28), which the router uses
+  (router.py:59, :65); only tests/test_billing.py:822-823 still calls the service versions.

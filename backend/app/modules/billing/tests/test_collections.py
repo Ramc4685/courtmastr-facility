@@ -36,6 +36,7 @@ OPEN_PORTAL_POSTS = {
     "/portal/favorites", "/portal/app-usage",  # phase 11 C2: favourites and anonymous usage counts; no money
     "/portal/calendar-feeds",  # open: managing one's own schedule feed buys nothing, like the auto-renew opt-outs
     "/portal/enrollments/{enrollment_id}/join",  # open: joins a place already booked, like enrollment cancel
+    "/portal/bookings/{booking_id}/door-unlock",  # open: buys nothing; a balance due already refuses entry
 }  # fmt: skip
 
 

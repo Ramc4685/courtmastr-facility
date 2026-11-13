@@ -253,8 +253,18 @@ def _doors(session: Session, location_id: UUID) -> list[DoorDevice]:
     return list(session.scalars(select(DoorDevice).where(DoorDevice.location_id == location_id, DoorDevice.is_active)))
 
 
+def is_known_adult(session: Session, client_id: UUID, location_id: UUID | None) -> bool:
+    """The one rule for who may receive or see a door code in an unmanned building: a known birth date at or
+    over the tenant's minor age (`platform.service.minor_age`) today at the location. Unknown age is no."""
+    client = clients.service.get(session, client_id)
+    if client.birth_on is None:
+        return False
+    today = platform.service.location_today(session, location_id) if location_id else clock.now().date()
+    return not clients.service.is_minor(client, today, platform.service.minor_age(session))
+
+
 def _recipients(session: Session, booking: dict) -> list[UUID]:
-    """Who the code is sent to: a rental's holder, or everyone registered on a session."""
+    """The party a code belongs to: a rental's holder, or everyone registered on a session."""
     if booking["kind"] == "session" and booking["session"]:
         roster = programs.service.get_roster(session, system_principal("access"), booking["session"]["id"])
         return [row["client_id"] for row in roster["participants"]]
@@ -262,10 +272,25 @@ def _recipients(session: Session, booking: dict) -> list[UUID]:
 
 
 def deliver_code_to(session: Session, row: EntryCode, client_id: UUID) -> bool:
-    """Internal: email the code to one client of its party, unless the check-in evaluation would refuse them.
-    Sent through the email port directly, not the notification log, so the code is never stored in clear."""
-    client = clients.service.get(session, client_id)
-    if not client.primary_email or _refusal(session, client_id, row.location_id):
+    """Internal: email the code for one member of its party, unless the check-in evaluation would refuse them.
+    An adult gets it themselves; for a minor or someone of unknown age it goes to their adult guardians instead
+    (never to the child). Sent through the email port, not the notification log, so it is never stored in clear."""
+    if _refusal(session, client_id, row.location_id):
+        return False
+    if is_known_adult(session, client_id, row.location_id):
+        to = [client_id]
+    else:
+        to = [
+            g
+            for g in clients.households.guardian_ids(session, client_id)
+            if is_known_adult(session, g, row.location_id)
+        ]
+    sent = [_email_code(session, row, clients.service.get(session, c)) for c in to]
+    return any(sent)
+
+
+def _email_code(session: Session, row: EntryCode, client) -> bool:
+    if not client.primary_email:
         return False
     location = platform.service.get_location(session, system_principal("access"), row.location_id)
     zone = ZoneInfo(location.time_zone)
@@ -359,7 +384,22 @@ def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None =
         _revoke(session, active, "rescheduled")
     if window[1] <= now or booking["starts_at"] > now + CODE_HORIZON or not _doors(session, booking["location_id"]):
         return None
+    if booking["kind"] == "rental" and not (
+        booking["client_id"] and is_known_adult(session, booking["client_id"], booking["location_id"])
+    ):
+        _withhold(session, booking)
+        return None
     return _issue(session, booking, window)
+
+
+def _withhold(session: Session, booking: dict) -> None:
+    """A rental held by a minor or someone of unknown age gets no code; logged once per booking for staff."""
+    detail = f"holder_not_known_adult:booking:{booking['booking_number']}"
+    seen = session.scalar(select(BuildingEvent.id).where(
+        BuildingEvent.location_id == booking["location_id"], BuildingEvent.kind == "code_withheld",
+        BuildingEvent.detail == detail))  # fmt: skip
+    if seen is None:
+        _event(session, booking["location_id"], "code_withheld", detail=detail)
 
 
 def on_enrolled(session: Session, booking_id: UUID, client_id: UUID) -> None:
@@ -463,7 +503,13 @@ def _phone(session: Session, location_id: UUID) -> str | None:
 
 
 def _my_codes(session: Session, principal: Principal):
-    mine = service._portal_clients(session, principal)
+    """Codes of rentals held by the caller or someone they act for, shown only when the caller is a known adult."""
+    mine = service._portal_clients(session, principal)  # 404s a principal without an identity
+    identity_id = principal.identity_id
+    assert identity_id is not None
+    me = [c for c in mine if clients.households.authority(session, identity_id, c) == "self"]
+    if not any(is_known_adult(session, c, clients.service.get(session, c).home_location_id) for c in me):
+        mine = []
     held = scheduling.service.booking_ids(
         client_ids=mine, status="confirmed", starts_from=clock.now() - timedelta(days=1)
     )

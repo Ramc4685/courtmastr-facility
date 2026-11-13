@@ -402,19 +402,19 @@ Found by re-running the drift reports against this branch's code. Merge these in
 
 ### access (+13) — [evidence](drift/access.md)
 
-- [ ] [contract] /portal/wallet-passes (router.py:306-320) not in contract; getWalletPass (openapi-money.yaml:4875) still declared, no route, missing from README:247-248 unbuilt list
+- [ ] [contract] /portal/wallet-passes (router.py:306-320) not in contract; getWalletPass (openapi-money.yaml:4875) still declared, no route, missing from README:253-254 unbuilt list
 - [ ] [contract] GET /clients/{id}/access-mode (router.py:176-178) not in contract; README:58 names only the PUT
 - [ ] [contract] setClientAccessMode x-permission access.rule.manage (:4771) vs access.client.set_access_mode (README:58, router.py:181)
 - [ ] [contract] checkOut x-permission access.checkin.create (:4535) vs access.checkin.check_out (README:101, router.py:218,238)
 - [ ] [contract] createCheckInAttendance x-permission access.checkin.create (:4523) vs scheduling.enrollment.create (README:94, router.py:219,245)
-- [ ] [contract] listKioskDevices x-permission access.kiosk.manage (:4205) vs access.kiosk.launch (router.py:121-123)
-- [ ] [undocumented] handlers.py:13-15 clients.client.disabled revokes wallet passes; not in README:159-169 or :174
+- [ ] [contract] listKioskDevices x-permission access.kiosk.manage (:4205) vs access.kiosk.launch (router.py:121-122)
+- [ ] [undocumented] handlers.py:14-16 clients.client.disabled revokes wallet passes; not in README:159-169 or :174
 - [ ] [undocumented] access.check_in.session_booked (events.py:29-32, desk.py:224) not in README:93-98 or the README:134-135 event list
-- [ ] [undocumented] code email skips clients with no email or refused by evaluation (building.py:264-269); README:206-207 says every registered client gets it
-- [ ] [undocumented] audit actions access.door.verify (every keypad attempt), access.door.member_unlock, access.entry_code.issue/revoke (building.py:313,329,428,513) not in README:200-203; none registered in permissions.py
-- [ ] [undocumented] override cleared with is_on null, reason optional (schemas.py:579-582, building.py:609-610); README:226 silent
-- [ ] [undocumented] GET /building-status also returns door states and adapter name (building.py:707-709); README:228 zones only
-- [ ] [wording] README:183-184 "every command fails and is surfaced" with adapter none; push/revoke/retry silently skip via current() (building.py:286-288,333-334,632-634)
+- [ ] [undocumented] code email skips clients refused by evaluation (building.py:278-279) or with no email (building.py:293-294), never retried; README:211-212 says every registered client gets it
+- [ ] [undocumented] audit actions access.door.verify (every keypad attempt), access.door.member_unlock, access.entry_code.issue/revoke (building.py:338,354,468,559) not in README:200-203; none registered in permissions.py
+- [ ] [undocumented] override cleared with is_on null, reason optional (schemas.py:579-582, building.py:655-661); README:232 silent
+- [ ] [undocumented] GET /building-status also returns door states and adapter name (building.py:753-755); README:234 zones only
+- [ ] [wording] README:183-184 "every command fails and is surfaced" with adapter none; push/revoke/retry silently skip via current() (building.py:311-313,358-359,678-680)
 
 ### platform (+3) — [evidence](drift/platform.md)
 
@@ -430,6 +430,22 @@ Found by re-running the drift reports against this branch's code. Merge these in
 
 - [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)
 - [ ] [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
+
+### billing (+13) — [evidence](drift/billing.md)
+
+- [ ] [contract] disputes: README:303-312 "no route", but contract has listDisputes/getDispute/submitDisputeEvidence (openapi-money.yaml:2656-2678) gated by the unused billing.dispute.manage (permissions.py:54)
+- [ ] [contract] 9 contract ops unserved and unnamed in README: issueAccountCredit (:1688), verifyPortalBankAccount (:2483), setCollectionsStatus (:2592; code has collections-profile, router.py:825-841), previewSurcharge (:2614), processor payouts (:2624, :2634), createLedgerExport (:2646), bulk-action GETs (:1247, :1265)
+- [ ] [contract] webhook: contract POST /webhooks/stripe unversioned (:2122-2131); code /api/v1/webhooks/{provider} (router.py:1019, main.py:59-60); README:41 silent
+- [ ] [contract] README:274-278 "instead of Accept negotiation" true only for the statement; contract has /invoices/{id}/pdf (:1199) and /payments/{id}/receipt is the PDF (:1632), code serves JSON there (router.py:579); /invoices/{id}/document (router.py:500) not in contract
+- [ ] [contract] 18 served routes with no contract op (period-lock, collections-tags/profile/report, expiring-cards, receivables-ageing, statement deliveries, GET /statement-batches, resend, portal processor, portal coupon-quotes, pay-link confirm, fake-processor); /coupons/{id}/redemptions tagged pos (:3945)
+- [ ] [undocumented] README:81-84 internal list omits ~20 functions other contexts call (charge_states, get_charge, charge_payments, charge_ids_for_source, source_totals, default_revenue_category, taxes_in_force, schedule_of, ledger_day_totals, related_clients, catalogue.list_tender_types, collections.is_suspension_rule_on, ...)
+- [ ] [undocumented] README:106-112 lacks documents.browser_processor (documents.py:288; programs/checkout.py:643), amount_minor cap (checkout.py:94) and partial replay rule (checkout.py:150-158)
+- [ ] [undocumented] lockout open set lives only in tests/test_collections.py:20-40, now incl. /portal/bookings/{id}/door-unlock (:39), join, calendar feeds, league posts; README:197-202, :349-350 name only paying, profile, documents
+- [ ] [undocumented] README:9 "every billing table" omits provider_account (models.py:165), collections_tag, client_collections_profile (models.py:1061, :1073)
+- [ ] [undocumented] reopens ticked bulk-invoicing item (5664dd3 fixed only the cap): README:271-273 still silent on one invoice per client and location, savepoints, is_dry_run, only_mine, skipped rows (documents.py:692-744)
+- [ ] [wording] lockout list includes preview routes /portal/client-packages/quote, /portal/coupon-quotes, /portal/membership-contracts/quote (collections.py:217-218); README:198 "buying or booking", :338 coupon-quotes "only previews"
+- [ ] [wording] tests/test_collections.py:39 "a balance due already refuses entry" holds only with requires_paid_entry (access/building.py:106-107)
+- [ ] [wording] README:11-12: service.py also holds staff commands (service.py:100-260); service.create_charge/list_charges (:109, :116) shadowed by desk.py:92, :28, called only by tests/test_billing.py:822-823
 
 ### reporting (+3) — [evidence](drift/reporting.md)
 

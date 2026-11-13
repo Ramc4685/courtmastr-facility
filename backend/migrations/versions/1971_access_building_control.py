@@ -181,7 +181,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint(
-            "kind IN ('entry_granted', 'entry_denied', 'remote_unlock', 'member_unlock', 'light_on', 'light_off', 'override', 'code_issued', 'code_revoked', 'command_failed')",
+            "kind IN ('entry_granted', 'entry_denied', 'remote_unlock', 'member_unlock', 'light_on', 'light_off', 'override', 'code_issued', 'code_revoked', 'command_failed', 'code_withheld')",
             name=op.f("ck_building_event_kind"),
         ),
         sa.ForeignKeyConstraint(

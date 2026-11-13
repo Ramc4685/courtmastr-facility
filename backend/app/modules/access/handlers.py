@@ -5,6 +5,7 @@ twice finds nothing active, a synced code is left alone, a repeated email is the
 
 from uuid import UUID
 
+from app.core.errors import NotFound
 from app.core.events import handles
 from app.modules import scheduling
 from app.modules.access import building, service
@@ -32,5 +33,10 @@ def on_booking_cancelled(session, payload: dict) -> None:
 
 @handles("programs.enrollment.created")
 def on_enrolled(session, payload: dict) -> None:
-    seat = scheduling.service.get_session(session, UUID(payload["session_id"]))
+    if "session_id" not in payload:  # a whole-group enrollment: each session's code goes out at issue
+        return
+    try:
+        seat = scheduling.service.get_session(session, UUID(payload["session_id"]))
+    except NotFound:
+        return
     building.on_enrolled(session, seat["booking_id"], UUID(payload["client_id"]))
