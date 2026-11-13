@@ -30,6 +30,8 @@ OPEN_PORTAL_POSTS = {
     "/portal/relationships/{relationship_id}/end", "/portal/rental-plan-purchases/{purchase_id}/auto-renew-opt-out",
     "/portal/rentals/{rental_id}/abandon",
     "/portal/rentals/{rental_id}/cancel",
+    "/portal/calendar-feeds",  # open: managing one's own schedule feed buys nothing, like the auto-renew opt-outs
+    "/portal/enrollments/{enrollment_id}/join",  # open: joins a place already booked, like enrollment cancel
 }  # fmt: skip
 
 
