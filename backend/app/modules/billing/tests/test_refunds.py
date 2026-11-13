@@ -12,6 +12,7 @@ from sqlalchemy import create_engine, func, select, text, update
 from app.core import clock, idempotency, inbound_webhooks
 from app.core.audit import AuditEvent
 from app.core.db.platform import platform_engine
+from app.core.db.session import tenant_session
 from app.core.errors import Conflict, ValidationFailed
 from app.core.settings import get_settings
 from app.modules.billing import webhooks
@@ -771,3 +772,99 @@ def test_a_failed_provider_event_stores_and_logs_a_code_only(shop, monkeypatch, 
     webhooks.retry_provider_events.fn(str(shop.tenant.id))
     assert _event_error(stored[0]) == f"Could not apply the event ({code}); it is retried."
     assert "jane" not in caplog.text
+
+
+def _committed_refunds(tenant_id, payment_id) -> int:
+    with tenant_session(tenant_id) as other:
+        return other.scalar(select(func.count()).select_from(Refund).where(Refund.payment_id == payment_id))
+
+
+def _hold_payment(shop, payment_id, how: str):
+    """Hold the payment in another transaction until the returned release() is called."""
+    locked, release = threading.Event(), threading.Event()
+
+    def hold():
+        with work(shop.tenant) as other:
+            if how == "spend_credit":  # what autopay's _collect and the portal's pay-with-credit take
+                svc.spend_credit(other, shop.client_id, limit=1)
+            else:  # a plain FOR UPDATE, which blocks the refund row's foreign key check
+                other.get(svc.Payment, payment_id, with_for_update=True)
+            locked.set()
+            release.wait(15)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    assert locked.wait(10)
+
+    def done():
+        release.set()
+        thread.join(20)
+
+    return done
+
+
+def _spy_refunds(shop, monkeypatch, payment_id) -> list[int]:
+    """Record how many refund rows of the payment are committed each time the processor is asked to refund."""
+    fake, seen = payment_provider.get("fake"), []
+    real = fake.refund
+
+    def spy(**kwargs):
+        seen.append(_committed_refunds(shop.tenant.id, payment_id))
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "refund", spy)
+    return seen
+
+
+def test_a_refund_under_a_plain_lock_on_its_payment_pays_nothing_and_is_told_to_retry(shop, monkeypatch):
+    """The verifier's sequence: another transaction holds a plain FOR UPDATE on the payment past 500 ms, so the
+    refund row cannot commit first (its foreign key check waits). The request is 409 `request-in-progress` before
+    any processor call; it never falls back to an uncommitted row the sweep could not find. A new key then refunds
+    once: the processor never pays more than the books."""
+    ready(shop)
+    paid = _paid(shop, 1000)
+    seen = _spy_refunds(shop, monkeypatch, paid)
+    release = _hold_payment(shop, paid, "plain")
+    try:
+        with pytest.raises(Conflict) as refused, work(shop.tenant) as session:
+            svc.refund(session, paid, amount_minor=400, reason="Changed plans", idempotency_key="k1")
+        assert refused.value.code == "request-in-progress"
+    finally:
+        release()
+    assert seen == []  # the processor was never called
+    with work(shop.tenant) as session:
+        assert session.scalar(select(func.count()).select_from(Refund)) == 0
+        assert svc.refund(session, paid, amount_minor=400, reason="Changed plans", idempotency_key="k2").status == (
+            "succeeded"
+        )
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, paid)
+        assert _provider_refunded(session, paid) == payment.refunded_minor == 400
+        assert_books_agree(session)
+
+
+def test_a_refund_while_spend_credit_holds_the_payment_commits_its_row_first(shop, monkeypatch):
+    """spend_credit (autopay's per-invoice credit, the portal's pay-with-credit) takes FOR NO KEY UPDATE, which the
+    refund row's foreign key check does not wait on: the row commits before the processor is called, the refund
+    waits for the holder and then proceeds, and a request that dies afterwards is finished by the sweep."""
+    ready(shop)
+    paid = _paid(shop, 1000)
+    seen = _spy_refunds(shop, monkeypatch, paid)
+    release = _hold_payment(shop, paid, "spend_credit")
+    threading.Timer(1.5, release).start()
+    try:
+        with pytest.raises(RuntimeError), work(shop.tenant) as session:
+            assert svc.refund(session, paid, amount_minor=400, reason="Changed plans", idempotency_key="k1").status == (
+                "succeeded"
+            )
+            raise RuntimeError("the request died after the processor accepted, before commit")
+    finally:
+        release()
+    assert seen == [1]  # the row was committed when the processor was called
+    with clock.freeze(clock.now() + timedelta(minutes=61)), work(shop.tenant) as session:
+        webhooks.reconcile(session)
+    with work(shop.tenant) as session:
+        payment = session.get(svc.Payment, paid)
+        assert session.scalars(select(Refund.status)).all() == ["succeeded"]
+        assert _provider_refunded(session, paid) == payment.refunded_minor == 400
+        assert_books_agree(session)

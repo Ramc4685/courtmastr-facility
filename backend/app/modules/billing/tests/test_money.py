@@ -890,8 +890,10 @@ def test_a_pending_provider_refund_reserves_the_money_until_it_settles(shop, mon
     fake = payment_provider.get("fake")
     monkeypatch.setattr(fake, "refund", lambda **_: RefundState("fake_ref_slow", "pending"))
     monkeypatch.setattr(fake, "find_refund", lambda **_: None)
+    with work(shop.tenant) as session:  # the payment commits first, as in production
+        payment_id = card(session, shop, 500).id
     with work(shop.tenant) as session:
-        payment = card(session, shop, 500)
+        payment = session.get(svc.Payment, payment_id)
         posted = transactions(session)
         pending = svc.refund(session, payment.id, amount_minor=300, reason="Slow bank", idempotency_key=uuid4().hex)
         assert (pending.status, payment.refunded_minor, payment.unapplied_minor) == ("pending", 300, 200)  # reserved

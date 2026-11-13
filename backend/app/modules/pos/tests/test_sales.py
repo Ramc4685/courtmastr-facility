@@ -3,6 +3,7 @@
 import threading
 from datetime import timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -441,3 +442,48 @@ def test_abandon_stale_drafts_skips_drafts_with_money(client, store):
         assert session.get(PosSale, paid["id"]).status == "draft"
     with tenant_session(store.tenant.id, actor=system_principal("tests")) as session:
         assert sales.abandon_stale_drafts(session, idle=timedelta(hours=1)) == 0
+
+
+@pytest.mark.parametrize("lock", ["plain", "key_share"])
+def test_removing_a_card_leg_while_its_payment_is_held(client, store, monkeypatch, lock):
+    """Another transaction holds the leg's payment. Under a plain FOR UPDATE the refund row cannot be committed
+    before the processor call, so the removal is 409 `request-in-progress` and nothing is refunded; under the FOR
+    NO KEY UPDATE every billing writer takes (autopay's credit spending included) it waits and goes through."""
+    from app.modules.billing.models import Payment
+    from app.ports import payment_provider
+
+    sale = add(store, start(store), product_id=store.product_id)
+    sale = pay(store, sale, tender_type_id=store.card, provider_confirmation_token="tok_card_ok")
+    payment_id, path = (
+        sale["tenders"][0]["payment_id"],
+        f"{API}/pos-sales/{sale['id']}/tenders/{sale['tenders'][0]['id']}",
+    )
+    fake, calls = payment_provider.get("fake"), []
+    real = fake.refund
+    monkeypatch.setattr(fake, "refund", lambda **kw: calls.append(kw) or real(**kw))
+    locked, release = threading.Event(), threading.Event()
+
+    def hold():
+        with tenant_session(store.tenant.id) as other:
+            other.get(Payment, payment_id, with_for_update={"key_share": True} if lock == "key_share" else True)
+            locked.set()
+            release.wait(15)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert locked.wait(10)
+    try:
+        if lock == "plain":
+            refused = client.delete(path, headers=store.owner)
+            assert (refused.status_code, refused.json()["code"]) == (409, "request-in-progress")
+            assert calls == []
+        else:
+            threading.Timer(1.0, release.set).start()
+            assert client.delete(path, headers=store.owner).status_code == 200
+    finally:
+        release.set()
+        holder.join(20)
+    removed = client.delete(path, headers=store.owner)
+    assert removed.status_code == 200 and removed.json()["tenders"][0]["status"] == "removed"
+    payment = client.get(f"{API}/payments/{payment_id}", headers=store.owner).json()
+    assert payment["refunded_minor"] == payment["amount_minor"] and len(calls) == 1

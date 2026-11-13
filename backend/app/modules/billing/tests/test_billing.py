@@ -518,7 +518,16 @@ def test_take_payment_is_idempotent_by_key(shop):
 # --- refunds and reversals ---------------------------------------------------------------------------------
 
 
+def _committed_setup(shop) -> None:
+    """Commit the tender rows and fake processor account first, as for any tenant that has taken a payment: a
+    processed payment's and a refund's `initiated` rows commit in short transactions that must see them."""
+    with work(shop.tenant) as session:
+        svc.ensure_defaults(session)
+        svc._provider_account(session)
+
+
 def test_refund_returns_only_unapplied_money(shop):
+    _committed_setup(shop)
     with work(shop.tenant) as session:
         row = charge(session, shop, 1000)
         payment = card(session, shop, row.total_minor + 500, allocations=[(row.id, row.total_minor)])
@@ -544,6 +553,7 @@ def test_refund_returns_only_unapplied_money(shop):
 
 def test_cash_refund_is_external_and_a_provider_refusal_moves_nothing(shop):
     fake = payment_provider.get("fake")
+    _committed_setup(shop)
     with work(shop.tenant) as session:
         payment = cash(session, shop, 800)
         with pytest.raises(ValidationFailed):
@@ -551,7 +561,7 @@ def test_cash_refund_is_external_and_a_provider_refusal_moves_nothing(shop):
         refund = svc.refund(session, payment.id, amount_minor=800, reason="Left")
         assert (refund.method, refund.status, refund.provider_refund_ref) == ("external", "succeeded", None)
         assert payment.unapplied_minor == 0
-
+    with work(shop.tenant) as session:  # a new request: the cash payment's receipt number is committed
         by_card = card(session, shop, 600)
         # The processor already returned part of it out of band, so it refuses the full amount.
         fake.refund(
@@ -564,6 +574,7 @@ def test_cash_refund_is_external_and_a_provider_refusal_moves_nothing(shop):
 
 
 def test_reverse_negates_the_charge_and_frees_the_money(shop):
+    _committed_setup(shop)
     with work(shop.tenant) as session:
         row = charge(session, shop, 2000)
         invoice = svc.create_invoice_for_charges(session, [row.id])
@@ -620,8 +631,10 @@ def test_books_agree_after_a_random_sequence_of_operations(shop):
     """Property test (overview section 5): whatever the order of operations, projections equal the ledger."""
     rng = random.Random(20261110)
     fake = payment_provider.get("fake")
-    with work(shop.tenant) as session:
-        for _step in range(80):
+    _committed_setup(shop)
+    for _step in range(80):
+        # one transaction per step, as one request each: a processed payment and a refund commit their rows first
+        with work(shop.tenant) as session:
             action = rng.choice(["charge", "charge", "cash", "card", "ach", "settle", "allocate", "refund", "reverse"])
             if action == "charge":
                 row = charge(session, shop, rng.randint(1, 5000), quantity=Decimal(rng.choice(["1", "2", "0.5"])))
@@ -651,6 +664,7 @@ def test_books_agree_after_a_random_sequence_of_operations(shop):
                 if row:
                     svc.reverse(session, row.id, reason="Test")
             assert_books_agree(session)
+    with work(shop.tenant) as session:
         assert session.scalar(select(func.count()).select_from(LedgerTransaction)) > 40
 
 

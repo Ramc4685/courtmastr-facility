@@ -843,9 +843,12 @@ def refundable_minor(session: Session, payment_id: UUID) -> int:
 def _payment_by_key(session: Session, idempotency_key: str | None) -> Payment | None:
     if not idempotency_key:
         return None
-    return session.execute(
-        select(Payment).where(Payment.idempotency_key == idempotency_key).with_for_update()
+    payment = session.execute(
+        select(Payment).where(Payment.idempotency_key == idempotency_key).with_for_update(key_share=True)
     ).scalar_one_or_none()
+    if payment is not None:
+        _held_payments(session).add(payment.id)
+    return payment
 
 
 def _provider_key(session: Session, payment: Payment) -> str:
@@ -1242,8 +1245,10 @@ def _refund_provider_key(session: Session, row: Refund) -> str:
 
 def _initiate_refund(session: Session, values: dict) -> Refund:
     """Commit the `initiated` refund row in a short transaction of its own before the provider call, as
-    _initiate does for payments; the same 500 ms fallback inserts it in the caller's transaction instead when
-    the short one cannot see or lock what it needs (replay stays safe through the provider's key).
+    _initiate does for payments. There is no fallback to the caller's transaction: a row written there is
+    uncommitted while the processor pays, and a request that then died would leave a payout no sweep can find.
+    So a lock held past 500 ms (a plain FOR UPDATE on the payment blocks the row's foreign key check) is 409
+    `request-in-progress` before any processor call, and a same-key twin that committed first is replayed.
 
     The short transaction locks the payment first, then checks the amount against what is free once every
     committed reservation is counted, and only then writes the row and its reservation: two requests racing on
@@ -1282,15 +1287,16 @@ def _initiate_refund(session: Session, values: dict) -> Refund:
                 refund_id = row.id
                 if held is not None:
                     _settle_projections(short, held, ())
-    except (IntegrityError, OperationalError):
+    except OperationalError as error:
+        raise Conflict(
+            "Another request is using this payment. Try again in a moment.", code="request-in-progress"
+        ) from error
+    except IntegrityError:
         existing = _refund_by_key(session, values["idempotency_key"])  # lost a race to the same key?
-        if existing is not None:
-            _same_refund(existing, values["payment_id"], values["amount_minor"], values["method"], values["reason"])
-            return existing
-        row = Refund(**values)
-        session.add(row)
-        session.flush()
-        return row
+        if existing is None:
+            raise
+        _same_refund(existing, values["payment_id"], values["amount_minor"], values["method"], values["reason"])
+        return existing
     row = _lock(session, Refund, refund_id)
     _same_refund(row, values["payment_id"], values["amount_minor"], values["method"], values["reason"])
     return row
@@ -1449,8 +1455,10 @@ def sync_dispute(session: Session, account: ProviderAccount, provider_dispute_re
     payment = session.execute(
         select(Payment)
         .where(Payment.provider_account_id == account.id, Payment.provider_payment_ref == state.provider_payment_ref)
-        .with_for_update()
+        .with_for_update(key_share=True)
     ).scalar_one_or_none()
+    if payment is not None:
+        _held_payments(session).add(payment.id)
     if state.status is None or payment is None or not state.provider_payment_ref:
         return None
     row = session.execute(
@@ -1641,8 +1649,9 @@ def spend_credit(
         select(Payment)
         .where(Payment.client_id == client_id, Payment.status == "succeeded", Payment.unapplied_minor > 0)
         .order_by(Payment.received_at, Payment.id)
-        .with_for_update()
+        .with_for_update(key_share=True)  # autopay holds these for a whole pass: never block a refund row's FK check
     ).all()
+    _held_payments(session).update(payment.id for payment in payments)
     if allocations is not None and sum(amount for _, amount in allocations) > sum(p.unapplied_minor for p in payments):
         raise ValidationFailed(
             "The amounts exceed the credit on account.", pointer="/allocations", code="allocation-exceeds-payment"

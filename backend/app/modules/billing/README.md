@@ -268,7 +268,13 @@ and record a failed attempt ("payload missing").
   and autopay paths all get the committed row once the tenant's tender rows exist.
 - **A processed refund has a pre-provider row (PAY-05, Phase 9 orphans).** `refund(method="original")` commits
   a `refund` row as `initiated` with its `idempotency_key` (migration 1801) in a short transaction before it
-  locks the payment and calls the processor, with the same 500 ms fallback as payments. A retry with the key
+  locks the payment and calls the processor. It has **no fallback**: a row the short transaction cannot commit
+  within 500 ms (another request holds a plain `FOR UPDATE` on the payment, which blocks the row's foreign key
+  check) is 409 `request-in-progress` before the processor is called, because a row written in the caller's
+  transaction is uncommitted while the processor pays, and a request that then died would leave a payout no
+  sweep can find. Every billing payment lock (`spend_credit`, which autopay holds for a whole tenant pass, the
+  payment-by-key lookup, the dispute webhook) is `FOR NO KEY UPDATE`, so ordinary refunds wait rather than
+  being refused. A retry with the key
   finishes that row (same provider key, so the card is refunded once); `webhooks.reconcile` finishes an
   `initiated` refund older than five minutes from `find_refund` and cancels one the processor never heard of
   after 30 minutes. **An `initiated` refund reserves its amount**: `unapplied_minor` is the remainder less what
