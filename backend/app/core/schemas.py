@@ -1,22 +1,27 @@
 """Base request and response models shared by every context's schemas.py (overview 3.13, 3.14)."""
 
-from typing import Any, Self
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+from pydantic_core import PydanticCustomError
 
-from app.core.errors import ValidationFailed
 from app.core.pan import contains_card_number
 
-# Stored free text a person types (notes, messages, form answers, post bodies): scanned for card numbers on write
-# (security-baseline section 3). Codes, barcodes, references and tokens are not listed: they can be long digit runs.
+# Stored free text a person types (notes, messages, form answers, post bodies, descriptions, titles): scanned for
+# card numbers on write (security-baseline section 3). Codes, barcodes, references and tokens are not listed: they
+# can be long digit runs. Client custom values are checked in clients.service, where a field's type is known (text
+# fields only). CSV imports skip these schemas and check FREE_TEXT_FIELDS in imports.service.
 # shortcut: matched by field name across every In schema; a new free-text field with another name is not scanned
 # until it is added here.
 FREE_TEXT_FIELDS = frozenset({
     "note", "notes", "internal_note", "internal_notes", "medical_notes", "change_note", "additional_income_note",
     "body", "body_text", "message", "comment", "comments", "registrant_comment", "memo", "remarks",
     "internal_remarks", "removal_remarks", "renewal_remark", "reason", "edit_reason", "override_reason", "text",
-    "text_value", "text_answers", "custom_values", "subject", "subject_text", "summary", "detail",
+    "text_value", "text_answers", "subject", "subject_text", "summary", "detail", "description",
+    "additional_description", "title",
 })  # fmt: skip
+CARD_DATA = "card-data-not-allowed"
+CARD_DATA_DETAIL = "Card numbers cannot be stored here. Take payments through the payment form."
 
 
 def _has_card(value: Any) -> bool:
@@ -36,16 +41,14 @@ class Out(BaseModel):
 class In(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    @model_validator(mode="after")
-    def refuse_card_data(self) -> Self:
-        # Nested In models run their own check; this covers strings, lists and dicts held by a free-text field.
-        for name in FREE_TEXT_FIELDS.intersection(type(self).model_fields):
-            if _has_card(getattr(self, name)):
-                raise ValidationFailed(
-                    "Card numbers cannot be stored here. Take payments through the payment form.",
-                    code="card-data-not-allowed", pointer=f"/{name}",
-                )  # fmt: skip
-        return self
+    @field_validator("*", mode="after")
+    @classmethod
+    def refuse_card_data(cls, value: Any, info: ValidationInfo) -> Any:
+        # A field-level error, so the location is the full path inside nested models (core.api turns a body with
+        # one into a `card-data-not-allowed` problem); the value is never echoed.
+        if info.field_name in FREE_TEXT_FIELDS and _has_card(value):
+            raise PydanticCustomError(CARD_DATA, CARD_DATA_DETAIL)
+        return value
 
 
 class PageInfo(BaseModel):

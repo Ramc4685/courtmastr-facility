@@ -4,8 +4,8 @@ with `card-data-not-allowed`, at the one shared point every request schema inher
 import time
 
 import pytest
+from pydantic import ValidationError
 
-from app.core.errors import DomainError
 from app.core.pan import contains_card_number
 from app.core.schemas import In
 from conftest import new_client
@@ -19,7 +19,8 @@ CARDS = [
     # bypasses: inside a longer run, other separators, doubled separators, split across lines
     "41111111111111111111", "ref 9900004111111111111111", "ref 1234 4111 1111 1111 1111", "4111.1111.1111.1111",
     "4111/1111/1111/1111", "4111_1111_1111_1111", "4111  1111  1111  1111", "4111 1111\n1111 1111",
-    "4111 - 1111 - 1111 - 1111",
+    "4111 - 1111 - 1111 - 1111", "4111 1111 1111 1111 003",  # 19-digit Visa, 4-4-4-4-3
+    "6011 0009 9013 9424", "3530111333300000",  # Discover, JCB
 ]  # fmt: skip
 NOT_CARDS = [
     "217-555-0123", "(217) 555-0123", "+1 217 555 0123", "+44 20 7946 0958", "2175550123",
@@ -30,6 +31,11 @@ NOT_CARDS = [
     "tracking 9400111899223817364821", "tracking 9400 1118 9922 3817 3648 21",  # USPS-style, 22 digits
     "IBAN DE89 3704 0044 0532 0130 00", "GB29 NWBK 6016 1331 9268 19",
     "scores 21 19 21 17 21 15", "ids 1000023 1000024 1000025",
+    "scores 51 48 55 60 52 47 63 58", "51 48 55 60 52 47 63 58 51 48 55 60",  # short tokens are never joined
+    "4000000000006", "barcode 4006381333931",  # EAN-13 barcodes; 13-digit Visa is not detected
+    "1234 5678 9012 3456 7890 1234",  # grouped, but no 4-4-4-4 window passes prefix and Luhn
+    "3782 8224 6310 005",  # a valid Amex in a grouping no card is printed in (Amex is 4-6-5)
+    "3782822463100052",  # Luhn-valid, Amex prefix, but 16 digits: Amex is 15
 ]  # fmt: skip
 
 
@@ -53,13 +59,27 @@ class _Nested(In):
     items: list[_Sample] = []
 
 
-def test_free_text_fields_refuse_card_numbers_at_any_depth():
-    for kwargs in ({"note": "pay with 4111 1111 1111 1111"}, {"text_answers": [{"q1": "4111111111111111"}]}):
-        with pytest.raises(DomainError) as refused:
-            _Sample(**kwargs)
-        assert refused.value.code == "card-data-not-allowed" and refused.value.status == 422
-    with pytest.raises(DomainError):
-        _Nested(items=[{"note": "5555555555554444"}])
+def _refused(model, **kwargs) -> list[tuple]:
+    with pytest.raises(ValidationError) as refused:
+        model(**kwargs)
+    return [(e["type"], e["loc"]) for e in refused.value.errors()]
+
+
+def test_free_text_fields_refuse_card_numbers_at_any_depth_with_the_full_path():
+    assert _refused(_Sample, note="pay with 4111 1111 1111 1111") == [("card-data-not-allowed", ("note",))]
+    assert _refused(_Sample, text_answers=[{"q1": "4111111111111111"}]) == [
+        ("card-data-not-allowed", ("text_answers",))
+    ]
+    assert _refused(_Nested, items=[{"note": "ok"}, {"note": "5555555555554444"}]) == [
+        ("card-data-not-allowed", ("items", 1, "note"))
+    ]
+
+
+@pytest.mark.parametrize("field", ["description", "additional_description", "title"])
+def test_descriptions_and_titles_are_free_text(field):
+    model = type("_Titled", (In,), {"__annotations__": {field: str}})
+    assert _refused(model, **{field: "4111 1111 1111 1111"}) == [("card-data-not-allowed", (field,))]
+    assert getattr(model(**{field: "Court 4 rental, 2 hours"}), field)
 
 
 def test_non_free_text_fields_are_not_scanned():
@@ -75,6 +95,7 @@ def test_api_refuses_a_note_with_a_card_number(client, owner):
         url, headers=owner, json={"kind": "call", "subject_text": "Call", "body": "Card 4111 1111 1111 1111 exp 12/29"}
     )
     assert refused.status_code == 422 and refused.json()["code"] == "card-data-not-allowed"
+    assert refused.json()["errors"][0]["pointer"] == "/body"
     assert "4111" not in refused.text  # the problem body never echoes the number
     kept = client.post(
         url, headers=owner, json={"kind": "call", "subject_text": "Call", "body": "Call back on 217-555-0123"}

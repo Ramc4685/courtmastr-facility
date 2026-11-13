@@ -21,6 +21,7 @@ from app.core import context, crypto, idempotency, networks
 from app.core.db.session import run_after_commit
 from app.core.errors import DomainError, PermissionDenied
 from app.core.ids import new_id
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL
 from app.core.settings import get_settings
 
 log = logging.getLogger("app.request")
@@ -303,6 +304,8 @@ def _on_validation_error(request: Request, exc: RequestValidationError):
         }
         for error in exc.errors()
     ]
+    if any(error["code"] == CARD_DATA for error in errors):  # security-baseline 3: the client shows its own message
+        return problem(request, 422, CARD_DATA, CARD_DATA_DETAIL, errors=errors)
     return problem(request, 422, "validation-failed", "The request is not valid.", errors=errors)
 
 

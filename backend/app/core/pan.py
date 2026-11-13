@@ -1,25 +1,34 @@
 """Card number (PAN) detector for stored free-text input (`app.core.schemas.In`, security-baseline section 3).
 
-Favours precision, since refusing a legitimate note is a real cost: a hit needs 13 to 19 digits that pass Luhn
-and start with a card-network prefix. Digits may be grouped by spaces, dashes, dots, slashes, underscores or
-runs of whitespace (line breaks included). A run longer than 19 digits is searched for a card at its start or
-end, or, when it is grouped, as consecutive whole groups. The log formatter does not use this: it masks every
-long digit run, Luhn or not (recall over precision, `app.core.logging`)."""
+Favours precision, since refusing a legitimate note is a real cost. A hit is a candidate whose network prefix and
+length agree (Visa 16 or 19; Mastercard 16; Amex 15; Discover, JCB and UnionPay 16 to 19) and that passes Luhn.
+13-digit Visa is not detected: it is retired, and every valid EAN-13 barcode starting with 4 would look like one.
+
+A candidate is written the way a card is: unbroken, or grouped 4-4-4-4, 4-4-4-4-3 or 4-6-5, the groups joined by
+one separator (a space, dash, dot, slash or underscore, optionally spaced, or any run of whitespace, line breaks
+included). Short tokens are never joined into a candidate ("scores 51 48 55 60 52 47 63 58"), but a card grouping
+is found among other groups ("ref 1234 4111 1111 1111 1111"), and an unbroken run longer than a card is checked
+at its start and end. The log formatter does not use this: it masks every long digit run, Luhn or not (recall
+over precision, `app.core.logging`)."""
 
 import re
-from itertools import islice
 
-# One greedy class after the first digit and no nested quantifier: a run never backtracks, so a scan is linear.
-_RUN = re.compile(r"\d[\d\s./_-]*")
-SEPARATORS = re.compile(r"[\s./_-]+")
-# Work is about 19 steps per digit group. Free-text fields are capped far below this by their schemas (10,000
-# characters at most); a longer value is checked on its first 64 KiB.
+# Digit groups joined by single separators. A separator holds no digit, so each step is unambiguous: linear.
+_RUN = re.compile(r"\d+(?:(?:[ \t]*[./_-][ \t]*|\s+)\d+)*")
+_GROUP = re.compile(r"\d+")
+# Free-text fields are capped far below this by their schemas (10,000 characters at most); a longer value is
+# checked on its first 64 KiB.
 MAX_SCAN = 65_536
-# 4 Visa; 51-55, 2221-2720 Mastercard; 34, 37 Amex; 6011, 644-649, 65 Discover; 3528-3589 JCB; 62 UnionPay.
-_PREFIX = tuple(
-    ["4", "34", "37", "6011", "65", "62"]
-    + [str(n) for n in (*range(51, 56), *range(644, 650), *range(2221, 2721), *range(3528, 3590))]
+_GROUPINGS = ((4, 4, 4, 4), (4, 4, 4, 4, 3), (4, 6, 5))
+_NETWORKS = (  # (prefixes, lengths)
+    (("4",), (16, 19)),
+    (tuple(str(n) for n in (*range(51, 56), *range(2221, 2721))), (16,)),
+    (("34", "37"), (15,)),
+    (("6011", "65", *(str(n) for n in range(644, 650))), (16, 17, 18, 19)),
+    (tuple(str(n) for n in range(3528, 3590)), (16, 17, 18, 19)),
+    (("62",), (16, 17, 18, 19)),
 )
+_LENGTHS = sorted({n for _, lengths in _NETWORKS for n in lengths})
 
 
 def _luhn(digits: str) -> bool:
@@ -33,25 +42,24 @@ def _luhn(digits: str) -> bool:
 
 
 def _is_card(digits: str) -> bool:
-    return 13 <= len(digits) <= 19 and digits.startswith(_PREFIX) and _luhn(digits)
+    return any(digits.startswith(p) and len(digits) in n for p, n in _NETWORKS) and _luhn(digits)
+
+
+def _unbroken_has_card(digits: str) -> bool:
+    if len(digits) <= 19:
+        return _is_card(digits)
+    return any(_is_card(digits[:n]) or _is_card(digits[-n:]) for n in _LENGTHS)  # typed against a reference
 
 
 def _run_has_card(run: str) -> bool:
-    groups = [g for g in SEPARATORS.split(run) if g]
-    digits = "".join(groups)
-    if len(digits) <= 19:
-        return _is_card(digits)
-    if len(groups) == 1:  # one long contiguous run: a card typed against its start or end
-        return any(_is_card(digits[:n]) or _is_card(digits[-n:]) for n in range(13, 20))
-    for start in range(len(groups)):  # grouped: consecutive whole groups, as a person types a card among others
-        if groups[start][0] not in "23456":
-            continue
-        window = ""
-        for group in islice(groups, start, None):
-            window += group
-            if len(window) > 19:
-                break
-            if _is_card(window):
+    groups = _GROUP.findall(run)
+    if any(len(g) >= 15 and _unbroken_has_card(g) for g in groups):
+        return True
+    sizes = [len(g) for g in groups]
+    for start in range(len(groups)):
+        for grouping in _GROUPINGS:
+            end = start + len(grouping)
+            if tuple(sizes[start:end]) == grouping and _is_card("".join(groups[start:end])):
                 return True
     return False
 
