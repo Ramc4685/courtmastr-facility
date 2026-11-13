@@ -436,6 +436,12 @@ def list_portal_videos(query: Lists, ctx: Portal):
     return service.list_portal_videos(ctx.session, ctx.principal, query)
 
 
+@router.get("/portal/videos/{video_id}", response_model=s.PortalVideo)
+def get_portal_video(video_id: UUID, ctx: Portal):
+    """One published video; 404 when it is unpublished or not this tenant's."""
+    return service.get_portal_video(ctx.session, ctx.principal, video_id)
+
+
 # --- public: unsubscribe and preference centre (MKT-02), portal landing config (SSP-01) ----------------------
 
 

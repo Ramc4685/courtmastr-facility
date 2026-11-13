@@ -5047,7 +5047,7 @@ paths:
         default: {$ref: '#/components/responses/Problem'}
   /portal/client-packages:
     get:
-      operationId: portalListClientPackages
+      operationId: listPortalClientPackages
       tags: [packages]
       summary: Packages the acted-for client owns or can spend
       x-priority: P0
@@ -5127,7 +5127,7 @@ paths:
         idempotency-key-reused]
   /portal/client-packages/{package_id}/ledger:
     get:
-      operationId: portalListClientPackageLedger
+      operationId: listPortalClientPackageLedger
       tags: [packages]
       summary: Usage history of a package
       x-priority: P0
@@ -5165,7 +5165,7 @@ paths:
         default: {$ref: '#/components/responses/Problem'}
   /portal/package-plans:
     get:
-      operationId: portalListPackagePlans
+      operationId: listPortalPackagePlans
       tags: [packages]
       summary: Plans purchasable online by the acted-for client
       description: Members-only plans are filtered by memberships.service.eligibility.
@@ -5373,7 +5373,7 @@ paths:
         default: {$ref: '#/components/responses/Problem'}
   /public/package-plans:
     get:
-      operationId: publicListPackagePlans
+      operationId: listPublicPackagePlans
       tags: [packages]
       summary: Plans sold online (anonymous listing)
       x-priority: P1

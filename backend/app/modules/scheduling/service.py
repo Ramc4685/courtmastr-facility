@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import and_, delete, func, insert, or_, select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
@@ -957,6 +957,21 @@ def series_sessions(session: Db, series_id: UUID, starts_from) -> list[UUID]:
             .order_by(Booking.starts_at, Session.id)
         )
     )
+
+
+def check_location_archive(session: Db, location_id: UUID) -> None:
+    """Internal, registered with platform: a location with a confirmed booking or a live checkout hold still to
+    start is not archived. Blocks do not count."""
+    now = clock.now()
+    live = or_(Booking.status == "confirmed", and_(Booking.status == "tentative", Booking.expires_at > now))
+    ahead = select(Booking.id).where(  # a closure block is not a customer's booking, so it never refuses
+        Booking.location_id == location_id, Booking.kind != "block", Booking.starts_at > now, live
+    )
+    if session.scalar(ahead.limit(1)) is not None:
+        raise Conflict(
+            "This location has bookings still to come. Cancel or move them first.",
+            code="location-has-future-bookings",
+        )
 
 
 def type_location(session: Db, type_id: UUID) -> UUID:

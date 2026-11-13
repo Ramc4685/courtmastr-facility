@@ -73532,18 +73532,6 @@
       "TenantUpdate": {
         "additionalProperties": false,
         "properties": {
-          "currency": {
-            "anyOf": [
-              {
-                "pattern": "^[A-Z]{3}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
           "default_time_zone": {
             "anyOf": [
               {
@@ -128212,6 +128200,69 @@
         ]
       }
     },
+    "/api/v1/portal/videos/{video_id}": {
+      "get": {
+        "description": "One published video; 404 when it is unpublished or not this tenant's.",
+        "operationId": "getPortalVideo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalVideo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Video",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
     "/api/v1/portal/waitlist-entries": {
       "get": {
         "operationId": "listPortalWaitlistEntries",
@@ -146905,7 +146956,7 @@
     },
     "/api/v1/sessions/{schedule_session_id}/roster/messages": {
       "post": {
-        "description": "Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers\nengagement.message.send_direct (module README).",
+        "description": "Emails everyone registered. Gated by scheduling.enrollment.create on the session (`own` reach and the\ntype's staff grants apply); moving it to engagement.message.send_direct waits on the owner (module README).",
         "operationId": "sendSessionRosterMessage",
         "parameters": [
           {

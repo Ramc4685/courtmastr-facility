@@ -34,7 +34,7 @@ describe('SetupPage reservation types', SCREEN, () => {
 
 describe('SetupPage reservation type grants', SCREEN, () => {
   it('restricts a type to the ticked staff and links to the booking policies', async () => {
-    const calls = renderAsStaff(<SetupPage />, ['scheduling.booking.read', 'scheduling.reservation_type.grant', 'programs.registration_config.manage'], {
+    const calls = renderAsStaff(<SetupPage />, ['scheduling.booking.read', 'scheduling.reservation_type.grant', 'engagement.portal_settings.manage'], {
       'GET /api/v1/reservation-types': page([yoga]),
       'GET /api/v1/reservation-categories': page([]),
       'GET /api/v1/reservation-types/t1/grants': { status: 200, body: { reservation_type_id: 't1', is_restricted: false, staff_user_ids: [] } },
