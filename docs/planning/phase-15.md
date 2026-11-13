@@ -92,4 +92,11 @@ tests, `tests/test_security.py`, the isolation and location-scope suites, `make 
 
 | Date | Slice | Event | Commit |
 |---|---|---|---|
-| 2026-11-13 | plan | written | |
+| 2026-11-13 | plan | written | fb437b0 |
+| 2026-11-13 | 1-2 P0 public API, P1 resources | done: generated reference with `x-api-key-scopes`, tenant-wide key ceiling, realm and reach tests | c1a6762 |
+| 2026-11-13 | 3 calendar feeds, public schedule | done; leak fix (published sessions and public titles only) | 6a9205c, c0fa522 |
+| 2026-11-13 | 4 INT-07 QuickBooks | done behind the port, simulated; two lead security reviews fixed (callback bound to its staff user, realm bound to the token, claim and release) | 95b14d3, edbd3a7, 8cb4e25 |
+| 2026-11-13 | 4 INT-09 Zoom | done behind the port, simulated; drift fixes (disconnect, state, repeat PUT) | 8add9de |
+| 2026-11-13 | 5 INT-13 analytics | partial: setting and public read; tag not loaded (security baseline forbids third-party analytics; owner decision) | 3aaf0da |
+| 2026-11-13 | 6 BIL-24, PAY-19 | parked (reasons in the table above) | |
+| 2026-11-13 | web | connections, calendar feeds, QuickBooks callback page; not built: API reference tab, mappings, public schedule settings, session meeting and portal join screens | 1ce9cef |

@@ -6,6 +6,14 @@ under `Unreleased` in the same change that makes the behaviour visible.
 
 ## [Unreleased]
 
+### Added
+- Calendar feeds: subscribe to your bookings and shifts, or a team's games, from any calendar app; the address is shown once.
+- An embeddable public schedule per location showing published sessions and free seats, never names.
+- QuickBooks Online connection with account mappings and a sync over a date range (simulated until a QuickBooks app is registered).
+- Online sessions: attach a meeting link or a Zoom meeting through your own Zoom app; members join from 10 minutes before the start and are marked attended.
+- The Integrations screen gains Connections and Calendar feeds tabs.
+- The API reference lists the key scopes each operation needs.
+
 ### Security
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.

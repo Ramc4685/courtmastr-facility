@@ -125,7 +125,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`.
 - [ ] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769).
 
-### integrations (50 open, 18 closed) — [evidence](drift/integrations.md)
+### integrations (48 open, 20 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed after the security fixes):
 
@@ -164,7 +164,7 @@ INT-09 virtual sessions (new 2026-11-13):
 - [ ] [undocumented] `host_start_url_ciphertext` is stored but no route returns it (`backend/app/modules/integrations/meetings.py:101-107, 166`).
 - [ ] [undocumented] Zoom has no feature flag or plan check, and bad credentials return `422 provider-unavailable` on create, not the yaml's `provider-not-available` (`backend/app/modules/integrations/service.py:653-656`, `meetings.py:53`).
 - [ ] [wording] `service.video_meetings` says "the simulated adapter in v1" and only tests use it (`backend/app/modules/integrations/service.py:941-942`). The adapter directory text is fixed (`service.py:895-897`).
-- [ ] [wording] Three docstrings point to `docs/status/phase15-api.md`, which does not exist (`backend/app/adapters/video.py:3`, `backend/app/adapters/accounting.py:139`, `backend/app/modules/integrations/quickbooks.py:6`).
+- [x] [wording] Three docstrings point to `docs/status/phase15-api.md`, which does not exist (`backend/app/adapters/video.py:3`, `backend/app/adapters/accounting.py:139`, `backend/app/modules/integrations/quickbooks.py:6`).
 - [ ] [missing] `video_meeting` is populated by a PUT (`backend/conftest.py:301-305`) but its id is not in the `populate()` return (`backend/conftest.py:1248`) or the isolation id lists (`backend/tests/test_isolation.py:483-484`).
 
 Contract coverage and wiring:
@@ -205,7 +205,7 @@ INT-13 analytics on registration pages (new 2026-11-13):
 - [x] [missing] The tag is blocked in the deployed stack: CSP is `script-src 'self'; connect-src 'self'` (`infra/proxy/Caddyfile:51`). The README says so (lines 119-122).
 - [x] [missing] The tag is mounted only in the portal shell, not on public form pages, and there is no staff screen (`web/src/features/portal/PortalApp.tsx`; README lines 119-120).
 - [ ] [missing] No tag loads: the SPA loader was removed because security-baseline V10 and section 14 forbid third-party analytics in web and mobile, against ADR 0012:281's consent-gated tag and the CSP `script-src 'self'`. Owner decision needed; reconcile the ADR and baseline.
-- [ ] [stale-not-built] `docs/status/16-integrations.md:28` says INT-13 is not built.
+- [x] [stale-not-built] `docs/status/16-integrations.md:28` says INT-13 is not built.
 - [x] [wording] `backend/app/modules/integrations/analytics.py:4` names `features/integrations/analytics.ts`, which does not exist (the file is `AnalyticsConsent.tsx`); `AnalyticsConsent.tsx:9` points to the missing `docs/status/phase15-api.md`.
 - [ ] [undocumented] The analytics PATCH branch lives in `quickbooks.update_settings` and the update schema text names only QuickBooks keys (a disconnected one is now refused with 409; `backend/app/modules/integrations/quickbooks.py:204-213`, `schemas.py:147-149`).
 - [ ] [undocumented] Disconnect calls `release_account` with the measurement id although nothing was claimed (`backend/app/modules/integrations/service.py:699-702, 705-716`, `analytics.py:44`).
