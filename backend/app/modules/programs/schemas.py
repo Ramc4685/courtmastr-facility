@@ -178,6 +178,9 @@ class _GroupFields(In):
     ends_on: date | None = None
     auto_archive_on: date | None = None
     waitlist_mode: GroupWaitlist | None = None
+    season_classifier_id: UUID | None = None
+    sport_classifier_id: UUID | None = None
+    age_division_classifier_id: UUID | None = None
 
 
 class ProgramGroupCreate(_GroupFields):
@@ -214,6 +217,9 @@ class ProgramGroupOut(Out):
     completed_at: datetime | None
     waitlist_mode: str | None
     deleted_at: datetime | None
+    season_classifier_id: UUID | None
+    sport_classifier_id: UUID | None
+    age_division_classifier_id: UUID | None
     spots_left: int | None
     waiting_count: int
     created_at: datetime
@@ -567,3 +573,434 @@ class PortalWaitlistOut(Out):
 
 class PortalClaim(In):
     client_package_id: UUID | None = None
+
+
+# --- group tools (Phase 14 chip A: REG-03, REG-04, REG-06, REG-08, REG-11, REG-13) ------------------------------
+
+ClassifierKindName = Literal["season", "sport", "age_division"]
+Short = Annotated[str, StringConstraints(min_length=1, max_length=120, strip_whitespace=True)]
+PaymentRequirementName = Literal[
+    "pay_later_allowed", "immediate_card_payment", "card_required_charge_optional", "card_required_no_charge"
+]
+
+
+class ProgramClassifierCreate(In):
+    kind: ClassifierKindName
+    title: Short
+    sort_order: Annotated[int, Field(ge=0, le=10_000)] = 0
+
+
+class ProgramClassifierUpdate(In):
+    title: Short | None = None
+    sort_order: Annotated[int, Field(ge=0, le=10_000)] | None = None
+    is_active: bool | None = None
+
+
+class ProgramClassifierOut(Out):
+    id: UUID
+    kind: str
+    title: str
+    sort_order: int
+    is_active: bool
+    group_count: int
+
+
+FilterValue = Annotated[str, StringConstraints(max_length=500)]
+
+
+class ProgramSavedViewCreate(In):
+    name: Short
+    filters: Annotated[dict[Annotated[str, StringConstraints(max_length=60)], FilterValue], Field(max_length=20)] = {}
+    sort: Annotated[str, StringConstraints(max_length=120)] | None = None
+
+
+class ProgramSavedViewUpdate(In):
+    name: Short | None = None
+    filters: (
+        Annotated[dict[Annotated[str, StringConstraints(max_length=60)], FilterValue], Field(max_length=20)] | None
+    ) = None
+    sort: Annotated[str, StringConstraints(max_length=120)] | None = None
+
+
+class ProgramSavedViewOut(Out):
+    id: UUID
+    name: str
+    filters: dict[str, str]
+    sort: str | None
+    created_at: datetime
+
+
+ColumnKey = Annotated[str, StringConstraints(min_length=1, max_length=40)]
+
+
+class ProgramPageSettingPut(In):
+    title: Annotated[str, StringConstraints(max_length=80)] | None = None
+    columns: Annotated[list[ColumnKey], Field(max_length=30)] = []
+    page_size: Annotated[int, Field(ge=10, le=200)] = 50
+    default_view_id: UUID | None = None
+
+
+class ProgramPageSettingOut(Out):
+    page_key: str
+    title: str | None
+    columns: list[str]
+    available_columns: list[str]
+    page_size: int
+    default_view_id: UUID | None
+
+
+class EnrollmentMove(In):
+    enrollment_ids: Annotated[list[UUID], Field(min_length=1, max_length=100)]
+    to_program_group_id: UUID
+
+
+class EnrollmentMoveOutcome(Out):
+    enrollment_id: UUID
+    moved: bool
+    code: str | None
+
+
+class EnrollmentMoveResult(Out):
+    to_program_group_id: UUID
+    outcomes: list[EnrollmentMoveOutcome]
+
+
+class RegistrationDefaultsPut(In):
+    payment_requirement: PaymentRequirementName = "immediate_card_payment"
+    displays_openings: bool = False
+    waitlist_mode: GroupWaitlist = "manual"
+    online_description: Text | None = None
+    confirmation_message: Text | None = None
+    closed_message: Text | None = None
+
+
+class RegistrationDefaultsOut(Out):
+    location_id: UUID
+    payment_requirement: str
+    displays_openings: bool
+    waitlist_mode: str
+    online_description: str | None
+    confirmation_message: str | None
+    closed_message: str | None
+
+
+class ProgramGroupCopy(In):
+    name: Name
+    starts_on: date | None = None
+    ends_on: date | None = None
+    include_children: bool = True
+    include_fees: bool = True
+    include_registration: bool = True
+
+
+class ProgramGroupGenerate(In):
+    """A series of programs from this one as the template: one copy per interval whose start falls in the range,
+    each keeping the template's length (REG-13)."""
+
+    first_starts_on: date
+    last_starts_on: date
+    interval_weeks: Annotated[int, Field(ge=1, le=52)] = 1
+    include_children: bool = True
+    include_fees: bool = True
+    include_registration: bool = True
+
+
+class ProgramGroupGenerated(Out):
+    created: list[ProgramGroupOut]
+
+
+# --- event forms (REG-15 to REG-24) -----------------------------------------------------------------------------
+
+ItemKey = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+QuestionType = Literal["text_box", "drop_down", "radio", "checkbox", "purchase_quantity"]
+HexColour = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
+Email = Annotated[str, StringConstraints(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+
+
+class FormChoice(In):
+    key: ItemKey
+    text: Short
+    price_minor: Minor = 0
+
+
+class FormDependsOn(In):
+    question_key: ItemKey
+    choice_key: ItemKey
+
+
+class FormQuestion(In):
+    """A typed question (REG-16): its attributes are required, hint, staff-only visibility, an expiry date, a
+    length limit, priced choices and a dependency on an earlier question's choice."""
+
+    type: Literal["question"] = "question"
+    key: ItemKey
+    question_type: QuestionType
+    text: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    hint: Annotated[str, StringConstraints(max_length=500)] | None = None
+    required: bool = False
+    visibility: Literal["shown", "staff_only"] = "shown"
+    expires_on: date | None = None
+    max_length: Annotated[int, Field(ge=1, le=5000)] | None = None
+    choices: Annotated[list[FormChoice], Field(max_length=100)] = []
+    unit_price_minor: Minor | None = None
+    max_quantity: Annotated[int, Field(ge=1, le=1000)] | None = None
+    depends_on: FormDependsOn | None = None
+
+
+class FormTopic(In):
+    """An information topic (REG-18): a heading and plain text shown between questions."""
+
+    type: Literal["topic"] = "topic"
+    key: ItemKey
+    title: Short
+    body: Annotated[str, StringConstraints(max_length=10_000)] = ""
+
+
+FormItem = Annotated[FormQuestion | FormTopic, Field(discriminator="type")]
+
+
+class FormSchemaDoc(In):
+    items: Annotated[list[FormItem], Field(max_length=200)] = []
+
+
+class FormTheme(In):
+    accent_color: HexColour | None = None
+    header_alignment: Literal["left", "center", "right"] = "left"
+
+
+class _FormFields(In):
+    event_name: Short | None = None
+    event_text: Annotated[str, StringConstraints(max_length=500)] | None = None
+    event_starts_on: date | None = None
+    event_ends_on: date | None = None
+    opens_local: datetime | None = None  # wall time at the form's location; stored in UTC
+    closes_local: datetime | None = None
+    closed_message: Text | None = None
+    confirmation_message: Text | None = None
+    is_template: bool | None = None
+    revenue_category_id: UUID | None = None
+    allows_coupons: bool | None = None
+    has_waitlist: bool | None = None
+    capacity: Annotated[int, Field(ge=1, le=1_000_000)] | None = None
+    theme: FormTheme | None = None
+
+
+class EventFormCreate(_FormFields):
+    """Blank, or a copy of another form or template (`copy_from_form_id`): settings, the latest questions and the
+    inventory caps, never registrations or the header image."""
+
+    name: Name
+    location_id: UUID | None = None
+    copy_from_form_id: UUID | None = None
+
+
+class EventFormUpdate(_FormFields):
+    name: Name | None = None
+
+
+class EventFormVersionOut(Out):
+    id: UUID
+    version_no: int
+    state: str
+    schema_doc: FormSchemaDoc
+    published_at: datetime | None
+
+
+class EventFormOut(Out):
+    id: UUID
+    location_id: UUID
+    time_zone: str
+    name: str
+    event_name: str | None
+    event_text: str | None
+    event_starts_on: date | None
+    event_ends_on: date | None
+    status: str
+    effective_state: str
+    opens_at: datetime | None
+    auto_close_at: datetime | None
+    opens_local: datetime | None
+    closes_local: datetime | None
+    closed_message: str | None
+    confirmation_message: str | None
+    is_template: bool
+    copied_from_form_id: UUID | None
+    revenue_category_id: UUID | None
+    allows_coupons: bool
+    has_waitlist: bool
+    capacity: int | None
+    submitted_count: int
+    has_header_image: bool
+    theme: dict
+    is_free: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class EventFormDetail(EventFormOut):
+    draft: EventFormVersionOut | None
+    published: EventFormVersionOut | None
+
+
+class FormInventoryItemPut(In):
+    item_key: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}(\.[A-Za-z0-9_-]{1,64})?$")]
+    limit_count: Annotated[int, Field(ge=0, le=1_000_000)]
+    is_enabled: bool = True
+    sold_out_memo: Annotated[str, StringConstraints(max_length=200)] | None = None
+    shows_count_publicly: bool = False
+
+
+class FormInventoryPut(In):
+    items: Annotated[list[FormInventoryItemPut], Field(max_length=200)]
+
+
+class FormInventoryOut(Out):
+    item_key: str
+    label: str
+    is_enabled: bool
+    limit_count: int
+    sold_count: int
+    remaining: int
+    sold_out_memo: str | None
+    shows_count_publicly: bool
+
+
+class FormAnswerIn(In):
+    item_key: ItemKey
+    text_value: Annotated[str, StringConstraints(max_length=5000)] | None = None
+    choice_keys: Annotated[list[ItemKey], Field(max_length=100)] = []
+    quantity: Annotated[int, Field(ge=0, le=1000)] | None = None
+
+
+class _Contact(In):
+    contact_name: Name
+    contact_email: Email
+    contact_phone: Annotated[str, StringConstraints(max_length=40)] | None = None
+    answers: Annotated[list[FormAnswerIn], Field(max_length=200)] = []
+
+
+class PublicFormSubmissionCreate(_Contact):
+    """Anonymous: free forms only. No client is created; staff can link one later."""
+
+
+class PortalFormSubmissionCreate(_Contact):
+    form_id: UUID
+    registrant_client_id: UUID
+    method_token: Annotated[str, StringConstraints(max_length=255)] | None = None
+    payment_method_id: UUID | None = None
+    coupon_code: Annotated[str, StringConstraints(max_length=60)] | None = None
+
+
+class FormAnswerOut(Out):
+    item_key: str
+    choice_key: str | None
+    label: str
+    question_type: str
+    text_value: str | None
+    quantity: int | None
+    amount_minor: int
+
+
+class FormSubmissionOut(Out):
+    id: UUID
+    form_id: UUID
+    location_id: UUID
+    confirmation_no: int
+    status: str
+    channel: str
+    contact_name: str
+    contact_email: str
+    contact_phone: str | None
+    account_client_id: UUID | None
+    registrant_client_id: UUID | None
+    total_minor: int
+    invoice_id: UUID | None
+    submitted_at: datetime
+    cancelled_at: datetime | None
+    last_edited_at: datetime | None
+
+
+class FormSubmissionDetail(FormSubmissionOut):
+    answers: list[FormAnswerOut]
+
+
+class FormSubmissionUpdate(In):
+    """Staff edit (REG-21): contact fields, the client link and text answers. Priced answers are not re-priced."""
+
+    contact_name: Name | None = None
+    contact_email: Email | None = None
+    contact_phone: Annotated[str, StringConstraints(max_length=40)] | None = None
+    registrant_client_id: UUID | None = None
+    text_answers: Annotated[
+        dict[ItemKey, Annotated[str, StringConstraints(max_length=5000)]], Field(max_length=200)
+    ] = {}
+
+
+class FormSubmissionCancel(In):
+    reverse_charges: bool = False
+    reason: Reason | None = None
+
+
+class FormSummaryRow(Out):
+    group: str
+    label: str
+    count: int
+    amount_minor: int | None
+
+
+class FormSummaryOut(Out):
+    summary_key: str
+    rows: list[FormSummaryRow]
+
+
+class PublicFormChoice(Out):
+    key: str
+    text: str
+    price_minor: int
+    sold_out: bool
+    remaining: int | None
+
+
+class PublicFormDependsOn(Out):
+    question_key: str
+    choice_key: str
+
+
+class PublicFormItem(Out):
+    type: str
+    key: str
+    question_type: str | None = None
+    text: str | None = None
+    hint: str | None = None
+    required: bool = False
+    max_length: int | None = None
+    unit_price_minor: int | None = None
+    max_quantity: int | None = None
+    sold_out: bool = False
+    remaining: int | None = None
+    choices: list[PublicFormChoice] = []
+    depends_on: PublicFormDependsOn | None = None
+    title: str | None = None
+    body: str | None = None
+
+
+class PublicForm(Out):
+    id: UUID
+    event_name: str
+    event_text: str | None
+    event_starts_on: date | None
+    event_ends_on: date | None
+    state: str
+    is_free: bool
+    allows_coupons: bool
+    closed_message: str | None
+    has_header_image: bool
+    theme: dict
+    items: list[PublicFormItem]
+
+
+class PublicFormReceipt(Out):
+    confirmation_no: int
+    status: str
+    total_minor: int
+    confirmation_message: str | None

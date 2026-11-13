@@ -285,6 +285,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
+    space |= _populate_program_forms(client, headers, post, tenant, location["id"])
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
     _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
@@ -857,6 +858,41 @@ def _populate_programs(client, headers, post, location_id, client_id, space, cat
     return {
         "program_group_id": program["id"], "program_fee_id": fee["id"], "checkout_id": basket["id"],
         "item_id": basket["items"][0]["id"], "linked_session_id": linked, "deleted_program_group_id": gone["id"],
+    }  # fmt: skip
+
+
+def _populate_program_forms(client, headers, post, tenant, location_id) -> dict:
+    """Build phase 14 chip A: a classifier, a saved view, page settings, location registration defaults, and a
+    published free event form with a stock cap and an anonymous submission (its answers included)."""
+    classifier = post("/program-classifiers", {"kind": "season", "title": "Summer"})
+    view = post("/program-saved-views", {"name": "Camps", "filters": {"kind": "camp"}})
+    for path, body in (
+        ("/program-page-settings/program_list", {"title": "Programs", "columns": ["name", "status"]}),
+        (f"/locations/{location_id}/registration-defaults", {"displays_openings": True}),
+    ):
+        put = client.put(f"/api/v1{path}", headers=headers, json=body)
+        assert put.status_code == 200, put.text
+    form = post("/forms", {"location_id": location_id, "name": "Open Day", "capacity": 50})
+    draft = client.put(f"/api/v1/forms/{form['id']}/draft", headers=headers, json={"items": [
+        {"type": "topic", "key": "intro", "title": "Welcome", "body": "Join us."},
+        {"type": "question", "key": "shirt", "question_type": "radio", "text": "Shirt size", "required": True,
+         "choices": [{"key": "s", "text": "Small"}, {"key": "m", "text": "Medium"}]},
+    ]})  # fmt: skip
+    assert draft.status_code == 200, draft.text
+    post(f"/forms/{form['id']}/publish", {})
+    caps = client.put(f"/api/v1/forms/{form['id']}/inventory", headers=headers,
+                      json={"items": [{"item_key": "shirt.s", "limit_count": 10}]})  # fmt: skip
+    assert caps.status_code == 200, caps.text
+    sent = client.post(
+        f"/api/v1/public/forms/{form['id']}/submissions", headers={"X-Tenant-Slug": tenant.slug},
+        json={"contact_name": "Pat Visitor", "contact_email": "pat@example.com",
+              "answers": [{"item_key": "shirt", "choice_keys": ["s"]}]},
+    )  # fmt: skip
+    assert sent.status_code == 201, sent.text
+    found = client.get(f"/api/v1/form-submissions?form_id={form['id']}", headers=headers).json()
+    return {
+        "classifier_id": classifier["id"], "saved_view_id": view["id"], "form_id": form["id"],
+        "form_submission_id": found["data"][0]["id"],
     }  # fmt: skip
 
 

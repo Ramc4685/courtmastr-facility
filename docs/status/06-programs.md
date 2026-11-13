@@ -48,3 +48,31 @@ Web limits:
 - **Documents:** the missing-documents notice does not link to signing.
 - **No screens:** the fee catalogue and the `/tree` view have none.
 - **Not browser-tested:** basket confirm, the portal booking actions and the session tools. Vitest covers them; the Playwright spec scans the screens with axe.
+
+## Phase 14 chip A: event forms and group tools (P1, P2)
+
+Backend: `tools.py` and `forms.py`, migration `1401_programs_forms_tools`. Tests: `tests/test_tools.py` and
+`tests/test_forms.py`, plus the generated isolation, location-scope, security and portal-schema tests. Web:
+`forms.test.tsx` (Vitest) and `web/e2e/forms.spec.ts` (Playwright with an axe scan on every screen, including
+an anonymous sign-up in a fresh browser context and the priced form in the portal).
+
+| Feature | Status | Where | Notes |
+|---|---|---|---|
+| REG-03 Group classifiers | done | `/program-classifiers`; `/programs/setup`; program Tools tab | Tenant-wide; in-use ones deactivate only. |
+| REG-04 Search, views and filters | done | classifier filters on `/program-groups`; `/program-saved-views` | Views are per staff user. |
+| REG-06 Page personalisation | partial | `/program-page-settings/{page_key}`; column chooser on `/programs` | `member_grid` settings are stored but the roster has no chooser. |
+| REG-08 Move members | done | `POST /enrollments/move`; program Tools tab | Same location only; per-row outcome codes. |
+| REG-11 Registration defaults | done | `/locations/{id}/registration-defaults`; `/programs/setup` | Copied when a group first gets online settings. |
+| REG-13 Copy, export, generate | done | `/program-groups/{id}/copy`, `/children/generate`, `/exports`; Tools tab | Generate makes sibling programs; 52 per series, 50 nodes per copy. |
+| REG-15 Form builder | done | `/forms` CRUD, copy, templates, publish; `/programs/forms` | Versioned drafts. |
+| REG-16 Question types | done | text, drop-down, pick one, pick any, quantity; required, staff-only, show-when | |
+| REG-17 Stock caps | done | `/forms/{id}/inventory`; Stock tab | Row-locked; sold-out and count-left shown publicly when asked. |
+| REG-18 Information topics | done | topic items in the question list | Plain text. |
+| REG-19 Branding | partial | header image (`platform.files`), accent colour | No width or font settings. |
+| REG-20 Open, close, auto-close | done | window in location time; close and reopen; capacity | |
+| REG-21 Lookup, edit, export | done | `/form-submissions`, edit, cancel, promote; CSV | Edit covers contact, client link and text answers. |
+| REG-22 Summaries | done | `/forms/{id}/summaries/{key}`; Summaries tab | Registrant, revenue, demographic, answer. |
+| REG-23 Registrant flow | done | `/forms/:id` (anonymous, free) and `/portal/forms/:id` (priced, `secure_online_checkout`) | Members reach a form by its link; no portal list. |
+| REG-24 Wait list and promo codes | done | `waitlisted` status and promote; coupons through billing | New card only at checkout. |
+
+**Chip A total: 16. Done: 14. Partial: 2.**

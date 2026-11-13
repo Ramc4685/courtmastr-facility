@@ -10,6 +10,7 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { Table, useKeysetQuery } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
+import { ToolsTab } from './groupTools'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime, formatMoney, toMinor } from '../../lib/format'
@@ -604,6 +605,7 @@ export function ProgramPage() {
           { id: 'online', label: 'Online registration', content: <ConfigTab group={g} canConfig={can('programs.registration_config.manage') && !g.deleted_at} /> },
           { id: 'roster', label: 'Roster', content: <RosterTab group={g} /> },
           { id: 'waitlist', label: `Waitlist (${g.waiting_count})`, content: <WaitlistTab group={g} /> },
+          { id: 'tools', label: 'Tools', content: <ToolsTab group={g} canManage={canManage} /> },
         ]}
       />
       <ConfirmDialog open={deleting} title={`Delete ${g.name}?`} confirmLabel="Delete program" danger busy={remove.isPending} onConfirm={() => remove.mutate()} onClose={() => setDeleting(false)}>

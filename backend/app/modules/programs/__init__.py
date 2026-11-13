@@ -2,12 +2,35 @@
 registrations), fees, waitlists, online registration and its checkout, and client self-booking of sessions.
 
 Public interface: `service` (session targets, shared enrolment endpoints), `groups` (program groups),
-`checkout` (registration baskets), `selfservice` (booking policy and portal booking).
+`checkout` (registration baskets), `selfservice` (booking policy and portal booking), `forms` (event forms),
+`tools` (classifiers, saved views, defaults, copy, series, export).
 """
 
-from app.modules.programs import checkout, groups, handlers, jobs, models, permissions, selfservice, service
+from app.modules.programs import (
+    checkout,
+    forms,
+    groups,
+    handlers,
+    jobs,
+    models,
+    permissions,
+    selfservice,
+    service,
+    tools,
+)
 
-__all__ = ["checkout", "groups", "handlers", "jobs", "models", "permissions", "selfservice", "service"]
+__all__ = [
+    "checkout",
+    "forms",
+    "groups",
+    "handlers",
+    "jobs",
+    "models",
+    "permissions",
+    "selfservice",
+    "service",
+    "tools",
+]
 from app.modules.platform import onboarding  # noqa: E402
 from app.modules.programs import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)
 

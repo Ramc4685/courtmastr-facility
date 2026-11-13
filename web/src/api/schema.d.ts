@@ -4297,6 +4297,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/enrollments/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Enrollments
+         * @description Move confirmed group registrations to another group at the same location (REG-08), one savepoint each.
+         *     Outcome codes: not-movable, same-group, different-location, capacity-full.
+         */
+        post: operations["moveEnrollments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/enrollments/{enrollment_id}": {
         parameters: {
             query?: never;
@@ -4609,6 +4630,289 @@ export interface paths {
         };
         /** Get Signed File */
         get: operations["getSignedFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/form-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Form Submissions
+         * @description Filters: form_id, status, channel, submitted_at. Sort: submitted_at, confirmation_no, contact_name.
+         *     q: name, email.
+         */
+        get: operations["listFormSubmissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/form-submissions/{form_submission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Form Submission */
+        get: operations["getFormSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Form Submission
+         * @description Contact fields, the client link and text answers; priced answers are not re-priced.
+         */
+        patch: operations["updateFormSubmission"];
+        trace?: never;
+    };
+    "/api/v1/form-submissions/{form_submission_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Form Submission
+         * @description Gives stock and the place back; `reverse_charges` needs billing.charge.reverse. Errors: already-cancelled.
+         */
+        post: operations["cancelFormSubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/form-submissions/{form_submission_id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Form Submission
+         * @description A wait-listed registration takes a place. Errors: not-waitlisted, form-full, sold-out.
+         */
+        post: operations["promoteFormSubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Forms
+         * @description Filters: location_id, status, is_template. Sort: name, created_at, event_starts_on. q: name, event name.
+         */
+        get: operations["listForms"];
+        put?: never;
+        /**
+         * Create Form
+         * @description Blank, or a copy of a form or template (`copy_from_form_id`): settings, questions and stock caps.
+         */
+        post: operations["createForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Form */
+        get: operations["getForm"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Form
+         * @description Times are the location's wall clock. Errors: capacity-below-submitted.
+         */
+        patch: operations["updateForm"];
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close Form */
+        post: operations["closeForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Form Draft
+         * @description Replace the draft questions and topics; answers stay tied to the version they answered.
+         */
+        put: operations["putFormDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Form Submissions
+         * @description Every registration as CSV, one column per question (REG-21).
+         */
+        post: operations["exportFormSubmissions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/header-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Form Header Image
+         * @description JPEG or PNG bytes up to 900 KB, re-encoded and scanned. Errors: file-type-mismatch, file-too-large.
+         */
+        put: operations["setFormHeaderImage"];
+        post?: never;
+        /** Remove Form Header Image */
+        delete: operations["removeFormHeaderImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Form Inventory */
+        get: operations["listFormInventory"];
+        /**
+         * Put Form Inventory
+         * @description Stock caps per choice (`question.choice`) or quantity question. Errors: limit-below-sold.
+         */
+        put: operations["putFormInventory"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Form
+         * @description Errors: draft-empty, form-is-template.
+         */
+        post: operations["publishForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Form */
+        post: operations["reopenForm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forms/{form_id}/summaries/{summary_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Form Summary
+         * @description registrant, revenue, demographic or answer (REG-22).
+         */
+        get: operations["getFormSummary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5654,6 +5958,27 @@ export interface paths {
          * @description Changing the terms text raises terms_version. Errors: portal-slug-taken.
          */
         put: operations["putPortalSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{location_id}/registration-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Registration Defaults
+         * @description What new programs at the location start with (REG-11).
+         */
+        get: operations["getRegistrationDefaults"];
+        /** Put Registration Defaults */
+        put: operations["putRegistrationDefaults"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7857,6 +8182,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/form-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Portal Form Submission
+         * @description Register oneself or a household member; anything priced is paid now through secure checkout. Errors:
+         *     form-closed, sold-out, form-full, coupon-not-allowed, payment-failed.
+         */
+        post: operations["createPortalFormSubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/inbox": {
         parameters: {
             query?: never;
@@ -9201,6 +9547,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/program-classifiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Program Classifiers
+         * @description Seasons, sports and age divisions used to tag and filter programs (REG-03).
+         */
+        get: operations["listProgramClassifiers"];
+        put?: never;
+        /**
+         * Create Program Classifier
+         * @description Errors: already-exists (the same title of the same kind).
+         */
+        post: operations["createProgramClassifier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-classifiers/{classifier_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Program Classifier
+         * @description Errors: in-use (deactivate it instead).
+         */
+        delete: operations["deleteProgramClassifier"];
+        options?: never;
+        head?: never;
+        /** Update Program Classifier */
+        patch: operations["updateProgramClassifier"];
+        trace?: never;
+    };
     "/api/v1/program-fees": {
         parameters: {
             query?: never;
@@ -9311,6 +9702,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/program-groups/{program_group_id}/children/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Program Group Children
+         * @description A series of programs from this template, one per interval (REG-13). Errors: template-needs-dates,
+         *     series-too-long, tree-too-large.
+         */
+        post: operations["generateProgramGroupChildren"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/program-groups/{program_group_id}/complete": {
         parameters: {
             query?: never;
@@ -9322,6 +9734,46 @@ export interface paths {
         put?: never;
         /** Complete Program Group */
         post: operations["completeProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy Program Group
+         * @description A copy with dates shifted; registration starts unpublished (REG-13). Errors: tree-too-large.
+         */
+        post: operations["copyProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Program Group
+         * @description The group's members as CSV (REG-13).
+         */
+        post: operations["exportProgramGroup"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9511,6 +9963,66 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-page-settings/{page_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Program Page Setting
+         * @description The caller's title, columns and page size for a program page (REG-06).
+         */
+        get: operations["getProgramPageSetting"];
+        /** Put Program Page Setting */
+        put: operations["putProgramPageSetting"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-saved-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Program Saved Views
+         * @description The caller's own saved filters for the program list (REG-04).
+         */
+        get: operations["listProgramSavedViews"];
+        put?: never;
+        /** Create Program Saved View */
+        post: operations["createProgramSavedView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-saved-views/{saved_view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Program Saved View */
+        delete: operations["deleteProgramSavedView"];
+        options?: never;
+        head?: never;
+        /** Update Program Saved View */
+        patch: operations["updateProgramSavedView"];
         trace?: never;
     };
     "/api/v1/provider-accounts": {
@@ -9773,6 +10285,60 @@ export interface paths {
          *     production, where settings refuse it). Errors: not-found.
          */
         post: operations["authenticateFakePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/forms/{form_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Form */
+        get: operations["getPublicForm"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/forms/{form_id}/header-image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Form Header Image */
+        get: operations["getPublicFormHeaderImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/forms/{form_id}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Public Form Submission
+         * @description Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out.
+         */
+        post: operations["createPublicFormSubmission"];
         delete?: never;
         options?: never;
         head?: never;
@@ -19864,6 +20430,38 @@ export interface components {
             /** Session Id */
             session_id?: string | null;
         };
+        /** EnrollmentMove */
+        EnrollmentMove: {
+            /** Enrollment Ids */
+            enrollment_ids: string[];
+            /**
+             * To Program Group Id
+             * Format: uuid
+             */
+            to_program_group_id: string;
+        };
+        /** EnrollmentMoveOutcome */
+        EnrollmentMoveOutcome: {
+            /** Code */
+            code: string | null;
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Moved */
+            moved: boolean;
+        };
+        /** EnrollmentMoveResult */
+        EnrollmentMoveResult: {
+            /** Outcomes */
+            outcomes: components["schemas"]["EnrollmentMoveOutcome"][];
+            /**
+             * To Program Group Id
+             * Format: uuid
+             */
+            to_program_group_id: string;
+        };
         /** EnrollmentOut */
         EnrollmentOut: {
             /** Batch Id */
@@ -20206,6 +20804,241 @@ export interface components {
             /** Return Condition */
             return_condition?: ("good" | "damaged") | null;
         };
+        /**
+         * EventFormCreate
+         * @description Blank, or a copy of another form or template (`copy_from_form_id`): settings, the latest questions and the
+         *     inventory caps, never registrations or the header image.
+         */
+        EventFormCreate: {
+            /** Allows Coupons */
+            allows_coupons?: boolean | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Closed Message */
+            closed_message?: string | null;
+            /** Closes Local */
+            closes_local?: string | null;
+            /** Confirmation Message */
+            confirmation_message?: string | null;
+            /** Copy From Form Id */
+            copy_from_form_id?: string | null;
+            /** Event Ends On */
+            event_ends_on?: string | null;
+            /** Event Name */
+            event_name?: string | null;
+            /** Event Starts On */
+            event_starts_on?: string | null;
+            /** Event Text */
+            event_text?: string | null;
+            /** Has Waitlist */
+            has_waitlist?: boolean | null;
+            /** Is Template */
+            is_template?: boolean | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Name */
+            name: string;
+            /** Opens Local */
+            opens_local?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            theme?: components["schemas"]["FormTheme"] | null;
+        };
+        /** EventFormDetail */
+        EventFormDetail: {
+            /** Allows Coupons */
+            allows_coupons: boolean;
+            /** Auto Close At */
+            auto_close_at: string | null;
+            /** Capacity */
+            capacity: number | null;
+            /** Closed Message */
+            closed_message: string | null;
+            /** Closes Local */
+            closes_local: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Copied From Form Id */
+            copied_from_form_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            draft: components["schemas"]["EventFormVersionOut"] | null;
+            /** Effective State */
+            effective_state: string;
+            /** Event Ends On */
+            event_ends_on: string | null;
+            /** Event Name */
+            event_name: string | null;
+            /** Event Starts On */
+            event_starts_on: string | null;
+            /** Event Text */
+            event_text: string | null;
+            /** Has Header Image */
+            has_header_image: boolean;
+            /** Has Waitlist */
+            has_waitlist: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Free */
+            is_free: boolean;
+            /** Is Template */
+            is_template: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Opens At */
+            opens_at: string | null;
+            /** Opens Local */
+            opens_local: string | null;
+            published: components["schemas"]["EventFormVersionOut"] | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Status */
+            status: string;
+            /** Submitted Count */
+            submitted_count: number;
+            /** Theme */
+            theme: {
+                [key: string]: unknown;
+            };
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EventFormOut */
+        EventFormOut: {
+            /** Allows Coupons */
+            allows_coupons: boolean;
+            /** Auto Close At */
+            auto_close_at: string | null;
+            /** Capacity */
+            capacity: number | null;
+            /** Closed Message */
+            closed_message: string | null;
+            /** Closes Local */
+            closes_local: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Copied From Form Id */
+            copied_from_form_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Effective State */
+            effective_state: string;
+            /** Event Ends On */
+            event_ends_on: string | null;
+            /** Event Name */
+            event_name: string | null;
+            /** Event Starts On */
+            event_starts_on: string | null;
+            /** Event Text */
+            event_text: string | null;
+            /** Has Header Image */
+            has_header_image: boolean;
+            /** Has Waitlist */
+            has_waitlist: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Free */
+            is_free: boolean;
+            /** Is Template */
+            is_template: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Opens At */
+            opens_at: string | null;
+            /** Opens Local */
+            opens_local: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Status */
+            status: string;
+            /** Submitted Count */
+            submitted_count: number;
+            /** Theme */
+            theme: {
+                [key: string]: unknown;
+            };
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** EventFormUpdate */
+        EventFormUpdate: {
+            /** Allows Coupons */
+            allows_coupons?: boolean | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Closed Message */
+            closed_message?: string | null;
+            /** Closes Local */
+            closes_local?: string | null;
+            /** Confirmation Message */
+            confirmation_message?: string | null;
+            /** Event Ends On */
+            event_ends_on?: string | null;
+            /** Event Name */
+            event_name?: string | null;
+            /** Event Starts On */
+            event_starts_on?: string | null;
+            /** Event Text */
+            event_text?: string | null;
+            /** Has Waitlist */
+            has_waitlist?: boolean | null;
+            /** Is Template */
+            is_template?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Opens Local */
+            opens_local?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            theme?: components["schemas"]["FormTheme"] | null;
+        };
+        /** EventFormVersionOut */
+        EventFormVersionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Published At */
+            published_at: string | null;
+            schema_doc: components["schemas"]["FormSchemaDoc"];
+            /** State */
+            state: string;
+            /** Version No */
+            version_no: number;
+        };
         /** ExportJobCreate */
         ExportJobCreate: {
             /**
@@ -20484,6 +21317,331 @@ export interface components {
              * @enum {string}
              */
             requirement: "hidden" | "optional" | "required";
+        };
+        /** FormAnswerIn */
+        FormAnswerIn: {
+            /**
+             * Choice Keys
+             * @default []
+             */
+            choice_keys: string[];
+            /** Item Key */
+            item_key: string;
+            /** Quantity */
+            quantity?: number | null;
+            /** Text Value */
+            text_value?: string | null;
+        };
+        /** FormAnswerOut */
+        FormAnswerOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Choice Key */
+            choice_key: string | null;
+            /** Item Key */
+            item_key: string;
+            /** Label */
+            label: string;
+            /** Quantity */
+            quantity: number | null;
+            /** Question Type */
+            question_type: string;
+            /** Text Value */
+            text_value: string | null;
+        };
+        /** FormChoice */
+        FormChoice: {
+            /** Key */
+            key: string;
+            /**
+             * Price Minor
+             * @default 0
+             */
+            price_minor: number;
+            /** Text */
+            text: string;
+        };
+        /** FormDependsOn */
+        FormDependsOn: {
+            /** Choice Key */
+            choice_key: string;
+            /** Question Key */
+            question_key: string;
+        };
+        /** FormInventoryItemPut */
+        FormInventoryItemPut: {
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+            /** Item Key */
+            item_key: string;
+            /** Limit Count */
+            limit_count: number;
+            /**
+             * Shows Count Publicly
+             * @default false
+             */
+            shows_count_publicly: boolean;
+            /** Sold Out Memo */
+            sold_out_memo?: string | null;
+        };
+        /** FormInventoryOut */
+        FormInventoryOut: {
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Item Key */
+            item_key: string;
+            /** Label */
+            label: string;
+            /** Limit Count */
+            limit_count: number;
+            /** Remaining */
+            remaining: number;
+            /** Shows Count Publicly */
+            shows_count_publicly: boolean;
+            /** Sold Count */
+            sold_count: number;
+            /** Sold Out Memo */
+            sold_out_memo: string | null;
+        };
+        /** FormInventoryPut */
+        FormInventoryPut: {
+            /** Items */
+            items: components["schemas"]["FormInventoryItemPut"][];
+        };
+        /**
+         * FormQuestion
+         * @description A typed question (REG-16): its attributes are required, hint, staff-only visibility, an expiry date, a
+         *     length limit, priced choices and a dependency on an earlier question's choice.
+         */
+        FormQuestion: {
+            /**
+             * Choices
+             * @default []
+             */
+            choices: components["schemas"]["FormChoice"][];
+            depends_on?: components["schemas"]["FormDependsOn"] | null;
+            /** Expires On */
+            expires_on?: string | null;
+            /** Hint */
+            hint?: string | null;
+            /** Key */
+            key: string;
+            /** Max Length */
+            max_length?: number | null;
+            /** Max Quantity */
+            max_quantity?: number | null;
+            /**
+             * Question Type
+             * @enum {string}
+             */
+            question_type: "text_box" | "drop_down" | "radio" | "checkbox" | "purchase_quantity";
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Text */
+            text: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "question";
+            /** Unit Price Minor */
+            unit_price_minor?: number | null;
+            /**
+             * Visibility
+             * @default shown
+             * @enum {string}
+             */
+            visibility: "shown" | "staff_only";
+        };
+        /** FormSchemaDoc */
+        FormSchemaDoc: {
+            /**
+             * Items
+             * @default []
+             */
+            items: (components["schemas"]["FormQuestion"] | components["schemas"]["FormTopic"])[];
+        };
+        /** FormSubmissionCancel */
+        FormSubmissionCancel: {
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Reverse Charges
+             * @default false
+             */
+            reverse_charges: boolean;
+        };
+        /** FormSubmissionDetail */
+        FormSubmissionDetail: {
+            /** Account Client Id */
+            account_client_id: string | null;
+            /** Answers */
+            answers: components["schemas"]["FormAnswerOut"][];
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Channel */
+            channel: string;
+            /** Confirmation No */
+            confirmation_no: number;
+            /** Contact Email */
+            contact_email: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Contact Phone */
+            contact_phone: string | null;
+            /**
+             * Form Id
+             * Format: uuid
+             */
+            form_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Last Edited At */
+            last_edited_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Registrant Client Id */
+            registrant_client_id: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** FormSubmissionOut */
+        FormSubmissionOut: {
+            /** Account Client Id */
+            account_client_id: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Channel */
+            channel: string;
+            /** Confirmation No */
+            confirmation_no: number;
+            /** Contact Email */
+            contact_email: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Contact Phone */
+            contact_phone: string | null;
+            /**
+             * Form Id
+             * Format: uuid
+             */
+            form_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Last Edited At */
+            last_edited_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Registrant Client Id */
+            registrant_client_id: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /**
+         * FormSubmissionUpdate
+         * @description Staff edit (REG-21): contact fields, the client link and text answers. Priced answers are not re-priced.
+         */
+        FormSubmissionUpdate: {
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Registrant Client Id */
+            registrant_client_id?: string | null;
+            /**
+             * Text Answers
+             * @default {}
+             */
+            text_answers: {
+                [key: string]: string;
+            };
+        };
+        /** FormSummaryOut */
+        FormSummaryOut: {
+            /** Rows */
+            rows: components["schemas"]["FormSummaryRow"][];
+            /** Summary Key */
+            summary_key: string;
+        };
+        /** FormSummaryRow */
+        FormSummaryRow: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /** Count */
+            count: number;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+        };
+        /** FormTheme */
+        FormTheme: {
+            /** Accent Color */
+            accent_color?: string | null;
+            /**
+             * Header Alignment
+             * @default left
+             * @enum {string}
+             */
+            header_alignment: "left" | "center" | "right";
+        };
+        /**
+         * FormTopic
+         * @description An information topic (REG-18): a heading and plain text shown between questions.
+         */
+        FormTopic: {
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "topic";
         };
         /** FreeInterval */
         FreeInterval: {
@@ -24420,6 +25578,12 @@ export interface components {
             data: components["schemas"]["EquipmentLoanOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[EventFormOut] */
+        Page_EventFormOut_: {
+            /** Data */
+            data: components["schemas"]["EventFormOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ExportJobOut] */
         Page_ExportJobOut_: {
             /** Data */
@@ -24430,6 +25594,12 @@ export interface components {
         Page_ExternalConnectionOut_: {
             /** Data */
             data: components["schemas"]["ExternalConnectionOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[FormSubmissionOut] */
+        Page_FormSubmissionOut_: {
+            /** Data */
+            data: components["schemas"]["FormSubmissionOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[GameOut] */
@@ -26466,6 +27636,36 @@ export interface components {
             /** Target Kind */
             target_kind: string;
         };
+        /** PortalFormSubmissionCreate */
+        PortalFormSubmissionCreate: {
+            /**
+             * Answers
+             * @default []
+             */
+            answers: components["schemas"]["FormAnswerIn"][];
+            /** Contact Email */
+            contact_email: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Coupon Code */
+            coupon_code?: string | null;
+            /**
+             * Form Id
+             * Format: uuid
+             */
+            form_id: string;
+            /** Method Token */
+            method_token?: string | null;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
+            /**
+             * Registrant Client Id
+             * Format: uuid
+             */
+            registrant_client_id: string;
+        };
         /**
          * PortalInboxItem
          * @description Matches the mobile adapter's InboxItem: body and created_at are the published text and time.
@@ -28413,6 +29613,48 @@ export interface components {
             /** Units Per Sale */
             units_per_sale?: number | null;
         };
+        /** ProgramClassifierCreate */
+        ProgramClassifierCreate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "season" | "sport" | "age_division";
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Title */
+            title: string;
+        };
+        /** ProgramClassifierOut */
+        ProgramClassifierOut: {
+            /** Group Count */
+            group_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Title */
+            title: string;
+        };
+        /** ProgramClassifierUpdate */
+        ProgramClassifierUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
+        };
         /** ProgramFeeCreate */
         ProgramFeeCreate: {
             /** Amount Minor */
@@ -28484,8 +29726,34 @@ export interface components {
             /** Sort Order */
             sort_order?: number | null;
         };
+        /** ProgramGroupCopy */
+        ProgramGroupCopy: {
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Include Children
+             * @default true
+             */
+            include_children: boolean;
+            /**
+             * Include Fees
+             * @default true
+             */
+            include_fees: boolean;
+            /**
+             * Include Registration
+             * @default true
+             */
+            include_registration: boolean;
+            /** Name */
+            name: string;
+            /** Starts On */
+            starts_on?: string | null;
+        };
         /** ProgramGroupCreate */
         ProgramGroupCreate: {
+            /** Age Division Classifier Id */
+            age_division_classifier_id?: string | null;
             /** Auto Archive On */
             auto_archive_on?: string | null;
             /** Capacity */
@@ -28514,13 +29782,61 @@ export interface components {
             price_minor?: number | null;
             /** Revenue Category Id */
             revenue_category_id?: string | null;
+            /** Season Classifier Id */
+            season_classifier_id?: string | null;
+            /** Sport Classifier Id */
+            sport_classifier_id?: string | null;
             /** Starts On */
             starts_on?: string | null;
             /** Waitlist Mode */
             waitlist_mode?: ("disabled" | "manual" | "auto_promote") | null;
         };
+        /**
+         * ProgramGroupGenerate
+         * @description A series of programs from this one as the template: one copy per interval whose start falls in the range,
+         *     each keeping the template's length (REG-13).
+         */
+        ProgramGroupGenerate: {
+            /**
+             * First Starts On
+             * Format: date
+             */
+            first_starts_on: string;
+            /**
+             * Include Children
+             * @default true
+             */
+            include_children: boolean;
+            /**
+             * Include Fees
+             * @default true
+             */
+            include_fees: boolean;
+            /**
+             * Include Registration
+             * @default true
+             */
+            include_registration: boolean;
+            /**
+             * Interval Weeks
+             * @default 1
+             */
+            interval_weeks: number;
+            /**
+             * Last Starts On
+             * Format: date
+             */
+            last_starts_on: string;
+        };
+        /** ProgramGroupGenerated */
+        ProgramGroupGenerated: {
+            /** Created */
+            created: components["schemas"]["ProgramGroupOut"][];
+        };
         /** ProgramGroupNode */
         ProgramGroupNode: {
+            /** Age Division Classifier Id */
+            age_division_classifier_id: string | null;
             /** Auto Archive On */
             auto_archive_on: string | null;
             /** Capacity */
@@ -28574,6 +29890,10 @@ export interface components {
             price_minor: number | null;
             /** Revenue Category Id */
             revenue_category_id: string | null;
+            /** Season Classifier Id */
+            season_classifier_id: string | null;
+            /** Sport Classifier Id */
+            sport_classifier_id: string | null;
             /** Spots Left */
             spots_left: number | null;
             /** Starts On */
@@ -28592,6 +29912,8 @@ export interface components {
         };
         /** ProgramGroupOut */
         ProgramGroupOut: {
+            /** Age Division Classifier Id */
+            age_division_classifier_id: string | null;
             /** Auto Archive On */
             auto_archive_on: string | null;
             /** Capacity */
@@ -28643,6 +29965,10 @@ export interface components {
             price_minor: number | null;
             /** Revenue Category Id */
             revenue_category_id: string | null;
+            /** Season Classifier Id */
+            season_classifier_id: string | null;
+            /** Sport Classifier Id */
+            sport_classifier_id: string | null;
             /** Spots Left */
             spots_left: number | null;
             /** Starts On */
@@ -28661,6 +29987,8 @@ export interface components {
         };
         /** ProgramGroupUpdate */
         ProgramGroupUpdate: {
+            /** Age Division Classifier Id */
+            age_division_classifier_id?: string | null;
             /** Auto Archive On */
             auto_archive_on?: string | null;
             /** Capacity */
@@ -28685,10 +30013,92 @@ export interface components {
             price_minor?: number | null;
             /** Revenue Category Id */
             revenue_category_id?: string | null;
+            /** Season Classifier Id */
+            season_classifier_id?: string | null;
+            /** Sport Classifier Id */
+            sport_classifier_id?: string | null;
             /** Starts On */
             starts_on?: string | null;
             /** Waitlist Mode */
             waitlist_mode?: ("disabled" | "manual" | "auto_promote") | null;
+        };
+        /** ProgramPageSettingOut */
+        ProgramPageSettingOut: {
+            /** Available Columns */
+            available_columns: string[];
+            /** Columns */
+            columns: string[];
+            /** Default View Id */
+            default_view_id: string | null;
+            /** Page Key */
+            page_key: string;
+            /** Page Size */
+            page_size: number;
+            /** Title */
+            title: string | null;
+        };
+        /** ProgramPageSettingPut */
+        ProgramPageSettingPut: {
+            /**
+             * Columns
+             * @default []
+             */
+            columns: string[];
+            /** Default View Id */
+            default_view_id?: string | null;
+            /**
+             * Page Size
+             * @default 50
+             */
+            page_size: number;
+            /** Title */
+            title?: string | null;
+        };
+        /** ProgramSavedViewCreate */
+        ProgramSavedViewCreate: {
+            /**
+             * Filters
+             * @default {}
+             */
+            filters: {
+                [key: string]: string;
+            };
+            /** Name */
+            name: string;
+            /** Sort */
+            sort?: string | null;
+        };
+        /** ProgramSavedViewOut */
+        ProgramSavedViewOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Filters */
+            filters: {
+                [key: string]: string;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Sort */
+            sort: string | null;
+        };
+        /** ProgramSavedViewUpdate */
+        ProgramSavedViewUpdate: {
+            /** Filters */
+            filters?: {
+                [key: string]: string;
+            } | null;
+            /** Name */
+            name?: string | null;
+            /** Sort */
+            sort?: string | null;
         };
         /** ProgramSessionOut */
         ProgramSessionOut: {
@@ -28876,6 +30286,127 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /** PublicForm */
+        PublicForm: {
+            /** Allows Coupons */
+            allows_coupons: boolean;
+            /** Closed Message */
+            closed_message: string | null;
+            /** Event Ends On */
+            event_ends_on: string | null;
+            /** Event Name */
+            event_name: string;
+            /** Event Starts On */
+            event_starts_on: string | null;
+            /** Event Text */
+            event_text: string | null;
+            /** Has Header Image */
+            has_header_image: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Free */
+            is_free: boolean;
+            /** Items */
+            items: components["schemas"]["PublicFormItem"][];
+            /** State */
+            state: string;
+            /** Theme */
+            theme: {
+                [key: string]: unknown;
+            };
+        };
+        /** PublicFormChoice */
+        PublicFormChoice: {
+            /** Key */
+            key: string;
+            /** Price Minor */
+            price_minor: number;
+            /** Remaining */
+            remaining: number | null;
+            /** Sold Out */
+            sold_out: boolean;
+            /** Text */
+            text: string;
+        };
+        /** PublicFormDependsOn */
+        PublicFormDependsOn: {
+            /** Choice Key */
+            choice_key: string;
+            /** Question Key */
+            question_key: string;
+        };
+        /** PublicFormItem */
+        PublicFormItem: {
+            /** Body */
+            body?: string | null;
+            /**
+             * Choices
+             * @default []
+             */
+            choices: components["schemas"]["PublicFormChoice"][];
+            depends_on?: components["schemas"]["PublicFormDependsOn"] | null;
+            /** Hint */
+            hint?: string | null;
+            /** Key */
+            key: string;
+            /** Max Length */
+            max_length?: number | null;
+            /** Max Quantity */
+            max_quantity?: number | null;
+            /** Question Type */
+            question_type?: string | null;
+            /** Remaining */
+            remaining?: number | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Sold Out
+             * @default false
+             */
+            sold_out: boolean;
+            /** Text */
+            text?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Type */
+            type: string;
+            /** Unit Price Minor */
+            unit_price_minor?: number | null;
+        };
+        /** PublicFormReceipt */
+        PublicFormReceipt: {
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Confirmation No */
+            confirmation_no: number;
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /**
+         * PublicFormSubmissionCreate
+         * @description Anonymous: free forms only. No client is created; staff can link one later.
+         */
+        PublicFormSubmissionCreate: {
+            /**
+             * Answers
+             * @default []
+             */
+            answers: components["schemas"]["FormAnswerIn"][];
+            /** Contact Email */
+            contact_email: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Contact Phone */
+            contact_phone?: string | null;
         };
         /** PublicGameOut */
         PublicGameOut: {
@@ -29644,6 +31175,52 @@ export interface components {
             portal_publish_name?: string | null;
             /** Public Slug */
             public_slug?: string | null;
+        };
+        /** RegistrationDefaultsOut */
+        RegistrationDefaultsOut: {
+            /** Closed Message */
+            closed_message: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Displays Openings */
+            displays_openings: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Online Description */
+            online_description: string | null;
+            /** Payment Requirement */
+            payment_requirement: string;
+            /** Waitlist Mode */
+            waitlist_mode: string;
+        };
+        /** RegistrationDefaultsPut */
+        RegistrationDefaultsPut: {
+            /** Closed Message */
+            closed_message?: string | null;
+            /** Confirmation Message */
+            confirmation_message?: string | null;
+            /**
+             * Displays Openings
+             * @default false
+             */
+            displays_openings: boolean;
+            /** Online Description */
+            online_description?: string | null;
+            /**
+             * Payment Requirement
+             * @default immediate_card_payment
+             * @enum {string}
+             */
+            payment_requirement: "pay_later_allowed" | "immediate_card_payment" | "card_required_charge_optional" | "card_required_no_charge";
+            /**
+             * Waitlist Mode
+             * @default manual
+             * @enum {string}
+             */
+            waitlist_mode: "disabled" | "manual" | "auto_promote";
         };
         /**
          * RelationshipCreate
@@ -45868,6 +47445,42 @@ export interface operations {
             };
         };
     };
+    moveEnrollments: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentMoveResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getEnrollment: {
         parameters: {
             query?: never;
@@ -46678,6 +48291,686 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listFormSubmissions: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_FormSubmissionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getFormSubmission: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormSubmissionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateFormSubmission: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormSubmissionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormSubmissionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelFormSubmission: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormSubmissionCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormSubmissionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promoteFormSubmission: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormSubmissionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listForms: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_EventFormOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventFormCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventFormUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    closeForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putFormDraft: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormSchemaDoc"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exportFormSubmissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setFormHeaderImage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeFormHeaderImage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listFormInventory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormInventoryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putFormInventory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormInventoryPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormInventoryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopenForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventFormDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getFormSummary: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                form_id: string;
+                summary_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormSummaryOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -49348,6 +51641,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRegistrationDefaults: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationDefaultsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putRegistrationDefaults: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrationDefaultsPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationDefaultsOut"];
                 };
             };
             /** @description Validation Error */
@@ -54686,6 +57051,42 @@ export interface operations {
             };
         };
     };
+    createPortalFormSubmission: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalFormSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFormReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalInbox: {
         parameters: {
             query?: {
@@ -57868,6 +60269,146 @@ export interface operations {
             };
         };
     };
+    listProgramClassifiers: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramClassifierOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createProgramClassifier: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramClassifierCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramClassifierOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteProgramClassifier: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                classifier_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateProgramClassifier: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                classifier_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramClassifierUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramClassifierOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listProgramFees: {
         parameters: {
             query?: {
@@ -58234,6 +60775,44 @@ export interface operations {
             };
         };
     };
+    generateProgramGroupChildren: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramGroupGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupGenerated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     completeProgramGroup: {
         parameters: {
             query?: never;
@@ -58256,6 +60835,73 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProgramGroupOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copyProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramGroupCopy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exportProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -58708,6 +61354,216 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramPageSetting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                page_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramPageSettingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putProgramPageSetting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                page_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramPageSettingPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramPageSettingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramSavedViews: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSavedViewOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createProgramSavedView: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramSavedViewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSavedViewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteProgramSavedView: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                saved_view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateProgramSavedView: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                saved_view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramSavedViewUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSavedViewOut"];
                 };
             };
             /** @description Validation Error */
@@ -59185,6 +62041,101 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicForm"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicFormHeaderImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPublicFormSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                form_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicFormSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicFormReceipt"];
+                };
             };
             /** @description Validation Error */
             422: {

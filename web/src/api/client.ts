@@ -197,11 +197,16 @@ export async function uploadFile<T>(template: keyof paths, path: Record<string, 
   return data as T
 }
 
-/** GET a file route and hand the browser the attachment (signed PDFs, paper copies). */
-export async function downloadFile(template: keyof paths, opts: Options, fallbackName: string): Promise<void> {
+/** GET (or POST, for an export that audits) a file route and hand the browser the attachment (signed PDFs,
+ * paper copies, CSV exports). */
+export async function downloadFile(template: keyof paths, opts: Options, fallbackName: string, method: 'GET' | 'POST' = 'GET'): Promise<void> {
   const headers: Record<string, string> = {}
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
-  const res = await fetch(buildUrl(template as string, opts), { headers, credentials: 'same-origin' })
+  if (method === 'POST') {
+    headers['idempotency-key'] = crypto.randomUUID()
+    if (csrfToken) headers['x-csrf-token'] = csrfToken
+  }
+  const res = await fetch(buildUrl(template as string, opts), { method, headers, credentials: 'same-origin' })
   if (res.status === 401) onUnauthenticated()
   if (!res.ok) throw new ApiError({ ...(((await res.json().catch(() => ({}))) ?? {}) as Problem), status: res.status })
   const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName
