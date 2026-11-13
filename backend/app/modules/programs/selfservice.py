@@ -20,7 +20,7 @@ from app.modules import clients, memberships, platform, scheduling
 from app.modules.programs import groups, service
 from app.modules.programs.models import Enrollment, SessionBookingPolicy, WaitlistEntry
 
-POLICY = groups.CONFIG  # shortcut: engagement.portal_settings.manage arrives with module 14 (README)
+POLICY = "engagement.portal_settings.manage"  # engagement owns the key; programs may not import engagement
 FIELDS = (
     "listing_mode", "requires_active_membership", "visible_range_days", "hides_full_sessions",
     "booking_cutoff_minutes", "allows_self_cancel", "cancel_notice_minutes", "waitlist_mode",

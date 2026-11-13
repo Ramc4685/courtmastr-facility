@@ -33,7 +33,9 @@ _TABLES = {
     "classifier": "program_classifier", "saved_view": "program_saved_view",
 }  # fmt: skip
 # Writes under the client-following billing.payment.take that post to another location's books (M-04).
-LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment"}
+# sendSessionRosterMessage: client-following engagement.message.send_direct, but scheduling.authorize_reach
+# still checks the session's location.
+LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment", "sendSessionRosterMessage"}
 # Reviewed: id routes whose key is client-following or tenant-wide, so a limited admin may reach them anywhere.
 # Backlog 18: billing.invoice.read/send and billing.payment.read stay client-following (spec section 6).
 # get/setClientAccessMode: the access mode is one row per client that every location enforces (CHK-08), so it follows the client.

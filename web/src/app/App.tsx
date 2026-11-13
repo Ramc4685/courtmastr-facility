@@ -213,7 +213,7 @@ export function AppRoutes() {
         <Route path="lockers" element={<RequirePermission permission={['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination']}><LockersPage /></RequirePermission>} />
         <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
         <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
-        <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />
+        <Route path="programs/booking-policies" element={<RequirePermission permission="engagement.portal_settings.manage"><BookingPolicyPage /></RequirePermission>} />
         <Route path="programs/forms" element={<RequirePermission permission="programs.form.manage"><FormsPage /></RequirePermission>} />
         <Route path="programs/forms/:id" element={<RequirePermission permission="programs.form.manage"><FormPage /></RequirePermission>} />
         <Route path="programs/setup" element={<RequirePermission permission="programs.program.manage"><ProgramSetupPage /></RequirePermission>} />

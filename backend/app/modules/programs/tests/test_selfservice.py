@@ -48,6 +48,9 @@ def test_policy_default_override_and_scope(client, owner, tenant, f):
     assert len(listed) == 2
     desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
     assert client.put(path, headers=desk, json={"booking_cutoff_minutes": 5}).status_code == 403
+    # Portal booking policy is engagement.portal_settings.manage (admin, manager), not a league admin's key.
+    league = login(client, tenant, add_staff(tenant, "league_admin", location_ids=[f.location])[0])
+    assert client.put(path, headers=league, json={"booking_cutoff_minutes": 5}).status_code == 403
     elsewhere = facility(client, owner, "America/New_York")
     admin = login(client, tenant, add_staff(tenant, "admin", location_ids=[elsewhere.location])[0])
     assert client.put(path, headers=admin, json={"booking_cutoff_minutes": 5}).status_code == 404
@@ -154,6 +157,11 @@ def test_series_batch_rebook_and_roster_message(client, owner, tenant, f, mailbo
     sent = client.post(f"{API}/sessions/{other}/roster/messages", headers=owner,
                        json={"subject": "Court change", "body_html": "We moved to court 2."})  # fmt: skip
     assert ok(sent, 202)["status"] == "succeeded"
+    league = login(client, tenant, add_staff(tenant, "league_admin", location_ids=[f.location])[0])
+    by_league = client.post(  # engagement.message.send_direct includes league admins
+        f"{API}/sessions/{other}/roster/messages", headers=league, json={"subject": "x", "body_html": "y"}
+    )
+    assert by_league.status_code == 202, by_league.text
     elsewhere = facility(client, owner, "America/New_York")
     desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[elsewhere.location])[0])
     blocked = client.post(

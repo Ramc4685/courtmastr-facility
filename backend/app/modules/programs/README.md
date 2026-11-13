@@ -43,9 +43,9 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 
 ## Assumptions and limits
 
-- **Permission shortcuts (module 14 registers the real keys):**
-  - Booking policies use `programs.registration_config.manage` until `engagement.portal_settings.manage` exists.
-  - The roster message uses `scheduling.enrollment.create` until `engagement.message.send_direct` exists.
+- **Keys owned by engagement:** session booking policies use `engagement.portal_settings.manage` and the roster
+  message uses `engagement.message.send_direct` (with `own` reach on the session). Programs may not import
+  engagement, so both are plain key strings (`selfservice.POLICY`, `service.ROSTER_MESSAGE`).
 - **The roster message is plain text** through the notification port, sent in the request. It returns the
   `202` job shape with `status: succeeded`, and has no consent gate because it is transactional.
 - **No booking-policy row means `selfservice.BUILT_IN`:** bookable, 30 days visible, no cut-off,

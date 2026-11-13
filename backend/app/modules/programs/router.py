@@ -100,10 +100,9 @@ def put_session_attendance(schedule_session_id: UUID, body: s.AttendancePut, ctx
 
 @router.post("/sessions/{schedule_session_id}/roster/messages", response_model=s.Accepted, status_code=202)
 def send_session_roster_message(
-    schedule_session_id: UUID, body: s.RosterMessage, ctx: Ctx = Depends(require(service.ENROLL))
+    schedule_session_id: UUID, body: s.RosterMessage, ctx: Ctx = Depends(require(service.ROSTER_MESSAGE))
 ):
-    """Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers
-    engagement.message.send_direct (module README)."""
+    """Emails everyone registered (engagement.message.send_direct, with `own` reach on the session)."""
     return service.send_roster_message(ctx.session, ctx.principal, schedule_session_id, body.model_dump())
 
 

@@ -533,10 +533,10 @@ allow-list (STF-06, PLT-07).
 | `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an all-clients audience, filtered or not) |
 | `engagement.sms_campaign.send` | L | B | | Y | Y | - | - | - | - | - | MKT-15, MKT-23 |
 | `engagement.push.send` | L | B | | Y | Y | - | - | - | - | - | MKT-16, MKT-17, PLT-13 ("send notifications for this location") |
-| `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
+| `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10; programs' session roster message (CLS-10, `own` = the coach's session) |
 | `engagement.inbox.reply` | L | | | Y | Y | Y | - | - | - | - | MKT-23 |
 | `engagement.app_content.manage` | L | | | Y | Y | - | - | - | - | - | PLT-13 ("manage location in app"), APP-04..APP-14, SSP-13..SSP-16 |
-| `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10 |
+| `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10; programs' session booking policies (CLS-09) |
 | `engagement.notification_rule.manage` | L | | | Y | Y | - | - | - | - | - | MKT-13, MKT-14, STF-12, PAY-07, PAY-08 |
 | `engagement.automation.manage` | L | B | | Y | Y | - | - | - | - | - | MKT-20 |
 | `engagement.suppression.manage` | T | | | Y | - | - | - | - | - | - | MKT-08 (un-suppress is a compliance act) |
