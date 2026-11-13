@@ -847,6 +847,12 @@ def get_session(session: Db, session_id: UUID) -> dict:
     return _session_views(session, [seat])[0]
 
 
+def get_sessions(session: Db, session_ids) -> dict[UUID, dict]:
+    """Internal (integrations' member feed): get_session for many ids in one read; unknown ids are left out."""
+    seats = session.scalars(select(Session).where(Session.id.in_(list(session_ids)))).all() if session_ids else []
+    return {view["id"]: view for view in _session_views(session, list(seats))}
+
+
 # --- views -------------------------------------------------------------------------------------------------
 
 
@@ -911,7 +917,14 @@ def booking_views(session: Db, booking_ids) -> dict[UUID, dict]:
 
 
 def booking_ids(
-    *, client_id=None, client_ids=None, status=None, series_id=None, resource_id=None, starts_from=None, starts_to=None,
+    *,
+    client_id=None,
+    client_ids=None,
+    status=None,
+    series_id=None,
+    resource_id=None,
+    starts_from=None,
+    starts_to=None,
     location_id=None,
 ):
     """Internal: a SELECT of booking ids matching booking-side filters, for an owner's list query."""

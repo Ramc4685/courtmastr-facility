@@ -135,6 +135,27 @@ def test_expired_key_is_refused(client, owner):
     _key(client, owner, 422, scopes=["clients.client.read"], expires_at=past)
 
 
+@pytest.mark.parametrize(
+    "scope",
+    [
+        "platform.audit.read",
+        "platform.audit.export",
+        "platform.staff_user.read",
+        "integrations.sync.run",
+        "reporting.report_schedule.manage",
+        "reporting.dashboard.read",
+    ],  # fmt: skip
+)
+def test_keys_hold_only_the_documented_api_resources(client, owner, scope):
+    """The allow-list: audit, the staff directory, the accounting sync and person-bound reporting stay with
+    people. A key cannot hold report_schedule.manage, so it never lists schedules or their recipients."""
+    assert scope in CATALOGUE
+    refused = _key(client, owner, 422, scopes=[scope], confirm_sensitive_scopes=True)
+    assert refused["code"] == "scope-not-grantable"
+    assert all(service.grantable_to_key(p) == (p.context in service.KEY_CONTEXTS and not set(p.flags) & {
+        "A", "I", "G", "K", "OO", "OD", "+"}) for p in CATALOGUE.values())  # fmt: skip
+
+
 def test_scopes_are_bounded_by_the_catalogue_the_rules_and_the_creator(client, tenant, owner):
     assert _key(client, owner, 422, scopes=["integrations.api_key.manage"])["code"] == "scope-not-grantable"
     assert _key(client, owner, 422, scopes=["nope.nope.nope"])["code"] == "validation-failed"

@@ -44,7 +44,7 @@ Feature IDs and priorities are from `docs/discovery/parity-matrix.md`. Tests are
 | SCH-17 Shared bookings for related clients | P1 | not built | | | Needs households (module 4) and packages (module 5). |
 | SCH-18 Trainer/coach availability scheduling | P0 | done (API) | trainers are `resource` rows (`kind: trainer`); `GET/POST /resources/{id}/availability-windows`, `PATCH/DELETE /availability-windows/{id}`; `GET /availability` (free time per resource); coach `own` reach | `test_resources.py::test_availability_windows`, `test_calendar.py::test_availability_*`, `test_permissions_per_role_*` | Phase 10: slot offers derive bookable trainer slots; the calendar returns `resource_hours` (`test_edges.py`). |
 | SCH-19 Staff calendar sync (Google / Outlook) | P1 | not built | | | |
-| SCH-20 Embedded public schedule / schedule data for external sites | P1 | not built | | | |
+| SCH-20 Embedded public schedule / schedule data for external sites | P1 | partial (API, phase 15) | `integrations/feeds.py`, `programs/selfservice.py` | IT | Public schedule under the portal listing rule; settings screen not built (`phase15-api.md`). |
 | SCH-21 Merge two reservations into one linked series | P2 | not built | | | |
 
 ### Session side of CLS (prefix owned by build module 6; thin slice shipped here)

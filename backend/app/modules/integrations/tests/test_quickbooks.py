@@ -461,3 +461,15 @@ def test_pending_connection_is_not_connected_and_keys_map_once_across_kinds(clie
     clash = {"mappings": [{"kind": "ledger_account", "local_key": "k", "external_id": "1"},
                           {"kind": "tax_account", "local_key": "k", "external_id": "2"}]}  # fmt: skip
     assert client.put(f"{base}/sync-mappings", headers=owner, json=clash).status_code == 422
+
+
+def test_the_claim_functions_run_only_for_the_app_with_a_pinned_search_path():
+    with platform_engine().connect() as conn:
+        rows = conn.execute(text(
+            "SELECT p.proname, p.proconfig, has_function_privilege('public', p.oid, 'EXECUTE') AS public_can "
+            "FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+            "WHERE n.nspname = 'app' AND p.proname IN ('claim_provider_account', 'release_provider_account')"
+        )).all()  # fmt: skip
+    assert {row.proname for row in rows} == {"claim_provider_account", "release_provider_account"}
+    for row in rows:
+        assert row.proconfig == ["search_path=public, pg_temp"] and not row.public_can, row

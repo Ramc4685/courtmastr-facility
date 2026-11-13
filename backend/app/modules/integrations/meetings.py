@@ -206,6 +206,42 @@ def on_disconnect(session: Session, connection: ExternalConnection) -> None:
     for row in rows:
         _drop_at_provider(session, row)
         row.status, row.last_error = MeetingStatus.FAILED, "connection-disconnected"
+        audit.record(session, "integrations.video_meeting.put", row, location_id=row.location_id,
+                     changes=audit.diff(row))  # fmt: skip
+    session.flush()
+
+
+def on_session_moved(session: Session, booking_id: UUID) -> None:
+    """Internal (handlers, after the booking's own commit): a rescheduled session's Zoom meeting moves with it.
+    If Zoom refuses, the meeting is marked failed so staff see it. Re-running sends the same times again."""
+    view = scheduling.service.booking_views(session, [booking_id]).get(booking_id)
+    seat = view.get("session") if view else None
+    row = _row(session, seat["id"]) if seat else None
+    if view is None or row is None or row.provider != MeetingProvider.ZOOM or not row.external_meeting_id:
+        return
+    connection = session.get(ExternalConnection, row.external_connection_id) if row.external_connection_id else None
+    if connection is None or connection.status != ConnectionStatus.ACTIVE or row.status != MeetingStatus.SCHEDULED:
+        return
+    minutes = max(int((view["ends_at"] - view["starts_at"]).total_seconds() // 60), 1)
+    try:
+        _video(session, connection).update_meeting(
+            row.external_meeting_id, starts_at=view["starts_at"], minutes=minutes
+        )
+    except Exception:  # the provider boundary: staff re-save the meeting from the session panel
+        row.status, row.last_error = MeetingStatus.FAILED, "reschedule-failed"
+    audit.record(session, "integrations.video_meeting.put", row, location_id=row.location_id,
+                 changes=audit.diff(row))  # fmt: skip
+    session.flush()
+
+
+def on_session_cancelled(session: Session, session_id: UUID) -> None:
+    """Internal (handlers, after the cancellation's commit): the meeting is deleted at Zoom and here. Idempotent."""
+    row = _row(session, session_id)
+    if row is None:
+        return
+    _drop_at_provider(session, row)
+    audit.record(session, "integrations.video_meeting.delete", row, location_id=row.location_id, changes={})
+    session.delete(row)
     session.flush()
 
 

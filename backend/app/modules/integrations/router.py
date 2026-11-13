@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session as Db
 
-from app.core import ratelimit
+from app.core import context, ratelimit
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
 from app.core.auth.principal import system_principal
@@ -337,26 +337,55 @@ def create_portal_calendar_feed(body: s.PortalCalendarFeedCreate, ctx: Ctx = Dep
     return _feed_created(row, token)
 
 
+@router.delete("/portal/calendar-feeds", status_code=204)
+def revoke_portal_calendar_feeds(ctx: Ctx = Depends(current_ctx)):
+    """Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old."""
+    feeds.revoke_member_feeds(ctx.session, ctx.principal)
+    return Response(status_code=204)
+
+
+def _redact(request: Request, token: str) -> None:
+    """The token is a credential: keep it out of the access log and error bodies from here on."""
+    request.scope["path"] = request.scope["path"].replace(token, "[redacted]")
+    request.scope["raw_path"] = request.scope["path"].encode()
+
+
+def _calendar_feed(token: str, request: Request, response: Response) -> Response:
+    _redact(request, token)
+    ratelimit.hit("calendar-feed-ip", context.client_ip.get() or "unknown", response)
+    tenant_id = feeds.tenant_of(token)
+    if tenant_id is None:
+        raise NotFound()
+    session = request_session(request, tenant_id)
+    session.info["actor"] = system_principal("calendar feed")
+    feed = feeds.live_feed(session, token)  # validated before it counts against the feed's own bucket
+    ratelimit.hit("calendar-feed", str(feed.id), response, tenant=tenant_id)
+    body = feeds.render(session, token)
+    return Response(
+        b"" if request.method == "HEAD" else body,
+        media_type="text/calendar; charset=utf-8",
+        headers=dict(response.headers) | {"Cache-Control": "private, max-age=900"},
+    )
+
+
 @inbound.get(
     "/public/calendar-feeds/{token}", response_class=Response, responses={200: {"content": {"text/calendar": {}}}}
 )
 def get_public_calendar_feed(token: str, request: Request, response: Response):
     """iCalendar text, recomputed from the owner's current access on each fetch. 404 for any unusable URL."""
-    # The token is a credential: keep it out of the access log and error bodies from here on.
-    request.scope["path"] = request.scope["path"].replace(token, "[redacted]")
-    request.scope["raw_path"] = request.scope["path"].encode()
-    tenant_id = feeds.tenant_of(token)
-    if tenant_id is None:
-        raise NotFound()
-    ratelimit.hit("calendar-feed", token, response, tenant=tenant_id)
-    session = request_session(request, tenant_id)
-    session.info["actor"] = system_principal("calendar feed")
-    body = feeds.render(session, token)
-    return Response(
-        body,
-        media_type="text/calendar; charset=utf-8",
-        headers=dict(response.headers) | {"Cache-Control": "private, max-age=900"},
-    )
+    return _calendar_feed(token, request, response)
+
+
+# Calendar apps also send HEAD, OPTIONS and PROPFIND. Answering them here keeps the token out of the access log,
+# which would otherwise record a 405 with the full path before any handler runs (handover: redact in core.api).
+@inbound.api_route("/public/calendar-feeds/{token}", methods=["HEAD", "OPTIONS", "PROPFIND"], include_in_schema=False)
+def other_public_calendar_feed_methods(token: str, request: Request, response: Response):
+    if request.method == "HEAD":
+        return _calendar_feed(token, request, response)
+    _redact(request, token)
+    if request.method == "OPTIONS":
+        return Response(status_code=204, headers={"Allow": "GET, HEAD, OPTIONS"})
+    raise NotFound()  # no WebDAV: a read-only feed, never a CalDAV collection
 
 
 @router.get("/public-schedule-settings", response_model=s.PublicScheduleSettingsOut, tags=["scheduling"])
@@ -384,6 +413,7 @@ def get_public_schedule(
     """Embeddable: a published location's sessions with seats left and, if shown, busy times with no names.
     Tenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule."""
     response.headers["Cache-Control"] = "public, max-age=60"
+    response.headers["Vary"] = "X-Tenant-Slug"  # the tenant may come from this header: never share across it
     return feeds.public_schedule(session, location_id, from_on, days)
 
 
@@ -396,4 +426,5 @@ def get_public_analytics_config(response: Response, session: Annotated[Db, Depen
     """The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
     X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent."""
     response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["Vary"] = "X-Tenant-Slug"
     return analytics.public_config(session)

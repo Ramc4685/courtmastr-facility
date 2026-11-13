@@ -59,7 +59,8 @@ ROUTES = list(_walk(app.routes))
 
 def test_the_route_walk_sees_the_whole_api():
     operations = sum(len(methods) for methods in app.openapi()["paths"].values())
-    assert sum(len(route.methods) for _, route, _ in ROUTES) == operations > 40
+    # Hidden routes (the calendar-feed HEAD/OPTIONS/PROPFIND twin) are walked and checked, just not documented.
+    assert sum(len(route.methods) for _, route, _ in ROUTES if route.include_in_schema) == operations > 40
 
 
 @pytest.mark.parametrize(("path", "route", "calls"), ROUTES, ids=[f"{sorted(r.methods)[0]} {p}" for p, r, _ in ROUTES])

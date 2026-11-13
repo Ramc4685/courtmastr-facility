@@ -3,7 +3,7 @@ ZoomVideo over httpx.MockTransport (never Zoom), the session meeting commands, t
 member join with its window, its place check and the attendance mark."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -190,6 +190,48 @@ def test_disconnecting_zoom_stops_its_meetings_and_finished_sessions_take_none(c
     past = _session(client, owner, f, clock.now().replace(second=0, microsecond=0) - timedelta(hours=3))
     late = client.put(_meeting(past), headers=owner, json={"provider": "manual", "join_url": "https://m.example/z"})
     assert (late.status_code, late.json()["code"]) == (409, "invalid-state-transition")
+
+
+def test_a_zoom_meeting_follows_its_session_after_commit(client, tenant, owner, monkeypatch):
+    from app.core.auth import system_principal
+    from app.core.events import SUBSCRIBERS
+    from app.modules.integrations import handlers, meetings
+
+    assert handlers.move_virtual_meeting in SUBSCRIBERS["scheduling.booking.rescheduled"]  # runs after commit
+    assert handlers.drop_virtual_meeting in SUBSCRIBERS["scheduling.session.cancelled"]
+    calls: list = []
+    monkeypatch.setattr(FakeVideo, "update_meeting", lambda self, mid, **kw: calls.append(("update", mid, kw)))
+    monkeypatch.setattr(FakeVideo, "delete_meeting", lambda self, mid: calls.append(("delete", mid)))
+    f = facility(client, owner)
+    _connect_zoom(client, owner)
+    created = ok(book(client, owner, f, [f.court], WHEN.isoformat(), (WHEN + timedelta(hours=1)).isoformat(),
+                      kind="session", public_title="Online clinic"))  # fmt: skip
+    booking = created.get("booking", created)
+    seat = booking["session"]["id"]
+    ok(client.put(_meeting(seat), headers=owner, json={"provider": "zoom"}), 200)
+    later = WHEN + timedelta(days=1)
+    moved = {"starts_at": later.isoformat(), "ends_at": (later + timedelta(minutes=90)).isoformat(),
+             "version": booking["version"]}  # fmt: skip
+    booking = ok(client.post(f"{API}/bookings/{booking['id']}/reschedule", headers=owner, json=moved), 200)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # the subscriber, after commit
+        meetings.on_session_moved(session, UUID(booking["id"]))
+    assert calls[0][0] == "update" and calls[0][2] == {"starts_at": later, "minutes": 90}
+
+    cancel = {"version": booking["version"]}
+    ok(client.post(f"{API}/bookings/{booking['id']}/cancel", headers=owner, json=cancel), 200)
+    for _ in range(2):  # idempotent: a redelivered event finds nothing left to delete
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            meetings.on_session_cancelled(session, UUID(seat))
+    assert [c[0] for c in calls] == ["update", "delete"]
+    assert client.get(_meeting(seat), headers=owner).status_code == 404
+
+
+def test_a_zoom_host_id_cannot_walk_the_api_path(client, owner):
+    f = facility(client, owner)
+    seat = _session(client, owner, f, WHEN)
+    for bad in ("..", ".", "../users", "a/b", "me?x=1"):
+        body = {"provider": "zoom", "host_external_user_id": bad}
+        assert client.put(_meeting(seat), headers=owner, json=body).status_code == 422, bad
 
 
 def test_a_cancelled_place_cannot_join(client, tenant, owner):

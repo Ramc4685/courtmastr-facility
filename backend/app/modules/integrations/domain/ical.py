@@ -12,6 +12,7 @@ class Event:
     summary: str
     description: str = ""
     cancelled: bool = False
+    updated_at: datetime | None = None  # the record's last change: LAST-MODIFIED, and a stable DTSTAMP
 
 
 def escape(value: str) -> str:
@@ -45,9 +46,11 @@ def calendar(name: str, events: list[Event], now: datetime) -> str:
     ]  # fmt: skip
     for event in sorted(events, key=lambda e: (e.starts_at, e.uid)):
         lines += [
-            "BEGIN:VEVENT", f"UID:{event.uid}", f"DTSTAMP:{_stamp(now)}", f"DTSTART:{_stamp(event.starts_at)}",
-            f"DTEND:{_stamp(event.ends_at)}", f"SUMMARY:{escape(event.summary)}",
+            "BEGIN:VEVENT", f"UID:{event.uid}", f"DTSTAMP:{_stamp(event.updated_at or event.starts_at)}",
+            f"DTSTART:{_stamp(event.starts_at)}", f"DTEND:{_stamp(event.ends_at)}", f"SUMMARY:{escape(event.summary)}",
         ]  # fmt: skip
+        if event.updated_at is not None:
+            lines.append(f"LAST-MODIFIED:{_stamp(event.updated_at)}")
         if event.description:
             lines.append(f"DESCRIPTION:{escape(event.description)}")
         lines += ["STATUS:CANCELLED" if event.cancelled else "STATUS:CONFIRMED", "END:VEVENT"]

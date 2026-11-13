@@ -78,9 +78,10 @@ def test_api_reference_lists_key_operations(client, owner):
 # --- every read resource answers a key ---------------------------------------------------------------------
 
 _LIST_SKIP = {f"{API}/api-reference"}  # needs api_key.manage, which no key can hold
-# Reads about "me" behind a key-gated router: the service needs a person, so a key is refused there by design.
-_SELF_ROUTES = {f"{API}/time-entries/current", f"{API}/report-runs", f"{API}/saved-reports", f"{API}/export-jobs",
-                 f"{API}/report-schedules", f"{API}/dashboards/management"}  # fmt: skip
+# Person-bound reads (time clock, reports, schedules, dashboards) are not advertised to keys at all: their
+# contexts are off the key allow-list (service.KEY_CONTEXTS), so no key can hold the scopes that open them.
+_PERSON_ROUTES = (f"{API}/time-entries/current", f"{API}/report-runs", f"{API}/saved-reports", f"{API}/export-jobs",
+                  f"{API}/report-schedules", f"{API}/dashboards/management")  # fmt: skip
 
 
 def _list_reads() -> dict[str, list[str]]:
@@ -89,6 +90,16 @@ def _list_reads() -> dict[str, list[str]]:
         for path, item in _doc()["paths"].items()
         if "{" not in path and "get" in item and item["get"].get("x-api-key-scopes") and path not in _LIST_SKIP
     }
+
+
+def test_person_bound_reads_are_not_offered_to_keys(client, owner):
+    paths = _doc()["paths"]
+    for path in _PERSON_ROUTES:
+        assert "x-api-key-scopes" not in paths[path]["get"], path
+    key = _key(client, owner, ["clients.client.read"])
+    for path in (f"{API}/report-schedules", f"{API}/dashboards/management"):
+        answer = client.get(path, headers=key)
+        assert answer.status_code == 403, (path, answer.status_code, answer.text)
 
 
 def test_a_key_reaches_every_list_resource_with_its_scope_and_none_without(client, tenant, owner):
@@ -105,7 +116,7 @@ def test_a_key_reaches_every_list_resource_with_its_scope_and_none_without(clien
     failures = []
     for path, needed in reads.items():
         answer = client.get(path, headers=keys[needed[0]])
-        if answer.status_code in (401, 403, 500) and path not in _SELF_ROUTES:
+        if answer.status_code in (401, 403) or answer.status_code >= 500:
             failures.append((path, answer.status_code, answer.json().get("code")))
         if "clients.client.read" not in needed:
             denied = client.get(path, headers=narrow)

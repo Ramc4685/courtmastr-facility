@@ -76836,7 +76836,8 @@
           "host_external_user_id": {
             "anyOf": [
               {
-                "pattern": "^[A-Za-z0-9_.@-]{1,128}$",
+                "maxLength": 128,
+                "pattern": "^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+)$",
                 "type": "string"
               },
               {
@@ -79034,9 +79035,6 @@
         "summary": "List Accounting Exports",
         "tags": [
           "integrations"
-        ],
-        "x-api-key-scopes": [
-          "integrations.sync.run"
         ]
       },
       "post": {
@@ -79098,9 +79096,6 @@
         "summary": "Run Accounting Export",
         "tags": [
           "integrations"
-        ],
-        "x-api-key-scopes": [
-          "integrations.sync.run"
         ]
       }
     },
@@ -79164,9 +79159,6 @@
         "summary": "Retry Accounting Export",
         "tags": [
           "integrations"
-        ],
-        "x-api-key-scopes": [
-          "integrations.sync.run"
         ]
       }
     },
@@ -81319,9 +81311,6 @@
         "summary": "List Audit Events",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.audit.read"
         ]
       }
     },
@@ -82308,9 +82297,6 @@
         "summary": "List Automation Rules",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.automation.manage"
         ]
       },
       "post": {
@@ -82372,9 +82358,6 @@
         "summary": "Create Automation Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.automation.manage"
         ]
       }
     },
@@ -82431,9 +82414,6 @@
         "summary": "Delete Automation Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.automation.manage"
         ]
       },
       "patch": {
@@ -82505,9 +82485,6 @@
         "summary": "Update Automation Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.automation.manage"
         ]
       }
     },
@@ -84186,9 +84163,6 @@
         "summary": "Create Blackout",
         "tags": [
           "scheduling"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       }
     },
@@ -84244,9 +84218,6 @@
         "summary": "Delete Blackout",
         "tags": [
           "scheduling"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       },
       "patch": {
@@ -84317,9 +84288,6 @@
         "summary": "Update Blackout",
         "tags": [
           "scheduling"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       }
     },
@@ -86333,9 +86301,6 @@
         "summary": "List Campaigns",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -86397,9 +86362,6 @@
         "summary": "Create Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.create"
         ]
       }
     },
@@ -86455,9 +86417,6 @@
         "summary": "Delete Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.create"
         ]
       },
       "get": {
@@ -86518,9 +86477,6 @@
         "summary": "Get Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -86592,9 +86548,6 @@
         "summary": "Update Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.create"
         ]
       }
     },
@@ -86657,9 +86610,6 @@
         "summary": "Cancel Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.create"
         ]
       }
     },
@@ -86723,9 +86673,6 @@
         "summary": "Recall Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.push.send"
         ]
       }
     },
@@ -86875,9 +86822,6 @@
         "summary": "List Campaign Recipients",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       }
     },
@@ -86950,9 +86894,6 @@
         "summary": "Schedule Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       }
     },
@@ -87016,9 +86957,6 @@
         "summary": "Send Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       }
     },
@@ -87081,9 +87019,6 @@
         "summary": "Get Campaign Stats",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       }
     },
@@ -87147,9 +87082,6 @@
         "summary": "Test Campaign",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       }
     },
@@ -100680,9 +100612,6 @@
         "summary": "Get Management Dashboard",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.dashboard.read"
         ]
       }
     },
@@ -104975,9 +104904,6 @@
         "summary": "List Export Jobs",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       },
       "post": {
@@ -105038,9 +104964,6 @@
         "summary": "Create Export Job",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       }
     },
@@ -105103,9 +105026,6 @@
         "summary": "Get Export Job",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       }
     },
@@ -105161,9 +105081,6 @@
         "summary": "Get Export Job File",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       }
     },
@@ -105627,7 +105544,7 @@
     },
     "/api/v1/external-connections/{external_connection_id}/sync": {
       "post": {
-        "description": "Export each past day in the range (default yesterday, at most 31 days) for the connection's location.\nIdempotent per day. Errors: invalid-state-transition, validation-failed.",
+        "description": "Queue the export of each finished day in the range (the location's own dates; default its yesterday, at\nmost 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.\nErrors: invalid-state-transition, sync-in-progress, validation-failed.",
         "operationId": "runSync",
         "parameters": [
           {
@@ -105695,9 +105612,6 @@
         "summary": "Run Sync",
         "tags": [
           "integrations"
-        ],
-        "x-api-key-scopes": [
-          "integrations.sync.run"
         ]
       }
     },
@@ -107319,9 +107233,6 @@
         "summary": "Get Form Summary",
         "tags": [
           "programs"
-        ],
-        "x-api-key-scopes": [
-          "reporting.program.run"
         ]
       }
     },
@@ -109281,9 +109192,6 @@
         "summary": "List Import Jobs",
         "tags": [
           "imports"
-        ],
-        "x-api-key-scopes": [
-          "platform.import_job.read"
         ]
       },
       "post": {
@@ -109406,9 +109314,6 @@
         "summary": "Get Import Job",
         "tags": [
           "imports"
-        ],
-        "x-api-key-scopes": [
-          "platform.import_job.read"
         ]
       }
     },
@@ -109600,9 +109505,6 @@
         "summary": "Get Import Job Error Report",
         "tags": [
           "imports"
-        ],
-        "x-api-key-scopes": [
-          "platform.import_job.read"
         ]
       }
     },
@@ -109718,9 +109620,6 @@
         "summary": "List Import Templates",
         "tags": [
           "imports"
-        ],
-        "x-api-key-scopes": [
-          "platform.import_job.read"
         ]
       }
     },
@@ -109776,9 +109675,6 @@
         "summary": "Get Import Template",
         "tags": [
           "imports"
-        ],
-        "x-api-key-scopes": [
-          "platform.import_job.read"
         ]
       }
     },
@@ -114583,9 +114479,6 @@
         "summary": "Update Location",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       }
     },
@@ -114782,9 +114675,6 @@
         "summary": "Replace Facility Hours",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       }
     },
@@ -114828,9 +114718,6 @@
         "summary": "Delete Location Logo",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       },
       "put": {
@@ -114873,9 +114760,6 @@
         "summary": "Put Location Logo",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       }
     },
@@ -114938,9 +114822,6 @@
         "summary": "Get Portal Settings",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.portal_settings.manage"
         ]
       },
       "put": {
@@ -115012,9 +114893,6 @@
         "summary": "Put Portal Settings",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.portal_settings.manage"
         ]
       }
     },
@@ -115228,7 +115106,6 @@
           "programs"
         ],
         "x-api-key-scopes": [
-          "engagement.portal_settings.manage",
           "programs.registration_config.manage"
         ]
       }
@@ -120088,9 +119965,6 @@
         "summary": "List Message Templates",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -120152,9 +120026,6 @@
         "summary": "Create Message Template",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       }
     },
@@ -120211,9 +120082,6 @@
         "summary": "Delete Message Template",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       },
       "get": {
@@ -120274,9 +120142,6 @@
         "summary": "Get Message Template",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -120348,9 +120213,6 @@
         "summary": "Update Message Template",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       }
     },
@@ -120490,9 +120352,6 @@
         "summary": "List Messages",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -120554,9 +120413,6 @@
         "summary": "Send Direct Message",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.message.send_direct"
         ]
       }
     },
@@ -120619,9 +120475,6 @@
         "summary": "Get Message",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       }
     },
@@ -121152,9 +121005,6 @@
         "summary": "List Notification Routes",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       },
       "post": {
@@ -121216,9 +121066,6 @@
         "summary": "Create Notification Route",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -121274,9 +121121,6 @@
         "summary": "Delete Notification Route",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       },
       "get": {
@@ -121337,9 +121181,6 @@
         "summary": "Get Notification Route",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       },
       "patch": {
@@ -121410,9 +121251,6 @@
         "summary": "Update Notification Route",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -125718,9 +125556,6 @@
         "summary": "List Permission Catalogue",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.role.read"
         ]
       }
     },
@@ -126209,6 +126044,50 @@
       }
     },
     "/api/v1/portal/calendar-feeds": {
+      "delete": {
+        "description": "Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old.",
+        "operationId": "revokePortalCalendarFeeds",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Portal Calendar Feeds",
+        "tags": [
+          "integrations"
+        ]
+      },
       "post": {
         "description": "My schedule: the sessions I and my household are enrolled in. The URL token is in this response only.",
         "operationId": "createPortalCalendarFeed",
@@ -143243,9 +143122,6 @@
         "summary": "List Reminder Rules",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       },
       "post": {
@@ -143307,9 +143183,6 @@
         "summary": "Create Reminder Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -143365,9 +143238,6 @@
         "summary": "Delete Reminder Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       },
       "get": {
@@ -143428,9 +143298,6 @@
         "summary": "Get Reminder Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       },
       "patch": {
@@ -143501,9 +143368,6 @@
         "summary": "Update Reminder Rule",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.notification_rule.manage"
         ]
       }
     },
@@ -145855,18 +145719,6 @@
         "summary": "List Report Definitions",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -145928,18 +145780,6 @@
         "summary": "Get Report Definition",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -146001,9 +145841,6 @@
         "summary": "List Report Recipients",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       }
     },
@@ -146142,18 +145979,6 @@
         "summary": "List Report Runs",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       },
       "post": {
@@ -146214,18 +146039,6 @@
         "summary": "Create Report Run",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -146288,18 +146101,6 @@
         "summary": "Get Report Run",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -146422,18 +146223,6 @@
         "summary": "List Report Run Rows",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -146572,9 +146361,6 @@
         "summary": "List Report Schedules",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       },
       "post": {
@@ -146635,9 +146421,6 @@
         "summary": "Create Report Schedule",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       }
     },
@@ -146693,9 +146476,6 @@
         "summary": "Delete Report Schedule",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       },
       "get": {
@@ -146756,9 +146536,6 @@
         "summary": "Get Report Schedule",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       },
       "patch": {
@@ -146829,9 +146606,6 @@
         "summary": "Update Report Schedule",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.report.export"
         ]
       }
     },
@@ -147643,7 +147417,6 @@
           "programs"
         ],
         "x-api-key-scopes": [
-          "engagement.portal_settings.manage",
           "programs.registration_config.manage"
         ]
       },
@@ -147717,7 +147490,6 @@
           "programs"
         ],
         "x-api-key-scopes": [
-          "engagement.portal_settings.manage",
           "programs.registration_config.manage"
         ]
       }
@@ -149158,9 +148930,6 @@
         "summary": "List Roles",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.role.read"
         ]
       },
       "post": {
@@ -149338,9 +149107,6 @@
         "summary": "Get Role",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.role.read"
         ]
       },
       "patch": {
@@ -149896,18 +149662,6 @@
         "summary": "List Saved Reports",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       },
       "post": {
@@ -149968,18 +149722,6 @@
         "summary": "Create Saved Report",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -150035,18 +149777,6 @@
         "summary": "Delete Saved Report",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       },
       "get": {
@@ -150107,18 +149837,6 @@
         "summary": "Get Saved Report",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       },
       "patch": {
@@ -150189,18 +149907,6 @@
         "summary": "Update Saved Report",
         "tags": [
           "reporting"
-        ],
-        "x-api-key-scopes": [
-          "reporting.attendance.run",
-          "reporting.client.run",
-          "reporting.financial.run",
-          "reporting.league.run",
-          "reporting.marketing.run",
-          "reporting.membership.run",
-          "reporting.payroll.run",
-          "reporting.pos.run",
-          "reporting.program.run",
-          "reporting.time_clock.run"
         ]
       }
     },
@@ -151039,9 +150745,6 @@
         "summary": "Update Scheduling Settings",
         "tags": [
           "scheduling"
-        ],
-        "x-api-key-scopes": [
-          "platform.location.update"
         ]
       }
     },
@@ -151693,9 +151396,6 @@
         "summary": "List Segments",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -151757,9 +151457,6 @@
         "summary": "Create Segment",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       }
     },
@@ -151823,9 +151520,6 @@
         "summary": "Preview Segment",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       }
     },
@@ -151882,9 +151576,6 @@
         "summary": "Delete Segment",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       },
       "get": {
@@ -151945,9 +151636,6 @@
         "summary": "Get Segment",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -152019,9 +151707,6 @@
         "summary": "Update Segment",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.edit"
         ]
       }
     },
@@ -152090,7 +151775,6 @@
           "programs"
         ],
         "x-api-key-scopes": [
-          "engagement.portal_settings.manage",
           "programs.registration_config.manage"
         ]
       }
@@ -153065,9 +152749,6 @@
         "summary": "List Shifts",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       },
       "post": {
@@ -153129,9 +152810,6 @@
         "summary": "Create Shift",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       }
     },
@@ -153195,9 +152873,6 @@
         "summary": "Copy Shifts",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       }
     },
@@ -153260,9 +152935,6 @@
         "summary": "Publish Shifts",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       }
     },
@@ -153374,9 +153046,6 @@
         "summary": "Get Shift Variance",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       }
     },
@@ -153449,9 +153118,6 @@
         "summary": "Update Shift",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       }
     },
@@ -153514,9 +153180,6 @@
         "summary": "Cancel Shift",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.shift.manage"
         ]
       }
     },
@@ -155936,9 +155599,6 @@
         "summary": "List Staff Users",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.staff_user.read"
         ]
       },
       "post": {
@@ -156062,9 +155722,6 @@
         "summary": "Get Staff User",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.staff_user.read"
         ]
       },
       "patch": {
@@ -156785,9 +156442,6 @@
         "summary": "Get Staff User Permissions",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.staff_user.read"
         ]
       }
     },
@@ -158231,9 +157885,6 @@
         "summary": "List Support Requests",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.support_request.create"
         ]
       },
       "post": {
@@ -158295,9 +157946,6 @@
         "summary": "Create Support Request",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.support_request.create"
         ]
       }
     },
@@ -158351,9 +157999,6 @@
         "summary": "Upload Support Screenshot",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.support_request.create"
         ]
       }
     },
@@ -158416,9 +158061,6 @@
         "summary": "Get Support Request",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.support_request.create"
         ]
       }
     },
@@ -158482,9 +158124,6 @@
         "summary": "Close Support Request",
         "tags": [
           "platform"
-        ],
-        "x-api-key-scopes": [
-          "platform.support_request.create"
         ]
       }
     },
@@ -158623,9 +158262,6 @@
         "summary": "List Suppressions",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -158686,9 +158322,6 @@
         "summary": "Create Suppression",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.suppression.manage"
         ]
       }
     },
@@ -158752,9 +158385,6 @@
         "summary": "Release Suppression",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.suppression.manage"
         ]
       }
     },
@@ -160800,9 +160430,6 @@
         "summary": "Clock In",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.time_entry.punch"
         ]
       }
     },
@@ -160866,9 +160493,6 @@
         "summary": "Clock Out",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.time_entry.punch"
         ]
       }
     },
@@ -160938,9 +160562,6 @@
         "summary": "Get Time Clock State",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "staff.time_entry.punch"
         ]
       }
     },
@@ -161317,9 +160938,6 @@
         "summary": "List Videos",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.app_content.manage"
         ]
       },
       "post": {
@@ -161381,9 +160999,6 @@
         "summary": "Create Video",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.app_content.manage"
         ]
       }
     },
@@ -161439,9 +161054,6 @@
         "summary": "Delete Video",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.app_content.manage"
         ]
       },
       "get": {
@@ -161502,9 +161114,6 @@
         "summary": "Get Video",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.app_content.manage"
         ]
       },
       "patch": {
@@ -161575,9 +161184,6 @@
         "summary": "Update Video",
         "tags": [
           "engagement"
-        ],
-        "x-api-key-scopes": [
-          "engagement.app_content.manage"
         ]
       }
     },
@@ -162002,9 +161608,6 @@
         "summary": "List Webhook Deliveries",
         "tags": [
           "integrations"
-        ],
-        "x-api-key-scopes": [
-          "integrations.delivery.read"
         ]
       }
     },
@@ -162067,9 +161670,6 @@
         "summary": "Get Webhook Delivery",
         "tags": [
           "integrations"
-        ],
-        "x-api-key-scopes": [
-          "integrations.delivery.read"
         ]
       }
     },

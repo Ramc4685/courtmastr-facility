@@ -7205,6 +7205,13 @@ paths:
       x-priority: P1
       x-permission: client:self
       x-features: [INT-08, SSP-19]
+    delete:
+      operationId: revokePortalCalendarFeeds
+      tags: [integrations]
+      summary: Revoke my schedule feed (every address handed out stops)
+      x-priority: P1
+      x-permission: client:self
+      x-features: [INT-08, SSP-19]
   /public/calendar-feeds/{token}:
     parameters: [{name: token, in: path, required: true, schema: {type: string}}]
     get:

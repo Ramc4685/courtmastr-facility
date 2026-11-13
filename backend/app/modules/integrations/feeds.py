@@ -122,8 +122,7 @@ def create_feed(session: Session, principal: Principal, data: dict) -> tuple[Cal
 
 def create_member_feed(session: Session, principal: Principal, data: dict) -> tuple[CalendarFeed, str]:
     """SSP-19: a portal member's own schedule (the sessions they and their household are enrolled in)."""
-    if principal.kind != "client" or principal.identity_id is None:
-        raise PermissionDenied("Members only")
+    revoke_member_feeds(session, principal)  # one feed per member: making a new one retires the old URL
     row = CalendarFeed(
         kind=FeedKind.MEMBER_SCHEDULE, name=data.get("name") or "My schedule", owner_identity_id=principal.identity_id
     )
@@ -132,6 +131,20 @@ def create_member_feed(session: Session, principal: Principal, data: dict) -> tu
     session.flush()
     audit.record(session, "integrations.calendar_feed.create", row, changes=audit.diff(row))
     return row, token
+
+
+def revoke_member_feeds(session: Session, principal: Principal) -> int:
+    """A portal member deletes their own schedule feeds, so every URL they handed out stops working."""
+    if principal.kind != "client" or principal.identity_id is None:
+        raise PermissionDenied("Members only")
+    rows = session.scalars(
+        select(CalendarFeed).where(CalendarFeed.owner_identity_id == principal.identity_id).with_for_update()
+    ).all()
+    for row in rows:
+        audit.record(session, "integrations.calendar_feed.delete", row)
+        session.delete(row)
+    session.flush()
+    return len(rows)
 
 
 def _manage(session: Session, principal: Principal, feed_id: UUID) -> tuple[CalendarFeed, bool]:
@@ -190,6 +203,15 @@ def _find(session: Session, token: str) -> CalendarFeed:
     return row
 
 
+def live_feed(session: Session, token: str) -> CalendarFeed:
+    """404 unless the token opens an active feed of an active tenant. The route checks this before it counts the
+    fetch against the feed's own bucket, so an unknown token never makes a bucket."""
+    feed = _find(session, token)
+    if platform.service.get_tenant(session).status != "active":
+        raise NotFound()
+    return feed
+
+
 def _pages(fetch, base: ListQuery):
     """Walk a keyset list up to MAX_EVENTS rows."""
     query, seen = base, 0
@@ -209,51 +231,44 @@ def _field(row: Any, name: str) -> Any:
 
 def _staff_events(session: Session, feed: CalendarFeed, owner: Principal, start: datetime, end: datetime) -> list:
     events = []
+    window = {"starts_at[gte]": start.isoformat(), "starts_at[lt]": end.isoformat()}
+    if feed.location_id:
+        window["location_id"] = str(feed.location_id)
     if owner.has(BOOKING_READ):
-        filters = {"starts_at[gte]": start.isoformat(), "starts_at[lt]": end.isoformat()}
-        if feed.location_id:
-            filters["location_id"] = str(feed.location_id)
-        query = ListQuery(200, None, "starts_at", False, None, filters)
+        query = ListQuery(200, None, "starts_at", False, None, window)
         for booking in _pages(lambda q: scheduling.service.list_bookings(session, owner, q), query):
             if booking.get("starts_at") is None or booking.get("ends_at") is None:
                 continue
             events.append(ical.Event(
                 uid=f"booking-{booking['id']}@courtmastr", starts_at=booking["starts_at"], ends_at=booking["ends_at"],
                 summary=booking.get("title") or str(booking.get("kind", "Booking")).replace("_", " ").capitalize(),
-                cancelled=booking.get("status") == "cancelled",
+                cancelled=booking.get("status") == "cancelled", updated_at=booking.get("updated_at"),
             ))  # fmt: skip
     if feed.include_shifts:
-        query = ListQuery(200, None, "starts_at", False, None, {})
+        query = ListQuery(200, None, "starts_at", False, None, window)
         for shift in _pages(lambda q: staff.service.list_my_shifts(session, owner, q), query):
             starts, ends = _field(shift, "starts_at"), _field(shift, "ends_at")
-            if (
-                starts
-                and ends
-                and start <= starts < end
-                and (not feed.location_id or _field(shift, "location_id") == feed.location_id)
-            ):
-                events.append(
-                    ical.Event(
-                        uid=f"shift-{_field(shift, 'id')}@courtmastr", starts_at=starts, ends_at=ends, summary="Shift"
-                    )
-                )
+            if starts and ends:
+                events.append(ical.Event(
+                    uid=f"shift-{_field(shift, 'id')}@courtmastr", starts_at=starts, ends_at=ends, summary="Shift",
+                    updated_at=_field(shift, "updated_at"),
+                ))  # fmt: skip
     return events
 
 
 def _team_events(session: Session, feed: CalendarFeed, owner: Principal, start: datetime, end: datetime) -> list:
-    """shortcut: games have no team filter, so this walks the owner's games by start time and keeps the team's
-    (capped at MAX_EVENTS scanned); add a team filter to leagues.list_games when a tenant outgrows it."""
+    """The team's competition's games in the window (games have no team filter, so the team is kept here)."""
     if not any(owner.has(key) for key in GAME_READS):
         return []
-    events, team = [], feed.competition_team_id
-    query = ListQuery(200, None, "starts_at", False, None, {})
+    team = feed.competition_team_id
+    competition = leagues.service.competition_of(session, team) if team else None
+    if competition is None:
+        return []
+    events = []
+    query = ListQuery(200, None, "starts_at", False, None, {"competition_id": str(competition)})
     for game in _pages(lambda q: leagues.service.list_games(session, owner, q), query):
         starts, ends = game.get("starts_at"), game.get("ends_at")
-        if (
-            team not in (game.get("home_team_id"), game.get("away_team_id"))
-            or not starts
-            or not (start <= starts < end)
-        ):
+        if team not in (game.get("home_team_id"), game.get("away_team_id")) or not starts or not start <= starts < end:
             continue
         home = game.get("home_name") or game.get("home_label") or "TBD"
         away = game.get("away_name") or game.get("away_label") or "TBD"
@@ -261,24 +276,26 @@ def _team_events(session: Session, feed: CalendarFeed, owner: Principal, start: 
             uid=f"game-{game['id']}@courtmastr", starts_at=starts,
             ends_at=ends or starts + timedelta(minutes=game.get("length_min") or 60), summary=f"{home} vs {away}",
             description=game.get("competition_name") or "", cancelled=game.get("status") == "cancelled",
+            updated_at=game.get("updated_at"),
         ))  # fmt: skip
     return events
 
 
 def _member_events(session: Session, feed: CalendarFeed, start: datetime, end: datetime) -> list:
     member = Principal(kind="client", tenant_id=feed.tenant_id, identity_id=feed.owner_identity_id)
-    events, seen = [], set()
     query = ListQuery(200, None, None, False, None, {"target_kind": "session"})
-    for enrollment in _pages(lambda q: programs.selfservice.portal_list_enrollments(session, member, q), query):
-        if enrollment.status not in ("enrolled", "pending") or enrollment.session_id in seen:
-            continue
-        seen.add(enrollment.session_id)
-        seat = scheduling.service.get_session(session, enrollment.session_id)
+    ids = {
+        enrollment.session_id
+        for enrollment in _pages(lambda q: programs.selfservice.portal_list_enrollments(session, member, q), query)
+        if enrollment.status in ("enrolled", "pending")
+    }
+    events = []
+    for session_id, seat in scheduling.service.get_sessions(session, ids).items():  # one read, not one per place
         starts, ends = seat.get("starts_at"), seat.get("ends_at")
         if starts and ends and start <= starts < end:
             events.append(ical.Event(
-                uid=f"session-{enrollment.session_id}@courtmastr", starts_at=starts, ends_at=ends,
-                summary=public_title(seat), cancelled=seat.get("status") == "cancelled",
+                uid=f"session-{session_id}@courtmastr", starts_at=starts, ends_at=ends, summary=public_title(seat),
+                cancelled=seat.get("status") == "cancelled", updated_at=seat.get("updated_at"),
             ))  # fmt: skip
     return events
 

@@ -73,7 +73,8 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     public-form-submit: {limit: 20, window_sec: 900, closed: true}  # anonymous form registrations, per IP (a family on venue Wi-Fi)
     public-form-email:  {limit: 5, window_sec: 3600, closed: true}  # anonymous registrations, per contact address
     api-tenant:       {limit: 600, window_sec: 60}                  # every API key of one tenant together (ADR 0012 s.2)
-    calendar-feed:    {limit: 12, window_sec: 3600}                 # per calendar feed token; calendar apps poll
+    calendar-feed:    {limit: 12, window_sec: 3600}                 # per calendar feed (after the token checks out)
+    calendar-feed-ip: {limit: 300, window_sec: 60}                  # per IP, before the token is looked up; calendar services share IPs
     public-schedule:  {limit: 60, window_sec: 60}                   # embedded public schedule, per IP
     public-site:      {limit: 120, window_sec: 60}                  # public league site and TV board, per IP (a board polls)
     public-site-media: {limit: 600, window_sec: 60}                 # league gallery images and sponsor logos, per IP

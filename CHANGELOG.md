@@ -15,6 +15,11 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - The API reference lists the key scopes each operation needs.
 
 ### Security
+- The public schedule leaves out hidden, unlisted and out-of-range sessions, and busy times show only that location's.
+- Members can revoke their calendar feed, and making a new one stops the old address; feeds of a suspended account stop.
+- QuickBooks sync posts each finished day of the location once, even when a run is retried.
+- API keys can hold only the documented API resources' permissions.
+- Online sessions: moving a session moves its Zoom meeting, and cancelling it deletes the meeting.
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 

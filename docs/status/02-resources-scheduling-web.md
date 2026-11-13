@@ -44,7 +44,7 @@ Tests:
 | SCH-17 Shared bookings | P1 | not built | | | Needs modules 4 and 5. |
 | SCH-18 Trainer availability | P0 | done | Resources › Availability dialog; day view off-hours | `TimeGrid.test.tsx`, e2e | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built | | | |
-| SCH-20 Embedded public schedule | P1 | not built | | | |
+| SCH-20 Embedded public schedule | P1 | not built | | | Settings and embed screen not built; API in `phase15-api.md`. |
 | SCH-21 Merge series | P2 | not built | | | |
 | CLS-01 Register into a session | P0 | partial | session panel "Add a client" › Register | `SessionPanel.test.tsx` | Staff register with `pricing: free`. Package and payment registration waits for modules 5 and 8. |
 | CLS-02 Multi-enrolment | P0 | not built | | | No API. |

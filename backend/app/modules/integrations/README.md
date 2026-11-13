@@ -32,7 +32,9 @@ through `service.adapter_for`.
 ## Rules worth knowing
 
 - **API keys.** Shown once, stored as SHA-256 with a 12-character lookup prefix. Only a staff person can create,
-  rotate or revoke one, never another key. Scopes must be grantable (rbac-matrix section 11), held by the
+  rotate or revoke one, never another key. Scopes must be grantable: an allow-list of the documented API
+  resources' contexts (`service.KEY_CONTEXTS`; platform, reporting, integrations, staff and engagement are off
+  it), minus rbac-matrix section 11's flags, held by the
   creator, and confirmed when they move money (`$`) or set prices (`P`). A location-limited creator must name
   locations inside their own and sees only keys within them. The key's principal is recomputed from the
   creator on every request, so it shrinks with them. Rotating re-binds the key to the person who rotated it,
@@ -88,10 +90,17 @@ through `service.adapter_for`.
 - **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
   a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
   secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
-  anything logs it, and its rate limit (`calendar-feed`, 12 an hour) is keyed by the token, not the IP, because
-  calendar services fetch every feed from a few addresses. Content is recomputed on each fetch from the
-  owner's current grants through the owning contexts' list functions, ±90 days, booking titles only. A
-  deactivated staff owner or an inactive member identity makes the feed 404. Any staff user may own a feed
+  anything logs it. HEAD answers like GET without a body; OPTIONS answers 204 and PROPFIND 404, so the methods
+  calendar apps send never reach the framework's 405, which logs the raw path (handover: redact in `core.api`).
+  A per-IP bucket (`calendar-feed-ip`, generous, because calendar services fetch every feed from a few
+  addresses) runs first; the per-feed bucket (`calendar-feed`, 12 an hour) counts only once the token opens an
+  active feed of an active tenant (`feeds.live_feed`), so unknown tokens never make buckets. Content is
+  recomputed on each fetch from the owner's current grants through the owning contexts' list functions, ±90
+  days (bookings and shifts filtered on `starts_at`; team games through their competition), booking titles
+  only. Each event carries `LAST-MODIFIED` from the record's `updated_at` and a `DTSTAMP` that does not change
+  between fetches. A deactivated staff owner, an inactive member identity or a suspended tenant makes the feed
+  404. A member has one feed: creating one deletes their earlier feeds (the old URL stops), and
+  `DELETE /portal/calendar-feeds` revokes it. Any staff user may own a feed
   (rbac-matrix section 7); a team feed needs a league game key; `revoke_any` lets a manager see and disable,
   never edit or re-enable, other people's feeds within their locations.
 - **Public schedule.** Off until a location publishes it. Shows only sessions the portal listing would show
@@ -157,16 +166,19 @@ through `service.adapter_for`.
   account-level authorisation; this needs no platform Zoom app and no browser flow). The client id `simulated`
   selects the simulated adapter in dev and test only (core settings were frozen). Not built: `/webhooks/zoom`
   (a Server-to-Server app has no deauthorisation event and v1 takes no participant events, ADR 0012 section 5),
-  the meeting lifecycle on `scheduling.session.rescheduled` and `.cancelled` events (a staff PUT moves the
-  meeting; a cancelled session refuses joins), `virtual_room` host resources and holds, the access modes
+  `virtual_room` host resources and holds, the access modes
   (`open`, `logged_in`; the join is always `booked_only`), and the 40-minute basic-plan warning.
 - A connection that was disconnected keeps its row, so reconnecting the same provider at the same location is
   `409 already-exists` (`uq_external_connection`); reconnect needs a new location scope or support. A pending
   or errored connection (an abandoned or failed consent) never blocks: a new attempt takes over its row.
 - Not built for QuickBooks: `sync_from` and `auto_sync` are stored but nothing reads them yet (no scheduled
   sync); no `mappings-incomplete` refusal, sub-category inheritance or `needs_reauth` notice (ADR 0012).
-- Team feeds walk the owner's games by start time and keep the team's, scanning at most 1000 (leagues has no
-  team filter on `list_games`). Feeds carry at most 1000 events.
+- Team feeds read the games of the team's competition (`leagues.service.competition_of`) and keep the team's,
+  scanning at most 1000 (leagues has no team filter on `list_games`). Feeds carry at most 1000 events.
+- **Meeting lifecycle.** Subscribers move a session's Zoom meeting on `scheduling.booking.rescheduled` and
+  delete it (at Zoom and here) on `scheduling.session.cancelled`, after the scheduling transaction commits; a
+  refused move marks the meeting failed (`reschedule-failed`). Disconnecting Zoom audits each meeting it fails.
+  `host_external_user_id` is a Zoom user id or an email, never a path segment such as `..`.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because
   scheduling was owned by another builder in Phase 15; it reads through `scheduling.service.booking_ids` and
   `booking_views`. Moving it is a file move.

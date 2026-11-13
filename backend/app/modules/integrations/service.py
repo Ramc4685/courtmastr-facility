@@ -61,9 +61,18 @@ SECRET_ROTATION_GRACE = timedelta(hours=24)
 # --- shared rules ------------------------------------------------------------------------------------------
 
 
+# The documented public API resources (docs/status/phase15-api.md): only their contexts' keys may go on a key.
+# An allow-list, so a new context's keys reach machines only when someone adds it here. Platform (audit, staff
+# directory), reporting (person-bound runs and schedules), integrations (keys, sync), staff and engagement
+# (campaigns) stay with signed-in people.
+KEY_CONTEXTS = frozenset({
+    "access", "assessments", "billing", "clients", "documents", "leagues", "memberships", "packages", "pos",
+    "programs", "rentals", "resources", "scheduling",
+})  # fmt: skip
+
+
 def grantable_to_key(permission: Permission) -> bool:
-    flags = set(permission.flags)
-    return not flags & _NEVER_FOR_KEYS and not (permission.key.startswith("staff.") and "W" in flags)
+    return permission.context in KEY_CONTEXTS and not set(permission.flags) & _NEVER_FOR_KEYS
 
 
 def _require_person(principal: Principal) -> None:

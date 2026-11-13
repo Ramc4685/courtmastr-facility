@@ -17,13 +17,13 @@ Server-to-Server app, and run one connection end to end in a sandbox account of 
 
 | ID | State | Notes |
 |---|---|---|
-| INT-01 | done | Generated reference with `x-api-key-scopes` per operation; tenant-wide ceiling across a tenant's keys; rate-limit tests. Not built: the API reference tab in the web app. |
+| INT-01 | partial | Generated reference with `x-api-key-scopes` per operation; tenant-wide ceiling across a tenant's keys; rate-limit tests. Keys hold only an allow-list of the documented resources' contexts (`KEY_CONTEXTS`). Not built: the API reference tab in the web app. |
 | INT-02, CLI-21, MEM-22, INT-04, PKG-16, INT-03, BIL-23, INT-06, LGE-27 | done | Key reach proven per resource (scope, refusal, location 404); money routes replay on `Idempotency-Key`. |
 | INT-05, SSP-19 | done | Client bearer token reaches `/portal/*`; a key does not. |
 | INT-08, SCH-19, STF-13, LGE-25 | done | Staff and team calendar feeds; address shown once, stored hashed; web panel. |
-| SCH-20 | done (API) | Public schedule per location, published sessions and public titles only. Not built: the settings screen with the embed snippet. |
-| INT-07 | done, simulated | OAuth per tenant or location, callback bound to the staff user and single-use state, realm verified against the token and claimed per tenant, released on disconnect; mappings, range sync, retry, signed webhook. Web: connect, disconnect, callback page. Not built: mappings screen; sync runs in the request (shortcut, see README). |
-| INT-09, SSP-18, CLS-08 | done, simulated | Pasted link or Zoom meeting per session, sealed; member join from 10 minutes before the start, marks attendance; disconnect marks meetings failed. Not built: `/webhooks/zoom`, session-event lifecycle, `virtual_room` holds, staff meeting screen, portal join button. |
+| SCH-20 | partial | Public schedule per location under the portal listing rule (hidden, unlisted, out-of-range and hidden-when-full sessions left out), public titles only, busy times of that location only. Not built: the settings screen with the embed snippet. |
+| INT-07 | partial, simulated | OAuth per tenant or location, callback bound to the staff user and single-use state, realm verified against the token and claimed per tenant, released on disconnect; mappings, range sync as a chunked job (one committed day per chunk, the location's own dates, finished days only, request id per day), retry, signed webhook. Web: connect, disconnect, callback page. Not built: mappings screen. |
+| INT-09, SSP-18, CLS-08 | partial, simulated | Pasted link or Zoom meeting per session, sealed; member join from 10 minutes before the start, marks attendance; disconnect marks meetings failed; a rescheduled session moves its Zoom meeting and a cancelled one deletes it, after commit. Not built: `/webhooks/zoom`, `virtual_room` holds, staff meeting screen, portal join button. |
 | INT-13 | partial | Measurement id and linked domains, `GET /public/analytics-config`. The tag is not loaded: see below. |
 | BIL-24 | parked | Legacy outsourced collections; billing's collections queue and CSV export cover hand-off. |
 | PAY-19 | parked | Legacy magnetic swipe; raw card data never reaches us (ADR 0003). |
@@ -46,3 +46,11 @@ Server-to-Server app, and run one connection end to end in a sandbox account of 
 ## Read functions added to other modules
 
 `platform.service.client_identity_is_active` (member feeds) and `programs.selfservice.own_place` (the join).
+
+## Handover
+
+- **Feed tokens and the 405 log line (core).** The calendar-feed route redacts its token inside the handler, so a
+  request the router refuses before any handler runs (a 405 for a method the route does not declare) is logged
+  by `core/api.py` with the raw path. The route now declares GET, HEAD, OPTIONS and PROPFIND, which covers what
+  calendar apps send; the lasting fix is to redact `/public/calendar-feeds/<token>` in the core access-log
+  middleware itself. Core was frozen this phase.

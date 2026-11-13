@@ -5068,8 +5068,9 @@ export interface paths {
         put?: never;
         /**
          * Run Sync
-         * @description Export each past day in the range (default yesterday, at most 31 days) for the connection's location.
-         *     Idempotent per day. Errors: invalid-state-transition, validation-failed.
+         * @description Queue the export of each finished day in the range (the location's own dates; default its yesterday, at
+         *     most 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.
+         *     Errors: invalid-state-transition, sync-in-progress, validation-failed.
          */
         post: operations["runSync"];
         delete?: never;
@@ -8936,7 +8937,11 @@ export interface paths {
          * @description My schedule: the sessions I and my household are enrolled in. The URL token is in this response only.
          */
         post: operations["createPortalCalendarFeed"];
-        delete?: never;
+        /**
+         * Revoke Portal Calendar Feeds
+         * @description Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old.
+         */
+        delete: operations["revokePortalCalendarFeeds"];
         options?: never;
         head?: never;
         patch?: never;
@@ -63777,6 +63782,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CalendarFeedCreated"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokePortalCalendarFeeds: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

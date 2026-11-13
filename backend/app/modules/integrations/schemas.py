@@ -255,9 +255,17 @@ class VideoMeetingIn(In):
         None, description="manual: the pasted https link"
     )
     passcode: Annotated[str, StringConstraints(max_length=50)] | None = None
-    host_external_user_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.@-]{1,128}$")] | None = Field(
-        None, description="zoom: the host user (id or email); default the app's own user"
-    )
+    # it goes into the Zoom API path: a user id (letters, digits, _ and -) or an email, never `.` or `..` alone
+    host_external_user_id: (
+        Annotated[
+            str,
+            StringConstraints(
+                pattern=r"^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)$",
+                max_length=128,
+            ),  # fmt: skip
+        ]
+        | None
+    ) = Field(None, description="zoom: the host user (id or email); default the app's own user")
 
 
 class VideoMeetingOut(Out):

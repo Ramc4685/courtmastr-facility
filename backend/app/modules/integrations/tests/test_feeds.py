@@ -138,6 +138,46 @@ def test_revoke_any_disables_but_never_edits_someone_elses_feed(client, tenant, 
     assert _fetch(client, feed["url_token"]).status_code == 404
 
 
+def test_staff_feed_shows_the_owners_shifts_in_the_window_only(client, tenant, owner):
+    f = facility(client, owner)
+    email, desk_id = add_staff(tenant, "front_desk", location_ids=[f.location])
+    desk = login(client, tenant, email)
+    ids = []
+    for start, end in (
+        ("2031-05-03T14:00:00Z", "2031-05-03T22:00:00Z"),
+        ("2030-01-03T14:00:00Z", "2030-01-03T22:00:00Z"),
+    ):
+        body = {"staff_user_id": str(desk_id), "location_id": f.location, "starts_at": start, "ends_at": end}
+        ids.append(ok(client.post(f"{API}/shifts", headers=owner, json=body))["id"])
+    ok(client.post(f"{API}/shifts/publish", headers=owner, json={"shift_ids": ids}), 200)
+    text = _fetch(client, _feed(client, desk, include_shifts=True)["url_token"]).text
+    assert f"UID:shift-{ids[0]}@courtmastr" in text and ids[1] not in text  # the 2030 shift is history
+    assert "LAST-MODIFIED:" in text
+
+
+def test_team_feed_shows_that_teams_games(client, tenant, owner):
+    from app.modules.leagues.tests.test_leagues import league
+
+    f = facility(client, owner)
+    f.sport = ok(client.post(f"{API}/sports", headers=owner, json={"name": "Futsal", "default_game_length_min": 60}))
+    mine, other = league(client, owner, f, teams=3), league(client, owner, f, name="Other league", teams=2)
+
+    def game(comp: dict, home: int, away: int, resource: str, start: str) -> str:
+        body = {"competition_id": comp["id"], "home_team_id": comp["teams"][home]["id"],
+                "away_team_id": comp["teams"][away]["id"], "resource_id": resource, "starts_at": start}  # fmt: skip
+        return ok(client.post(f"{API}/games", headers=owner, json=body))["id"]
+
+    ours = game(mine, 0, 1, f.court, "2031-05-03T15:00:00Z")
+    theirs = game(mine, 1, 2, f.court, "2031-05-03T18:00:00Z")  # same league, without the team
+    game(other, 0, 1, f.court2, "2031-05-03T15:00:00Z")  # another league
+    team = mine["teams"][0]["id"]
+    text = _fetch(
+        client, _feed(client, owner, kind="team_schedule", name="Team", competition_team_id=team)["url_token"]
+    ).text
+    assert f"UID:game-{ours}@courtmastr" in text
+    assert theirs not in text and text.count("BEGIN:VEVENT") == 1
+
+
 def test_team_feed_needs_a_league_key(client, tenant, owner):
     f = facility(client, owner)
     email, _ = add_staff(tenant, "front_desk", location_ids=[f.location])
@@ -197,6 +237,57 @@ def test_member_feed_shows_enrolled_sessions_and_stops_with_the_identity(client,
     assert _fetch(client, created["url_token"]).status_code == 404
 
 
+def test_a_member_rotates_or_revokes_their_feed(client, tenant, owner):
+    _, member = _member(client, tenant, owner)
+    first = ok(client.post(f"{API}/portal/calendar-feeds", headers=member, json={}))
+    second = ok(client.post(f"{API}/portal/calendar-feeds", headers=member, json={}))
+    assert _fetch(client, first["url_token"]).status_code == 404  # a new feed retires the old address
+    assert _fetch(client, second["url_token"]).status_code == 200
+    with tenant_session(tenant.id) as session:
+        assert session.query(CalendarFeed).filter(CalendarFeed.owner_identity_id.is_not(None)).count() == 1
+    assert client.delete(f"{API}/portal/calendar-feeds", headers=member).status_code == 204
+    assert _fetch(client, second["url_token"]).status_code == 404
+    assert client.delete(f"{API}/portal/calendar-feeds", headers=owner).status_code == 403  # members only
+
+
+def test_calendar_app_methods_never_log_the_token(client, owner, caplog):
+    token = _feed(client, owner)["url_token"]
+    url = f"{API}/public/calendar-feeds/{token}"
+    with caplog.at_level(logging.INFO), clock.freeze(WHEN):
+        head = client.head(url)
+        assert head.status_code == 200 and head.content == b""
+        assert head.headers["content-type"].startswith("text/calendar")
+        assert client.options(url).status_code == 204
+        assert client.request("PROPFIND", url).status_code == 404
+    server = [r for r in caplog.records if not r.name.startswith("httpx")]
+    assert server and all(token not in r.getMessage() and token not in str(r.__dict__) for r in server)
+
+
+def test_a_suspended_tenants_feeds_stop(client, tenant, owner):
+    from sqlalchemy import text as sql
+
+    from app.core.db.platform import platform_engine
+
+    token = _feed(client, owner)["url_token"]
+    with platform_engine().begin() as conn:
+        conn.execute(sql("UPDATE tenant SET status = 'suspended' WHERE id = :id"), {"id": tenant.id})
+    try:
+        assert _fetch(client, token).status_code == 404
+    finally:
+        with platform_engine().begin() as conn:
+            conn.execute(sql("UPDATE tenant SET status = 'active' WHERE id = :id"), {"id": tenant.id})
+
+
+def test_ical_stamps_are_stable_and_carry_last_modified():
+    changed = datetime(2031, 4, 1, 9, tzinfo=UTC)
+    event = ical.Event("u1", WHEN, WHEN, "Clinic", updated_at=changed)
+    first, later = (
+        ical.calendar("Mine", [event], WHEN),
+        ical.calendar("Mine", [event], datetime(2031, 6, 1, tzinfo=UTC)),
+    )
+    assert first == later and "DTSTAMP:20310401T090000Z" in first and "LAST-MODIFIED:20310401T090000Z" in first
+
+
 # --- public schedule ---------------------------------------------------------------------------------------
 
 
@@ -228,7 +319,7 @@ def test_public_schedule_is_off_until_published_and_shows_no_names(client, tenan
     assert {b["resource_id"] for b in body["busy"]} >= {f.court2, f.half_b}
     for hidden in ("Secret", person["id"], "Coach note", "Staff only name", "Private group", "Unpublished"):
         assert hidden not in response.text
-    assert response.headers["cache-control"].startswith("public")
+    assert response.headers["cache-control"].startswith("public") and response.headers["vary"] == "X-Tenant-Slug"
 
 
 def test_public_schedule_follows_the_portal_listing_rule(client, tenant, owner):
