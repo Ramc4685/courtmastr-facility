@@ -49,6 +49,25 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] Migration 1022 also adds `kiosk_device.exit_pin_failure_count`; README credits it with `kiosk_match` only. Docs batch.
 - [x] [undocumented] The data subject handler also exports check-ins, credentials and access mode (`access/subject.py:39-50`); README covers merge and erasure only. Docs batch.
 
+Found 2026-11-13 (report refreshed on `claude/fix-kiosk-name-oracle`; file:line in [drift/access.md](drift/access.md)):
+
+- [ ] [stale-not-built] README 151-152: alert codes `payment_method_expired`, `birthday`, `photo_missing` are catalogued but `evaluate()` never raises them.
+- [ ] [contract] `checkOut`, `createCheckInAttendance`, `setClientAccessMode` name the wrong permission keys in the contract; `getClientIdCard` says PDF, the route returns JSON.
+- [ ] [contract] Wallet-pass routes differ from the contract's single deferred `getWalletPass`.
+- [ ] [contract] Kiosk schemas (`KioskSettings`, `KioskMatch`, `KioskSession`, `KioskConfig`, `KioskCheckInResult`) declare fields the code lacks or omit ones it returns (`has_exit_pin`, `exit_pin`, `welcome_message`).
+- [ ] [contract] `createKioskCheckIn` and `createKioskAttendance` are `x-idempotent: required`, but the code accepts a missing `Idempotency-Key`.
+- [ ] [contract] The Redis-outage 429 `kiosk-locked-out` behaviour is not in the contract.
+- [ ] [undocumented] Lookup rules (`lookup_method`, `lookup-method-disabled`, name-search minimums, `card-invalid`).
+- [ ] [undocumented] Event `access.check_in.session_booked`; the `clients.client.disabled` handler that revokes wallet passes.
+- [ ] [undocumented] `POST /check-ins/evaluate`, `GET /clients/{client_id}/access-mode`; per-IP limits on `/kiosk/pair` and `/kiosk/lookups`.
+- [ ] [undocumented] A repeat entry ends when the first visit is checked out; a new app card revokes the previous one with the same device label.
+- [ ] [wording] "Minors are not listed" holds for name search only; auto-book skips when any place is held on the page, not only in the window; hidden details follow `hidden_detail_fields`; `check_in_attendance` also holds booking rows.
+- [ ] [contract] `KioskCheckInResult.attended` refers to `CheckInAttendance` (needs `target_id`, `was_auto_booked`); the code sends `KioskAttendedOut` (`target_type`, `session_id`).
+- [ ] [undocumented] The reservation page is capped at 50 sessions and drops hidden, unlisted and beyond-`visible_range_days` sessions.
+- [ ] [wording] README 104-105 says `visits/end` ends every token the device holds; it ends only the named visit's.
+- [ ] [wording] README 212-213 says booking a held place is always a check-in; the rules run first, so a full or refused session is refused even when held.
+- [ ] [wording] A stale app-card QR is 404 `card-code-expired` at check-in only; a lookup returns no matches.
+
 ### assessments (7) — [evidence](drift/assessments.md)
 
 - [x] **"Not built: mobile screens" is stale (README line 52).** The mobile app has a Progress screen built on the portal bests route: `mobile/src/app/progress.tsx:21-32` uses `listProgress` → `GET /portal/assessment-bests` (`mobile/src/adapters/api.ts:177`), and `mobile/README.md:46` lists it. Docs batch.
@@ -567,6 +586,7 @@ Re-run for access, billing and programs after the kiosk reservation page. Items 
 - [ ] [contract] listRecentProgramGroups, applyPortalCheckoutCoupon and five REG-26 roster-invite operations have no route; guest-checkout, saved views, page settings, form image, public form submit, submission promote and classifier delete routes are missing from openapi-programs.yaml; path parameter session_id vs schedule_session_id.
 - [ ] [undocumented] file and models tables omit files and nine tables; onboarding step in __init__.py not described.
 - [ ] [wording] README line 6 names only migration 0611; 1401, 1501 and 1521 also carry programs tables.
+- [ ] [contract] Registration config: the yaml has `payment_policy` (`pay_in_full`, `deposit`, `instalments`, `pay_later`, openapi-programs.yaml:7691); the code has `payment_plan` with three values and no `pay_later` (schemas.py:326).
 
 ### Refresh after the kiosk possession rule and visit token (2026-11-13)
 Access, billing and programs re-run; programs found nothing new. New items only:

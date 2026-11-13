@@ -1,7 +1,9 @@
 """Phase 9 chip D: collections tags, profiles and report (BIL-20), the portal lockout for past-due payers
 (BIL-22), expiring cards (PAY-07), the staff daily digest (PAY-08) and the membership autopay default (BIL-17)."""
 
-from datetime import timedelta
+import json
+from datetime import date, timedelta
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -56,21 +58,104 @@ def test_kiosk_post_routes_are_each_locked_or_deliberately_open():
     assert posts == KIOSK_LOCKED_POSTS | KIOSK_OPEN_POSTS
 
 
-def test_a_past_due_payer_cannot_book_at_the_kiosk(client, shop):
+def test_a_name_search_page_is_the_same_for_everyone_and_refusals_say_only_see_staff(client, shop):
+    """A name or a typed number proves nothing, so the page it opens must not depend on whose name it was: not
+    their places, membership or payment standing. Those are judged only when a booking is attempted, and every
+    refusal there is the same see-staff. A verified scan still shows the person's own state."""
     from app.modules.access.tests.test_checkin import _pair
-    from app.modules.access.tests.test_kiosk_reservations import book, enter, soon
+    from app.modules.access.tests.test_kiosk_reservations import app_qr, book, enter, soon
+    from app.modules.memberships.tests.support import membership_plan
 
-    seat = soon(client, shop.owner, str(shop.location_id), 30)
-    person = client.get(f"/api/v1/clients/{shop.client_id}", headers=shop.owner).json()
-    _pair(client, shop.tenant, shop.owner, str(shop.location_id))
+    loc, owner, api = str(shop.location_id), shop.owner, "/api/v1"
+    free = soon(client, owner, loc, 30)
+    full = soon(client, owner, loc, 40, capacity=1)
+    members = soon(client, owner, loc, 50)
+    policy = {"listing_mode": "bookable", "requires_active_membership": False, "visible_range_days": 30,
+              "hides_full_sessions": True, "booking_cutoff_minutes": 0, "allows_self_cancel": True,
+              "cancel_notice_minutes": 0, "waitlist_mode": "auto_promote"}  # fmt: skip
+    assert client.put(f"{api}/locations/{loc}/session-booking-policy", headers=owner, json=policy).status_code == 200
+    assert client.put(f"{api}/reservation-types/{members.type_id}/session-booking-policy", headers=owner,
+                      json={"requires_active_membership": True}).status_code == 200  # fmt: skip
+
+    past_due = client.get(f"{api}/clients/{shop.client_id}", headers=owner).json()
     _past_due_invoice(shop, shop.client_id)
     _settings(shop.tenant, is_portal_blocked_when_past_due=True)
-    entered = enter(client, person)
-    assert entered["status"] == "admitted"  # entry is the access rules' business, not the lockout's
-    assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, False)]
-    refused = book(client, entered, seat.id)
-    assert refused.status_code == 409 and refused.json() == {**refused.json(), "code": "see-staff"}
-    assert "past" not in refused.text.lower()  # the kiosk says why at the desk, not on the tablet
+    member = new_client(client, owner, shop.location_id, first_name="Mo", last_name=f"Member{past_due['id'][:6]}")
+    plan = membership_plan(client, owner, shop.tenant)
+    sold = client.post(f"{api}/membership-contracts", headers=owner,
+                       json={"client_id": member["id"], "location_id": loc, "membership_plan_id": plan["id"]})  # fmt: skip
+    assert sold.status_code == 201, sold.text
+    taken = client.post(f"{api}/enrollments", headers=owner, json={"session_id": full.id, "client_id": member["id"]})
+    assert taken.status_code == 201, taken.text  # the member holds the only place: the session is full
+    stranger = new_client(client, owner, shop.location_id, first_name="Nia", last_name=f"Non{past_due['id'][:6]}")
+    _pair(client, shop.tenant, owner, loc)
+
+    named = {who["id"]: enter(client, who) for who in (past_due, member, stranger)}
+    pages = {json.dumps(visit["sessions"], sort_keys=True) for visit in named.values()}
+    assert len(pages) == 1  # byte-identical
+    assert [(s["target_id"], s["is_booked"], s["is_bookable"]) for s in named[member["id"]]["sessions"]] == [
+        (free.id, False, True), (members.id, False, True),
+    ]  # the full session is hidden for everyone, the member's own place included  # fmt: skip
+
+    # Judged at the attempt: past due, not a member and full all answer the same see-staff.
+    # A full session answers the same whether or not the named person holds a place there: no probe by booking.
+    refusals = [
+        book(client, enter(client, past_due), free.id),
+        book(client, enter(client, stranger), members.id),
+        book(client, enter(client, stranger), full.id),
+        book(client, enter(client, member), full.id),
+    ]
+    assert {r.status_code for r in refusals} == {409}
+    bodies = [{k: v for k, v in r.json().items() if k not in ("instance", "trace_id")} for r in refusals]
+    assert len({json.dumps(body, sort_keys=True) for body in bodies}) == 1  # per request: only the path and trace
+    assert refusals[0].json()["code"] == "see-staff" and "past" not in refusals[0].text.lower()
+    # The genuine holder checked in to the place by name: their first check-in marked it (audited as the check-in).
+    arrived = named[member["id"]]
+    assert arrived["attended_count"] == 1 and arrived["attended"] == []
+    with work(shop.tenant) as db:
+        audited = db.scalars(select(AuditEvent.action).where(AuditEvent.entity_id == UUID(arrived["check_in_id"])))
+        assert "access.checkin.create" in set(audited)
+
+    # A verified scan shows the person's own state, unchanged.
+    scanned = {s["target_id"]: s for s in enter(client, member, app_qr(shop.tenant, member))["sessions"]}
+    assert scanned[full.id]["is_booked"] and scanned[members.id]["is_bookable"]
+    scanned = {s["target_id"]: s for s in enter(client, stranger, app_qr(shop.tenant, stranger))["sessions"]}
+    assert full.id not in scanned and not scanned[members.id]["is_bookable"] and scanned[free.id]["is_bookable"]
+    scanned = enter(client, past_due, app_qr(shop.tenant, past_due))["sessions"]
+    assert scanned and not any(s["is_bookable"] for s in scanned)  # the lockout shows on the person's own page
+
+
+def test_a_by_name_check_in_answers_the_same_whatever_the_persons_standing(client, shop):
+    """The result screen of a visit found by name shows no alert that depends on the person (balance, membership,
+    waiver, notes): a past-due payer, an expired member and a member in good standing get the same answer, apart
+    from the first name and the per-visit ids. A verified scan keeps the location's alerts."""
+    from app.modules.access.tests.test_checkin import _pair
+    from app.modules.access.tests.test_kiosk_reservations import app_qr, enter
+    from app.modules.memberships.tests.support import daily, membership_plan, sell_at
+
+    loc, owner = str(shop.location_id), shop.owner
+    past_due = client.get(f"/api/v1/clients/{shop.client_id}", headers=owner).json()
+    _past_due_invoice(shop, shop.client_id)
+    _settings(shop.tenant, is_portal_blocked_when_past_due=True)
+    plan = membership_plan(client, owner, shop.tenant, billing_occurrences_count=1)
+    good = new_client(client, owner, shop.location_id, first_name="Gus", last_name=f"Good{past_due['id'][:6]}")
+    sold = client.post("/api/v1/membership-contracts", headers=owner,
+                       json={"client_id": good["id"], "location_id": loc, "membership_plan_id": plan["id"]})  # fmt: skip
+    assert sold.status_code == 201, sold.text
+    expired = new_client(client, owner, shop.location_id, first_name="Eve", last_name=f"Gone{past_due['id'][:6]}")
+    lapsed = SimpleNamespace(tenant=shop.tenant, location_id=loc, person=expired, plan=plan)
+    sell_at(lapsed, date(2024, 1, 2), is_auto_renew=False)
+    daily(shop.tenant, date(2024, 3, 1))  # the daily run marks the ended contract expired
+    _pair(client, shop.tenant, owner, loc)
+
+    def seen(visit: dict) -> str:
+        return json.dumps({k: v for k, v in visit.items() if k not in ("check_in_id", "visit_token", "first_name")},
+                          sort_keys=True, default=str)  # fmt: skip
+
+    named = [enter(client, who) for who in (past_due, expired, good)]
+    assert len({seen(visit) for visit in named}) == 1  # byte-identical
+    assert named[0]["displayed_alert_codes"] == []
+    assert "balance_due" in enter(client, past_due, app_qr(shop.tenant, past_due))["displayed_alert_codes"]
 
 
 def test_a_child_billed_to_a_past_due_parent_cannot_book_at_the_kiosk(client, shop):
@@ -88,8 +173,8 @@ def test_a_child_billed_to_a_past_due_parent_cannot_book_at_the_kiosk(client, sh
     _pair(client, shop.tenant, shop.owner, str(shop.location_id))
     _past_due_invoice(shop, shop.client_id)
     _settings(shop.tenant, is_portal_blocked_when_past_due=True)
-    entered = enter(client, kid)
-    assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, False)]
+    entered = enter(client, kid)  # by name: the page shows public facts only, the lockout bites at the attempt
+    assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, True)]
     refused = book(client, entered, seat.id)
     assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
 

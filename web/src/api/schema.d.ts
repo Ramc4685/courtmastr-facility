@@ -26619,6 +26619,8 @@ export interface components {
         KioskCheckInResult: {
             /** Attended */
             attended: components["schemas"]["KioskAttendedOut"][];
+            /** Attended Count */
+            attended_count: number;
             /**
              * Check In Id
              * Format: uuid
@@ -26745,7 +26747,9 @@ export interface components {
         };
         /**
          * KioskSession
-         * @description A session on the kiosk reservation page: title and times only, never prices or plan names.
+         * @description A session on the kiosk reservation page: title and times only, never prices or plan names. Unless the visit
+         *     was identified by possession, the page is the same for every visitor: `is_booked` is false and `is_bookable`
+         *     reflects public facts only; the visitor's standing is judged when a booking is attempted (409 see-staff).
          */
         KioskSession: {
             /**
