@@ -74,7 +74,7 @@ have no screen. Phase 11 B built the portal pages for MEM-09 and PKG-09 (saved o
 | MEM-19 Membership number and member card | P0 | partial | the member number is on the client profile | backend | No card, QR code or RFID (check-in module). |
 | MEM-20 Visit limits and visit counting | P0 | done | Details dialog lists recent visits and adjusts the count with a reason | backend, Vitest `desk.test` | Check-in records visits (phase 10 chip B). |
 | MEM-21 Revenue and lifecycle reports | P1 | not built | none | none | |
-| MEM-22 Membership data in the public API | P1 | partial | OpenAPI | `test_kernel` snapshot | No API keys or scopes. |
+| MEM-22 Membership data in the public API | P1 | done | OpenAPI | `test_kernel` snapshot | API keys and scopes built in phase 15 (phase15-api.md). |
 | MEM-23 Onboarding checklist | P2 | not built | none | none | |
 
 ## Packages
@@ -96,7 +96,7 @@ have no screen. Phase 11 B built the portal pages for MEM-09 and PKG-09 (saved o
 | PKG-13 Remove a package and reverse or refund | P1 | done | Remove dialog (removal quote, billing mode, override reason when sessions were used) | backend, Vitest `desk.test` | |
 | PKG-14 Client ledger and balance views | P0 | done | client Packages tab; Ledger dialog with adjustment | backend; Vitest ledger test; e2e scan | Available = granted − reserved − consumed − forfeited. |
 | PKG-15 Sales and usage reports | P1 | not built | none | none | |
-| PKG-16 Package data in the public and self-service APIs | P1 | partial | OpenAPI | as PKG-09 | No API keys or cart. |
+| PKG-16 Package data in the public and self-service APIs | P1 | done | OpenAPI | as PKG-09 | API keys and scopes built in phase 15 (phase15-api.md). |
 
 ## Assumptions
 

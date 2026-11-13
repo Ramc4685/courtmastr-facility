@@ -43,7 +43,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 9: Money ready for real customers
 
-**Status:** Chips A to C merged; chip D (collections and dunning) running
+**Status:** Chips A to D merged; chips E and F never ran (see the ledger orphan list)
 
 **P0** (17)
 
@@ -126,7 +126,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 11: Online self-service and the member app
 
-**Status:** Not started (after Phase 9)
+**Status:** Merged 2026-11-13 (`c24f953`)
 
 **P0** (15)
 
@@ -175,7 +175,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 12: Reports and exports
 
-**Status:** Not started (after Phase 9)
+**Status:** Merged 2026-11-13
 
 **P0** (7)
 
@@ -187,7 +187,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 - STF-09 Trainer Payroll/Commission report
 - FIT-03 Assessment history and per-client report
 
-**P1** (39)
+**P1** (38)
 
 - RPT-02 Management Dashboard
 - RPT-07 Unapplied Payments by Customer (client liability)
@@ -211,7 +211,6 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 - RPT-27 Per-group roster report
 - RPT-28 Group Waitlists
 - RPT-29 Email Campaign History (delivery analytics)
-- RPT-30 POS sales reports (all sales, by employee, category, supplier, brand, coupon)
 - RPT-31 Order Returns/Refunds report
 - RPT-33 Inventory reports (All Inventory, Re-order)
 - RPT-34 Equipment rental reports (All Equipment Inventory, Checked-Out Equipment)
@@ -257,7 +256,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 14: Programs, leagues and facility extras
 
-**Status:** Planned in `docs/planning/phase-14.md` (five chips in three lanes; REG-25, DOC-10, POS-20 parked)
+**Status:** Merged 2026-11-13 (`docs/planning/phase-14.md`; REG-25, DOC-10, POS-20 parked)
 
 **P0** (3)
 
@@ -340,7 +339,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 15: Integrations, public API and partner adapters
 
-**Status:** Not started
+**Status:** Merged 2026-11-13
 
 **P0** (4)
 

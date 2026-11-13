@@ -22,7 +22,7 @@ Date: 2026-11-10. Lane `claude/zen-villani-chk`. Module README: `backend/app/mod
 | CHK-07 | Stations, check-out, occupancy | P1 | done | named stations per location; check-out closes the visit; live "Who is in" per location and station; an open visit ends at local midnight |
 | CHK-12 | ID card templates | P1 | done | fields from a fixed list, photo slot, a default per location or tenant; no tenant CSS or HTML |
 | CHK-21 | Remediation at check-in | P1 | done | each alert carries its action; the window takes the payment and the waiver signature through billing's and documents' own routes and keys, then re-evaluates; staff window only |
-| CHK-20 | | P1 | not built | see README "Deferred" |
+| CHK-20 | | P1 | done | report `check_in_summary` (Phase 12) |
 | CHK-15, 16 | | v2-adapter | not built | |
 | CHK-17 | | P2 | not built | |
 
