@@ -4111,6 +4111,23 @@ export interface paths {
         patch: operations["updateCustomField"];
         trace?: never;
     };
+    "/api/v1/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dashboard */
+        get: operations["getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data-subject-requests": {
         parameters: {
             query?: never;
@@ -12185,6 +12202,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/report-definitions/{report_key}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Recipients */
+        get: operations["listReportRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/report-runs": {
         parameters: {
             query?: never;
@@ -12235,6 +12269,43 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Schedules */
+        get: operations["listReportSchedules"];
+        put?: never;
+        /** Create Report Schedule */
+        post: operations["createReportSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-schedules/{report_schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Schedule */
+        get: operations["getReportSchedule"];
+        put?: never;
+        post?: never;
+        /** Delete Report Schedule */
+        delete: operations["deleteReportSchedule"];
+        options?: never;
+        head?: never;
+        /** Update Report Schedule */
+        patch: operations["updateReportSchedule"];
         trace?: never;
     };
     "/api/v1/reservation-categories": {
@@ -20601,6 +20672,40 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
+        /** DashboardOut */
+        DashboardOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Location Id */
+            location_id: string | null;
+            /** Tiles */
+            tiles: components["schemas"]["DashboardTileOut"][];
+        };
+        /** DashboardTileOut */
+        DashboardTileOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Period */
+            period: string | null;
+            /** Totals */
+            totals: components["schemas"]["DashboardTotalOut"][];
+        };
+        /** DashboardTotalOut */
+        DashboardTotalOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: unknown;
+        };
         /** DeliveryOut */
         DeliveryOut: {
             /**
@@ -27528,10 +27633,22 @@ export interface components {
             data: components["schemas"]["ReportDefinitionOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ReportRecipientOut] */
+        Page_ReportRecipientOut_: {
+            /** Data */
+            data: components["schemas"]["ReportRecipientOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ReportRunOut] */
         Page_ReportRunOut_: {
             /** Data */
             data: components["schemas"]["ReportRunOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ReportScheduleOut] */
+        Page_ReportScheduleOut_: {
+            /** Data */
+            data: components["schemas"]["ReportScheduleOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ResourceGroupOut] */
@@ -34028,6 +34145,16 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** ReportRecipientOut */
+        ReportRecipientOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
         /** ReportRowsOut */
         ReportRowsOut: {
             /** Columns */
@@ -34102,6 +34229,130 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** ReportScheduleCreate */
+        ReportScheduleCreate: {
+            /**
+             * Format
+             * @default csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx" | "pdf";
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "monthly";
+            /**
+             * Includes Details
+             * @default false
+             */
+            includes_details: boolean;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             * @description The location whose time zone sets the send time and the day
+             */
+            location_id: string;
+            /**
+             * Month Day
+             * @description Monthly: day of the month
+             */
+            month_day?: number | null;
+            /** Recipient Staff User Ids */
+            recipient_staff_user_ids: string[];
+            /**
+             * Saved Report Id
+             * Format: uuid
+             */
+            saved_report_id: string;
+            /**
+             * Send Time
+             * @description Local wall time, HH:MM; delivered within the hour after it
+             */
+            send_time: string;
+            /**
+             * Weekday
+             * @description Weekly: 0 Monday to 6 Sunday
+             */
+            weekday?: number | null;
+        };
+        /** ReportScheduleOut */
+        ReportScheduleOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Format */
+            format: string;
+            /** Frequency */
+            frequency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Includes Details */
+            includes_details: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Run On */
+            last_run_on: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Month Day */
+            month_day: number | null;
+            /**
+             * Owner Staff User Id
+             * Format: uuid
+             */
+            owner_staff_user_id: string;
+            /** Recipient Staff User Ids */
+            recipient_staff_user_ids: string[];
+            /**
+             * Saved Report Id
+             * Format: uuid
+             */
+            saved_report_id: string;
+            /** Send Time */
+            send_time: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Weekday */
+            weekday: number | null;
+        };
+        /** ReportScheduleUpdate */
+        ReportScheduleUpdate: {
+            /** Format */
+            format?: ("csv" | "xlsx" | "pdf") | null;
+            /** Frequency */
+            frequency?: ("daily" | "weekly" | "monthly") | null;
+            /** Includes Details */
+            includes_details?: boolean | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Month Day */
+            month_day?: number | null;
+            /** Recipient Staff User Ids */
+            recipient_staff_user_ids?: string[] | null;
+            /** Send Time */
+            send_time?: string | null;
+            /** Weekday */
+            weekday?: number | null;
         };
         /** RepriceIn */
         RepriceIn: {
@@ -49070,6 +49321,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomFieldOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDashboard: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"];
                 };
             };
             /** @description Validation Error */
@@ -68941,6 +69226,40 @@ export interface operations {
             };
         };
     };
+    listReportRecipients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportRecipientOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listReportRuns: {
         parameters: {
             query?: {
@@ -69080,6 +69399,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportRowsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listReportSchedules: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportScheduleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
                 };
             };
             /** @description Validation Error */

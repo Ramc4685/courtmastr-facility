@@ -7,10 +7,11 @@ import { Checkbox, Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
-import { useAuth } from '../../lib/auth'
-import { toMinor } from '../../lib/format'
+import { useAuth, useMe } from '../../lib/auth'
+import { formatDateTime, toMinor } from '../../lib/format'
 import { FormDialog, FormError, LocationSelect, useCurrency } from '../billing/shared'
-import { EXPORT_KEY, formatCell, isNumeric, useDefinitions, type Column, type Definition, type ExportJob, type Params, type Row, type Run } from './queries'
+import { ScheduleDialog } from './schedules'
+import { EXPORT_KEY, FORMATS, ID_SOURCES, formatCell, isNumeric, useDefinitions, type Column, type Definition, type ExportJob, type Params, type Row, type Run } from './queries'
 
 // --- the parameter form, generated from the report's JSON Schema ----------------------------------------------
 
@@ -46,7 +47,23 @@ function ParamField({ name, prop, value, onChange, error }: { name: string; prop
   if (p.type === 'integer' && name.endsWith('_minor'))
     return <Input label={label} hint={p.description} error={error} inputMode="decimal" defaultValue={value == null ? '' : (Number(value) / 100).toFixed(2)} onChange={(e) => onChange(toMinor(e.target.value) ?? undefined)} />
   if (p.type === 'integer') return <Input label={label} hint={p.description} error={error} type="number" value={String(value ?? '')} onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))} />
-  return null // shortcut: other id lists (categories, programs) are not offered here yet; save them through the API until a picker exists
+  if (p.type === 'array' && p.items?.format === 'uuid' && ID_SOURCES[name]) return <IdListField name={name} label={label} value={value} onChange={onChange} />
+  return null // an id list without an option source is set through the API
+}
+
+function IdListField({ name, label, value, onChange }: { name: string; label: string; value: unknown; onChange: (v: unknown) => void }) {
+  const options = useQuery({ queryKey: ['reporting', 'options', name], queryFn: ID_SOURCES[name], retry: false, staleTime: 300_000 })
+  if (!options.data?.length) return null
+  const chosen = Array.isArray(value) ? (value as string[]) : []
+  return (
+    <fieldset className="max-h-48 space-y-1 overflow-y-auto">
+      <legend className="text-sm font-medium">{label}</legend>
+      {options.data.map((o) => (
+        <Checkbox key={o.value} label={o.label} checked={chosen.includes(o.value)}
+          onChange={(e) => { const next = e.target.checked ? [...chosen, o.value] : chosen.filter((c) => c !== o.value); onChange(next.length ? next : undefined) }} />
+      ))}
+    </fieldset>
+  )
 }
 
 // --- results -------------------------------------------------------------------------------------------------
@@ -116,9 +133,18 @@ function Totals({ def, totals }: { def: Definition; totals: Record<string, unkno
 
 function ExportPanel({ run, def }: { run: Run; def: Definition }) {
   const [details, setDetails] = useState(false)
+  const [format, setFormat] = useState<'csv' | 'xlsx' | 'pdf'>('csv')
+  const [pageSize, setPageSize] = useState<'letter' | 'a4'>('letter')
+  const [orientation, setOrientation] = useState<'' | 'portrait' | 'landscape'>('')
   const [job, setJob] = useState<ExportJob | null>(null)
   const start = useMutation({
-    mutationFn: () => api.post('/api/v1/export-jobs', { body: { source_kind: 'report_run', report_run_id: run.id, format: 'csv', includes_details: details } }),
+    mutationFn: () =>
+      api.post('/api/v1/export-jobs', {
+        body: {
+          source_kind: 'report_run', report_run_id: run.id, format, includes_details: details,
+          ...(format === 'pdf' ? { page_size: pageSize, orientation: orientation || null } : {}),
+        },
+      }),
     onSuccess: setJob,
   })
   const poll = useQuery({
@@ -129,13 +155,22 @@ function ExportPanel({ run, def }: { run: Run; def: Definition }) {
   })
   const current = poll.data ?? job
   const download = useMutation({
-    mutationFn: () => downloadFile('/api/v1/export-jobs/{export_job_id}/download', { path: { export_job_id: current?.id ?? '' } }, `${def.key}.csv`),
+    mutationFn: () =>
+      downloadFile('/api/v1/export-jobs/{export_job_id}/download', { path: { export_job_id: current?.id ?? '' } }, current?.file_name ?? `${def.key}.${current?.format ?? format}`),
   })
   return (
-    <Card title="Export">
+    <Card title="Export" className="print:hidden">
       <div className="flex flex-wrap items-end gap-3">
+        <Select label="Format" value={format} options={FORMATS} onChange={(e) => setFormat(e.target.value as typeof format)} />
+        {format === 'pdf' && (
+          <>
+            <Select label="Page size" value={pageSize} options={[{ value: 'letter', label: 'Letter' }, { value: 'a4', label: 'A4' }]} onChange={(e) => setPageSize(e.target.value as typeof pageSize)} />
+            <Select label="Orientation" value={orientation} placeholder="Automatic" options={[{ value: 'portrait', label: 'Portrait' }, { value: 'landscape', label: 'Landscape' }]}
+              onChange={(e) => setOrientation(e.target.value as typeof orientation)} />
+          </>
+        )}
         {def.supports_detail && <Checkbox label="Include detail rows" checked={details} onChange={(e) => setDetails(e.target.checked)} />}
-        <Button variant="secondary" loading={start.isPending} onClick={() => start.mutate()}>Export CSV</Button>
+        <Button variant="secondary" loading={start.isPending} onClick={() => start.mutate()}>Export</Button>
         {current?.status === 'succeeded' && <Button loading={download.isPending} onClick={() => download.mutate()}>Download {current.file_name ?? 'file'}</Button>}
       </div>
       <p role="status" className="mt-2 text-sm text-muted">
@@ -143,6 +178,56 @@ function ExportPanel({ run, def }: { run: Run; def: Definition }) {
       </p>
       <FormError error={start.error ?? download.error} />
     </Card>
+  )
+}
+
+/** RPT-03: net revenue per category and in all, against the goal when one is set. Inline SVG, theme colours. */
+export function RevenueChart({ rows, totals, currency }: { rows: Row[]; totals: Record<string, unknown> | null | undefined; currency: string }) {
+  const bars = [...rows.map((r) => ({ label: String(r.revenue_category ?? '—'), value: Number(r.net_minor ?? 0) })), { label: 'Total', value: Number(totals?.net_minor ?? 0) }]
+  const goal = totals?.goal_minor == null ? null : Number(totals.goal_minor)
+  const max = Math.max(1, goal ?? 0, ...bars.map((b) => b.value))
+  const row = 28, labelW = 150, chartW = 420, valueW = 110, top = goal == null ? 4 : 20
+  const x = (v: number) => labelW + (Math.max(0, v) / max) * chartW
+  const height = top + bars.length * row + 4
+  const summary = `Net revenue ${formatCell(totals?.net_minor, 'money', currency)}${goal == null ? '' : ` against a goal of ${formatCell(goal, 'money', currency)} (${formatCell(totals?.goal_pct, 'pct', currency)})`}`
+  return (
+    <figure className="rounded-lg border border-border bg-surface p-4 shadow-card">
+      <figcaption className="mb-2 text-sm font-medium">{summary}</figcaption>
+      <svg role="img" aria-label={summary} viewBox={`0 0 ${labelW + chartW + valueW} ${height}`} className="w-full max-w-3xl text-fg">
+        {bars.map((b, i) => (
+          <g key={`${b.label}-${i}`} transform={`translate(0 ${top + i * row})`}>
+            <text x={labelW - 8} y={row / 2 + 4} textAnchor="end" fontSize="12" fill="currentColor">{b.label.length > 22 ? `${b.label.slice(0, 21)}…` : b.label}</text>
+            <rect x={labelW} y={5} width={x(b.value) - labelW} height={row - 10} rx="3"
+              fill={b.label === 'Total' && i === bars.length - 1 ? 'rgb(var(--primary))' : 'rgb(var(--primary) / 0.45)'} />
+            <text x={x(b.value) + 6} y={row / 2 + 4} fontSize="12" fill="currentColor">{formatCell(b.value, 'money', currency)}</text>
+          </g>
+        ))}
+        {goal != null && (
+          <g>
+            <line x1={x(goal)} x2={x(goal)} y1={14} y2={height} stroke="rgb(var(--danger))" strokeWidth="2" strokeDasharray="4 3" />
+            <text x={x(goal)} y={11} textAnchor="middle" fontSize="11" fill="rgb(var(--danger))">Goal</text>
+          </g>
+        )}
+      </svg>
+    </figure>
+  )
+}
+
+/** Shown only on paper: what was run, for which dates and places, and what the dates mean. */
+function PrintHeader({ run, def }: { run: Run; def: Definition }) {
+  const me = useMe()
+  const params = (run.params ?? {}) as Params
+  const place = (ids: unknown) =>
+    Array.isArray(ids) && ids.length ? ids.map((id) => me.locations?.find((l) => l.id === id)?.name ?? String(id)).join(', ') : 'All locations'
+  const lines = Object.entries(params)
+    .filter(([k, v]) => v != null && v !== '' && k !== 'location_ids')
+    .map(([k, v]) => [words(k), k.endsWith('_minor') ? formatCell(v, 'money', me.tenant.currency) : Array.isArray(v) ? `${v.length} selected` : words(String(v))] as const)
+  return (
+    <div className="hidden text-sm print:block">
+      <p className="text-lg font-semibold">{def.name}</p>
+      <p>Dates are {words(def.date_basis)}. Locations: {place(params.location_ids)}. Run {formatDateTime(run.created_at)}.</p>
+      <p>{lines.map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>
+    </div>
   )
 }
 
@@ -157,15 +242,21 @@ function Results({ run, def }: { run: Run; def: Definition }) {
     getNextPageParam: (last) => (last.page.next_cursor as string | null) ?? undefined,
   })
   const toggle = (key: string) => setSort(sort === key ? `-${key}` : key)
+  const currency = useCurrency()
   const first = rows.data?.pages[0]
   const columns = (first?.columns ?? []) as Column[]
   const data = rows.data?.pages.flatMap((p) => p.data) ?? []
   return (
     <div className="space-y-4">
+      <PrintHeader run={run} def={def} />
       <Totals def={def} totals={run.totals} />
+      {def.key === 'revenue_summary' && !group && !rows.isPending && <RevenueChart rows={data} totals={run.totals} currency={currency} />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{group ? `Details: ${group.label}` : `${run.row_count ?? 0} rows`}</h2>
-        {group && <Button size="sm" variant="secondary" onClick={() => { setGroup(null); setSort(null) }}>Back to summary</Button>}
+        <div className="flex gap-2 print:hidden">
+          {group && <Button size="sm" variant="secondary" onClick={() => { setGroup(null); setSort(null) }}>Back to summary</Button>}
+          <Button size="sm" variant="secondary" onClick={() => window.print()}>Print</Button>
+        </div>
       </div>
       {rows.isPending ? <LoadingState /> : rows.isError ? <ErrorState error={rows.error} onRetry={() => rows.refetch()} /> : data.length === 0 ? (
         <div className="rounded-lg border border-border bg-surface"><EmptyState title="Nothing matched these parameters" /></div>
@@ -213,6 +304,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
   const [edited, setEdited] = useState<Params | null>(null)
   const [run, setRun] = useState<Run | null>(null)
   const [saving, setSaving] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
   const params: Params = edited ?? (saved.data?.params as Params | undefined) ?? {}
   const go = useMutation({
     mutationFn: () => api.post('/api/v1/report-runs', { body: { report_key: reportKey, params, saved_report_id: savedId && !edited ? savedId : undefined } }),
@@ -231,7 +323,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
       <PageHeader title={saved.data?.name ?? def.name} description={def.description}
         actions={<Link className="text-sm text-primary underline" to="/reports">All reports</Link>} />
       <div className="space-y-4">
-        <Card title="Parameters">
+        <Card title="Parameters" className="print:hidden">
           <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); go.mutate() }}>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {Object.entries(props)
@@ -246,6 +338,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
             <div className="flex flex-wrap gap-2">
               <Button type="submit" loading={go.isPending}>Run report</Button>
               <Button variant="secondary" onClick={() => setSaving(true)}>Save as…</Button>
+              {saved.data && can(EXPORT_KEY) && <Button variant="secondary" onClick={() => setScheduling(true)}>Schedule…</Button>}
             </div>
           </form>
         </Card>
@@ -253,6 +346,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
         {run && can(EXPORT_KEY) && <ExportPanel key={`x-${run.id}`} run={run} def={def} />}
       </div>
       {saving && <SaveDialog def={def} params={params} onClose={() => setSaving(false)} />}
+      {scheduling && saved.data && <ScheduleDialog saved={saved.data} def={def} onClose={() => setScheduling(false)} />}
     </>
   )
 }
