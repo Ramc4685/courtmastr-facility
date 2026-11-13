@@ -5,7 +5,7 @@ import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
 import { Input } from '../../components/Field'
 import { LoadingState } from '../../components/States'
-import { APP_NAME } from '../../lib/format'
+import { APP_NAME, formatMoney } from '../../lib/format'
 import { ALERT_LABEL } from './queries'
 import { useScanBurst } from './useScanBurst'
 
@@ -13,6 +13,7 @@ type Config = Schemas['KioskConfig']
 type Match = Schemas['KioskMatch']
 type Result = Schemas['KioskCheckInResult']
 type Session = Schemas['KioskSession']
+type Plan = Schemas['KioskPackagePlan']
 
 const formatTime = (iso: string, timeZone: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone })
 
@@ -72,8 +73,9 @@ function Kiosk({ config }: { config: Config }) {
   const [name, setName] = useState('')
   const [matches, setMatches] = useState<Match[] | null>(null)
   const [result, setResult] = useState<Result | null>(null)
-  const [view, setView] = useState<'result' | 'reserve' | 'booked'>('result')
+  const [view, setView] = useState<'result' | 'reserve' | 'booked' | 'packages' | 'bought'>('result')
   const [booked, setBooked] = useState<Session | null>(null)
+  const [bought, setBought] = useState<Plan | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [exiting, setExiting] = useState(false)
   const [pin, setPin] = useState('')
@@ -88,6 +90,7 @@ function Kiosk({ config }: { config: Config }) {
     setResult(null)
     setView('result')
     setBooked(null)
+    setBought(null)
     setProblem(null)
   }, [result?.visit_token])
   const fail = (e: unknown) => setProblem(e instanceof ApiError && e.status === 401 ? 'This kiosk was signed out. Ask staff to pair it again.' : 'Something went wrong. Please see the front desk.')
@@ -118,6 +121,27 @@ function Kiosk({ config }: { config: Config }) {
     },
     onError: (e) => setProblem((e instanceof ApiError && e.code && BOOK_REFUSAL[e.code]) || 'Please see the front desk to book this class.'),
   })
+  // The package page is offered only when the server would sell (card-identified adult, card on file, location
+  // switch on); anything else is 404, so the button simply never shows. Reading it does not spend the token.
+  const visitToken = result?.status === 'admitted' ? result.visit_token : null
+  const plans = useQuery({
+    queryKey: ['kiosk', 'package-plans', result?.check_in_id, visitToken],
+    queryFn: () => api.get('/api/v1/kiosk/check-ins/{check_in_id}/package-plans', { path: { check_in_id: result?.check_in_id ?? '' }, headers: { 'kiosk-visit-token': visitToken ?? '' } }),
+    enabled: Boolean(settings.is_package_purchase_enabled && visitToken),
+    retry: false,
+    staleTime: Infinity,
+  })
+  const buy = useMutation({
+    mutationFn: (p: Plan) =>
+      api.post('/api/v1/kiosk/package-purchases', { body: { check_in_id: result?.check_in_id ?? '', package_plan_id: p.package_plan_id, visit_token: visitToken ?? '' } }),
+    onSuccess: (out, p) => {
+      setResult(out)
+      setBought(p)
+      setProblem(null)
+      setView('bought')
+    },
+    onError: () => setProblem('Please see the front desk to buy a package.'),
+  })
   const exit = useMutation({
     mutationFn: (staff_pin: string) => api.post('/api/v1/kiosk/exit', { body: { staff_pin } }),
     onSuccess: () => qc.resetQueries({ queryKey: ['kiosk', 'config'] }),
@@ -125,16 +149,18 @@ function Kiosk({ config }: { config: Config }) {
 
   useScanBurst((value) => {
     reset()
-    if (value.toLowerCase().startsWith('fhq.')) enter.mutate({ card_payload: value })
+    // App QR and wallet pass go as card payloads: only those may pay with the card on file
+    if (/^(fhq\.|fhw)/i.test(value)) enter.mutate({ card_payload: value })
     else lookup.mutate({ credential_value: value })
   })
   // Each screen after check-in returns to the start on its own timeout (CHK-06); a new screen restarts the clock.
   useEffect(() => {
     if (!result) return
-    const seconds = view === 'reserve' ? settings.reservation_timeout_seconds : settings.confirmation_timeout_seconds
+    const seconds =
+      view === 'reserve' ? settings.reservation_timeout_seconds : view === 'packages' ? settings.package_timeout_seconds : settings.confirmation_timeout_seconds
     const timer = window.setTimeout(reset, seconds * 1000)
     return () => window.clearTimeout(timer)
-  }, [result, view, problem, reset, settings.confirmation_timeout_seconds, settings.reservation_timeout_seconds])
+  }, [result, view, problem, reset, settings.confirmation_timeout_seconds, settings.reservation_timeout_seconds, settings.package_timeout_seconds])
 
   const search = (e: FormEvent) => {
     e.preventDefault()
@@ -151,6 +177,33 @@ function Kiosk({ config }: { config: Config }) {
             <h2 className="text-2xl font-semibold">You're booked, {result.first_name}!</h2>
             <p className="mt-2">{booked.title} at {formatTime(booked.starts_at, config.time_zone)}.</p>
             <Button className="mt-4" variant="secondary" onClick={reset}>Done</Button>
+          </div>
+        ) : result && view === 'bought' && bought ? (
+          <div className="rounded-lg border border-success p-6">
+            <h2 className="text-2xl font-semibold">Thanks, {result.first_name}!</h2>
+            <p className="mt-2">{bought.name} is yours, paid with your card on file.</p>
+            <Button className="mt-4" variant="secondary" onClick={reset}>Done</Button>
+          </div>
+        ) : result && view === 'packages' ? (
+          <div>
+            <h2 className="mb-1">Buy a package</h2>
+            <p className="mb-3 text-muted">Paid with the card you saved with us. No card is entered here.</p>
+            <ul aria-label="Packages for sale" className="divide-y divide-border rounded border border-border">
+              {(plans.data ?? []).map((p) => (
+                <li key={p.package_plan_id} className="flex items-center justify-between gap-3 p-3">
+                  <span>
+                    <span className="block font-medium">{p.name}</span>
+                    <span className="text-sm text-muted">{formatMoney(p.price_minor)}</span>
+                  </span>
+                  {p.is_purchasable ? (
+                    <Button size="sm" onClick={() => buy.mutate(p)} loading={buy.isPending && buy.variables?.package_plan_id === p.package_plan_id} disabled={buy.isPending} aria-label={`Buy ${p.name} for ${formatMoney(p.price_minor)}`}>Buy</Button>
+                  ) : (
+                    <span className="text-sm text-muted">See the front desk</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <Button className="mt-3" variant="ghost" onClick={reset}>Done</Button>
           </div>
         ) : result && view === 'reserve' ? (
           <div>
@@ -190,6 +243,7 @@ function Kiosk({ config }: { config: Config }) {
             )}
             <div className="mt-4 flex flex-wrap gap-2">
               {result.status === 'admitted' && <Button onClick={() => setView('reserve')}>Book a class</Button>}
+              {plans.data && plans.data.length > 0 && <Button variant="secondary" onClick={() => setView('packages')}>Buy a package</Button>}
               <Button variant="secondary" onClick={reset}>Done</Button>
             </div>
           </div>

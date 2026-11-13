@@ -54,6 +54,7 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
           displayed_alert_codes: body.displayed_alert_codes as never, confirmation_timeout_seconds: body.confirmation_timeout_seconds,
           visible_range_minutes: body.visible_range_minutes, is_auto_book: body.is_auto_book, reservation_timeout_seconds: body.reservation_timeout_seconds,
           is_name_search_booking_allowed: body.is_name_search_booking_allowed,
+          is_package_purchase_enabled: body.is_package_purchase_enabled, package_timeout_seconds: body.package_timeout_seconds,
           ...(pin ? { exit_pin: pin } : {}),
         },
       }),
@@ -98,6 +99,12 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
             checked={form.is_name_search_booking_allowed}
             onChange={(e) => set({ is_name_search_booking_allowed: e.target.checked })}
           />
+          <Checkbox
+            label="Sell packages at the kiosk with the card on file (adults who scan a card or the app code only)"
+            checked={form.is_package_purchase_enabled}
+            onChange={(e) => set({ is_package_purchase_enabled: e.target.checked })}
+          />
+          <Input label="Leave the package list after (seconds)" type="number" min={3} max={300} value={form.package_timeout_seconds} error={errors.package_timeout_seconds} onChange={(e) => set({ package_timeout_seconds: Number(e.target.value) })} />
           <div className="flex flex-wrap items-end gap-3">
             <Input
               label={form.has_exit_pin ? 'New exit PIN (6 to 8 digits)' : 'Exit PIN (6 to 8 digits)'}

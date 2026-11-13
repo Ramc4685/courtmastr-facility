@@ -25,6 +25,7 @@ class CheckInChannel(StrEnum):
 
 class IdentifiedBy(StrEnum):
     CREDENTIAL = "credential"
+    SIGNED_CARD = "signed_card"  # a verified app QR (rotating MAC) or wallet-pass token sent as a kiosk card payload
     NAME_SEARCH = "name_search"
     CLIENT_RECORD = "client_record"
 
@@ -310,6 +311,7 @@ class KioskSettings(TenantOwned, Timestamps, Base):
         CheckConstraint("confirmation_timeout_seconds BETWEEN 3 AND 300", name="timeout"),
         CheckConstraint("visible_range_minutes BETWEEN 0 AND 1440", name="visible_range"),
         CheckConstraint("reservation_timeout_seconds BETWEEN 3 AND 300", name="reservation_timeout"),
+        CheckConstraint("package_timeout_seconds BETWEEN 3 AND 300", name="package_timeout"),
     )
 
     location_id: Mapped[UUID]
@@ -326,6 +328,8 @@ class KioskSettings(TenantOwned, Timestamps, Base):
     reservation_timeout_seconds: Mapped[int] = mapped_column(server_default=text("30"))
     # a visit found by name may book free sessions only, and not even those when off (migration 1962)
     is_name_search_booking_allowed: Mapped[bool] = mapped_column(server_default=text("true"))
+    is_package_purchase_enabled: Mapped[bool] = mapped_column(server_default=text("false"))  # card on file only (1963)
+    package_timeout_seconds: Mapped[int] = mapped_column(server_default=text("60"))
     exit_pin_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})  # argon2id; required to leave kiosk mode
 
 

@@ -6564,6 +6564,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/kiosk/check-ins/{check_in_id}/package-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Kiosk Package Plans
+         * @description The package page for a card-identified visit at a location that sells at the kiosk; otherwise 404. The
+         *     visit token rides in a header (never the URL) and is checked, not spent.
+         */
+        get: operations["listKioskPackagePlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/kiosk/config": {
         parameters: {
             query?: never;
@@ -6616,6 +6637,27 @@ export interface paths {
          *     lookup means the kiosk is back at its start screen, so its visit tokens end.
          */
         post: operations["kioskLookup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/package-purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Package Purchase
+         * @description Buy a package with the card on file (no card entry on the tablet), spending the visit token. A replayed key
+         *     is 409 response-not-stored and never sells twice. Errors: see-staff, validation-failed.
+         */
+        post: operations["createKioskPackagePurchase"];
         delete?: never;
         options?: never;
         head?: never;
@@ -26751,6 +26793,41 @@ export interface components {
             /** Match Token */
             match_token: string;
         };
+        /**
+         * KioskPackagePlan
+         * @description A package plan the kiosk may sell: sold online, one-off, priced. Prices are the public price list.
+         */
+        KioskPackagePlan: {
+            /** Is Purchasable */
+            is_purchasable: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /** Price Minor */
+            price_minor: number;
+        };
+        /**
+         * KioskPackagePurchase
+         * @description Kiosk-only body: the buyer and payer are the client of the check-in, paid with their card on file.
+         */
+        KioskPackagePurchase: {
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /** Visit Token */
+            visit_token: string;
+        };
         /** KioskPairRequest */
         KioskPairRequest: {
             /** Pairing Code */
@@ -26817,6 +26894,8 @@ export interface components {
             is_auto_book: boolean;
             /** Is Name Search Booking Allowed */
             is_name_search_booking_allowed: boolean;
+            /** Is Package Purchase Enabled */
+            is_package_purchase_enabled: boolean;
             /** Late Window Minutes */
             late_window_minutes: number;
             /**
@@ -26826,6 +26905,8 @@ export interface components {
             location_id: string;
             /** Lookup Method */
             lookup_method: string;
+            /** Package Timeout Seconds */
+            package_timeout_seconds: number;
             /** Reservation Timeout Seconds */
             reservation_timeout_seconds: number;
             /** Visible Range Minutes */
@@ -26847,10 +26928,14 @@ export interface components {
             is_auto_book?: boolean | null;
             /** Is Name Search Booking Allowed */
             is_name_search_booking_allowed?: boolean | null;
+            /** Is Package Purchase Enabled */
+            is_package_purchase_enabled?: boolean | null;
             /** Late Window Minutes */
             late_window_minutes?: number | null;
             /** Lookup Method */
             lookup_method?: ("name" | "membership_number" | "both") | null;
+            /** Package Timeout Seconds */
+            package_timeout_seconds?: number | null;
             /** Reservation Timeout Seconds */
             reservation_timeout_seconds?: number | null;
             /** Visible Range Minutes */
@@ -60630,6 +60715,39 @@ export interface operations {
             };
         };
     };
+    listKioskPackagePlans: {
+        parameters: {
+            query?: never;
+            header: {
+                "kiosk-visit-token": string;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskPackagePlan"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getKioskConfig: {
         parameters: {
             query?: never;
@@ -60701,6 +60819,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KioskLookupResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskPackagePurchase: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskPackagePurchase"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskCheckInResult"];
                 };
             };
             /** @description Validation Error */

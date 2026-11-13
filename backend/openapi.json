@@ -30669,6 +30669,65 @@
         "title": "KioskMatch",
         "type": "object"
       },
+      "KioskPackagePlan": {
+        "description": "A package plan the kiosk may sell: sold online, one-off, priced. Prices are the public price list.",
+        "properties": {
+          "is_purchasable": {
+            "title": "Is Purchasable",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "package_plan_id": {
+            "format": "uuid",
+            "title": "Package Plan Id",
+            "type": "string"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "package_plan_id",
+          "name",
+          "price_minor",
+          "is_purchasable"
+        ],
+        "title": "KioskPackagePlan",
+        "type": "object"
+      },
+      "KioskPackagePurchase": {
+        "additionalProperties": false,
+        "description": "Kiosk-only body: the buyer and payer are the client of the check-in, paid with their card on file.",
+        "properties": {
+          "check_in_id": {
+            "format": "uuid",
+            "title": "Check In Id",
+            "type": "string"
+          },
+          "package_plan_id": {
+            "format": "uuid",
+            "title": "Package Plan Id",
+            "type": "string"
+          },
+          "visit_token": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Visit Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_in_id",
+          "package_plan_id",
+          "visit_token"
+        ],
+        "title": "KioskPackagePurchase",
+        "type": "object"
+      },
       "KioskPairRequest": {
         "additionalProperties": false,
         "properties": {
@@ -30787,6 +30846,10 @@
             "title": "Is Name Search Booking Allowed",
             "type": "boolean"
           },
+          "is_package_purchase_enabled": {
+            "title": "Is Package Purchase Enabled",
+            "type": "boolean"
+          },
           "late_window_minutes": {
             "title": "Late Window Minutes",
             "type": "integer"
@@ -30799,6 +30862,10 @@
           "lookup_method": {
             "title": "Lookup Method",
             "type": "string"
+          },
+          "package_timeout_seconds": {
+            "title": "Package Timeout Seconds",
+            "type": "integer"
           },
           "reservation_timeout_seconds": {
             "title": "Reservation Timeout Seconds",
@@ -30832,6 +30899,8 @@
           "is_auto_book",
           "reservation_timeout_seconds",
           "is_name_search_booking_allowed",
+          "is_package_purchase_enabled",
+          "package_timeout_seconds",
           "has_exit_pin"
         ],
         "title": "KioskSettingsOut",
@@ -30929,6 +30998,17 @@
             ],
             "title": "Is Name Search Booking Allowed"
           },
+          "is_package_purchase_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Package Purchase Enabled"
+          },
           "late_window_minutes": {
             "anyOf": [
               {
@@ -30957,6 +31037,19 @@
               }
             ],
             "title": "Lookup Method"
+          },
+          "package_timeout_seconds": {
+            "anyOf": [
+              {
+                "maximum": 300.0,
+                "minimum": 3.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Timeout Seconds"
           },
           "reservation_timeout_seconds": {
             "anyOf": [
@@ -118355,6 +118448,64 @@
         ]
       }
     },
+    "/api/v1/kiosk/check-ins/{check_in_id}/package-plans": {
+      "get": {
+        "description": "The package page for a card-identified visit at a location that sells at the kiosk; otherwise 404. The\nvisit token rides in a header (never the URL) and is checked, not spent.",
+        "operationId": "listKioskPackagePlans",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "kiosk-visit-token",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "Kiosk-Visit-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/KioskPackagePlan"
+                  },
+                  "title": "Response Listkioskpackageplans",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Kiosk Package Plans",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/kiosk/config": {
       "get": {
         "operationId": "getKioskConfig",
@@ -118448,6 +118599,60 @@
           }
         },
         "summary": "Kiosk Lookup",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/package-purchases": {
+      "post": {
+        "description": "Buy a package with the card on file (no card entry on the tablet), spending the visit token. A replayed key\nis 409 response-not-stored and never sells twice. Errors: see-staff, validation-failed.",
+        "operationId": "createKioskPackagePurchase",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskPackagePurchase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskCheckInResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Kiosk Package Purchase",
         "tags": [
           "access"
         ]

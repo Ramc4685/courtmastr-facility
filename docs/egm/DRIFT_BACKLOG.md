@@ -466,3 +466,17 @@ Access, billing and programs re-run; programs found nothing new. New items only:
 - [ ] [missing] billing: three README items the refresh found missing from code or contract (drift/billing.md).
 - [ ] [contract] billing: about 20 served routes are not in the contract; several staff reads need a manage key where the contract says authenticated staff.
 - [ ] [wording] billing: two further README prose items (drift/billing.md).
+
+### Refresh after kiosk package purchase (2026-11-13)
+New items only:
+
+- [x] [contract] access: README and contract said every purchase refusal is see-staff; a plan not on the page or not open to the client is 422. README and contract wording fixed in the same commit.
+- [x] [wording] access: visit token lifetime, the plan list's rate limit, the 50-plan cap and the purchase audit row. Fixed in the same commit.
+- [ ] [contract] access: kiosk check-in and attendance are x-idempotent required in the contract; the code makes the header optional.
+- [ ] [contract] access: kiosk schemas in the contract carry needs_second_factor and card_public_key; the code has has_exit_pin and welcome_message the contract lacks.
+- [ ] [contract] billing: webhook path and operationId differ (/api/v1/webhooks/{provider}, receiveProviderWebhook vs /webhooks/stripe, receiveStripeWebhook).
+- [ ] [undocumented] billing: payments.provider none is valid but the README names only fake and stripe.
+- [ ] [wording] billing: README line 161 says a year either side; the code allows 366 days.
+- [ ] [contract] access: the kiosk.py comment above buy_package lists members-only under see-staff; a plan not open to the client is 422 before the sale.
+- [ ] [undocumented] access: kiosk_visit is not in subject.py _TABLES, so merge and erasure leave open visit tokens (they expire within about a minute and reference the check-in, not the client).
+- [ ] [wording] access: README kiosk visit token bullet gives the lifetime without the package timeout; the package bullet states it correctly.
