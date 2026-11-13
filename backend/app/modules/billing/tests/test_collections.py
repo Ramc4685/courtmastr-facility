@@ -98,17 +98,23 @@ def test_a_name_search_page_is_the_same_for_everyone_and_refusals_say_only_see_s
     ]  # the full session is hidden for everyone, the member's own place included  # fmt: skip
 
     # Judged at the attempt: past due, not a member and full all answer the same see-staff.
+    # A full session answers the same whether or not the named person holds a place there: no probe by booking.
     refusals = [
         book(client, enter(client, past_due), free.id),
         book(client, enter(client, stranger), members.id),
         book(client, enter(client, stranger), full.id),
+        book(client, enter(client, member), full.id),
     ]
     assert {r.status_code for r in refusals} == {409}
     bodies = [{k: v for k, v in r.json().items() if k not in ("instance", "trace_id")} for r in refusals]
     assert len({json.dumps(body, sort_keys=True) for body in bodies}) == 1  # per request: only the path and trace
     assert refusals[0].json()["code"] == "see-staff" and "past" not in refusals[0].text.lower()
-    held = book(client, enter(client, member), full.id)  # a place already held: a check-in to it, nothing new
-    assert held.status_code == 200, held.text
+    # The genuine holder checked in to the place by name: their first check-in marked it (audited as the check-in).
+    arrived = named[member["id"]]
+    assert arrived["attended_count"] == 1 and arrived["attended"] == []
+    with work(shop.tenant) as db:
+        audited = db.scalars(select(AuditEvent.action).where(AuditEvent.entity_id == UUID(arrived["check_in_id"])))
+        assert "access.checkin.create" in set(audited)
 
     # A verified scan shows the person's own state, unchanged.
     scanned = {s["target_id"]: s for s in enter(client, member, app_qr(shop.tenant, member))["sessions"]}

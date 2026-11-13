@@ -223,6 +223,25 @@ def test_booking_attempts_are_rate_limited_per_kiosk(client, tenant, owner, k, m
     assert codes[:-1] == [409] * router.KIOSK_BOOKINGS_PER_MINUTE and codes[-1] == 429
 
 
+def test_the_kiosk_limits_fail_closed_when_redis_is_down(client, tenant, owner, k, monkeypatch):
+    """Check-in by name is how a held place is checked in to, so its limit must hold even without Redis."""
+    from app.core.settings import get_settings
+    from app.modules.access import router
+
+    seat = soon(client, owner, k.loc, 30)
+    entered = enter(client, k.person)
+    monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+
+    def down():
+        raise redis.ConnectionError("down")
+
+    monkeypatch.setattr(router, "_redis", down)
+    found = ok(client.post(f"{API}/kiosk/lookups", json={"last_name_prefix": k.person["last_name"]}))["matches"]
+    refused = client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]})
+    assert refused.status_code == 429 and refused.json()["code"] == "rate-limited"
+    assert book(client, entered, seat.id).status_code == 429
+
+
 def test_a_client_who_must_see_staff_gets_no_reservation_page(client, tenant, owner, k):
     soon(client, owner, k.loc, 30)
     ok(client.put(f"{API}/clients/{k.person['id']}/access-mode", headers=owner,

@@ -326,20 +326,15 @@ def kiosk_enroll(
     """Internal (access): book a session from the kiosk reservation page under the portal's rules. The kiosk adds
     no bypass: no direct link, no override, no free booking where the session needs a package. It pays with free
     booking where the session allows it, else (unless `free_only`) the client's soonest-to-expire package that
-    covers it. Errors: outside-check-in-window, already-enrolled (checked before the rules), capacity-full,
-    policy-violation, no-entitlement."""
+    covers it. Errors: outside-check-in-window, capacity-full, policy-violation, already-enrolled, no-entitlement.
+    The rules run before already-enrolled, so a full session answers capacity-full whether or not the client
+    holds a place in it (by name, a booking must not probe someone's places); the check-in marks a held place."""
     clients.service.require_active(session, client_id)
     seat, policy = _bookable_seat(session, session_id, client_id)
     if policy["listing_mode"] == "unlisted" or seat["location_id"] != location_id:
         raise ValidationFailed("Unknown session.", pointer="/target_id")
     if not clock.now() <= seat["starts_at"] < until:
         raise ValidationFailed("Choose a session starting soon.", code="outside-check-in-window", pointer="/target_id")
-    # A place held comes first: the kiosk checks the client in to it, even when the session is now full.
-    if session.scalar(select(Enrollment.id).where(
-        Enrollment.session_id == seat["id"], Enrollment.client_id == client_id,
-        Enrollment.status.in_(("pending", "enrolled")),
-    )):  # fmt: skip
-        raise Conflict("Already booked.", code="already-enrolled")
     _refuse(_verdict(session, seat, policy, client_id, None))
     package_id = None if seat["allows_free_booking"] or free_only else _paying_package(session, seat, client_id)
     if package_id is None and not seat["allows_free_booking"]:

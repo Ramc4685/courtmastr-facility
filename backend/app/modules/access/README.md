@@ -76,7 +76,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   and a replayed token is 422 `match-token-expired`. Minors are not listed. An admitted response identified by
   possession shows only the alerts the settings allow; one found by name or a typed or static value shows none
   (every alert is the person's private state); "see staff" shows none. Places the check-in marked present come
-  as `attended_count` for every visit; the list with each session (`attended`) only on a possession visit. Check-ins are rate limited per device (30 a minute).
+  as `attended_count` for every visit; the list with each session (`attended`) only on a possession visit. Check-ins are rate limited per device (30 a minute); the per-device kiosk limits fail
+  closed (429 `rate-limited` while Redis is down), since a check-in by name is how a person checks in to a place.
   Leaving kiosk mode needs the location's exit PIN (6 to 8 digits, argon2-hashed, rate limited per IP); each wrong
   PIN is counted on the device and audited without the PIN, and the fifth in a row (`KIOSK_EXIT_ATTEMPTS`) revokes
   the device. With no PIN set, exit is refused (409) and staff revoke the device instead.
@@ -121,8 +122,10 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   the location's page, the same for every visitor (`kiosk_sessions` with no client): no places held (`is_booked`
   always false), `hides_full_sessions` for everyone, and `is_bookable` from public facts only (the switch above,
   free booking, cutoff, capacity, listing mode). Members-only, the past-due lockout and "already enrolled" are
-  judged only when a booking is attempted; every refusal is the same 409 `see-staff`, and a place already held
-  checks the person in (`kiosk_enroll` looks for it before the rules, so a full session they hold still works).
+  judged only when a booking is attempted; every refusal is the same 409 `see-staff`. Picking a place already held
+  checks the person in, but `kiosk_enroll` runs the rules first, so a full session answers `see-staff` whether
+  or not they hold a place there (no probing someone's places by booking); a held place is checked in to by the
+  check-in itself (by name, rate limited, audited as `access.checkin.create`).
   Auto-book judges the client's own places and standing on the server and never shows them on the page. Possession lets the person pick, on screen, a session the portal rules allow, including one a
   package credit pays for; auto-book never spends a credit for anyone. A booking is audited on the check-in as
   `scheduling.enrollment.create` (as the desk audits one), never as a second `access.checkin.create`.
@@ -131,7 +134,7 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   (429 `kiosk-locked-out` on lookups and check-ins alike, lock end in `kiosk-locked:<device>`, logged); a known value in between does not reset the count,
   and name search still works. The lock is checked before the value is resolved. The count is a sliding window in
   Redis (`kiosk-unknown:<device>`, one MULTI per unknown value, so concurrent requests never lose a count) and sits
-  outside the request transaction, so a refused scan still counts. Unlike the rate limits (which fail open), it
+  outside the request transaction, so a refused scan still counts. Unlike the per-IP rate limits (which fail open), it
   fails closed: when Redis is unreachable every value read, an unknown one included, answers the same 429 (logged
   once per window per worker process) while name search keeps working. The staff window has no such lock (staff
   are signed in). A stale app-card QR that carries the card's own signature (a screenshot, an old code) is 404
