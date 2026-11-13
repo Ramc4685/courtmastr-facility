@@ -355,12 +355,12 @@ def list_portal_calendar_feeds(ctx: Ctx = Depends(current_ctx)):
     return feeds.list_member_feeds(ctx.session, ctx.principal)
 
 
-@router.post("/portal/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
+@router.post("/portal/calendar-feeds", response_model=s.PortalCalendarFeedCreated, status_code=201)
 @secret_response
 def create_portal_calendar_feed(body: s.PortalCalendarFeedCreate, ctx: Ctx = Depends(current_ctx)):
     """My schedule: the sessions I and my household are enrolled in. The URL token is in this response only."""
     row, token = feeds.create_member_feed(ctx.session, ctx.principal, body.model_dump())
-    return _feed_created(row, token)
+    return s.PortalCalendarFeedOut.model_validate(row).model_dump() | {"url_token": token}
 
 
 @router.delete("/portal/calendar-feeds", status_code=204)
