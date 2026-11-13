@@ -37,7 +37,7 @@ Backend tests: `backend/app/modules/leagues/tests/` (`test_domain.py`, pure rule
 | RES-06 League venues | P1 | done | `/league-venues`; `/leagues/venues`; generator windows | `test_venue_windows_book_every_court_and_preferences_are_checked`; Vitest venues; e2e | A venue books all its courts. |
 | REG-14 Publish a program as a competition | P1 | done | `POST /competitions/from-program-group`; "From a program" | `test_publish_a_program_group_as_a_league` | One-off copy; sub-groups become teams. |
 | REG-26 Captain roster and fee split | P1 | done | portal `/portal/league-teams`, "My teams"; `POST /competition-teams/{id}/fee-shares`, "Split fee" | `test_captain_manages_the_roster_in_the_portal`, `test_team_fee_split_bills_each_share_and_the_rest`; Vitest captain; e2e | Shares bill through `billing.service`. |
-| RPT-36 Game-card reports | P1 | done | reports `league_game_cards`, `league_manual_cards` | `reporting/tests/test_reporting.py` | |
+| RPT-36 Game-card reports | P1 | done | reports `league_game_cards`, `league_manual_game_cards` | `reporting/tests/test_reporting.py` | |
 | LGE-18 to 25, 27, 29, 30, 32, 33 | P1/P2 | not built | | | Public site and the rest: chip B2 and later. |
 
 Counts: **P0 11 features: 11 done.** Phase 14 B1 added LGE-07, 10, 11, 13, 16, 26, 28, PLT-11, RES-06, REG-14,

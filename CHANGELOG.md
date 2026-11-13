@@ -6,6 +6,9 @@ under `Unreleased` in the same change that makes the behaviour visible.
 
 ## [Unreleased]
 
+### Security
+- Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
+
 ### Added
 - Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.
 - Leagues: double elimination with a reset game, three games guaranteed, and pool-to-bracket crossover.

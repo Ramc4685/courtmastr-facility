@@ -55,6 +55,8 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Memberships by status (RPT-12)** count primary members; `include_sharers` adds people sharing a contract.
 - **POS sales (RPT-30)** group by category, employee (the cashier who rang the sale), register, product, brand or
   supplier. Product groupings count product lines only.
+- **Lockers (RPT-35)** list uncleared leases; "expiring" uses each location's today and includes lapsed leases.
+- **Game cards (RPT-36)** are scheduled league games by sport, or active teams per competition for manual cards.
 - **Time clock (RPT-37)** reports raw clocked minutes; rounding rules belong to payroll (module 12).
 
 ## Deviations from the contract

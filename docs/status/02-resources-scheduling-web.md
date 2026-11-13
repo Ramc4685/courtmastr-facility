@@ -21,7 +21,7 @@ Tests:
 | RES-03 Venues and sub-venues | P0 | done | `/resources` | `ResourcesPage.test.tsx` (tree, create sub-resource, read-only view) | Tree up to three levels. The parent picker leaves out the resource's own subtree. Archive and restore, with a status filter. |
 | RES-04 Schedule groups | P0 | done | `/resources` group cards; calendar group filter | `ResourcesPage.test.tsx`, e2e | Create, rename, reorder and deactivate groups. |
 | RES-05 Linked multi-resource reservations | P0 | done | Resources › Links dialog; drawer "Also book" and "linked resources" | `BookingDrawer.test.tsx` (additional resource, linked names) | Standing links are edited per resource. The drawer names the linked resources it will also hold. |
-| RES-06 League venues mapping | P1 | not built | | | League module (later). |
+| RES-06 League venues mapping | P1 | done | `/leagues` venues tab (leagues module) | `league-depth.spec.ts` | Built in phase 14 B1. |
 | RES-07 Locker rooms | P1 | done | `/lockers` Locker board and Setup tabs | e2e `lockers.spec.ts` | Room create with bulk lockers. |
 | RES-08 Locker terms | P1 | done | `/lockers` Setup tab | e2e `lockers.spec.ts` | |
 | RES-09 Padlock inventory | P2 | done | `/lockers` Setup tab, Reveal button | e2e `lockers.spec.ts` | Revealed value kept in component state only. |
