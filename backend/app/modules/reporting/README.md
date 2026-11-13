@@ -8,10 +8,15 @@ Status per feature: `docs/status/15-reporting.md`.
 
 - **Registry, not a table.** `registry.py` holds every `ReportSpec`: key, family permission, parameter model
   (its JSON Schema is served on the definition and drives the web form), columns, totals, detail columns and the
-  builder. Adding a report is one spec plus one builder.
+  builder. Adding a report is one spec plus one builder. Fourteen are registered: `revenue_summary`, `deposits`,
+  `invoices`, `open_invoices`, `memberships_by_status`, `attendance`, `attendance_overview`, `pos_sales`,
+  `daily_register`, `time_clock`, `league_game_cards`, `league_manual_game_cards`, `assigned_lockers` and
+  `expiring_lockers`.
 - **Read models.** Builders read other contexts only through the `rpt_*` views (`views.py`, migration
-  `0953_reporting_core`). The views are `security_invoker`, so RLS on the base tables still applies; each view
-  carries `tenant_id`. `test_view_columns_match_the_contract` pins their columns.
+  `0953_reporting_core`; `rpt_locker` came in migration 1461). The views are `security_invoker`, so RLS on the base
+  tables still applies; each view carries `tenant_id`. `test_view_columns_match_the_contract` pins their columns.
+  Other contexts' migrations create `rpt_*` views too, such as `rpt_rental_booking` and `rpt_rental_plan_sale`
+  (migration 0102); no report reads them.
 - **Runs** (`report_run`) execute inline in the request, store the result (summary rows, totals and detail
   rows) as a JSON file through `platform.files` (purpose `report_result`), and keep the totals on the row. Rows
   are paged from that snapshot, so paging, sorting and drill-down never re-query and never drift.
@@ -19,10 +24,14 @@ Status per feature: `docs/status/15-reporting.md`.
   run, in the location's time zone.
 - **Exports** (`export_job`) are queued and rendered by `jobs.run_export` from the run's snapshot (purpose
   `report_export`). The download streams the file.
+- **Events.** `reporting.export.completed` (`events.py`) is published when a chunked export has stored its file. It
+  carries the export job id and the requesting staff user.
 
 ## Gates
 
-- Router: any family key (`reporting.<family>.run`) opens the centre; `reporting.report.export` for exports.
+- Router: holding any family key that a registered report uses (`reporting.<family>.run`: financial, membership,
+  attendance, pos, time_clock, league and client today) opens the centre; `reporting.report.export` for exports.
+  The program, payroll and marketing keys open nothing until a report uses them.
 - Service: `authorize(principal, spec.permission)` per report; location ids are checked with
   `platform.service.get_location` (404 outside scope); an omitted location list means the caller's locations.
 - Runs and exports belong to the staff user who requested them (404 for anyone else). Each read re-checks the
@@ -71,5 +80,7 @@ Status per feature: `docs/status/15-reporting.md`.
 
 ## Not built
 
-Print layouts; xlsx, pdf and the other export formats; the reports outside the P0 set; scheduled delivery;
-id-list filters (revenue categories, membership types, trainers, staff) in the web form, which the API accepts.
+The management dashboard (`getManagementDashboard`, `GET /dashboards/management`, RPT-02); its key
+`reporting.dashboard.read` is registered but no route uses it. Print layouts; xlsx, pdf and the other export
+formats; the reports outside the P0 set; scheduled delivery; id-list filters (revenue categories, membership
+types, trainers, staff) in the web form, which the API accepts.
