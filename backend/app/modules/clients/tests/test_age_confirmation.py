@@ -8,8 +8,8 @@ from sqlalchemy import select, update
 
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
-from app.core.events import OutboxEvent
 from app.core.db.session import tenant_session
+from app.core.events import OutboxEvent
 from app.modules.clients.models import Client
 from app.modules.engagement.tests.test_portal_entry import SIGNUPS, public, settings
 from app.modules.programs.tests.test_checkout import online as online_program
@@ -211,9 +211,13 @@ def test_a_merge_backfill_never_confirms(client, owner, tenant, f):
 
 def test_an_api_key_can_never_hold_or_use_confirm_age(client, owner, tenant, f):
     who = self_declared(client, owner, tenant, f)
-    given = client.post(f"{API}/api-keys", headers=owner, json={"name": "Partner", "scopes": ["clients.client.confirm_age"]})
+    given = client.post(
+        f"{API}/api-keys", headers=owner, json={"name": "Partner", "scopes": ["clients.client.confirm_age"]}
+    )
     assert (given.status_code, given.json()["code"]) == (422, "scope-not-grantable")
-    key = ok(client.post(f"{API}/api-keys", headers=owner, json={"name": "Partner", "scopes": ["clients.client.update"]}))
+    key = ok(
+        client.post(f"{API}/api-keys", headers=owner, json={"name": "Partner", "scopes": ["clients.client.update"]})
+    )
     bearer = {"Authorization": f"Bearer {key['secret']}"}
     asked = client.patch(f"{API}/clients/{who}", headers=bearer, json={"birth_on": ADULT, "confirm_age": True})
     assert asked.status_code == 403

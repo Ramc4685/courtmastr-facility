@@ -88,7 +88,10 @@ def confirm_client_age(
 ):
     """Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is
     self-service. Clears the flag even when the date is unchanged. Errors: birth-date-required."""
-    return _view(ctx, service.confirm_age(ctx.session, ctx.principal, client_id, body.model_dump(exclude_unset=True) if body else {}))
+    return _view(
+        ctx,
+        service.confirm_age(ctx.session, ctx.principal, client_id, body.model_dump(exclude_unset=True) if body else {}),
+    )
 
 
 @router.get("/clients/{client_id}/emergency-contacts", response_model=s.EmergencyContactsOut)

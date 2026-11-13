@@ -917,7 +917,9 @@ def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -
     """Clients whose birth date waits for staff, people with a booking first (earliest booking soonest), within the
     caller's locations. Filter: location_id (the home location). `?include=total` gives the dashboard count."""
     authorize(principal, CONFIRM_AGE)
-    stmt = select(Client).where(Client.is_birth_on_unverified, Client.status == "active", Client.merged_into_id.is_(None))
+    stmt = select(Client).where(
+        Client.is_birth_on_unverified, Client.status == "active", Client.merged_into_id.is_(None)
+    )
     stmt = scope_query(stmt, principal, Client.home_location_id)
     due = func.coalesce(Client.earliest_booking_at, literal(_NO_BOOKING, DateTime(timezone=True)))
     page = paginate(

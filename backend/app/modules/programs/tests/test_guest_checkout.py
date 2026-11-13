@@ -330,7 +330,13 @@ def test_one_address_holds_at_most_four_unpaid_places_in_a_program(client, owner
 
     def basket(group, fee_id, people: list[int | None]):
         items = [{"program_group_id": group["id"], "program_fee_id": fee_id, "participant": p} for p in people]
-        body = {"location_id": f.location, "birth_on_declared": True, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         return client.post(GUEST, headers=public(tenant), json=body)
 
     assert basket(camp, fee["id"], [None, 0, 1, 2, 3]).status_code == 422  # five items in one basket
@@ -365,7 +371,13 @@ def test_the_hold_cap_counts_every_week_of_a_program(client, owner, tenant, f):
 
     def basket(week, fee, people):
         items = [{"program_group_id": week["id"], "program_fee_id": fee["id"], "participant": p} for p in people]
-        body = {"location_id": f.location, "birth_on_declared": True, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         return client.post(GUEST, headers=public(tenant), json=body)
 
     ok(basket(*weeks[0], [0, 1]))
@@ -395,7 +407,13 @@ def test_one_ipv6_slash_64_shares_the_hold_cap_and_the_create_bucket(client, own
 
     def basket(address, people):
         items = [{"program_group_id": camp["id"], "program_fee_id": fee["id"], "participant": p} for p in people]
-        body = {"location_id": f.location, "birth_on_declared": True, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         return _from(address).post(GUEST, headers=public(tenant), json=body)
 
     ok(basket(f"{net}::a", [0, 1, 2, 3]))
@@ -431,7 +449,13 @@ def test_guest_baskets_naming_two_programs_in_opposite_order_both_hold_and_pay(c
     for pair in ((camp, fee, other, other_fee), (other, other_fee, camp, fee)):
         items = [{"program_group_id": pair[0]["id"], "program_fee_id": pair[1]["id"], "participant": 0},
                  {"program_group_id": pair[2]["id"], "program_fee_id": pair[3]["id"], "participant": 0}]  # fmt: skip
-        body = {"location_id": f.location, "birth_on_declared": True, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         carts.append(ok(client.post(GUEST, headers=public(tenant), json=body)))
     for cart in carts:
         ok(client.post(f"{GUEST}/{cart['id']}/confirm", headers=keyed(public(tenant)),

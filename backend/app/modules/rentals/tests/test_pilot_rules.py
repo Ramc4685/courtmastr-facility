@@ -17,10 +17,10 @@ from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing, memberships
 from app.modules.clients.models import Client
+from app.modules.documents.tests.support import sign
 from app.modules.memberships.models import MembershipContract
 from app.modules.memberships.tests.support import membership_plan
 from app.modules.programs.tests.test_selfservice import SOON, policy
-from app.modules.documents.tests.support import sign
 from app.modules.rentals.tests.test_lockers_and_plans import bind_waiver, stopped_by_waiver
 from app.modules.rentals.tests.test_rentals import portal_client
 from app.modules.scheduling.tests.helpers import API, DAY, at, book, facility, ok
