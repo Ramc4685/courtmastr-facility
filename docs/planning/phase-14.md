@@ -204,3 +204,5 @@ before a re-point is dropped and recreated with `make lane-db`.
 |---|---|---|---|
 | 2026-11-12 | plan | written | d220fca |
 | 2026-11-12 | A, B1, C1 | proposed as session cards from the coordinator (worktrees fast-forward to the phase branch first); B2 waits for B1, C2 for a free slot | |
+| 2026-11-12 | all | serialized after the host ran out of memory: one chip gates at a time (B1, then C1, then A); B2 and C2 not started this batch | |
+| 2026-11-12 | B1 | merged (fast-forward); Opus review: 4 blocking fixed in 5bf3e50 (court preference 404, UTC card date, publish and fee-split audit gaps); gate green (pytest 5208, Playwright 2/2); 1421 on 1310 | 86e5e24, 5bf3e50 |
