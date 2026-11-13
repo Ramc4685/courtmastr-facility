@@ -59,7 +59,8 @@ function Pair() {
   )
 }
 
-/** Why a booking was refused, in words for the client; anything about their account sends them to the desk. */
+/** Why a booking was refused, in words for the client; anything about their account sends them to the desk. A visit
+ *  found by name gets only see-staff: its page is the same for everyone, and its standing is judged on booking. */
 const BOOK_REFUSAL: Record<string, string> = {
   'capacity-full': 'That class just filled up.',
   'already-enrolled': 'You are already booked into that class.',

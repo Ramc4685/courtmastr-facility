@@ -1,6 +1,6 @@
 ## backend/app/modules/programs/README.md
 
-Checked against the working tree on branch claude/owner-decisions-1, with the contract `docs/api/openapi-programs.yaml` (97 operations tagged `programs`; `router.py` has 103 routes). Lines are README lines unless a path is given.
+Checked against the working tree on branch claude/fix-kiosk-name-oracle, with the contract `docs/api/openapi-programs.yaml` (`router.py` has 103 routes). Lines are README lines unless a path is given. The README line 14 kiosk text (uncommitted edit) matches `selfservice.py:272-347`; no drift there.
 
 - [stale-not-built] Lines 74-76 say REG-10 is partial: "only the full fee is charged" and "Instalment plans are not built". Lines 255-264 and the code say deposits and instalments are built: `checkout.py:455-461` (plan checkout), `schemas.py:326` (`payment_plan`), `models.py:435-465` (`payment_plan`, `balance_due_on`, `instalment_*` columns and checks).
 - [stale-not-built] Lines 77-79 say REG-12 is partial: "No guest checkout" and "No coupon in the basket". Lines 186-245 document guest checkout as built (`router.py:741-768`, `checkout.py:515-582`). Coupons are accepted on portal and guest confirm and passed to billing (`schemas.py:457`, `:539`; `checkout.py:445`, `:681`). Only a payment plan refuses one (`checkout.py:459-461`, `coupon-not-applicable`).

@@ -8,7 +8,8 @@ programs' kiosk functions, which apply the portal's rules unchanged, and the pas
 visitor's household (the visitor and every client one acting relationship away), as the portal guard does online.
 Spending anything (a package credit) needs identification by possession (a verified app-card QR or an active wallet
 pass); a static card, fob or member number, or a visit found by name, books only free sessions, when the location
-allows even that. Refusals that would reveal the client's standing answer only "see staff"."""
+allows even that. Such a visit's reservation page is the same for everyone at the location (a name proves nothing,
+so it must reveal nothing): its standing is judged only when it books, and every refusal answers only "see staff"."""
 
 import secrets
 from datetime import timedelta
@@ -89,13 +90,19 @@ def _may_book(session: Session, row: CheckIn, config: dict) -> bool:
     return not billing.collections.is_portal_locked(session, clients.households.household_ids(session, row.client_id))
 
 
-def _sessions(session: Session, row: CheckIn, config: dict, *, free_only: bool | None = None) -> list[dict]:
-    """The reservation page; `free_only` defaults to the visit's rule (not identified by possession)."""
+def _sessions(
+    session: Session, row: CheckIn, config: dict, *, free_only: bool | None = None, personal: bool | None = None
+) -> list[dict]:
+    """The reservation page; `free_only` defaults to the visit's rule (not identified by possession). Only a visit
+    identified by possession sees its own state (places held, membership, packages, the past-due lockout); any
+    other gets the location's page, the same for everyone, and its standing is judged only when it books.
+    `personal` (auto-book, server side only) judges the client's own state whatever the identification."""
+    personal = _by_possession(row) if personal is None else personal
     free_only = not _by_possession(row) if free_only is None else free_only
     listed = programs.selfservice.kiosk_sessions(
-        session, row.client_id, row.location_id, _until(config), free_only=free_only
+        session, row.client_id if personal else None, row.location_id, _until(config), free_only=free_only
     )
-    if not _may_book(session, row, config):
+    if not (_may_book(session, row, config) if personal else config["is_name_search_booking_allowed"]):
         for seat in listed:
             seat["is_bookable"] = False
     return listed
@@ -149,12 +156,10 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, fre
 
 def result(session: Session, row: CheckIn, config: dict, sessions: list[dict], token: str | None = None) -> dict:
     """The kiosk's view of a visit: first name, the alerts the location shows, places marked, the reservation
-    page and the visit token for the next action. Never amounts, reasons or plan names; found by name, not even
-    which sessions the client already holds."""
+    page and the visit token for the next action. Never amounts, reasons or plan names; found by name, a page
+    that is the same for everyone (`_sessions`)."""
     admitted = row.result != "denied"
     shown = set(config["displayed_alert_codes"]) if admitted else set()
-    if not _by_possession(row):
-        sessions = [{**seat, "is_booked": False} for seat in sessions]
     return {
         "check_in_id": row.id, "status": "admitted" if admitted else "see_staff",
         "first_name": clients.service.get(session, row.client_id).first_name,
@@ -175,10 +180,14 @@ def check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     if row.result == "denied":
         return result(session, row, config, [])
     listed = _sessions(session, row, config)
-    marked = service.check_in_view(session, row)["attended"]
-    held = any(a["target_type"] == "enrollment" for a in marked) or any(s["is_booked"] for s in listed)
-    free = _sessions(session, row, config, free_only=True) if config["is_auto_book"] and not held else []
-    pick = next((s for s in free if s["is_bookable"]), None)
+    pick = None
+    if config["is_auto_book"]:
+        # Auto-book judges the client's own places and standing server side; the page stays as `listed`.
+        own = listed if _by_possession(row) else _sessions(session, row, config, personal=True)
+        marked = service.check_in_view(session, row)["attended"]
+        if not any(a["target_type"] == "enrollment" for a in marked) and not any(s["is_booked"] for s in own):
+            free = _sessions(session, row, config, free_only=True, personal=True)
+            pick = next((s for s in free if s["is_bookable"]), None)
     if pick:
         try:
             with session.begin_nested():

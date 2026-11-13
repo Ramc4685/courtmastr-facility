@@ -86,8 +86,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   listing mode, cutoff (so nothing already started), members-only, capacity, already enrolled, and free booking or
   else the client's soonest-to-expire package that covers the session (409 `no-entitlement`). The kiosk adds no
   bypass. The past-due lockout applies as online (`billing.collections.is_portal_locked` over
-  `clients.households.household_ids`, so a child billed to a past-due parent is locked too): every session shows not
-  bookable and booking is 409 `see-staff`. A place starting inside the kiosk check-in window is marked attended
+  `clients.households.household_ids`, so a child billed to a past-due parent is locked too): booking is 409
+  `see-staff`, and on a page identified by possession every session shows not bookable. A place starting inside the kiosk check-in window is marked attended
   (`was_auto_booked`). With `is_auto_book` on, a check-in that holds no place in the window books the earliest
   bookable session that consumes nothing (free booking), whatever the identification, inside a savepoint: a refusal
   leaves the client checked in. A session that would spend a package credit or charge is booked only when the person
@@ -115,9 +115,13 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   A physical fob may check in (which marks an existing enrolment present) and book a session that consumes nothing
   where the location allows; it never spends a credit, charges or pays. Every lookup match token is `name_search` too. Such a visit may book only sessions that
   allow free booking, so
-  nothing is spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal
-  is 409 `see-staff`, `is_booked` is always false on its page, and it never learns the client's packages, balance or
-  eligibility. Possession lets the person pick, on screen, a session the portal rules allow, including one a
+  nothing is spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Its page is
+  the location's page, the same for every visitor (`kiosk_sessions` with no client): no places held (`is_booked`
+  always false), `hides_full_sessions` for everyone, and `is_bookable` from public facts only (the switch above,
+  free booking, cutoff, capacity, listing mode). Members-only, the past-due lockout and "already enrolled" are
+  judged only when a booking is attempted; every refusal is the same 409 `see-staff`, and a place already held
+  checks the person in (`kiosk_enroll` looks for it before the rules, so a full session they hold still works).
+  Auto-book judges the client's own places and standing on the server and never shows them on the page. Possession lets the person pick, on screen, a session the portal rules allow, including one a
   package credit pays for; auto-book never spends a credit for anyone. A booking is audited on the check-in as
   `scheduling.enrollment.create` (as the desk audits one), never as a second `access.checkin.create`.
 - **Unknown-value lockout.** Five values within five minutes on one device that resolve to no live credential or
@@ -194,8 +198,12 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - Access configuration changes (settings, rules, schedules, type access) are audited without events. The access-mode
   change, credential assignments, station changes and card-layout changes publish their own events.
 - CSV export is built in the browser from the list API and capped at 2000 rows.
-- **Known kiosk limits.** A name-search visit reveals that a household is past due when every session on its page
-  shows unbookable (the page says nothing more, but the pattern is visible). A wallet pass is a copyable bearer
+- **Known kiosk limits.** The name-search oracle on the reservation page is closed (review 2026-11-13): the page
+  is the same for everyone. A name-search visit can still learn what the check-in itself returns: admitted or see
+  staff (the access rules), the alerts the location chooses to show (`displayed_alert_codes`, possibly
+  `balance_due`), the count of places the check-in marked present (held places in the check-in window, plus an
+  auto-booked one, so auto-book's outcome can hint at standing), and, by trying, whether a booking goes through.
+  A wallet pass is a copyable bearer
   token: whoever holds the pass file (or its barcode) has possession at the kiosk until the pass is revoked.
 - A kiosk booking of a place the client already holds (or holds pending checkout, or just took on another kiosk)
   is a check-in to that place, not a refusal; nothing new is booked or spent. A credit spent from the kiosk that

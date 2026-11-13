@@ -7754,8 +7754,8 @@ components:
         starts_at: {type: string, format: date-time}
         ends_at: {type: string, format: date-time}
         resource_name: {type: [string, 'null']}
-        is_booked: {type: boolean}
-        is_bookable: {type: boolean}
+        is_booked: {type: boolean, description: 'The visitor holds a place. Always false unless the visit was identified by possession (a verified app QR or wallet pass).'}
+        is_bookable: {type: boolean, description: 'Identified by possession: the visitor may book it now. Otherwise public facts only (open to kiosk booking, free booking, cutoff, capacity), the same for every visitor at the location; membership, payment standing and places held are judged when a booking is attempted, and any refusal is 409 see-staff.'}
     KioskCheckInResult:
       type: object
       description: Never carries amounts, reasons or plan names (security-baseline 10).

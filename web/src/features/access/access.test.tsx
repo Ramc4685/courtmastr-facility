@@ -194,19 +194,22 @@ describe('KioskPage', SCREEN, () => {
   })
 
   it('a refused booking sends the client to the desk without saying why', async () => {
+    // Found by name, the page is the same for everyone (public facts only): the client's standing is judged when they
+    // book, and every refusal is the same see-staff, shown without a reason.
     const yoga = { target_type: 'session', target_id: 's1', title: 'Yoga', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: true }
     renderKiosk({
       'GET /api/v1/kiosk/config': { status: 200, body: config },
-      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [yoga] } },
+      'POST /api/v1/kiosk/lookups': { status: 200, body: { matches: [{ match_token: 't1', first_name: 'Kit', last_initial: 'Z' }] } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [yoga], visit_token: 'v1' } },
       'POST /api/v1/kiosk/check-ins/k1/attendances': { status: 409, body: { code: 'see-staff', status: 409, detail: 'Please see the front desk.' } },
     })
-    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
-    const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
-    ;[...'fhq.abc.1.x', 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
-    clock.mockRestore()
+    await userEvent.type(await screen.findByLabelText(/first letters of your last name/), 'Zep')
+    await userEvent.click(screen.getByRole('button', { name: 'Find me' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Kit Z.' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Book a class' }))
     await userEvent.click(screen.getByRole('button', { name: /^Book Yoga at/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Please see the front desk to book this class.')
+    expect(screen.getByRole('list', { name: 'Classes starting soon' })).toBeInTheDocument()  // the page stays to choose from
   })
 
   it('a scanned app-card code checks in directly', async () => {

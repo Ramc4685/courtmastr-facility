@@ -49,6 +49,20 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] Migration 1022 also adds `kiosk_device.exit_pin_failure_count`; README credits it with `kiosk_match` only. Docs batch.
 - [x] [undocumented] The data subject handler also exports check-ins, credentials and access mode (`access/subject.py:39-50`); README covers merge and erasure only. Docs batch.
 
+Found 2026-11-13 (report refreshed on `claude/fix-kiosk-name-oracle`; file:line in [drift/access.md](drift/access.md)):
+
+- [ ] [stale-not-built] README 151-152: alert codes `payment_method_expired`, `birthday`, `photo_missing` are catalogued but `evaluate()` never raises them.
+- [ ] [contract] `checkOut`, `createCheckInAttendance`, `setClientAccessMode` name the wrong permission keys in the contract; `getClientIdCard` says PDF, the route returns JSON.
+- [ ] [contract] Wallet-pass routes differ from the contract's single deferred `getWalletPass`.
+- [ ] [contract] Kiosk schemas (`KioskSettings`, `KioskMatch`, `KioskSession`, `KioskConfig`, `KioskCheckInResult`) declare fields the code lacks or omit ones it returns (`has_exit_pin`, `exit_pin`, `welcome_message`).
+- [ ] [contract] `createKioskCheckIn` and `createKioskAttendance` are `x-idempotent: required`, but the code accepts a missing `Idempotency-Key`.
+- [ ] [contract] The Redis-outage 429 `kiosk-locked-out` behaviour is not in the contract.
+- [ ] [undocumented] Lookup rules (`lookup_method`, `lookup-method-disabled`, name-search minimums, `card-invalid`).
+- [ ] [undocumented] Event `access.check_in.session_booked`; the `clients.client.disabled` handler that revokes wallet passes.
+- [ ] [undocumented] `POST /check-ins/evaluate`, `GET /clients/{client_id}/access-mode`; per-IP limits on `/kiosk/pair` and `/kiosk/lookups`.
+- [ ] [undocumented] A repeat entry ends when the first visit is checked out; a new app card revokes the previous one with the same device label.
+- [ ] [wording] "Minors are not listed" holds for name search only; auto-book skips when any place is held on the page, not only in the window; hidden details follow `hidden_detail_fields`; `check_in_attendance` also holds booking rows.
+
 ### assessments (7) — [evidence](drift/assessments.md)
 
 - [x] **"Not built: mobile screens" is stale (README line 52).** The mobile app has a Progress screen built on the portal bests route: `mobile/src/app/progress.tsx:21-32` uses `listProgress` → `GET /portal/assessment-bests` (`mobile/src/adapters/api.ts:177`), and `mobile/README.md:46` lists it. Docs batch.
