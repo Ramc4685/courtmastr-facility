@@ -80,6 +80,36 @@ test('guest checkout for a program passes the scan, with and without field error
       await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveAttribute('aria-invalid', 'true')
       await scan(page, `${colorScheme} guest checkout with field errors`)
     }
+
+    // Through the payment step once (each run holds a real place): scan it, decline, then pay on retry.
+    // The fake processor's scripted test cards pick the outcome (PaymentMethodField FAKE_CARDS).
+    const detail: { confirmation_message: string | null } = await (await page.request.get(`/api/v1/public/program-groups/${camp.id}?guest=true`, { headers: TENANT })).json()
+    await page.emulateMedia({ colorScheme: 'light' })
+    await page.goto(`/f/${SLUG}/programs/${camp.id}/guest`)
+    await expect(page.getByRole('heading', { level: 1, name: /^Register for/ })).toBeVisible()
+    await page.getByRole('textbox', { name: 'First name', exact: true }).fill('Gale')
+    await page.getByRole('textbox', { name: 'Last name', exact: true }).fill('Guest')
+    await page.getByRole('textbox', { name: 'Email', exact: true }).fill(`guest-${crypto.randomUUID()}@example.com`)
+    await page.getByLabel('Date of birth', { exact: true }).fill('1990-04-12')
+    await page.getByRole('button', { name: 'Continue to payment' }).click()
+    await expect(page.getByText(/Total to pay now/)).toBeVisible()
+    const card = page.getByRole('combobox', { name: 'Card' })
+    await expect(card).toBeVisible()
+    const terms = page.getByRole('checkbox', { name: /agree to these terms/ })
+    if (await terms.count()) await terms.check()
+    await scan(page, 'guest checkout payment step')
+
+    const payButton = page.getByRole('button', { name: 'Pay and register' })
+    await card.selectOption('tok_card_declined')
+    await payButton.click()
+    await expect(page.locator('form').getByRole('alert')).toBeVisible() // the decline, shown on the form
+    await expect(payButton).toBeVisible() // still on the payment step, the place still held
+    await scan(page, 'guest checkout after a decline')
+
+    await card.selectOption('tok_card_ok')
+    await payButton.click()
+    await expect(page.getByRole('status').filter({ hasText: detail.confirmation_message || 'You are registered' })).toBeVisible()
+    await expect(payButton).toHaveCount(0)
   } finally {
     await page.request.put(config, { headers: staff(), data: { allows_guest_checkout: before.allows_guest_checkout } })
   }

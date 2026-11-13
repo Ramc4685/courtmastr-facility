@@ -81,7 +81,7 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     open('/portal/invoices', {
       'GET /api/v1/portal/invoices': page([invoice('i1', 'c1')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
       'POST /api/v1/portal/payments': (call) => {
         payments.push(call)
         return { status: 201, body: { client_secret: 'fake_pi_1_secret_x', credit_applied_minor: 0, payment: { id: 'p1', status: 'requires_action', amount_minor: 1000, receipt_number: 3 } } }
@@ -116,7 +116,7 @@ describe('PortalApp', { timeout: 20_000 }, () => {
       'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c3', 'Kit', 'guardian')] } },
       'GET /api/v1/portal/invoices': page([invoice('i3', 'c3')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
     const dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
@@ -124,10 +124,10 @@ describe('PortalApp', { timeout: 20_000 }, () => {
   })
 
   it("does not offer another person's stored card for a dependent's invoice", async () => {
-    open('/portal/invoices', {
+    const calls = open('/portal/invoices', {
       'GET /api/v1/portal/invoices': page([invoice('i2', 'c2')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
     const dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
@@ -135,6 +135,9 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     expect(within(payWith).queryByText(/4242/)).not.toBeInTheDocument()
     expect(await within(dialog).findByRole('combobox', { name: 'Card' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Pay $25.00' })).toBeDisabled()
+    // The provider comes from the read-only processor route; reading it never creates a setup intent.
+    expect(calls.some((c) => c.url.startsWith('/api/v1/portal/payment-methods/processor'))).toBe(true)
+    expect(calls.some((c) => c.url.includes('setup-intents'))).toBe(false)
   })
 
   it('renews the idempotency key after a declined package purchase, not before', async () => {
@@ -142,7 +145,7 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     open('/portal/packages', {
       'GET /api/v1/portal/client-packages': page([]),
       'GET /api/v1/portal/package-plans': page([{ id: 'pp1', name: 'Ten lessons', fee_minor: 45000, session_count: 10, is_purchasable: true, validity_count: 6, validity_unit: 'month' }]),
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
       'POST /api/v1/portal/client-packages': (call) => {
         buys.push(call)
         return buys.length === 1

@@ -63,11 +63,12 @@ export function useAttemptKey() {
   return { key, settle }
 }
 
-/** The processor behind online checkout, read from a setup intent (what Stripe Elements would mount with). */
+/** The processor behind online checkout and the keys Stripe.js mounts with, from the read-only processor
+ * route (no setup intent is created just to learn the provider). `provider: null`: none connected. */
 export function useCheckoutProvider() {
   return useQuery({
     queryKey: ['portal', 'checkout-provider'],
-    queryFn: () => api.post('/api/v1/portal/payment-methods/setup-intents', { body: { kinds: ['card'] } }),
+    queryFn: () => api.get('/api/v1/portal/payment-methods/processor'),
     staleTime: Infinity,
     retry: false,
   })
@@ -77,7 +78,7 @@ export function useCheckoutProvider() {
 export function NewCardField({ value, onChange, label = 'Card' }: { value: string; onChange: (token: string) => void; label?: string }) {
   const provider = useCheckoutProvider()
   if (provider.isPending) return <LoadingState label="Preparing secure payment" />
-  const p = provider.data?.provider === 'fake' || provider.data?.provider === 'stripe' ? provider.data.provider : null
+  const p = provider.data?.provider ?? null
   return <PaymentMethodField kind="card" label={label} value={value} onChange={onChange} provider={p} keys={provider.data} />
 }
 

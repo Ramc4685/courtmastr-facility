@@ -49358,6 +49358,10 @@
             "title": "Created At",
             "type": "string"
           },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
           "due_on": {
             "format": "date",
             "title": "Due On",
@@ -49433,6 +49437,7 @@
           "invoice_on",
           "due_on",
           "status",
+          "currency",
           "total_minor",
           "balance_minor",
           "is_autopay",

@@ -987,6 +987,7 @@ class PortalInvoiceOut(Out):
     invoice_on: date
     due_on: date
     status: Literal["open", "payment_pending", "partially_paid", "paid", "voided"]
+    currency: str
     total_minor: int
     balance_minor: int
     is_autopay: bool

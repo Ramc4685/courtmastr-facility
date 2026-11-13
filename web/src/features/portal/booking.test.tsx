@@ -24,7 +24,7 @@ const person = (id: string, first: string, authority: string) => ({
   phone_mobile: null, phone_home: null, address_line1: null, address_line2: null, city: null, region: null, postal_code: null, custom_values: {},
 })
 const card = { id: 'pm1', client_id: 'c1', kind: 'card', brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2099, funding: 'credit', wallet: null, is_autopay: false, status: 'active', created_at: '' }
-const setupIntent = { status: 201, body: { provider: 'fake', client_secret: 'x' } }
+const processor = { status: 200, body: { provider: 'fake' } }
 const listing = (id: string, startsAt: string, extra: Record<string, unknown> = {}) => ({
   session_id: id, location_id: 'l1', title: 'Private lesson', starts_at: startsAt, ends_at: startsAt, spots_left: 1, is_bookable: true, can_join_waitlist: false, reason: null,
   reservation_type_id: 'rt1', is_virtual: false, ...extra,
@@ -36,7 +36,7 @@ function open(path: string, routes: Parameters<typeof mockFetch>[0]) {
     'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self')] } },
     'GET /api/v1/public/locations': page([{ id: 'l1', public_name: 'Downtown', time_zone: ZONE, slug: 'downtown', facility_hours: [] }]),
     'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-    'POST /api/v1/portal/payment-methods/setup-intents': setupIntent,
+    'GET /api/v1/portal/payment-methods/processor': processor,
     ...routes,
   })
   render(

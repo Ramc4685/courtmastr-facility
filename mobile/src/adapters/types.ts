@@ -119,6 +119,7 @@ export type PortalInvoice = {
   due_on: string;
   is_autopay: boolean;
   status: 'open' | 'payment_pending' | 'partially_paid' | 'paid' | 'voided';
+  currency: string;
   total_minor: number;
   balance_minor: number;
   is_past_due: boolean;

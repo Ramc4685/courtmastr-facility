@@ -31964,6 +31964,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Currency */
+            currency: string;
             /**
              * Due On
              * Format: date

@@ -793,11 +793,11 @@ def test_a_client_sees_and_pays_only_their_own_invoices(api, shop, member):
 
     mine, second, theirs = invoice_for(member.id), invoice_for(member.id, 500), invoice_for(member.stranger)
     portal = member.api
-    assert {row["id"] for row in portal("GET", "/portal/invoices?is_payable=true")["data"]} == {
-        mine["id"],
-        second["id"],
-    }
-    assert portal("GET", f"/portal/invoices/{mine['id']}")["balance_minor"] == 1083
+    listed = portal("GET", "/portal/invoices?is_payable=true")["data"]
+    assert {row["id"] for row in listed} == {mine["id"], second["id"]}
+    document = portal("GET", f"/portal/invoices/{mine['id']}")
+    assert document["balance_minor"] == 1083
+    assert {row["currency"] for row in listed} == {document["currency"]}  # the app formats amounts with it
     portal("GET", f"/portal/invoices/{theirs['id']}", None, 404)
     portal("GET", "/invoices", None, 403)  # the staff surface is closed to clients
     api("GET", "/portal/invoices", None, 403)  # and the portal is for clients

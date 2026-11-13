@@ -5,7 +5,6 @@ import { Alert } from 'react-native';
 
 import { portal, type PortalInvoice, type PortalPayment } from '../adapters';
 import { useApp } from '../lib/app-state';
-import { useAppConfig } from '../lib/hooks';
 import { clientName, useHousehold } from '../lib/household';
 import { formatDate, formatMoney } from '../ui/format';
 import { Badge, Body, Button, DemoBanner, Empty, ErrorBox, Heading, Loading, Screen, Small, Surface } from '../ui/kit';
@@ -19,9 +18,8 @@ export default function Invoices() {
   const { actingFor } = useHousehold();
   const qc = useQueryClient();
   const clientId = actingFor?.client.id;
-  // The facility's currency from the app config; amounts wait for it rather than guess one.
-  const currency = useAppConfig().data?.currency;
-  const money = (minor: number) => (currency ? formatMoney(minor, currency) : '…');
+  // Each invoice carries its currency; without one (an invoice cached before it did) amounts wait, never guess.
+  const money = (minor: number, currency: string | undefined) => (currency ? formatMoney(minor, currency) : '…');
   const invoices = useQuery({ queryKey: ['invoices', tenant?.slug, clientId], queryFn: () => portal.listInvoices(clientId!), enabled: !!clientId });
   const methods = useQuery({ queryKey: ['payment-methods', tenant?.slug], queryFn: () => portal.listPaymentMethods() });
   const keys = useRef(new Map<string, string>());
@@ -65,7 +63,7 @@ export default function Invoices() {
   const method = methods.data?.[0];
   const confirm = (invoice: PortalInvoice) =>
     Alert.alert(
-      `Pay ${money(invoice.balance_minor)}?`,
+      `Pay ${money(invoice.balance_minor, invoice.currency)}?`,
       `Invoice #${invoice.number}, charged to ${method ? `${method.brand ?? method.kind} ending ${method.last4}` : 'your saved method'}. Payment always uses your own account.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -100,16 +98,16 @@ export default function Invoices() {
           <Badge label={inv.is_past_due ? 'Past due' : inv.status.replace('_', ' ')} tone={tone(inv)} />
           {inv.charges.map((c) => (
             <Small key={c.id}>
-              {c.description} · {money(c.total_minor)}
+              {c.description} · {money(c.total_minor, inv.currency)}
             </Small>
           ))}
           <Small>Issued {formatDate(inv.invoice_on)} · due {formatDate(inv.due_on)}</Small>
           <Body>
-            Total {money(inv.total_minor)}
-            {inv.balance_minor > 0 ? ` · ${money(inv.balance_minor)} due` : ''}
+            Total {money(inv.total_minor, inv.currency)}
+            {inv.balance_minor > 0 ? ` · ${money(inv.balance_minor, inv.currency)} due` : ''}
           </Body>
           {inv.balance_minor > 0 && inv.status !== 'payment_pending' && (
-            <Button compact label="Pay now" onPress={() => confirm(inv)} loading={pay.isPending && pay.variables?.id === inv.id} disabled={!method} />
+            <Button compact label="Pay now" onPress={() => confirm(inv)} loading={pay.isPending && pay.variables?.id === inv.id} disabled={!method || !inv.currency} />
           )}
         </Surface>
       ))}

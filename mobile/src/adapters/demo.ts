@@ -178,7 +178,7 @@ export const demoAdapter: PortalAdapter = {
     const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * DAY).toISOString().slice(0, 10);
     const make = (id: string, number: number, offset: number, total: number, description: string): PortalInvoice => {
       const paid = state.invoicesPaid.has(id) || offset < -20;
-      return { id, number, bill_to_client_id: clientId, invoice_on: iso(offset), due_on: iso(offset + 14), is_autopay: false, status: paid ? 'paid' : 'open', total_minor: total, balance_minor: paid ? 0 : total, is_past_due: !paid && offset + 14 < 0, charges: [{ id: `${id}-c1`, description, total_minor: total }] };
+      return { id, number, bill_to_client_id: clientId, invoice_on: iso(offset), due_on: iso(offset + 14), is_autopay: false, status: paid ? 'paid' : 'open', currency: 'USD', total_minor: total, balance_minor: paid ? 0 : total, is_past_due: !paid && offset + 14 < 0, charges: [{ id: `${id}-c1`, description, total_minor: total }] };
     };
     return delay([make(`demo-inv-${clientId}-2`, 1042, -3, 4500, 'Court rental, 90 min'), make(`demo-inv-${clientId}-1`, 1017, -40, 8900, 'Family Plus, October')]);
   },
