@@ -121762,9 +121762,6 @@
         "summary": "Get Rental Portal Settings",
         "tags": [
           "rentals"
-        ],
-        "x-api-key-scopes": [
-          "rentals.portal_setting.manage"
         ]
       },
       "put": {
@@ -121836,9 +121833,6 @@
         "summary": "Put Rental Portal Settings",
         "tags": [
           "rentals"
-        ],
-        "x-api-key-scopes": [
-          "rentals.portal_setting.manage"
         ]
       }
     },
