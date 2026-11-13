@@ -536,18 +536,26 @@ def test_the_event_loop_keeps_running_while_verifies_wait(b, monkeypatch):
     assert admitted == [True, True] and ticks >= 25  # ~1 s of waiting, the loop never blocked
 
 
-def test_an_over_limit_address_is_refused_before_any_database_work(client, b, monkeypatch):
-    from app.modules.access import router
+def test_the_ip_bucket_only_ever_applies_to_unknown_credentials(client, b, monkeypatch):
+    from app.core import ratelimit
 
     cfg = get_settings().rate_limit
     monkeypatch.setattr(cfg, "enabled", True)
     monkeypatch.setitem(cfg.buckets, "door-auth", cfg.buckets["door-auth"].model_copy(update={"limit": 1}))
+    counted = []
+    real_hit = ratelimit.hit
+    monkeypatch.setattr(ratelimit, "hit", lambda *a, **k: counted.append(a[0]) or real_hit(*a, **k))
+    for _ in range(3):  # a valid credential never touches the bucket
+        assert verify(client, b, "12345678")["result"] == "deny"
+    assert counted == []
     bogus = {"Authorization": f"Bearer fhb_{b.tenant.id}_{'x' * 40}"}
     assert client.post(f"{API}/door/verify", headers=bogus, json={"code": "12345678"}).status_code == 401
-    monkeypatch.setattr(router, "tenant_session", lambda *a, **k: (_ for _ in ()).throw(AssertionError("db")))
-    refused = client.post(f"{API}/door/verify", headers=bogus, json={"code": "12345678"})
-    assert refused.status_code == 429
-    assert client.post(f"{API}/door/verify", headers=b.device, json={"code": "12345678"}).status_code == 429
+    before = events_count(b)
+    for _ in range(3):  # the address is now far over the limit
+        assert client.post(f"{API}/door/verify", headers=bogus, json={"code": "12345678"}).status_code == 429
+    assert events_count(b) == before
+    assert verify(client, b, "12345678")["result"] == "deny"  # the real lock behind the same address is served
+    assert events_count(b) == before + 1
 
 
 def test_no_connection_is_held_while_a_verify_waits(client, b, monkeypatch):

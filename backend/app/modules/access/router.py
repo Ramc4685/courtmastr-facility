@@ -532,13 +532,10 @@ def door_device(request: Request) -> DoorDevice:
 
 
 def _authenticated_door(request: Request) -> tuple[UUID, UUID]:
-    """Step 1, before anything else. An address already over the per-IP `door-auth` bucket (failed credentials;
-    closed when Redis is down) is refused before any database work. Then the credential, by indexed lookup in a
-    short session closed at once; unknown or retired: 401 at once (no queue, no sleep, no row), and only that
-    failure counts on the bucket. (door id, location id)."""
-    ip = context.client_ip.get() or "unknown"
-    if ratelimit.over("door-auth", ip):
-        raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
+    """Step 1, before anything else: the credential, by indexed lookup in a short session closed at once. A known,
+    active door is never subject to the IP bucket (a shared address must not lock out a real lock). Unknown or
+    retired: counted on the per-IP `door-auth` bucket (closed when Redis is down), then 401, or 429 once the
+    address is over it; no queue, no sleep, no row either way. (door id, location id)."""
     raw, tenant_id = _door_credential(request)
     host = _host_tenant(request)
     found = None
@@ -547,7 +544,7 @@ def _authenticated_door(request: Request) -> tuple[UUID, UUID]:
             door = building.door_for_token(session, raw)
             found = (door.id, door.location_id) if door else None
     if found is None:
-        ratelimit.hit("door-auth", ip)
+        ratelimit.hit("door-auth", context.client_ip.get() or "unknown")
         raise Unauthenticated("Door credential required", code="device-unauthenticated")
     return found
 

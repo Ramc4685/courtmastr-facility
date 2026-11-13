@@ -228,10 +228,12 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - **The door.** `POST /door/verify` with `Authorization: Bearer fhb_...` (the door's own credential, shown once, rotatable;
   retiring a door drops it). It answers allow (with unlock seconds) or deny, nothing more. The order is fixed
   (migrations 1972 and 1974; the gate is frozen pending the verification pass):
-  1. An address already over the per-IP `door-auth` bucket is refused `429` before any database work (a read-only
-     check, `ratelimit.over`; closed when Redis is down). Then the credential, by indexed lookup on its hash in a
-     short session closed at once, never cached, so rotation and retirement apply to the next request. Unknown or
-     retired: `401` at once (no queue, no sleep, no row), and only that failure counts on the bucket.
+  1. The credential, always first, by indexed lookup on its hash in a short session closed at once, never cached,
+     so rotation and retirement apply to the next request. A known, active door is never subject to the per-IP
+     bucket: anyone sharing an address with a real lock (the facility network, a carrier NAT) must not be able to
+     lock it out. Unknown or retired: counted on the per-IP `door-auth` bucket (closed when Redis is down), then
+     `401`, or `429` once the address is over it; no queue, no sleep, no row. Load from a flood of unknown tokens is
+     bounded by that one indexed lookup per request plus the proxy's general rate limit.
   2. Input that is not exactly eight digits is denied unevaluated.
   3. The door's own queue and turn (Redis, keyed by door id, so one door never takes another door's turn): verifies
      at a door are serialised, at most `DOOR_QUEUE` (3) wait behind the one being evaluated, anything beyond is

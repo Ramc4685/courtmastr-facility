@@ -36,20 +36,6 @@ def _key(name: str, subject: str, tenant: object, window: int) -> str:
     return f"{PREFIX}:{tenant}:{name}:{digest(subject.lower())[:32]}:{window}"
 
 
-def over(name: str, subject: str, *, tenant: object = "-") -> bool:
-    """Read-only: is `subject` already at `name`'s limit in this window? Never counts (pair with `hit` on the
-    outcome that should count). Redis unreachable: True for a closed bucket, False otherwise."""
-    if not get_settings().rate_limit.enabled:
-        return False
-    bucket = _bucket(name)
-    try:
-        count = _redis().get(_key(name, subject, tenant, int(clock.now().timestamp() // bucket.window_sec)))
-    except redis.RedisError:
-        log.warning("rate limit unavailable", extra={"bucket": name})
-        return bucket.closed
-    return int(count or 0) >= bucket.limit
-
-
 def hit(name: str, subject: str, response: Response | None = None, *, tenant: object = "-") -> None:
     """Count one request against `name` for `subject` (an IP, an email, an identity). Over the limit: 429 with
     Retry-After. Within it: RateLimit-* headers on `response`. Subjects are hashed: no addresses in Redis."""
