@@ -138,11 +138,14 @@ def acting_client(session: Db, principal: Principal, client_id: UUID | None, cap
 # --- portal: listing and booking (CLS-09) ---------------------------------------------------------------------
 
 
-def _verdict(session: Db, seat: dict, policy: dict, client_id: UUID, member: bool | None) -> str | None:
-    """Why the client may not book this session now, or None."""
-    if policy["listing_mode"] == "list_only":
+def _verdict(
+    session: Db, seat: dict, policy: dict, client_id: UUID, member: bool | None, *, linked: bool = False
+) -> str | None:
+    """Why the client may not book this session now, or None. A live direct link (SCH-16) waives only the
+    listing and self-booking checks; cutoff, membership and capacity still apply."""
+    if policy["listing_mode"] == "list_only" and not linked:
         return "list-only"
-    if not seat["is_self_bookable"]:
+    if not seat["is_self_bookable"] and not linked:
         return "not-self-bookable"
     if seat["starts_at"] - clock.now() < timedelta(minutes=policy["booking_cutoff_minutes"]):
         return "cutoff-passed"
@@ -192,7 +195,7 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
     return out
 
 
-def _bookable_seat(session: Db, session_id: UUID, client_id: UUID) -> tuple[dict, dict]:
+def _bookable_seat(session: Db, session_id: UUID, client_id: UUID, *, linked: bool = False) -> tuple[dict, dict]:
     try:
         seat = scheduling.service.get_session(session, session_id)
     except NotFound:
@@ -200,7 +203,7 @@ def _bookable_seat(session: Db, session_id: UUID, client_id: UUID) -> tuple[dict
     policy = effective(session, seat["location_id"], seat["reservation_type_id"])
     hidden = policy["listing_mode"] == "hidden"  # unlisted stays bookable by direct link
     beyond = seat["starts_at"] >= clock.now() + timedelta(days=policy["visible_range_days"])
-    if seat["status"] != "confirmed" or hidden or beyond:
+    if seat["status"] != "confirmed" or ((hidden or beyond) and not linked):
         raise ValidationFailed("Unknown session.", pointer="/session_id")
     return seat, policy
 
@@ -210,8 +213,9 @@ def portal_enroll(session: Db, principal: Principal, data: dict) -> Enrollment:
     with the reason, capacity-full, already-enrolled, entitlement-not-eligible, package refusals."""
     subject = acting_client(session, principal, data["client_id"])
     clients.service.require_active(session, subject)
-    seat, policy = _bookable_seat(session, data["session_id"], subject)
-    reason = _verdict(session, seat, policy, subject, None)
+    linked = scheduling.service.has_live_link(session, data["session_id"], data.get("direct_link_token"))
+    seat, policy = _bookable_seat(session, data["session_id"], subject, linked=linked)
+    reason = _verdict(session, seat, policy, subject, None, linked=linked)
     if reason == "full":
         raise Conflict("The session is full.", code="capacity-full")
     if reason is not None:

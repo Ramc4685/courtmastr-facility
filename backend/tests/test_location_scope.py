@@ -77,7 +77,7 @@ CLIENT_OR_TENANT_ROUTES = {
         updateClient updateClientAlert updateClientCategory updateClientLocationSettings updateClientNote
         updateClientTask updateCoupon updateCustomField updateDiscountPreset updateDocumentLocationSettings
         updateDocumentTemplate updateEquipmentCategory updateEquipmentItem updateMembershipPlan
-        updateMembershipType updateNoteSubject updatePackagePlan updateProduct updateProductBrand
+        updateMembershipType updateNoteSubject updatePackagePlan updatePostBilledRate updateProduct updateProductBrand
         updateProductCategory updateProductSupplier updateReferralCategory updateRelationshipType
         updateRentalPlan updateRentalRate updateRentalType updateReservationCategory updateReservationType
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType

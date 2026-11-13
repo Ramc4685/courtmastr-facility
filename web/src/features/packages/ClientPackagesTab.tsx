@@ -11,6 +11,7 @@ import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, todayIn } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { PACKAGE_TONE, PaymentFields, Requirements, StatusBadge, noPayment, paymentBody, paymentReady, useClientNames, useMoney, usePackagePlans, type PackageOut, type PaymentState } from '../memberships/shared'
+import { OpenPostBilledDialog } from './PostBilled'
 import { sessionsText } from './PackagesPage'
 
 type Client = Schemas['ClientOut']
@@ -386,7 +387,7 @@ function RemoveDialog({ pack, onClose }: { pack: PackageOut; onClose: () => void
   )
 }
 
-type Open = { kind: 'sell' } | { kind: 'ledger' | 'share' | 'edit' | 'remove'; pack: PackageOut } | null
+type Open = { kind: 'sell' | 'post_billed' } | { kind: 'ledger' | 'share' | 'edit' | 'remove'; pack: PackageOut } | null
 
 export function ClientPackagesTab({ client }: { client: Client }) {
   const qc = useQueryClient()
@@ -423,7 +424,14 @@ export function ClientPackagesTab({ client }: { client: Client }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Checkbox label="Show used up, expired and removed" checked={showEnded} onChange={(e) => setShowEnded(e.target.checked)} />
-        {live && can('packages.package.sell') && <Button onClick={() => setOpen({ kind: 'sell' })}>Sell package</Button>}
+        {live && can('packages.package.sell') && (
+          <span className="flex gap-2">
+            <Button variant="secondary" onClick={() => setOpen({ kind: 'post_billed' })}>
+              Open post-billed
+            </Button>
+            <Button onClick={() => setOpen({ kind: 'sell' })}>Sell package</Button>
+          </span>
+        )}
       </div>
       {(series.data?.data ?? []).length > 0 && (
         <section aria-label="Recurring series" className="rounded-lg border border-border bg-surface p-4 text-sm">
@@ -455,6 +463,7 @@ export function ClientPackagesTab({ client }: { client: Client }) {
                 <div className="space-y-1">
                   <p className="flex flex-wrap items-center gap-2 font-medium">
                     {p.name} <StatusBadge status={p.status} tones={PACKAGE_TONE} />
+                    {p.billing_mode === 'post_billed' && <Badge tone="info">Post-billed</Badge>}
                     {p.is_complimentary && <Badge tone="brand">Complimentary</Badge>}
                     {p.is_renewal_due && <Badge tone="warning">Renewal due</Badge>}
                     {p.source_contract_id && <Badge>Included with membership</Badge>}
@@ -480,6 +489,7 @@ export function ClientPackagesTab({ client }: { client: Client }) {
         </ul>
       )}
       {open?.kind === 'sell' && <SellPackageDialog client={client} onClose={() => setOpen(null)} />}
+      {open?.kind === 'post_billed' && <OpenPostBilledDialog clientId={client.id} onClose={() => setOpen(null)} />}
       {open?.kind === 'ledger' && <LedgerDialog pack={open.pack} onClose={() => setOpen(null)} />}
       {open?.kind === 'share' && <SharesDialog pack={open.pack} onClose={() => setOpen(null)} />}
       {open?.kind === 'edit' && <EditDialog pack={open.pack} onClose={() => setOpen(null)} />}

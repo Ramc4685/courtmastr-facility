@@ -11,6 +11,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 
 ### Added
+- Sessions have a direct registration link staff can copy and turn off; anyone with the link can book the session from the member portal, even when it is not listed online. The link is shown once; links already sent keep working until staff make a new one or turn it off.
+- Bookings can be shared with the organiser's related clients, each with their own attendance; two reservations can be linked into one repeating series.
+- Post-billed packages: set per-session rate tiers, open a package with nothing charged up front, and close a period to bill each client for the sessions they used; a session credited back after billing is taken off at the next close, and packages a close could not bill are listed with a retry.
+- A signed membership agreement can be bound to its contract and is kept with it if the client's data is erased.
 - Leagues: a public league site with your branding, facility info, news, photos, sponsors, links and a class listing; competition filters with a shareable link and embed code; public teams and brackets, with player names shown only where you turn them on.
 - Leagues: a TV board per location showing today's games and scores, refreshing on its own.
 - Leagues: members post classifieds and pickup games from the portal; staff approve them first, they expire after 30 days, and replies go through the club without showing anyone's address.

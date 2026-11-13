@@ -2,8 +2,8 @@
 
 Deviations, recorded in the module README. `reservation_type_id` is a composite FK to scheduling's
 `reservation_type` (added at integration, revision 0401). `coupon_id` is
-not created (billing coupons are build module 8). Post-billed packages (PKG-11, P2) are not modelled, as the data
-model says.
+not created (billing coupons are build module 8). Post-billed packages (PKG-11) are a `client_package` with
+`billing_mode = 'post_billed'` plus the four `post_billed_*` tables, which the data model does not have.
 """
 
 from datetime import date, datetime
@@ -11,8 +11,8 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, Numeric, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import DATERANGE, Range
+from sqlalchemy import BigInteger, CheckConstraint, Index, Numeric, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import DATERANGE, JSONB, Range
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
@@ -116,6 +116,11 @@ class SalesChannel(StrEnum):
     RENEWAL = "renewal"
     MEMBERSHIP_ADDON = "membership_addon"
     IMPORT = "import"
+
+
+class BillingMode(StrEnum):
+    PREPAID = "prepaid"
+    POST_BILLED = "post_billed"
 
 
 class PackageStatus(StrEnum):
@@ -318,6 +323,8 @@ class ClientPackage(TenantOwned, Timestamps, Base):
         enum_check("sales_channel", SalesChannel),
         enum_check("status", PackageStatus),
         enum_check("removal_mode", RemovalMode),
+        enum_check("billing_mode", BillingMode),
+        CheckConstraint("billing_mode = 'prepaid' OR (is_unlimited AND price_minor = 0)", name="post_billed"),
         UniqueConstraint("tenant_id", "package_series_id", "series_sequence_number"),
         # Mapped to problem code `package-exhausted`: the last line of defence behind the row lock.
         CheckConstraint(
@@ -401,6 +408,7 @@ class ClientPackage(TenantOwned, Timestamps, Base):
     sales_channel: Mapped[str] = enum_column(server_default=text("'staff'"))
     client_document_id: Mapped[UUID | None]
     status: Mapped[str] = enum_column(server_default=text("'active'"))
+    billing_mode: Mapped[str] = enum_column(server_default=text("'prepaid'"))  # PKG-11
     removed_at: Mapped[datetime | None]
     removal_mode: Mapped[str | None] = enum_column()
     removed_by_staff_user_id: Mapped[UUID | None]
@@ -487,3 +495,89 @@ class PackageSettings(TenantOwned, Timestamps, Base):
     is_no_show_charged: Mapped[bool] = mapped_column(server_default=text("true"))
     is_account_credit_applied_by_default: Mapped[bool] = mapped_column(server_default=text("true"))
     expiry_notice_days: Mapped[int] = mapped_column(server_default=text("7"))
+
+
+class PostBilledRate(TenantOwned, Timestamps, Base):
+    """PKG-11: what one used session of a reservation type costs on a post-billed package. Several rows for one
+    type are volume tiers: a close bills every session at the row with the highest `min_sessions` reached."""
+
+    __tablename__ = "post_billed_rate"
+    __table_args__ = tenant_args(
+        *tfk("reservation_type_id", "reservation_type", index=False),
+        *tfk("revenue_category_id", "revenue_category"),
+        CheckConstraint("min_sessions >= 1", name="min_sessions"),
+        CheckConstraint("per_session_minor >= 0", name="per_session_minor"),
+        Index(
+            "uq_post_billed_rate_tier", "tenant_id", "reservation_type_id", "min_sessions", unique=True,
+            postgresql_where=text("is_active"),
+        ),
+    )  # fmt: skip
+
+    reservation_type_id: Mapped[UUID]
+    min_sessions: Mapped[int] = mapped_column(server_default=text("1"))
+    per_session_minor: Mapped[int] = mapped_column(BigInteger)
+    revenue_category_id: Mapped[UUID | None]
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class PostBilledClose(TenantOwned, Timestamps, Base):
+    """BIL-18: one period close at a location. Unique per closing date, so a repeat returns the first close."""
+
+    __tablename__ = "post_billed_close"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("closed_by_staff_user_id", "staff_user"),
+        UniqueConstraint("tenant_id", "location_id", "closing_on", name="uq_post_billed_close_period"),
+    )
+
+    location_id: Mapped[UUID]
+    closing_on: Mapped[date]
+    closed_by_staff_user_id: Mapped[UUID | None]
+    package_count: Mapped[int] = mapped_column(server_default=text("0"))
+    session_count: Mapped[int] = mapped_column(server_default=text("0"))
+    total_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    # Packages that failed at this close ({client_package_id, code}); a retry re-runs only these.
+    failures: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'"))
+
+
+class PostBilledLine(TenantOwned, Timestamps, Base):
+    """What one close billed for one package: the sessions, the rate applied, the charge and its invoice."""
+
+    __tablename__ = "post_billed_line"
+    __table_args__ = tenant_args(
+        *tfk("post_billed_close_id", "post_billed_close", index=False),
+        *tfk("client_package_id", "client_package"),
+        *tfk("client_id", "client"),
+        *tfk("charge_id", "charge"),
+        *tfk("invoice_id", "invoice"),
+        UniqueConstraint("tenant_id", "post_billed_close_id", "client_package_id", name="uq_post_billed_line"),
+        CheckConstraint("session_count >= 1", name="session_count"),
+    )
+
+    post_billed_close_id: Mapped[UUID]
+    client_package_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    session_count: Mapped[int]
+    per_session_minor: Mapped[int] = mapped_column(BigInteger)
+    total_minor: Mapped[int] = mapped_column(BigInteger)
+    charge_id: Mapped[UUID | None]
+    invoice_id: Mapped[UUID | None]
+
+
+class PostBilledUsage(TenantOwned, Timestamps, Base):
+    """A used session (a booking or enrolment that consumed on the package) and the line that billed it. Unique per
+    source, so a session is billed once whatever the number of closes."""
+
+    __tablename__ = "post_billed_usage"
+    __table_args__ = tenant_args(
+        *tfk("post_billed_line_id", "post_billed_line", index=False),
+        *tfk("client_package_id", "client_package", index=False),
+        enum_check("source_type", SourceType),
+        UniqueConstraint("tenant_id", "client_package_id", "source_type", "source_id", name="uq_post_billed_usage"),
+    )
+
+    post_billed_line_id: Mapped[UUID]
+    client_package_id: Mapped[UUID]
+    source_type: Mapped[str] = enum_column()
+    source_id: Mapped[UUID]
+    credited_at: Mapped[datetime | None]  # set when a restored credit was credited back at a later close

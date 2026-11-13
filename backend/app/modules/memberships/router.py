@@ -172,6 +172,14 @@ def update_membership_contract(contract_id: UUID, body: s.ContractUpdate, ctx: U
     return service.update_contract(ctx.session, ctx.principal, contract_id, _patch(body, nullable))
 
 
+@router.put("/membership-contracts/{contract_id}/agreement", response_model=s.ContractOut)
+def bind_membership_contract_agreement(
+    contract_id: UUID, body: s.AgreementIn, ctx: Annotated[Ctx, Depends(require("memberships.contract.update"))]
+):
+    """Bind a signed agreement document of the owner's to the contract (DOC-11); a signed binding is not replaced."""
+    return service.bind_agreement(ctx.session, ctx.principal, contract_id, body.client_document_id)
+
+
 @router.put("/membership-contracts/{contract_id}/sold-by", response_model=s.ContractOut)
 def set_membership_contract_sold_by(
     contract_id: UUID, body: s.SoldByIn, ctx: Annotated[Ctx, Depends(require("memberships.contract.edit_sold_by"))]

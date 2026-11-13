@@ -43,7 +43,7 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | BIL-15 Coupons | P0 | done | Coupons page: create and edit (amount or percent, window in the browser's zone, caps), redemptions, delete with confirm; coupon code on Add item | axe | |
 | BIL-16 Billing preferences | P0 | done | Preferences page: every setting, tenant row or a location override (reset to tenant), period lock | axe; backend `test_closing_the_books...` (now with GET) | Added `GET /billing-settings/period-lock` so the screen can show the current lock. |
 | BIL-17 Autopay defaults and per-invoice flag | P0 | done | Autopay checkbox on Edit invoice and bulk invoicing; autopay method toggle on Payment methods & autopay; the membership sale dialog follows the resolved default | backend; e2e memberships | |
-| BIL-18 Post-billed package period close | P1 | not built | none | none | Belongs to `packages`. |
+| BIL-18 Post-billed package period close | P1 | done | Packages, "Period close" tab | `shared-post-billed.spec.ts` | Phase 14 C2. |
 | BIL-19 Accounts receivable report | P1 | partial | Receivables page (as-of date, location, totals, per-client buckets) | axe | No export. Ageing is by invoice due date (backend gap). |
 | BIL-20 Collections tagging and reports | P1 | done | Billing > Collections (report, tags); Collections tab on the client's billing page | CollectionsPage.test, e2e collections | |
 | BIL-21 Client account credit | P0 | partial | Client billing > Account credit (apply to invoices, refund); overpayment note in Take payment | e2e1 (2.00 over goes to credit, then refunded) | Backend gaps carry over. |
