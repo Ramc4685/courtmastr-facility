@@ -23,10 +23,11 @@ _DENY = {
 }  # fmt: skip
 _WORDS = re.compile(r"[A-Z]?[a-z0-9]{1,64}|[A-Z]{1,64}(?![a-z])")
 _SPACE = re.compile(r"(\s+)")
-# Fail closed and linear: any run of digits joined by spaces or dashes that holds 9 or more digits is masked
+# Fail closed and linear: any run of digits joined by whitespace, dashes, dots, slashes or underscores that holds
+# 9 or more digits is masked, Luhn or not
 # (phones, account and card numbers however grouped; a date and time may go too). No address regex: every
 # whitespace-delimited token holding an @ is masked whole, however malformed.
-_DIGIT_RUN = re.compile(r"\d[\d -]*\d")
+_DIGIT_RUN = re.compile(r"\d[\d\s./_-]*")  # one greedy class: never backtracks
 _STATIC = {"method", "status", "duration_ms"}  # written by our own code from fixed values: kept as they are
 REDACTED, TRUNCATED = "[redacted]", "...[truncated]"
 MAX_CHARS, MAX_DEPTH, MAX_ITEMS = 2048, 6, 100
@@ -40,7 +41,8 @@ def _denied(key: str) -> bool:
 
 def _mask_digits(match: re.Match) -> str:
     run = match.group()
-    return "[digits]" if sum(c.isdigit() for c in run) >= 9 else run
+    body = run.rstrip(" \t\r\n\f\v./_-")
+    return "[digits]" + run[len(body) :] if sum(c.isdigit() for c in body) >= 9 else run
 
 
 def scrub(value: str, limit: int = MAX_CHARS) -> str:

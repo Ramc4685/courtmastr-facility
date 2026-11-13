@@ -1,14 +1,25 @@
-"""Card number (PAN) detector: Luhn-valid digit runs of 13 to 19 digits, optionally grouped by single spaces or
-dashes, with a card-network prefix (security-baseline section 3, free-text leakage). Used on free-text input
-(`app.core.schemas.In`); the log formatter masks every 9-digit run, a superset."""
+"""Card number (PAN) detector for stored free-text input (`app.core.schemas.In`, security-baseline section 3).
+
+Favours precision, since refusing a legitimate note is a real cost: a hit needs 13 to 19 digits that pass Luhn
+and start with a card-network prefix. Digits may be grouped by spaces, dashes, dots, slashes, underscores or
+runs of whitespace (line breaks included). A run longer than 19 digits is searched for a card at its start or
+end, or, when it is grouped, as consecutive whole groups. The log formatter does not use this: it masks every
+long digit run, Luhn or not (recall over precision, `app.core.logging`)."""
 
 import re
+from itertools import islice
 
-# A whole run only: never starts or ends next to another digit, so a 20-digit reference is not searched for a card.
-# Linear on hostile input: the only inner quantifier is `[ -]?`, disjoint from `\d`, so each step has exactly one
-# way to match and a start position backtracks at most 18 times (test_detector_is_linear_on_hostile_input).
-_RUN = re.compile(r"(?<!\d)(?<!\d[ -])\d(?:[ -]?\d){12,18}(?![ -]?\d)")
-MAX_SCAN = 1_048_576  # the API's request body cap (api.max_body_bytes): nothing longer reaches a schema
+# One greedy class after the first digit and no nested quantifier: a run never backtracks, so a scan is linear.
+_RUN = re.compile(r"\d[\d\s./_-]*")
+SEPARATORS = re.compile(r"[\s./_-]+")
+# Work is about 19 steps per digit group. Free-text fields are capped far below this by their schemas (10,000
+# characters at most); a longer value is checked on its first 64 KiB.
+MAX_SCAN = 65_536
+# 4 Visa; 51-55, 2221-2720 Mastercard; 34, 37 Amex; 6011, 644-649, 65 Discover; 3528-3589 JCB; 62 UnionPay.
+_PREFIX = tuple(
+    ["4", "34", "37", "6011", "65", "62"]
+    + [str(n) for n in (*range(51, 56), *range(644, 650), *range(2221, 2721), *range(3528, 3590))]
+)
 
 
 def _luhn(digits: str) -> bool:
@@ -21,17 +32,29 @@ def _luhn(digits: str) -> bool:
     return total % 10 == 0
 
 
-def _is_card(run: str) -> bool:
-    digits = re.sub(r"[ -]", "", run)
-    # Amex, Diners, JCB (3), Visa (4), Mastercard and Maestro (5, 2221-2720), Discover and UnionPay (6): a run
-    # that starts like a date or an order year is not a card, which keeps "2026-11-13 2026-12-01" out.
-    network = digits[0] in "3456" or 2221 <= int(digits[:4]) <= 2720
-    return network and _luhn(digits)
+def _is_card(digits: str) -> bool:
+    return 13 <= len(digits) <= 19 and digits.startswith(_PREFIX) and _luhn(digits)
+
+
+def _run_has_card(run: str) -> bool:
+    groups = [g for g in SEPARATORS.split(run) if g]
+    digits = "".join(groups)
+    if len(digits) <= 19:
+        return _is_card(digits)
+    if len(groups) == 1:  # one long contiguous run: a card typed against its start or end
+        return any(_is_card(digits[:n]) or _is_card(digits[-n:]) for n in range(13, 20))
+    for start in range(len(groups)):  # grouped: consecutive whole groups, as a person types a card among others
+        if groups[start][0] not in "23456":
+            continue
+        window = ""
+        for group in islice(groups, start, None):
+            window += group
+            if len(window) > 19:
+                break
+            if _is_card(window):
+                return True
+    return False
 
 
 def contains_card_number(value: str) -> bool:
-    return any(_is_card(match.group()) for match in _RUN.finditer(value[:MAX_SCAN]))
-
-
-def mask_card_numbers(value: str, mask: str = "[card]") -> str:
-    return _RUN.sub(lambda m: mask if _is_card(m.group()) else m.group(), value[:MAX_SCAN])
+    return any(_run_has_card(match.group()) for match in _RUN.finditer(value[:MAX_SCAN]))

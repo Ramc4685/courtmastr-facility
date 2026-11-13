@@ -102,6 +102,18 @@ def test_separated_digit_runs_of_nine_or_more_are_masked():
 
 
 @pytest.mark.parametrize(
+    "card",
+    ["ref 9900004111111111111111", "4111.1111.1111.1111", "4111/1111/1111/1111", "4111_1111_1111_1111",
+     "4111  1111  1111  1111", "4111 1111\n1111 1111", "1234 5678 9012 3456"],
+)  # fmt: skip
+def test_card_numbers_with_any_grouping_are_masked(card):
+    """Recall over precision in logs: no Luhn or prefix check, any long digit run goes."""
+    out = scrub(f"paid with {card} today")
+    assert out.startswith("paid with ") and out.endswith("[digits] today")
+    assert not any(group in out for group in ("1111", "3456", "9900"))
+
+
+@pytest.mark.parametrize(
     "hostile",
     ["a." * 100_000, "a" * 200_000 + "@", "a@" + "b-" * 100_000, "1 " * 100_000, "4" * 200_000, "1-" * 100_000],
 )
