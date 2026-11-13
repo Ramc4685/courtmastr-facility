@@ -11,6 +11,7 @@ import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { addDays, formatDateTime, todayIn } from '../../lib/format'
 import { FormError } from '../billing/shared'
+import { PortalEntryCodes } from '../access/PortalEntryCodes'
 import { PortalPage } from './PortalApp'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
 import { label, PaymentOutcome, RENTAL_TONE, useAttemptKey, usePortal } from './shared'
@@ -229,6 +230,7 @@ export function BookingsPage() {
 
   return (
     <PortalPage title="Bookings" description="Your household's court and space rentals." actions={<Button onClick={() => setBooking(true)}>Book a rental</Button>}>
+      <PortalEntryCodes zoneOf={zoneOf} />
       <Table
         caption="Rentals"
         paging={paging}
