@@ -16,6 +16,7 @@ Internal (no principal): `sync_booking_code`, `run_building_control`, `verify_co
 portal commands carry both gates."""
 
 import asyncio
+import concurrent.futures
 import logging
 import secrets
 import time
@@ -58,6 +59,7 @@ FAILURES_BEFORE_ALERT = 3  # failed light commands in a row before staff are ema
 REASSERT_EVERY = timedelta(minutes=5)  # a lit zone is told "on" again this often when the controller cannot report
 MAX_OVERRIDE = timedelta(hours=24)
 MIN_RUN_ON = timedelta(minutes=1)  # a court in play is never cut within the same minute
+DEVICE_TIMEOUT = 3.0  # seconds an in-request unlock may take before it counts as failed
 RETENTION = timedelta(days=365)  # building events and spent codes (entry times are movement data), then purged
 log = logging.getLogger(__name__)
 
@@ -135,7 +137,8 @@ def _refusal(session: Session, client_id: UUID, location_id: UUID) -> str | None
 def door_view(row: DoorDevice) -> dict:
     return {
         "id": row.id, "location_id": row.location_id, "name": row.name, "device_ref": row.device_ref,
-        "unlock_seconds": row.unlock_seconds, "is_active": row.is_active, "has_credential": row.token_hash is not None,
+        "unlock_seconds": row.unlock_seconds, "is_entrance": row.is_entrance, "is_active": row.is_active,
+        "has_credential": row.token_hash is not None,
         "last_seen_at": row.last_seen_at, "created_at": row.created_at,
     }  # fmt: skip
 
@@ -490,30 +493,32 @@ def door_for_token(session: Session, raw: str) -> DoorDevice | None:
     return row
 
 
-def _admit(session: Session, row: EntryCode, booking: dict | None):
-    """(refusal reason or None, check-in) for an entry on this code now, re-checked at the door for every kind of
+def _admit(session: Session, row: EntryCode, booking: dict | None) -> str | None:
+    """The refusal reason (None: admit) for an entry on this code now, re-checked at the door for every kind of
     code: the booking (or enrolment) is still live and the person still entitled, the window is the live booking's
     (a moved booking's old code fails at once), the person passes the known-adult rule and the check-in evaluation.
-    Writes the person's door check-in when admitted."""
+    Writes nothing: the entry is recorded by `_enter`, once the door has opened."""
     now, person = clock.now(), row.client_id
     if person is None or person not in _entitled(session, booking):
-        return ("not_entitled" if _entitled(session, booking) else "booking_cancelled"), None
+        return "not_entitled" if _entitled(session, booking) else "booking_cancelled"
     assert booking is not None
     window = _window(booking, _cfg(session, row.location_id))
     if (row.valid_from_at, row.valid_until_at) != window:
-        return "rescheduled", None
+        return "rescheduled"
     if not (window[0] <= now < window[1]):
-        return "outside_window", None
+        return "outside_window"
     if not _may_hold(session, person, row.location_id, booking["kind"]):
-        return "not_known_adult", None
-    reason = _refusal(session, person, row.location_id)
-    if reason:
-        return reason, None
-    check_in, decision, _ = service._check_in(
-        session, client=clients.service.get(session, person), location_id=row.location_id, channel="door",
+        return "not_known_adult"
+    return _refusal(session, person, row.location_id)
+
+
+def _enter(session: Session, row: EntryCode):
+    """The person's door check-in, written once they are let in (keypad allow, or a door that opened)."""
+    check_in, _, _ = service._check_in(
+        session, client=clients.service.get(session, row.client_id), location_id=row.location_id, channel="door",
         identified_by="credential", credential=None,
     )  # fmt: skip
-    return (decision.denial_reason if check_in.result == "denied" else None), check_in
+    return check_in
 
 
 def _count(key: str, window_sec: int) -> int | None:
@@ -630,7 +635,10 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
     row = session.scalar(select(EntryCode).where(
         EntryCode.location_id == location_id, EntryCode.status == "active",
         EntryCode.code_hash == _digest(location_id, code)))  # fmt: skip
-    reason, check_in = _admit(session, row, _booking(session, row.booking_id)) if row else ("unknown_code", None)
+    reason = _admit(session, row, _booking(session, row.booking_id)) if row else "unknown_code"
+    check_in = _enter(session, row) if row and not reason else None  # the keypad releases the door on our allow
+    if check_in is not None and check_in.result == "denied":
+        reason = check_in.denial_reason
     if reason == "unknown_code":
         _note_wrong(location_id)
         _note_bad_code(session, door)
@@ -644,27 +652,42 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
     return dict(DENY) if reason else {"result": "allow", "unlock_seconds": door.unlock_seconds}
 
 
-def _unlock(session: Session, door: DoorDevice, kind: str, **fields) -> BuildingEvent:
-    """Release one door now. Runs in the request: someone is standing at the door, and a queued unlock that lands
-    late opens it for nobody (README). A failure is recorded and answered 409 device-unavailable."""
+_DEVICE_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="door-unlock")
+
+
+def _release(session: Session, door: DoorDevice, staff_user_id: UUID | None = None) -> bool:
+    """Release one door now, bounded by DEVICE_TIMEOUT. Runs in the request (someone is standing at the door, and a
+    queued unlock that lands late opens it for nobody, README) before this request writes or locks anything. A
+    failure or a hang is recorded as `command_failed` and answered False."""
+    call = _DEVICE_POOL.submit(lambda: building_control.get().unlock(door.device_ref, seconds=door.unlock_seconds))
     try:
-        building_control.get().unlock(door.device_ref, seconds=door.unlock_seconds)
-    except BuildingControlError:
+        call.result(timeout=DEVICE_TIMEOUT)
+        return True
+    except (BuildingControlError, concurrent.futures.TimeoutError):
         _event(session, door.location_id, "command_failed", door_device_id=door.id, detail="unlock",
-               staff_user_id=fields.get("staff_user_id"))  # fmt: skip
-        raise DomainError("The door did not respond. Try again, or open it by hand.", status=409,
-                          code="device-unavailable", persist=True) from None  # fmt: skip
-    return _event(session, door.location_id, kind, door_device_id=door.id, **fields)
+               staff_user_id=staff_user_id)  # fmt: skip
+        return False
+
+
+def _unavailable() -> DomainError:
+    return DomainError("The door did not respond. Try again, or open it by hand.", status=409,
+                       code="device-unavailable", persist=True)  # fmt: skip
 
 
 def remote_unlock(session: Session, principal: Principal, door_id: UUID, data: dict) -> dict:
-    """Staff open a door for someone at it (the phone line when a code fails). Reason required, audited."""
+    """Staff open a door for someone at it (the phone line when a code fails). Reason required; audited whether or
+    not the door answered."""
     door = _loaded(session, principal, DoorDevice, door_id, UNLOCK)
     if not door.is_active:
         raise Conflict("This door is retired.", code="invalid-state-transition")
-    row = _unlock(session, door, "remote_unlock", staff_user_id=principal.staff_user_id, detail="staff")
-    audit.record(session, UNLOCK, door, location_id=door.location_id, changes={"unlocked": True}, reason=data["reason"])
-    return event_view(row)
+    opened = _release(session, door, principal.staff_user_id)
+    audit.record(
+        session, UNLOCK, door, location_id=door.location_id, changes={"unlocked": opened}, reason=data["reason"]
+    )
+    if not opened:
+        raise _unavailable()
+    return event_view(_event(session, door.location_id, "remote_unlock", door_device_id=door.id,
+                             staff_user_id=principal.staff_user_id, detail="staff"))  # fmt: skip
 
 
 # --- portal --------------------------------------------------------------------------------------------------
@@ -704,12 +727,13 @@ def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict
 
 
 def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> dict:
-    """ "Open the door" from the portal: the same decision as the keypad, for the booking's holder or someone who
-    may act for them, inside the code's window. Opens every active door of the location."""
+    """ "Open the door" from the portal (rate limited per identity in the router): the same decision as the keypad,
+    for someone the delivery rule lets hold the code, inside its window. Opens the location's entrance doors only,
+    each with its own result; the entry is recorded once at least one opened, and the attempt is always audited."""
     row = next((r for r in _my_codes(session, principal) if r.booking_id == booking_id), None)
     if row is None:
         raise NotFound()
-    reason, check_in = _admit(session, row, _booking(session, booking_id))
+    reason = _admit(session, row, _booking(session, booking_id))
     if reason:
         _event(session, row.location_id, "entry_denied", entry_code_id=row.id, detail=reason)
         session.flush()
@@ -720,14 +744,21 @@ def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> d
             code="entry-refused",
             persist=True,
         )
-    doors = _doors(session, row.location_id)
+    doors = [d for d in _doors(session, row.location_id) if d.is_entrance]
     if not doors:
-        raise Conflict("This location has no door to open.", code="invalid-state-transition")
+        raise Conflict("This location has no entrance door to open.", code="invalid-state-transition")
+    opened = {door.id: _release(session, door) for door in doors}
+    audit.record(session, "access.door.member_unlock", row, location_id=row.location_id, changes={
+        "unlocked": any(opened.values()), "doors": {str(k): v for k, v in opened.items()}})  # fmt: skip
+    if not any(opened.values()):
+        raise _unavailable()
+    check_in = _enter(session, row)
+    last = None
     for door in doors:
-        last = _unlock(
-            session, door, "member_unlock", entry_code_id=row.id, check_in_id=check_in.id if check_in else None
-        )
-    audit.record(session, "access.door.member_unlock", row, location_id=row.location_id, changes={"unlocked": True})
+        if opened[door.id]:
+            last = _event(session, row.location_id, "member_unlock", door_device_id=door.id, entry_code_id=row.id,
+                          check_in_id=check_in.id)  # fmt: skip
+    assert last is not None
     return {"result": "allow", "occurred_at": last.occurred_at}
 
 

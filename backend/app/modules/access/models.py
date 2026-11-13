@@ -464,6 +464,7 @@ class DoorDevice(TenantOwned, Timestamps, Base):
     device_ref: Mapped[str] = mapped_column(info={"audit": "value"})
     unlock_seconds: Mapped[int] = mapped_column(server_default=text("5"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+    is_entrance: Mapped[bool] = mapped_column(server_default=text("false"))  # the portal "open the door" opens it
     token_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})
     last_seen_at: Mapped[datetime | None]
 

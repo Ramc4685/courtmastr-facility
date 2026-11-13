@@ -9,7 +9,7 @@ const zone = (id: string, name: string, extra: Record<string, unknown> = {}) => 
   commanded_is_on: true, commanded_at: '2031-05-05T15:00:00Z', failure_count: 0, created_at: '2031-05-01T00:00:00Z',
   should_be_on: true, reason: 'booking:41', is_in_sync: true, ...extra,
 })
-const door = { id: 'd1', location_id: 'l1', name: 'Front door', device_ref: 'door-front', unlock_seconds: 5, is_active: true, has_credential: true, last_seen_at: null, created_at: '2031-05-01T00:00:00Z' }
+const door = { id: 'd1', location_id: 'l1', name: 'Front door', device_ref: 'door-front', unlock_seconds: 5, is_entrance: true, is_active: true, has_credential: true, last_seen_at: null, created_at: '2031-05-01T00:00:00Z' }
 const status = {
   location_id: 'l1', as_of: '2031-05-05T15:00:00Z', adapter: 'simulated', doors: [door],
   zones: [zone('z1', 'Court 1 lights'), zone('z2', 'Court 2 lights', { should_be_on: false, reason: 'idle', commanded_is_on: true, is_in_sync: false, failure_count: 3 })],

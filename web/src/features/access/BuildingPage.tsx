@@ -210,13 +210,14 @@ function DoorsCard({ locationId, doors, timeZone, canUnlock, canManage }: { loca
   const [credential, setCredential] = useState<{ door: string; value: string } | null>(null)
   const [name, setName] = useState('')
   const [ref, setRef] = useState('')
+  const [entrance, setEntrance] = useState(true)
   const done = () => qc.invalidateQueries({ queryKey: ['building-status', locationId] })
   const issued = (out: Schemas['DoorDeviceIssued']) => {
     setCredential({ door: out.name, value: out.credential })
     done()
   }
   const register = useMutation({
-    mutationFn: () => api.post('/api/v1/door-devices', { body: { location_id: locationId, name, device_ref: ref, unlock_seconds: 5 } }),
+    mutationFn: () => api.post('/api/v1/door-devices', { body: { location_id: locationId, name, device_ref: ref, unlock_seconds: 5, is_entrance: entrance } }),
     onSuccess: (out) => {
       setName('')
       setRef('')
@@ -238,7 +239,7 @@ function DoorsCard({ locationId, doors, timeZone, canUnlock, canManage }: { loca
           {doors.map((d) => (
             <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <div>
-                <p className="font-medium">{d.name} {!d.is_active && <Badge>Retired</Badge>}</p>
+                <p className="font-medium">{d.name} {d.is_entrance && <Badge>Entrance</Badge>} {!d.is_active && <Badge>Retired</Badge>}</p>
                 <p className="text-xs text-muted">
                   Last heard from: {d.last_seen_at ? formatDateTime(d.last_seen_at, timeZone) : 'never'}
                 </p>
@@ -267,6 +268,8 @@ function DoorsCard({ locationId, doors, timeZone, canUnlock, canManage }: { loca
             <Input label="Door name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Front door" />
             <Input label="Controller address" required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="door-front" />
           </div>
+          <Checkbox label="Entrance" hint="Members can open it from the portal and the app during their booking."
+            checked={entrance} onChange={(e) => setEntrance(e.target.checked)} />
           <Button type="submit" loading={register.isPending}>Add door</Button>
         </form>
       )}

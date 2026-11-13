@@ -519,12 +519,14 @@ class DoorDeviceCreate(In):
     name: Name
     device_ref: DeviceRef
     unlock_seconds: int = Field(5, ge=1, le=60)
+    is_entrance: bool = False  # members may open it from the portal or the app
 
 
 class DoorDeviceUpdate(In):
     name: Name | None = None
     device_ref: DeviceRef | None = None
     unlock_seconds: int | None = Field(None, ge=1, le=60)
+    is_entrance: bool | None = None
     is_active: bool | None = None
 
 
@@ -534,6 +536,7 @@ class DoorDeviceOut(Out):
     name: str
     device_ref: str
     unlock_seconds: int
+    is_entrance: bool
     is_active: bool
     has_credential: bool
     last_seen_at: datetime | None

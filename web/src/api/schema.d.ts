@@ -4934,7 +4934,11 @@ export interface paths {
         put?: never;
         /**
          * Verify Door Code
-         * @description A keypad's code: allow (with how long to release the lock) or deny, and nothing else.
+         * @description A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the
+         *     credential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied
+         *     unevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held
+         *     (`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the
+         *     request transaction, one activity row and one audit row.
          */
         post: operations["verifyDoorCode"];
         delete?: never;
@@ -9539,7 +9543,7 @@ export interface paths {
         put?: never;
         /**
          * Unlock Portal Booking Door
-         * @description Open the door from the portal, inside the booking's code window only.
+         * @description Open the location's entrance doors from the portal, inside the booking's code window only.
          */
         post: operations["unlockPortalBookingDoor"];
         delete?: never;
@@ -17308,6 +17312,8 @@ export interface components {
         };
         /** AccessSettingsOut */
         AccessSettingsOut: {
+            /** Door Alert Bad Codes Per Hour */
+            door_alert_bad_codes_per_hour: number;
             /** Entry Code Early Min */
             entry_code_early_min: number;
             /** Entry Code Grace Min */
@@ -17332,6 +17338,8 @@ export interface components {
         };
         /** AccessSettingsWrite */
         AccessSettingsWrite: {
+            /** Door Alert Bad Codes Per Hour */
+            door_alert_bad_codes_per_hour?: number | null;
             /** Entry Code Early Min */
             entry_code_early_min?: number | null;
             /** Entry Code Grace Min */
@@ -24037,6 +24045,11 @@ export interface components {
             /** Device Ref */
             device_ref: string;
             /**
+             * Is Entrance
+             * @default false
+             */
+            is_entrance: boolean;
+            /**
              * Location Id
              * Format: uuid
              */
@@ -24069,6 +24082,8 @@ export interface components {
             id: string;
             /** Is Active */
             is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
             /** Last Seen At */
             last_seen_at: string | null;
             /**
@@ -24076,8 +24091,6 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
-            /** Locked Until At */
-            locked_until_at: string | null;
             /** Name */
             name: string;
             /** Unlock Seconds */
@@ -24101,6 +24114,8 @@ export interface components {
             id: string;
             /** Is Active */
             is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
             /** Last Seen At */
             last_seen_at: string | null;
             /**
@@ -24108,8 +24123,6 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
-            /** Locked Until At */
-            locked_until_at: string | null;
             /** Name */
             name: string;
             /** Unlock Seconds */
@@ -24121,6 +24134,8 @@ export interface components {
             device_ref?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Is Entrance */
+            is_entrance?: boolean | null;
             /** Name */
             name?: string | null;
             /** Unlock Seconds */
@@ -27834,6 +27849,11 @@ export interface components {
         };
         /** LightingZoneOverride */
         LightingZoneOverride: {
+            /**
+             * Confirm In Progress
+             * @default false
+             */
+            confirm_in_progress: boolean;
             /** Is On */
             is_on: boolean | null;
             /** Reason */

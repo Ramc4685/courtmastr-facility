@@ -433,6 +433,10 @@
       },
       "AccessSettingsOut": {
         "properties": {
+          "door_alert_bad_codes_per_hour": {
+            "title": "Door Alert Bad Codes Per Hour",
+            "type": "integer"
+          },
           "entry_code_early_min": {
             "title": "Entry Code Early Min",
             "type": "integer"
@@ -489,7 +493,8 @@
           "entry_code_grace_min",
           "light_lead_in_min",
           "light_run_on_min",
-          "requires_paid_entry"
+          "requires_paid_entry",
+          "door_alert_bad_codes_per_hour"
         ],
         "title": "AccessSettingsOut",
         "type": "object"
@@ -497,6 +502,19 @@
       "AccessSettingsWrite": {
         "additionalProperties": false,
         "properties": {
+          "door_alert_bad_codes_per_hour": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Door Alert Bad Codes Per Hour"
+          },
           "entry_code_early_min": {
             "anyOf": [
               {
@@ -21791,6 +21809,11 @@
             "title": "Device Ref",
             "type": "string"
           },
+          "is_entrance": {
+            "default": false,
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -21846,6 +21869,10 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
           "last_seen_at": {
             "anyOf": [
               {
@@ -21863,18 +21890,6 @@
             "title": "Location Id",
             "type": "string"
           },
-          "locked_until_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Locked Until At"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -21890,9 +21905,9 @@
           "name",
           "device_ref",
           "unlock_seconds",
+          "is_entrance",
           "is_active",
           "has_credential",
-          "locked_until_at",
           "last_seen_at",
           "created_at",
           "credential"
@@ -21924,6 +21939,10 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
           "last_seen_at": {
             "anyOf": [
               {
@@ -21941,18 +21960,6 @@
             "title": "Location Id",
             "type": "string"
           },
-          "locked_until_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Locked Until At"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -21968,9 +21975,9 @@
           "name",
           "device_ref",
           "unlock_seconds",
+          "is_entrance",
           "is_active",
           "has_credential",
-          "locked_until_at",
           "last_seen_at",
           "created_at"
         ],
@@ -22003,6 +22010,17 @@
               }
             ],
             "title": "Is Active"
+          },
+          "is_entrance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Entrance"
           },
           "name": {
             "anyOf": [
@@ -33367,6 +33385,11 @@
       "LightingZoneOverride": {
         "additionalProperties": false,
         "properties": {
+          "confirm_in_progress": {
+            "default": false,
+            "title": "Confirm In Progress",
+            "type": "boolean"
+          },
           "is_on": {
             "anyOf": [
               {
@@ -110554,7 +110577,7 @@
     },
     "/api/v1/door/verify": {
       "post": {
-        "description": "A keypad's code: allow (with how long to release the lock) or deny, and nothing else.",
+        "description": "A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the\ncredential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied\nunevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held\n(`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the\nrequest transaction, one activity row and one audit row.",
         "operationId": "verifyDoorCode",
         "requestBody": {
           "content": {
@@ -135177,7 +135200,7 @@
     },
     "/api/v1/portal/bookings/{booking_id}/door-unlock": {
       "post": {
-        "description": "Open the door from the portal, inside the booking's code window only.",
+        "description": "Open the location's entrance doors from the portal, inside the booking's code window only.",
         "operationId": "unlockPortalBookingDoor",
         "parameters": [
           {

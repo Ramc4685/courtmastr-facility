@@ -403,7 +403,8 @@ def list_portal_entry_codes(ctx: Portal):
 
 @router.post("/portal/bookings/{booking_id}/door-unlock", response_model=s.PortalDoorUnlockResult)
 def unlock_portal_booking_door(booking_id: UUID, ctx: Portal):
-    """Open the door from the portal, inside the booking's code window only."""
+    """Open the location's entrance doors from the portal, inside the booking's code window only."""
+    ratelimit.hit("door-member-unlock", str(ctx.principal.identity_id), tenant=ctx.session.info["tenant_id"])
     return building.member_unlock(ctx.session, ctx.principal, booking_id)
 
 

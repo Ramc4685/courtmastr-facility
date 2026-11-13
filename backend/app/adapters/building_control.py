@@ -1,5 +1,6 @@
 """Building control adapters (app.ports.building_control). Only the simulated one until a vendor is chosen."""
 
+import time
 from dataclasses import dataclass, field
 
 from app.ports.building_control import BuildingControlError, TimedCode
@@ -8,7 +9,8 @@ from app.ports.building_control import BuildingControlError, TimedCode
 @dataclass
 class SimulatedBuildingControl:
     """Records every call and keeps zone state in memory. Tests and demos script failures with `fail(...)`:
-    the next `times` calls of `operation` (or of any operation, `"*"`) raise an error or time out. Never records
+    the next `times` calls of `operation` (or of any operation, `"*"`) raise an error, time out, or hang (block for
+    `hang_seconds`, then succeed: a stuck controller the caller must bound). Never records
     a code: `calls` holds the operation, the address and the code id only."""
 
     name: str = "simulated"
@@ -17,6 +19,7 @@ class SimulatedBuildingControl:
     calls: list[tuple] = field(default_factory=list)
     zones: dict[str, bool] = field(default_factory=dict)
     pushed: set[str] = field(default_factory=set)
+    hang_seconds: float = 1.0
     _failures: list[list] = field(default_factory=list)  # [operation, remaining, kind]
 
     def fail(self, operation: str = "*", *, times: int = 1, kind: str = "error") -> None:
@@ -33,6 +36,9 @@ class SimulatedBuildingControl:
         for failure in self._failures:
             if failure[1] > 0 and failure[0] in (operation, "*"):
                 failure[1] -= 1
+                if failure[2] == "hang":
+                    time.sleep(self.hang_seconds)
+                    return
                 if failure[2] == "timeout":
                     raise BuildingControlError(f"{operation} timed out")
                 raise BuildingControlError(f"{operation} was refused by the controller")

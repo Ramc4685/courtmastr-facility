@@ -3,6 +3,7 @@ entry codes per booking (issue, email, reissue, revoke, refusals), the door veri
 lockout, check-in), staff and member unlocks, court lights computed from holds, overrides, the activity log and
 the reconciliation line."""
 
+import time
 from datetime import timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -52,7 +53,8 @@ def b(client, tenant, owner, sim):
     f.tenant = tenant
     f.person = adult(client, owner, f.location)
     door = ok(client.post(f"{API}/door-devices", headers=owner,
-                          json={"location_id": f.location, "name": "Front door", "device_ref": "door-front"}))  # fmt: skip
+                          json={"location_id": f.location, "name": "Front door", "device_ref": "door-front",
+                                "is_entrance": True}))  # fmt: skip
     assert door["credential"].startswith("fhb_") and "token_hash" not in door
     f.door, f.device = door["id"], {"Authorization": f"Bearer {door['credential']}"}
     zone = lambda name, ref, ids: ok(client.post(f"{API}/lighting-zones", headers=owner, json={  # noqa: E731
@@ -728,6 +730,52 @@ def test_member_opens_the_door_from_the_portal_inside_the_window_only(client, te
         opened = ok(client.post(f"{API}/portal/bookings/{booking}/door-unlock", headers=member), 200)
         assert opened["result"] == "allow" and ("unlock", "door-front", 5) in sim.calls
     assert "member_unlock" in kinds(b)
+
+
+def door_check_ins(f) -> int:
+    with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
+        return len(session.scalars(select(CheckIn.id).where(CheckIn.channel == "door")).all())
+
+
+def test_a_failed_or_hung_staff_unlock_is_audited_and_bounded(client, owner, b, sim, monkeypatch):
+    monkeypatch.setattr(building, "DEVICE_TIMEOUT", 0.2)
+    sim.fail("unlock", kind="hang")  # the adapter sleeps a second: longer than the bound
+    began = time.monotonic()
+    dead = client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Phone call"})
+    assert dead.status_code == 409 and time.monotonic() - began < 0.9
+    trail = scalar(b.tenant, select(AuditEvent).where(AuditEvent.action == "access.door.unlock"))
+    assert trail.reason == "Phone call" and trail.changes == {"unlocked": False}
+
+
+def test_member_unlock_opens_only_entrance_doors_and_records_the_entry_after_the_unlock(
+    client, tenant, owner, b, sim, monkeypatch
+):
+    monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+    add = lambda name, ref, entrance: ok(client.post(f"{API}/door-devices", headers=owner, json={  # noqa: E731
+        "location_id": b.location, "name": name, "device_ref": ref, "is_entrance": entrance}))["id"]  # fmt: skip
+    lobby, side = add("Lobby", "door-lobby", True), add("Fire exit", "door-side", False)
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+    with clock.freeze(at(10.5)):
+        member = portal(client, tenant, b.person)
+        sim.fail("unlock", times=2)  # both entrances fail: refused, nothing recorded as an entry, still audited
+        dead = client.post(f"{API}/portal/bookings/{booking}/door-unlock", headers=member)
+        assert dead.status_code == 409 and dead.json()["code"] == "device-unavailable" and door_check_ins(b) == 0
+        trail = scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.member_unlock"))
+        assert trail == {"unlocked": False, "doors": {b.door: False, lobby: False}}
+        sim.calls.clear()
+        sim.fail("unlock")  # the front door fails, the lobby opens: allowed, one entry, per-door results kept
+        opened = ok(client.post(f"{API}/portal/bookings/{booking}/door-unlock", headers=member), 200)
+        assert opened["result"] == "allow" and door_check_ins(b) == 1
+        assert sorted(c[1] for c in sim.calls if c[0] == "unlock") == ["door-front", "door-lobby"]
+        assert all(c[1] != "door-side" for c in sim.calls) and side
+        trails = scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.member_unlock")
+                        .order_by(AuditEvent.id.desc()).limit(1))  # fmt: skip
+        assert trails == {"unlocked": True, "doors": {b.door: False, lobby: True}}
+        codes_seen = [client.post(f"{API}/portal/bookings/{booking}/door-unlock", headers=member).status_code
+                      for _ in range(8)]  # fmt: skip
+        assert 429 in codes_seen  # the member path is rate limited per identity
 
 
 # --- lights ----------------------------------------------------------------------------------------------------

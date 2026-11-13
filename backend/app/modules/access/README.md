@@ -269,9 +269,15 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   after the 21st wrong code at the location in an hour. A person at the keypad can still slow the location for
   everyone (up to five seconds a try); the portal "open the door" and the phone line are the fallback.
   A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
-  the keypad, opens every active door of the location) call the controller in the request: someone is waiting at the
-  door and a queued unlock that lands late opens it for nobody. This is a deliberate exception to "only the payment
-  provider runs in-request"; a failure is logged and answered `409 device-unavailable`.
+  the keypad) call the controller in the request: someone is waiting at the door and a queued unlock that lands late
+  opens it for nobody. This is a deliberate exception to "only the payment provider runs in-request". Each call is
+  bounded by `DEVICE_TIMEOUT` (3 s, on a small thread pool, so a hung controller cannot hold the request) and is made
+  before the request writes or locks anything (deviation, named: the request's connection stays checked out for
+  those seconds, holding no row lock). A failure or timeout writes `command_failed` and answers
+  `409 device-unavailable`; the staff unlock is audited either way (`unlocked: false` on failure). The member path
+  opens only doors marked `is_entrance` (migration 1977; doors registered before it were marked), each with its own
+  result in the audit row; the entry (the person's `door` check-in and the `member_unlock` rows) is recorded only once
+  at least one door opened. It is rate limited per signed-in identity (`door-member-unlock`, 6 per 5 minutes).
 - **Lights.** Computed, not scheduled. Every minute (`run_building_control` in `app.scheduler.EVERY_MINUTE`) each
   zone should be on when an override says so or when a confirmed rental, session or game holds one of its resources
   between start minus lead-in and end plus run-on. Holds cover a resource and its descendants, never its ancestors,
