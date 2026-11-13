@@ -304,6 +304,45 @@ def test_a_dramatiq_message_logs_as_actor_and_id_and_any_mapping_is_redacted():
     assert out.count(f"integrations.webhook_fan_out({message.message_id})") == 2 and "fine" in out
 
 
+def test_a_message_proxy_logs_as_actor_and_id_only():
+    from dramatiq.broker import MessageProxy
+
+    from app.modules.integrations.handlers import webhook_fan_out
+
+    logger, stream = _capture("test.redaction.proxy")
+    message = webhook_fan_out.message_with_options(args=("t", "e", {}), kwargs={"api_key": "kw-secret-value"})
+    logger.info("Retrying message %r in %d milliseconds.", MessageProxy(message), 10)
+    out = stream.getvalue()
+    assert "kw-secret-value" not in out and "api_key" not in out
+    assert f"integrations.webhook_fan_out({message.message_id})" in out
+
+
+def test_a_failing_actor_on_a_real_worker_logs_no_argument_values():
+    import dramatiq
+    from dramatiq.brokers.stub import StubBroker
+
+    broker = StubBroker()
+    broker.emit_after("process_boot")
+
+    @dramatiq.actor(broker=broker, max_retries=0, actor_name="test_redaction_boom")
+    def boom(email, secret=None):
+        raise ValueError("boom")
+
+    logger, stream = _capture("dramatiq")
+    worker = dramatiq.Worker(broker, worker_timeout=100)
+    worker.start()
+    try:
+        boom.send("arg-value-jane@example.com", secret="kwarg-value-hunter2")
+        broker.join(boom.queue_name, fail_fast=False)
+        worker.join()
+    finally:
+        worker.stop()
+        logger.handlers.clear()
+    out = stream.getvalue()
+    assert "test_redaction_boom(" in out  # the failure was logged
+    assert "arg-value" not in out and "kwarg-value" not in out and "jane@example.com" not in out
+
+
 @pytest.mark.parametrize(
     "key", ["pwd", "pass", "user_pass", "otp", "cvv2", "pincode", "session", "session_cookie", "jwt"]
 )

@@ -13,8 +13,6 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-import dramatiq
-
 from app.core import context
 
 _STANDARD = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
@@ -90,8 +88,13 @@ def scrub(value: str, limit: int = MAX_CHARS) -> str:
     return (kept[0] if len(kept) == 2 else "").rstrip("0123456789 +-.@") + TRUNCATED
 
 
+def _is_job_message(value: Any) -> bool:
+    """A Dramatiq Message or anything wrapping one (the worker logs a MessageProxy, which is not a Message)."""
+    return hasattr(value, "actor_name") and hasattr(value, "message_id")
+
+
 def redact(value: Any, depth: int = 0) -> Any:
-    if isinstance(value, dramatiq.Message):  # its str() carries args and kwargs; the id is enough to trace it
+    if _is_job_message(value):  # its str() carries args and kwargs; the id is enough to trace it
         return f"{value.actor_name}({value.message_id})"
     if isinstance(value, (Mapping, list, tuple, set)) and depth >= MAX_DEPTH:
         return TRUNCATED
@@ -115,7 +118,7 @@ def _message(record: logging.LogRecord) -> str:
     if isinstance(args, Mapping):
         args = redact(args)
     elif isinstance(args, tuple):
-        args = tuple(redact(a) if isinstance(a, (Mapping, list, tuple, set, dramatiq.Message)) else a for a in args)
+        args = tuple(redact(a) if isinstance(a, (Mapping, list, tuple, set)) or _is_job_message(a) else a for a in args)
     msg = str(record.msg)
     return msg % args if args else msg
 
