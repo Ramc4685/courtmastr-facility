@@ -321,6 +321,12 @@ def _may_hold(session: Session, client_id: UUID, location_id: UUID, kind: str) -
     )
 
 
+def _plain(row: EntryCode, tenant_id: UUID) -> str:
+    """An active code's digits (ck_entry_code_sealed keeps the sealed copy until the code retires)."""
+    assert row.code_ciphertext is not None
+    return crypto.decrypt(row.code_ciphertext, tenant_id)
+
+
 def code_recipients(session: Session, client_id: UUID, location_id: UUID) -> list[UUID]:
     """THE rule for who may receive, see or use one person's door code in an unmanned building (delivery, the
     portal list and the portal unlock all call this). Nobody when the check-in evaluation refuses the person. An
@@ -353,7 +359,7 @@ def _email_code(session: Session, row: EntryCode, client) -> bool:
         return False
     location = platform.service.get_location(session, system_principal("access"), row.location_id)
     zone = ZoneInfo(location.time_zone)
-    code = crypto.decrypt(row.code_ciphertext, session.info["tenant_id"])
+    code = _plain(row, session.info["tenant_id"])
     opens, closes = (row.valid_from_at.astimezone(zone), row.valid_until_at.astimezone(zone))
     until = f"{closes:%H:%M}" if closes.date() == opens.date() else f"{closes:%a %d %b %H:%M}"  # past midnight
     body = (
@@ -478,9 +484,9 @@ def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None =
     active = {row.client_id: row for row in session.scalars(
         select(EntryCode).where(EntryCode.booking_id == booking_id, EntryCode.status == "active").with_for_update())}  # fmt: skip
     entitled = _entitled(session, booking)
-    for client_id, row in active.items():
+    for client_id, held in active.items():
         if client_id not in entitled:
-            _revoke(session, row, "not_entitled" if entitled else "cancelled")
+            _revoke(session, held, "not_entitled" if entitled else "cancelled")
     if not entitled or booking is None:
         return []
     now, window = clock.now(), _window(booking, _cfg(session, booking["location_id"]))
@@ -568,6 +574,7 @@ def _admit(session: Session, row: EntryCode, booking: dict | None) -> str | None
 
 def _enter(session: Session, row: EntryCode):
     """The person's door check-in, written once they are let in (keypad allow, or a door that opened)."""
+    assert row.client_id is not None  # only a linked person's code opens a door
     check_in, _, _ = service._check_in(
         session, client=clients.service.get(session, row.client_id), location_id=row.location_id, channel="door",
         identified_by="credential", credential=None,
@@ -637,7 +644,9 @@ async def door_enter(door_id: UUID, location_id: UUID) -> tuple | None:
     try:
         r = _aredis()
         async with r.pipeline() as pipe:
-            depth = int((await pipe.incr(queue).expire(queue, 60).execute())[0])
+            pipe.incr(queue)
+            pipe.expire(queue, 60)
+            depth = int((await pipe.execute())[0])
         if depth > DOOR_QUEUE + 1:
             await r.decr(queue)
             return None
@@ -663,7 +672,11 @@ async def door_leave(ticket: tuple) -> None:
         if await r.get(lock) == mine.encode():
             await r.delete(lock)
         async with r.pipeline() as pipe:
-            await pipe.decr(queue).delete(wake).rpush(wake, "1").expire(wake, 60).execute()
+            pipe.decr(queue)
+            pipe.delete(wake)
+            pipe.rpush(wake, "1")
+            pipe.expire(wake, 60)
+            await pipe.execute()
     except redis.RedisError:
         log.warning("door gate unavailable on leave")  # the lock and the queue key expire on their own
 
@@ -764,7 +777,7 @@ def _my_codes(session: Session, principal: Principal) -> list[EntryCode]:
     rows = session.scalars(select(EntryCode).where(
         EntryCode.status == "active", EntryCode.client_id.in_(reach), EntryCode.valid_until_at > clock.now(),
     ).order_by(EntryCode.valid_from_at, EntryCode.id)).all()  # fmt: skip
-    return [r for r in rows if me & set(code_recipients(session, r.client_id, r.location_id))]
+    return [r for r in rows if r.client_id and me & set(code_recipients(session, r.client_id, r.location_id))]
 
 
 def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict]:
@@ -775,7 +788,7 @@ def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict
     return [
         {
             "booking_id": row.booking_id, "location_id": row.location_id, "location_phone": phones[row.location_id],
-            "code": crypto.decrypt(row.code_ciphertext, tenant_id), "valid_from_at": row.valid_from_at,
+            "code": _plain(row, tenant_id), "valid_from_at": row.valid_from_at,
             "valid_until_at": row.valid_until_at, "is_open_now": row.valid_from_at <= now < row.valid_until_at,
         }
         for row in rows
@@ -860,7 +873,7 @@ def _desired(
     watched = {zone.id: [r for root in mapped[zone.id] for r in (root, *below[root])] for zone in zones}
     lit = _lit_resources(session, location_id, {r for ids in watched.values() for r in ids}, now)
     run_on = max(timedelta(minutes=_cfg(session, location_id)["light_run_on_min"]), MIN_RUN_ON)
-    found = {}
+    found: dict[UUID, tuple[bool, str, datetime | None]] = {}
     for zone in zones:
         if zone.override_until_at and zone.override_until_at > now:
             found[zone.id] = (bool(zone.override_is_on), "override", None)
@@ -991,7 +1004,7 @@ def _retry_pushes(session: Session, location_id: UUID) -> None:
         EntryCode.location_id == location_id, EntryCode.status == "active", EntryCode.pushed_at.is_(None),
         EntryCode.valid_until_at > clock.now(),
     )):  # fmt: skip
-        _push(session, row, crypto.decrypt(row.code_ciphertext, session.info["tenant_id"]), quiet=True)
+        _push(session, row, _plain(row, session.info["tenant_id"]), quiet=True)
 
 
 def _retry_revokes(session: Session, location_id: UUID) -> None:

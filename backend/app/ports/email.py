@@ -1,6 +1,7 @@
 """Email port. Modules call send_after_commit(); the adapter is wired by configuration in app.bootstrap."""
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -46,7 +47,7 @@ def send_after_commit(session: Session, message: EmailMessage) -> None:
     session.info.setdefault("after_commit", []).append(lambda: _deliver(message))
 
 
-def send_after_commit_then(session: Session, message: EmailMessage, on_sent) -> None:
+def send_after_commit_then(session: Session, message: EmailMessage, on_sent: Callable[[], object]) -> None:
     """send_after_commit, then `on_sent()` once the adapter accepted the message (a caller that must know it was
     handed off, and retries otherwise: door codes)."""
     session.info.setdefault("after_commit", []).append(lambda: _deliver(message) and on_sent())
