@@ -4574,12 +4574,11 @@ components:
         settings: {type: object, additionalProperties: true}
     TenantUpdate:
       type: object
-      description: '`currency` is immutable once any charge exists (409 invalid-state-transition).'
+      description: '`currency` is not writable: it is set when the tenant is provisioned, because every money amount is stored in its minor units.'
       properties:
         name: {type: string}
         default_time_zone: {type: string, description: IANA time zone}
         locale: {type: string}
-        currency: {type: string}
         settings: {type: object, additionalProperties: true}
     LocationRef:
       type: object

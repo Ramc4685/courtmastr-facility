@@ -959,6 +959,18 @@ def series_sessions(session: Db, series_id: UUID, starts_from) -> list[UUID]:
     )
 
 
+def check_location_archive(session: Db, location_id: UUID) -> None:
+    """Internal, registered with platform: a location with a confirmed booking still to start is not archived."""
+    ahead = select(Booking.id).where(
+        Booking.location_id == location_id, Booking.status == "confirmed", Booking.starts_at > clock.now()
+    )
+    if session.scalar(ahead.limit(1)) is not None:
+        raise Conflict(
+            "This location has bookings still to come. Cancel or move them first.",
+            code="location-has-future-bookings",
+        )
+
+
 def type_location(session: Db, type_id: UUID) -> UUID:
     """Internal: the location a reservation type belongs to, or NotFound (programs' booking policy overrides)."""
     row = session.get(ReservationType, type_id)

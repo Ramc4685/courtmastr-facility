@@ -44,6 +44,13 @@ def test_tenant_profile(client, tenant, owner):
     )  # not a writable field
 
 
+def test_currency_is_set_at_provisioning_and_never_patched(client, tenant, owner):
+    """Money is stored in minor units of the tenant currency, so changing it would relabel every balance."""
+    response = client.patch(f"{API}/tenant", headers=owner, json={"currency": "EUR"})
+    assert response.status_code == 422 and response.json()["code"] == "validation-failed"
+    assert client.get(f"{API}/tenant", headers=owner).json()["currency"] == "USD"
+
+
 def test_explicit_null_for_a_required_field_is_422_not_500(client, tenant, owner):
     """PATCH models make every field optional, so null reaches the service; the NOT NULL column answers."""
     for body in ({"settings": None}, {"name": None}):
