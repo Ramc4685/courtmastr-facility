@@ -233,6 +233,22 @@ def test_a_minor_cannot_hold_a_rental_and_override_needs_the_key_and_a_reason(cl
     assert staff_view["minor_override_reason"] == "Coach's own child"  # the stored reason, shown to staff
 
 
+def test_extending_a_minors_series_needs_a_fresh_reason(client, owner, f):
+    _, kid = family(client, owner, f)
+    weekly = {"pattern": "weekly", "range_type": "count", "occurrence_limit": 2}
+    created = ok(
+        rent(client, owner, body(f, kid, 15, 16, recurrence=weekly, minor_override_reason="Coach's own child"))
+    )
+    more = {"start_on": "2031-06-02", "start_time": "10:00", "end_time": "11:00", "rule": weekly}
+    url = f"{API}/rentals/{created['rental']['id']}/extensions"
+    refused(client.post(url, headers=owner, json=more), 422, "minor-cannot-hold-rental")  # never inherited
+    ok(client.post(url, headers=owner, json=more | {"minor_override_reason": "Still the coach's child"}))
+    series = ok(client.get(f"{API}/rentals?booking_series_id={created['booking_series_id']}", headers=owner), 200)
+    assert sorted(r["minor_override_reason"] for r in series["data"]) == [
+        "Coach's own child", "Coach's own child", "Still the coach's child", "Still the coach's child",
+    ]  # fmt: skip
+
+
 def test_a_guardian_books_and_names_the_children_who_play(client, owner, f):
     parent, kid = family(client, owner, f)
     party = [{"client_id": kid}]

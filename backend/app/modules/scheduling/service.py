@@ -1562,7 +1562,7 @@ def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: di
 def add_rule(
     session: Db, series_id: UUID, data: dict, staff_user_id: UUID | None, *, principal: Principal | None = None,
     key: str = UPDATE_SERIES, template_rule: BookingSeriesRule | None = None, extra_changes: dict | None = None,
-    sync_only: bool = False,
+    sync_only: bool = False, source_data: dict | None = None,
 ) -> dict:  # fmt: skip
     """Internal (no gate unless `principal` is given; `key` gates and audits): add a pass to a series, copying
     its first template (or `template_rule`'s), so an owner's source hook runs for the new occurrences too (rentals RNT-04 "add
@@ -1574,6 +1574,8 @@ def add_rule(
         .order_by(BookingSeriesRule.sequence)
     ).all()
     template = dict((template_rule or rules[0]).template)
+    if source_data and template.get("source"):  # the owner replaces fields its hook must not inherit
+        template["source"] = {**template["source"], "data": {**template["source"].get("data", {}), **source_data}}
     if data.get("resources"):
         ordered = sorted(data["resources"], key=lambda r: r.get("role") != "primary")
         rows = _resolve_resources(session, series.location_id, [r["resource_id"] for r in ordered], False)

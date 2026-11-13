@@ -327,6 +327,10 @@ class Extension(In):
     on_conflict: OnConflict = "abort"
     preview: bool = False
     override_policy: bool = False
+    # A series booked in a minor's name extends only with a fresh reason (the old one is never copied).
+    minor_override_reason: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None
+    ) = None
 
 
 class Extended(Out):

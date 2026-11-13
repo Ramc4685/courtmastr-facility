@@ -1003,8 +1003,21 @@ def extend_rental(session: Db, principal: Principal, rental_id: UUID, data: dict
             "Only a recurring rental can be extended; book a new rental instead.", pointer="/rule", code="not-a-series"
         )
     _check_type_resources(session, row.rental_type_id, data.get("resources") or ())
+    # The minors rule again for the new dates: an override is never inherited from the original booking.
+    reason = data.pop("minor_override_reason", None)
+    if reason:
+        authorize(principal, OVERRIDE_MINOR, location_id=row.location_id)
+    else:
+        _check_minors(session, booking["client_id"], (), data["start_on"])
     result = scheduling.service.add_rule(
-        session, booking["booking_series_id"], data, principal.staff_user_id, principal=principal, key=UPDATE
+        session,
+        booking["booking_series_id"],
+        data,
+        principal.staff_user_id,
+        principal=principal,
+        key=UPDATE,
+        source_data={"minor_override_reason": reason},
+        extra_changes={"minor_override_reason": True} if reason else None,  # free text: flag only
     )
     if data.get("preview"):
         return {"booking_series_id": booking["booking_series_id"], "created_count": 0, "conflict_count": 0} | result

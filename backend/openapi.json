@@ -25078,6 +25078,19 @@
             "title": "End Time",
             "type": "string"
           },
+          "minor_override_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Override Reason"
+          },
           "on_conflict": {
             "default": "abort",
             "enum": [

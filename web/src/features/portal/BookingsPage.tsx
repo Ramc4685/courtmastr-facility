@@ -223,6 +223,9 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
         <FormError error={hold.error} />
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Available times{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}</legend>
+          {slots.data?.data.some((s) => s.is_member_price) && (
+            <p className="mb-2 text-sm text-muted">Member prices are for your membership on the day you play, checked again when you book.</p>
+          )}
           {slots.isPending ? (
             <LoadingState label="Finding open times" />
           ) : slots.isError ? (

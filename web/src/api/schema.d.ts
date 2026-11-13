@@ -24856,6 +24856,8 @@ export interface components {
             end_day_offset: number;
             /** End Time */
             end_time: string;
+            /** Minor Override Reason */
+            minor_override_reason?: string | null;
             /**
              * On Conflict
              * @default abort

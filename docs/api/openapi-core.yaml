@@ -4211,6 +4211,8 @@ paths:
       operationId: extendRental
       tags: [rentals]
       summary: Add more occurrences to an existing rental series
+      description: 'A series held by a minor extends only with a fresh `minor_override_reason` (needs
+        rentals.booking.override_minor), else 422 minor-cannot-hold-rental; the original reason is never copied.'
       x-priority: P1
       x-permission: rentals.booking.update
       x-features: [RNT-04]

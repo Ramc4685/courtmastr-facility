@@ -71,6 +71,8 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 - A moved rental is not re-priced: its posted charges stay, even when the move crosses into another price band or
   a membership has lapsed since; staff cancel and rebook to re-price (decided for the pilot, tested).
 - Only recurring rentals can be extended (`not-a-series` otherwise); extension occurrences arrive unbilled.
+  Extending a series booked in a minor's name needs a fresh `minor_override_reason` (and the key); the original
+  reason is never copied to the new occurrences (`add_rule(source_data=...)` replaces it in the copied template).
 - A series above 50 occurrences accepts only `unbilled` or `no_charge`; bill it from the queue once generated.
 - Portal payment is a one-off card token through the PaymentProvider port; confirm takes no stored method. A
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
@@ -176,7 +178,9 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   lapses, occurrences not yet charged price as guest when they are billed, and charges already posted stay. Arrears
   billing (bill selected) of a date an ended contract covered charges the member price. The online members-only
   check reads the same function on the rental's date. A `flat` rate is one
-  charge for the request, priced on the first date. Bands are local wall time; a booking across a band edge is cut
+  charge for the request, priced on the first date: a member on the first date pays the flat member price for
+  the whole series even if the membership lapses before the last occurrence, and a guest on the first date pays the
+  guest price throughout (decided for the pilot). Bands are local wall time; a booking across a band edge is cut
   there and each line is rounded half-up once.
 - **Lapse between quote and payment.** The portal quotes from `/portal/rental-availability`; the checkout prices
   again and posts the charge. If the membership lapsed in between, the charge (guest price) wins: the checkout
