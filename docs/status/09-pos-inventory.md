@@ -68,7 +68,7 @@ Test keys used in the table below:
 | POS-19 sell packages | P1 | not built | integration point in the README | | Memberships and packages context absent |
 | POS-20 deposits | P2 | not built | | | Drawer close-out (expected vs counted) covers the likely intent |
 | POS-21 card-present terminals | v2-adapter | not built | | | `pos.terminal.*` keys registered only |
-| POS-22 reorder and reporting hooks | P1 | partial | `reports.py`; Reports tabs; `StockLow` event; `inventory.send_low_stock_digests` (hourly actor, `pos_low_stock_digest`) | T: adjustments, sales_report_groupings, drawer, partial_then_full_return, test_desk | Built: reorder, sales groupings, daily register, returns, and the daily low-stock email once per location per local day. Not built: the `rpt_*` read models for the reporting module |
+| POS-22 reorder and reporting hooks | P1 | partial | `reports.py`; Reports tabs; `StockLow` event; `inventory.send_low_stock_digests` (hourly actor, `pos_low_stock_digest`) | T: adjustments, sales_report_groupings, drawer, partial_then_full_return, test_desk | Built: reorder, sales groupings, daily register, returns, and the daily low-stock email once per location per local day. Not built: the `rpt_*` read models for the reporting module. The reports need `reporting.pos.run` (owner decisions 2026-11-13, question 14; front desk no longer sees them) |
 | POS-23 partner POS lines | v2-adapter | not built | | | |
 
 ## Integrator notes

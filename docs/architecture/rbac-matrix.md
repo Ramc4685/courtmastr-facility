@@ -573,7 +573,7 @@ Rejected: a subject grant per report (about 60 rows per role for no extra contro
 | `reporting.client.run` | L | H | | Y | Y | - | - | - | - | - | RPT-17..RPT-20, RPT-24..RPT-26, FIT-04, FIT-03 |
 | `reporting.attendance.run` | L | | own | Y | Y | Y | own | - | - | - | RPT-21..RPT-23, CHK-19, CHK-20, PKG-15, STF-11, RPT-40 |
 | `reporting.program.run` | L | H | | Y | Y | - | - | Y | - | - | RPT-27, RPT-28, REG-22 |
-| `reporting.pos.run` | L | | | Y | Y | - | - | - | - | - | RPT-30..RPT-35 |
+| `reporting.pos.run` | L | | | Y | Y | - | - | - | - | - | RPT-30..RPT-35, POS-16 (`/pos-reports/*`, owner decision Q14) |
 | `reporting.time_clock.run` | L | W | | Y | Y | - | - | - | - | - | RPT-37, STF-08 |
 | `reporting.payroll.run` | L | W | own | Y | - | own | own | - | - | - | STF-09, STF-10, STF-11 |
 | `reporting.league.run` | L | | | Y | Y | - | - | Y | - | - | LGE-32, RPT-36 |

@@ -79,7 +79,7 @@ Phase 15's 20 v2 partner and hardware rows.
   still not enforced. Allow the dependency (or an event), or drop the binding kind.
 - Members-only rentals: should an overdue but not suspended member, a membership at another location, or a
   depleted punch pass count as a member.
-- Which key gates `/pos-reports/*`: `pos.sale.read` or `reporting.pos.run`.
+- ~~Which key gates `/pos-reports/*`~~ Decided 2026-11-13 (question 14): `reporting.pos.run`; built.
 - Kiosk session attendance, eligible sessions and kiosk package purchase: build or drop.
 - Five keys in the matrix but in no phase: impersonate, transfer ownership, tenant close,
   `leagues.discipline.manage`, `billing.dispute.manage`.

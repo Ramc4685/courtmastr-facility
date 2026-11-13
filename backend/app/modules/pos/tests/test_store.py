@@ -353,3 +353,17 @@ def test_sales_report_groupings_and_bounds(client, store):
     assert too_long.status_code == 422
     viewer_email, _ = add_staff(store.tenant, "view_only", location_ids=[store.location_id])
     assert client.get(f"{base}&group_by=product", headers=login(client, store.tenant, viewer_email)).status_code == 403
+    # Owner decisions 2026-11-13, question 14: the reports need reporting.pos.run, which front desk does not hold
+    # although it reads sales (pos.sale.read); a manager does.
+    desk_email, _ = add_staff(store.tenant, "front_desk", location_ids=[store.location_id])
+    desk = login(client, store.tenant, desk_email)
+    assert client.get(f"{API}/pos-sales", headers=desk).status_code == 200
+    for path in (
+        f"{base}&group_by=product",
+        f"{API}/pos-reports/daily-register?location_id={store.location_id}&on={_today()}",
+        f"{API}/pos-reports/reorder?location_id={store.location_id}",
+        f"{API}/pos-reports/returns?from_on={_today()}&to_on={_today()}",
+    ):
+        assert client.get(path, headers=desk).status_code == 403, path
+    manager_email, _ = add_staff(store.tenant, "manager", location_ids=[store.location_id])
+    assert client.get(f"{base}&group_by=product", headers=login(client, store.tenant, manager_email)).status_code == 200

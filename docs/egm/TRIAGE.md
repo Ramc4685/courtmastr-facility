@@ -51,7 +51,8 @@ where being wrong costs nothing.
 
 - **Q1 (pos-3).** `/pos-reports/*` is gated by `pos.sale.read` (`pos/router.py:502-525`) while the report centre's
   `pos_sales` report needs `reporting.pos.run` (admin, manager). Front desk can read POS sales totals by one
-  road and not the other. Pick the key for `/pos-reports`.
+  road and not the other. Pick the key for `/pos-reports`. **Decided 2026-11-13 (question 14): `reporting.pos.run`
+  at both gates; built. Front desk loses `/pos-reports/*`.**
 - **Q2 (documents-1).** Should a waiver bound to a rental plan block the sale? Yes means the fix above; no means
   drop the binding kind. **Decided 2026-11-13: yes; built (ADR 0013).**
 - **Q3 (access-4).** Kiosk session attendance, eligible sessions and kiosk package purchase are in the contract
@@ -255,7 +256,7 @@ README was rewritten in Phase 14; it still has no events, data-subject or discip
 |---|---|---|---|
 | 1 | DOCS | `backend/app/scheduler.py:26` | Drop the low-stock digest from not built |
 | 2 | DOCS | README:91; `pos/router.py:370` | Drop quick-create from not built |
-| 3 | OWNER | `pos/router.py:502-525` use `pos.sale.read`; `reporting/registry.py:596` uses `reporting.pos.run` | New, Q1 |
+| 3 | RESOLVED | 2026-11-13: `/pos-reports/*` use `reporting.pos.run` at the router and in `pos/reports.py` (Q1, owner question 14) | None |
 | 4 | DOCS | README:74; no `client.discount_pct` use in `pos/` | "Field exists; the register does not apply it" |
 | 5 | DOCS | README:45; `imports/kinds.py:363` | Remove "nothing outside pos calls it" |
 | 6 | DOCS | (nc) | Add file rows |

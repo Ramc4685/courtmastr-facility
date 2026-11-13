@@ -163,8 +163,8 @@ Status per feature: `docs/status/15-reporting.md`.
   chunks hold it shared until commit, the erasure exclusive, so it waits for snapshots in flight and nothing that
   starts after it reads the erased client. The data-subject export
   hands over nothing here: the source contexts export the records themselves.
-- `/pos-reports/*` stays gated by `pos.sale.read` while report-centre POS reports use `reporting.pos.run` (owner
-  question, unchanged).
+- `/pos-reports/*` (pos) and the report centre's `pos` category reports both need `reporting.pos.run` (owner
+  decisions 2026-11-13, question 14); the POS family's financial report keeps `reporting.financial.run`.
 
 ## Deviations from the contract
 

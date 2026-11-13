@@ -36,6 +36,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Member app feedback is limited to 10 messages an hour per member and only goes to the member's home location or one whose portal is public.
 - Unconfirmed portal sign-ups are deleted a week after their link expires, trial requests 180 days after they arrive (or 90 days after they are closed), and erasing a client clears the IP address on their recorded terms acceptances.
 - Guest program checkout keeps a guest's details on the basket until payment and creates their client records only once the card is charged; abandoned or expired baskets leave nothing behind. Guests are limited to 5 baskets per 15 minutes per network and per email address, with at most 4 participants each, and welcome automations no longer email a guest's unverified address.
+- POS reports (sales groupings, daily register, reorder, returns) now need the POS reports permission, like the report centre; front desk keeps the sales list but no longer sees the Reports tab.
 
 ### Added
 - Member app: staff design the home screen (tiles, order, captions and styling) with a live preview, and the app takes its colours from the account.
