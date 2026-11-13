@@ -238,7 +238,11 @@ def test_kiosk_settings_gate_lookups_and_alerts(client, tenant, owner, f):
     assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": "unknown"}))["matches"] == []
     entered = ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]},
                              headers={"Idempotency-Key": "kiosk-1"}), 201)  # fmt: skip
-    assert entered["displayed_alert_codes"] == ["waiver_unsigned"]
+    assert entered["displayed_alert_codes"] == []  # a typed number proves nothing: no alert about the person
+    from app.modules.access.tests.test_kiosk_reservations import app_qr
+
+    scanned = ok(client.post(f"{API}/kiosk/check-ins", json={"card_payload": app_qr(tenant, f.person)}), 201)
+    assert scanned["displayed_alert_codes"] == ["waiver_unsigned"]  # a verified scan: the location's alerts
     replay = client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]},
                          headers={"Idempotency-Key": "kiosk-1"})  # fmt: skip
     # The answer carries the visit token, so it is never stored: a replay is refused, not re-read.

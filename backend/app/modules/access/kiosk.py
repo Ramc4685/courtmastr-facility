@@ -156,10 +156,10 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, fre
 
 def result(session: Session, row: CheckIn, config: dict, sessions: list[dict], token: str | None = None) -> dict:
     """The kiosk's view of a visit: first name, the alerts the location shows, places marked, the reservation
-    page and the visit token for the next action. Never amounts, reasons or plan names; found by name, a page
-    that is the same for everyone (`_sessions`)."""
+    page and the visit token for the next action. Never amounts, reasons or plan names; found by name, no alert
+    (each one is the person's private state) and a page that is the same for everyone (`_sessions`)."""
     admitted = row.result != "denied"
-    shown = set(config["displayed_alert_codes"]) if admitted else set()
+    shown = set(config["displayed_alert_codes"]) if admitted and _by_possession(row) else set()
     return {
         "check_in_id": row.id, "status": "admitted" if admitted else "see_staff",
         "first_name": clients.service.get(session, row.client_id).first_name,

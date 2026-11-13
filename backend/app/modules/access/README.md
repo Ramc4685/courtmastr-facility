@@ -73,8 +73,9 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   kiosk exchanges the code for an HttpOnly, SameSite=Strict `fh_kiosk` cookie scoped to `/api/v1/kiosk`. The kiosk
   is never a staff session. Lookups return a first name, last initial and an opaque match token (random, stored hashed in
   `kiosk_match`, bound to the device, 120 seconds, deleted on use); check-ins carry the token, never a client id,
-  and a replayed token is 422 `match-token-expired`. Minors are not listed. An admitted response shows only the
-  alerts the settings allow; "see staff" shows none. Check-ins are rate limited per device (30 a minute).
+  and a replayed token is 422 `match-token-expired`. Minors are not listed. An admitted response identified by
+  possession shows only the alerts the settings allow; one found by name or a typed or static value shows none
+  (every alert is the person's private state); "see staff" shows none. Check-ins are rate limited per device (30 a minute).
   Leaving kiosk mode needs the location's exit PIN (6 to 8 digits, argon2-hashed, rate limited per IP); each wrong
   PIN is counted on the device and audited without the PIN, and the fifth in a row (`KIOSK_EXIT_ATTEMPTS`) revokes
   the device. With no PIN set, exit is refused (409) and staff revoke the device instead.
@@ -200,8 +201,7 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - CSV export is built in the browser from the list API and capped at 2000 rows.
 - **Known kiosk limits.** The name-search oracle on the reservation page is closed (review 2026-11-13): the page
   is the same for everyone. A name-search visit can still learn what the check-in itself returns: admitted or see
-  staff (the access rules), the alerts the location chooses to show (`displayed_alert_codes`, possibly
-  `balance_due`), the count of places the check-in marked present (held places in the check-in window, plus an
+  staff (the access rules; never an alert), the count of places the check-in marked present (held places in the check-in window, plus an
   auto-booked one, so auto-book's outcome can hint at standing), and, by trying, whether a booking goes through.
   A wallet pass is a copyable bearer
   token: whoever holds the pass file (or its barcode) has possession at the kiosk until the pass is revoked.

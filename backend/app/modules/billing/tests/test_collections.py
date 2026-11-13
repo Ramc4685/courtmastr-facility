@@ -2,7 +2,8 @@
 (BIL-22), expiring cards (PAY-07), the staff daily digest (PAY-08) and the membership autopay default (BIL-17)."""
 
 import json
-from datetime import timedelta
+from datetime import date, timedelta
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -116,6 +117,39 @@ def test_a_name_search_page_is_the_same_for_everyone_and_refusals_say_only_see_s
     assert full.id not in scanned and not scanned[members.id]["is_bookable"] and scanned[free.id]["is_bookable"]
     scanned = enter(client, past_due, app_qr(shop.tenant, past_due))["sessions"]
     assert scanned and not any(s["is_bookable"] for s in scanned)  # the lockout shows on the person's own page
+
+
+def test_a_by_name_check_in_answers_the_same_whatever_the_persons_standing(client, shop):
+    """The result screen of a visit found by name shows no alert that depends on the person (balance, membership,
+    waiver, notes): a past-due payer, an expired member and a member in good standing get the same answer, apart
+    from the first name and the per-visit ids. A verified scan keeps the location's alerts."""
+    from app.modules.access.tests.test_checkin import _pair
+    from app.modules.access.tests.test_kiosk_reservations import app_qr, enter
+    from app.modules.memberships.tests.support import daily, membership_plan, sell_at
+
+    loc, owner = str(shop.location_id), shop.owner
+    past_due = client.get(f"/api/v1/clients/{shop.client_id}", headers=owner).json()
+    _past_due_invoice(shop, shop.client_id)
+    _settings(shop.tenant, is_portal_blocked_when_past_due=True)
+    plan = membership_plan(client, owner, shop.tenant, billing_occurrences_count=1)
+    good = new_client(client, owner, shop.location_id, first_name="Gus", last_name=f"Good{past_due['id'][:6]}")
+    sold = client.post("/api/v1/membership-contracts", headers=owner,
+                       json={"client_id": good["id"], "location_id": loc, "membership_plan_id": plan["id"]})  # fmt: skip
+    assert sold.status_code == 201, sold.text
+    expired = new_client(client, owner, shop.location_id, first_name="Eve", last_name=f"Gone{past_due['id'][:6]}")
+    lapsed = SimpleNamespace(tenant=shop.tenant, location_id=loc, person=expired, plan=plan)
+    sell_at(lapsed, date(2024, 1, 2), is_auto_renew=False)
+    daily(shop.tenant, date(2024, 3, 1))  # the daily run marks the ended contract expired
+    _pair(client, shop.tenant, owner, loc)
+
+    def seen(visit: dict) -> str:
+        return json.dumps({k: v for k, v in visit.items() if k not in ("check_in_id", "visit_token", "first_name")},
+                          sort_keys=True, default=str)  # fmt: skip
+
+    named = [enter(client, who) for who in (past_due, expired, good)]
+    assert len({seen(visit) for visit in named}) == 1  # byte-identical
+    assert named[0]["displayed_alert_codes"] == []
+    assert "balance_due" in enter(client, past_due, app_qr(shop.tenant, past_due))["displayed_alert_codes"]
 
 
 def test_a_child_billed_to_a_past_due_parent_cannot_book_at_the_kiosk(client, shop):
