@@ -255,3 +255,74 @@ def test_uvicorn_and_dramatiq_loggers_go_through_the_redacting_formatter(capsys)
     lines = [json.loads(line) for line in err.strip().splitlines()]
     assert {line["logger"] for line in lines} == {"uvicorn.error", "dramatiq.worker"}
     assert all("DataError" in line["exc"] for line in lines) and "jane.doe" not in err
+
+
+def test_postgres_detail_is_dropped_to_the_next_traceback_marker_even_across_newlines():
+    logger, stream = _capture("test.redaction.detail_newline")
+    row = "DETAIL:  Failing row contains (Jane, 1 Main St\nSecond Line Smith, 20140309)."
+    error = "\n".join(['null value in column "x"', row, "[SQL: INSERT INTO client ...]"])
+    try:
+        try:
+            raise ValueError(error)
+        except ValueError as inner:
+            raise RuntimeError("wrapped") from inner
+    except RuntimeError:
+        logger.exception("failed")
+    output = stream.getvalue()
+    for leak in ("Jane", "Main St", "Second Line Smith", "20140309"):
+        assert leak not in output, leak
+    # what follows the dropped text is kept: the SQL marker and the outer traceback
+    assert "[SQL: INSERT INTO client" in output and "RuntimeError: wrapped" in output
+
+
+@pytest.mark.parametrize("phone", ["(217) 555-0123", "+1 (217) 555-0123", "217–555–0123", "217.555.0123"])
+def test_phone_numbers_with_brackets_or_dashes_of_any_kind_are_masked(phone):
+    assert "555" not in scrub(f"call {phone} now") and scrub(f"call {phone} now").startswith("call ")
+
+
+def test_a_dict_passed_as_a_message_argument_goes_through_the_key_deny_list():
+    logger, stream = _capture("test.redaction.args")
+    logger.info("actor args %r kwargs %r", ("t-1", {"password": "hunter2hunter2"}), {"client_secret": "s3cr3t"})
+    logger.info("mapping %(a)s", {"a": "fine", "access_token": "fha_secret"})
+    logger.info("received %s", {"first_name": "Jane", "tenant_id": "t-1"})
+    _assert_clean(stream.getvalue())
+    assert "t-1" in stream.getvalue() and "fine" in stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    "key", ["pwd", "pass", "user_pass", "otp", "cvv2", "pincode", "session", "session_cookie", "jwt"]
+)
+def test_short_credential_keys_are_masked(key):
+    logger, stream = _capture("test.redaction.short")
+    logger.info("event", extra={"detail": {key: "value-xyz"}})
+    assert "value-xyz" not in stream.getvalue()
+
+
+def test_warnings_and_uncaught_exceptions_go_through_the_formatter(capsys):
+    import subprocess
+    import sys
+
+    from app.core import logging as app_logging
+
+    root = logging.getLogger()
+    saved_handlers, saved_level, saved_hook = root.handlers[:], root.level, sys.excepthook
+    try:
+        app_logging.configure()
+        try:
+            raise ValueError(f"card {PAN}")
+        except ValueError as exc:
+            sys.excepthook(type(exc), exc, exc.__traceback__)
+        err = capsys.readouterr().err
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+        sys.excepthook = saved_hook
+        logging.captureWarnings(False)
+    lines = [json.loads(line) for line in err.strip().splitlines()]
+    assert any("ValueError" in line.get("exc", "") for line in lines)
+    assert "4111" not in err
+    # pytest records warnings itself, so the warnings path runs in a fresh interpreter
+    script = f"from app.core import logging as L; L.configure(); import warnings; warnings.warn('from {EMAIL}')"
+    done = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60, check=True)
+    warned = json.loads(done.stderr.strip().splitlines()[-1])
+    assert warned["logger"] == "py.warnings" and EMAIL not in done.stderr

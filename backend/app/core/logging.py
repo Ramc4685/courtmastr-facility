@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import sys
+import threading
 import time
 from typing import Any
 
@@ -19,10 +20,13 @@ _STANDARD = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
 # so plurals and run-together names are caught; fail closed ("idempotency_key", "filename" go too).
 _DENY_PARTS = (
     "password", "passwd", "passcode", "token", "secret", "authorization", "cookie", "email", "phone", "mobile",
-    "birth", "name", "address", "signature", "card", "iban", "credential", "body", "medical", "key",
+    "birth", "name", "address", "signature", "card", "iban", "credential", "body", "medical", "key", "pwd",
+    "pincode", "session", "jwt",
 )  # fmt: skip
+# Bare "code" is not denied: it would hide error, status, country and postal codes, which logs are for; the
+# secret codes ("passcode", "pincode", "otp") are covered.
 # Too short for a substring ("company", "shipping", "span"): matched as a whole word of the key instead.
-_DENY_WORDS = {"pin", "pins", "pan", "pans", "dob", "cvc", "cvv", "ssn"}
+_DENY_WORDS = {"pin", "pins", "pan", "pans", "dob", "cvc", "cvv", "cvv2", "ssn", "pass", "otp"}
 _WORDS = re.compile(r"[A-Z]?[a-z0-9]{1,64}|[A-Z]{1,64}(?![a-z])")
 _SPACE = re.compile(r"(\s+)")
 # Kept whole before the digit scrub: a UUID (ids are what logs are for), and an ISO date with an optional time.
@@ -32,12 +36,19 @@ _KEEP = re.compile(
     r"|(?:19|20)\d\d-[01]\d-[0-3]\d(?:[T ][0-2]\d:[0-5]\d(?::[0-5]\d(?:\.\d{1,6})?)?(?:Z|[+-][0-2]\d:?[0-5]\d)?)?)"
     r"(?![0-9A-Fa-f-])"
 )
-_PG_DETAIL = re.compile(r"^[ \t]*(DETAIL|CONTEXT):[^\n]*", re.M)  # Postgres echoes the row: "Failing row contains"
+# Postgres echoes the row ("Failing row contains"), and a value may hold line breaks: drop everything from
+# DETAIL or CONTEXT to the next line that starts a part of a traceback or SQLAlchemy's error text, or to the end.
+_PG_DETAIL = re.compile(
+    r"^[ \t]*(DETAIL|CONTEXT):.*?(?=^(?:Traceback \(most recent call last\):|The above exception was"
+    r"|During handling of the above exception|\[SQL: |\(Background on this error)|\Z)",
+    re.M | re.S,
+)
 # Fail closed and linear: any run of digits joined by whitespace, dashes, dots, slashes or underscores that holds
 # 9 or more digits is masked, Luhn or not
 # (phones, account and card numbers however grouped; a date and time may go too). No address regex: every
 # whitespace-delimited token holding an @ is masked whole, however malformed.
-_DIGIT_RUN = re.compile(r"\d[\d\s./_-]*")  # one greedy class: never backtracks
+_DIGIT_RUN = re.compile(r"\d[\d\s./_()+\u2010-\u2015-]*")  # one greedy class: never backtracks
+_TRAILING = " \t\r\n\f\v./_()+-\u2010\u2011\u2012\u2013\u2014\u2015"
 _STATIC = {"method", "status", "duration_ms"}  # written by our own code from fixed values: kept as they are
 REDACTED, TRUNCATED = "[redacted]", "...[truncated]"
 MAX_CHARS, MAX_DEPTH, MAX_ITEMS = 2048, 6, 100
@@ -55,7 +66,7 @@ def _denied(key: Any) -> bool:
 
 def _mask_digits(match: re.Match) -> str:
     run = match.group()
-    body = run.rstrip(" \t\r\n\f\v./_-")
+    body = run.rstrip(_TRAILING)
     return "[digits]" + run[len(body) :] if sum(c.isdigit() for c in body) >= 9 else run
 
 
@@ -63,7 +74,7 @@ def scrub(value: str, limit: int = MAX_CHARS) -> str:
     cut = len(value) > limit
     value = value[: limit + _LOOKAHEAD]
     if "DETAIL:" in value or "CONTEXT:" in value:
-        value = _PG_DETAIL.sub(r"\1: [dropped]", value)
+        value = _PG_DETAIL.sub(r"\1: [dropped]\n", value)
     if "@" in value:
         value = "".join("[email]" if "@" in token else token for token in _SPACE.split(value))
     # split() with one group alternates free text (even indexes) and kept UUIDs and dates (odd indexes)
@@ -93,6 +104,17 @@ def redact(value: Any, depth: int = 0) -> Any:
     return scrub(str(value))  # UUIDs, dates, objects: as their text, scrubbed like any other
 
 
+def _message(record: logging.LogRecord) -> str:
+    """getMessage(), with containers among the arguments redacted first: Dramatiq logs actor arguments this way."""
+    args = record.args
+    if isinstance(args, dict):
+        args = redact(args)
+    elif isinstance(args, tuple):
+        args = tuple(redact(a) if isinstance(a, (dict, list, tuple, set)) else a for a in args)
+    msg = str(record.msg)
+    return msg % args if args else msg
+
+
 class JsonFormatter(logging.Formatter):
     converter = time.gmtime  # logs are UTC, like everything else
 
@@ -104,7 +126,7 @@ class JsonFormatter(logging.Formatter):
             "trace_id": context.request_id.get(),
         }
         try:
-            entry["msg"] = scrub(record.getMessage())
+            entry["msg"] = scrub(_message(record))
             extra = {k: v for k, v in record.__dict__.items() if k not in _STANDARD}
             entry.update(redact({k: v for k, v in extra.items() if k not in _STATIC}))
             entry.update({k: extra[k] for k in _STATIC.intersection(extra)})
@@ -120,8 +142,15 @@ class JsonFormatter(logging.Formatter):
 _TAKEN_OVER = ("uvicorn", "uvicorn.error", "uvicorn.access", "dramatiq")
 
 
+def _log_uncaught(exc_type: Any, exc: Any, tb: Any) -> None:
+    logging.getLogger("uncaught").critical("uncaught exception", exc_info=(exc_type, exc, tb))
+
+
 def configure(level: int = logging.INFO) -> None:
     logging.raiseExceptions = False
+    logging.captureWarnings(True)  # py.warnings, through the root handler below
+    sys.excepthook = _log_uncaught
+    threading.excepthook = lambda hook: _log_uncaught(hook.exc_type, hook.exc_value, hook.exc_traceback)
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(JsonFormatter())
     logging.basicConfig(level=level, handlers=[handler], force=True)
