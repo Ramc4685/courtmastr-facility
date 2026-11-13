@@ -838,3 +838,71 @@ class PortalFeedbackIn(In):
 
 class PortalFeedbackOut(Out):
     id: UUID
+
+
+# --- Phase 11 C2 part 2: favourites (APP-13) and app usage counts (APP-17) ------------------------------------
+
+FavoriteKindValue = Literal["reservation_type", "program_group"]
+UsageKindValue = Literal["screen", "action"]
+
+
+class PortalFavoriteIn(In):
+    client_id: UUID
+    kind: FavoriteKindValue
+    target_id: UUID
+
+
+class PortalFavorite(Out):
+    id: UUID
+    client_id: UUID
+    kind: str
+    target_id: UUID
+    created_at: datetime
+
+
+class PortalFavorites(Out):
+    data: list[PortalFavorite]
+
+
+class PortalFavoriteScheduleItem(Out):
+    """A session from the portal listing that matches a favourite; `program_group_id` set when it came from one."""
+
+    session_id: UUID
+    location_id: UUID
+    time_zone: str
+    title: str | None
+    starts_at: datetime
+    ends_at: datetime
+    spots_left: int | None
+    is_bookable: bool
+    can_join_waitlist: bool
+    reason: str | None
+    reservation_type_id: UUID | None
+    program_group_id: UUID | None
+
+
+class PortalFavoriteSchedule(Out):
+    data: list[PortalFavoriteScheduleItem]
+
+
+class PortalAppUsageItem(In):
+    kind: UsageKindValue
+    name: Annotated[str, StringConstraints(min_length=1, max_length=60, pattern=r"^[a-z0-9_.-]+$")]
+    count: Annotated[int, Field(ge=1, le=100)]
+
+
+class PortalAppUsageIn(In):
+    """Anonymous counts from the member app; nothing about the sender is stored."""
+
+    items: Annotated[list[PortalAppUsageItem], Field(min_length=1, max_length=50)]
+
+
+class AppUsageDayOut(Out):
+    day: date
+    kind: str
+    name: str
+    count: int
+
+
+class AppUsageDays(Out):
+    data: list[AppUsageDayOut]

@@ -25,6 +25,7 @@ register(
     _p("location_contact.manage", L, "Manage the published location contacts", "", _AD_MG),
     _p("app_inquiry.read", L, "View trial requests and app feedback", "", _AD_MG),
     _p("app_inquiry.manage", L, "Handle trial requests and app feedback", "", _AD_MG),
+    _p("app_usage.read", T, "View anonymous member app usage counts", "", _AD_MG),
     _p("portal_settings.manage", L, "Manage member portal settings", "", _AD_MG),
     _p("notification_rule.manage", L, "Manage reminders and staff alerts", "", _AD_MG),
     _p("automation.manage", L, "Manage automated messages", "B", _AD_MG),

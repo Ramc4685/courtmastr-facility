@@ -171,3 +171,37 @@ Rules and assumptions:
   keeps the row (counts and rating) and blanks the name, contact fields and message (`subject.py`).
 - **Not built:** staff screens, email alerts to staff when an inquiry arrives (a subscriber of the event can add
   them), and copying content to other locations (APP-16).
+
+## Phase 11 C2 part 2: favourites (APP-13) and app usage counts (APP-17)
+
+Code in `member.py`; tables `client_favorite`, `app_usage_day` (migration 1562).
+
+| Route | Gate | Notes |
+|---|---|---|
+| `GET /portal/favorites?client_id=` | client (self or someone it may act for, else 404) | oldest first |
+| `POST /portal/favorites` | same | kind `reservation_type` or `program_group`; 201 and idempotent (a repeat returns the same row); `unknown-target` |
+| `DELETE /portal/favorites/{id}` | same | 204 |
+| `GET /portal/favorites/schedule?client_id=&from=&to=` | same | RFC 3339 instants, `to - from` at most 31 days, else `invalid-range` |
+| `POST /portal/app-usage` | any signed-in client, `app-usage` bucket per IP | 1-50 items `{kind: screen\|action, name: ^[a-z0-9_.-]{1,60}$, count: 1-100}`; 204 |
+| `GET /app-usage?from=&to=&kind=` | `engagement.app_usage.read` (T: admin, manager) | dates inclusive, at most 90 days, else `invalid-range` |
+
+Rules and assumptions:
+
+- **Targets.** A favourite's `target_id` points into scheduling (reservation type) or programs (program group), so
+  there is no foreign key: the write checks the target exists in the tenant (an active reservation type, a program
+  group that is not deleted). Scheduling is outside engagement's allowed imports, so the reservation type check is
+  a plain query under RLS. A favourite whose target is later deactivated stays and simply matches nothing.
+- **Personal schedule.** It is the portal session listing (`programs.selfservice.list_listings`, with its policy
+  visibility, cutoffs and bookable verdicts) narrowed to sessions linked to a favourite program group (directly,
+  not through child nodes) or of a favourite reservation type; each row carries `program_group_id` when it came
+  from a group. Slot offers (bookable appointment windows) are not included: the only functions that list them sit
+  in scheduling, which engagement may not import.
+- **Usage counts are anonymous on purpose.** No client, identity, location or device is stored, and the upserts
+  are not audited (they are counters, not changes to anyone's data). Days are UTC days, not the location's local
+  date, because there is no location to take a zone from. Repeated keys in one batch are summed before the upsert.
+- **Retention.** `platform.retention.register_purge("engagement_app_usage_day")` deletes rows older than 90 days,
+  one batch a run. Favourites go with the client: a merge re-points them (dropping ones the survivor already has),
+  an erasure deletes them (`subject.py`).
+- **Not built:** instructor favourites (listings carry no instructor, so there is nothing to match), favourite
+  locations, slot offers in the schedule, staff screens, and installs, opens or push-open funnels (APP-17 counts only
+  what the app sends). APP-13 stays partial.

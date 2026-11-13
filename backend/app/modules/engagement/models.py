@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, SmallInteger, Text, UniqueConstraint, func, text
+from sqlalchemy import BigInteger, CheckConstraint, Index, SmallInteger, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -753,3 +753,50 @@ class AppInquiry(TenantOwned, Timestamps, Base):
     status: Mapped[str] = enum_column(server_default=text("'new'"))
     handled_at: Mapped[datetime | None]
     handled_by_staff_user_id: Mapped[UUID | None]
+
+
+# --- Phase 11 C2 part 2: favourites (APP-13) and anonymous app usage counts (APP-17) -----------------------------
+
+
+class FavoriteKind(StrEnum):
+    RESERVATION_TYPE = "reservation_type"
+    PROGRAM_GROUP = "program_group"
+
+
+class ClientFavorite(TenantOwned, Timestamps, Base):
+    """A reservation type or program group a client marked as a favourite (APP-13); feeds the personal schedule.
+    `target_id` points into scheduling or programs, so it is checked on write rather than by a foreign key."""
+
+    __tablename__ = "client_favorite"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client", index=False),
+        enum_check("kind", FavoriteKind),
+        UniqueConstraint("tenant_id", "client_id", "kind", "target_id", name="uq_client_favorite_target"),
+    )
+
+    client_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    target_id: Mapped[UUID]
+
+
+class UsageKind(StrEnum):
+    SCREEN = "screen"
+    ACTION = "action"
+
+
+class AppUsageDay(TenantOwned, Timestamps, Base):
+    """Daily screen and action counts from the member app (APP-17), in UTC days. Anonymous on purpose: no client,
+    no location, nothing about who sent them."""
+
+    __tablename__ = "app_usage_day"
+    __table_args__ = tenant_args(
+        enum_check("kind", UsageKind),
+        CheckConstraint("name ~ '^[a-z0-9_.-]{1,60}$'", name="name"),
+        CheckConstraint("count >= 0", name="count"),
+        UniqueConstraint("tenant_id", "day", "kind", "name", name="uq_app_usage_day_key"),
+    )
+
+    day: Mapped[date]
+    kind: Mapped[str] = enum_column()
+    name: Mapped[str]
+    count: Mapped[int] = mapped_column(BigInteger)

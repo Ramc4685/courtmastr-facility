@@ -622,7 +622,14 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
 
     from sqlalchemy import select
 
-    from app.modules.engagement.models import AppInquiry, DeviceRegistration, InboxItem, ScheduledNotification
+    from app.modules.engagement.models import (
+        AppInquiry,
+        AppUsageDay,
+        ClientFavorite,
+        DeviceRegistration,
+        InboxItem,
+        ScheduledNotification,
+    )
 
     template = post("/message-templates", {"name": "Welcome", "subject": "Hi $first_name", "body_text": "Welcome."})
     everyone = {"sources": [{"kind": "client_ids", "ids": [person_id]}]}
@@ -679,6 +686,10 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
         session.add(feedback)
         session.flush()
         app_inquiry_id = feedback.id
+        favorite = ClientFavorite(client_id=person_id, kind="reservation_type", target_id=uuid4())  # APP-13
+        session.add_all([favorite, AppUsageDay(day=clock.now().date(), kind="screen", name="home", count=3)])  # APP-17
+        session.flush()
+        client_favorite_id = favorite.id
         device_id = device.id
     return {
         "message_template_id": template["id"], "segment_id": segment["id"], "campaign_id": email_campaign["id"],
@@ -686,6 +697,7 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
         "notification_route_id": route["id"], "automation_rule_id": automation["id"], "video_id": video["id"],
         "inbox_item_id": str(inbox_item_id), "device_registration_id": str(device_id),
         "app_content_id": app_content["id"], "location_contact_id": contact["id"], "app_inquiry_id": str(app_inquiry_id),
+        "client_favorite_id": str(client_favorite_id),
     }  # fmt: skip
 
 

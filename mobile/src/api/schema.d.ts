@@ -364,6 +364,26 @@ export interface paths {
         patch: operations["updateAppInquiry"];
         trace?: never;
     };
+    "/api/v1/app-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Usage
+         * @description Daily screen and action counts, `from` to `to` inclusive (UTC days), at most 90 days. Errors: invalid-range.
+         */
+        get: operations["listAppUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assessment-fields/{assessment_field_id}": {
         parameters: {
             query?: never;
@@ -8649,6 +8669,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/app-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Portal App Usage
+         * @description Up to 50 counts added to today's (UTC) totals; nothing about the sender is stored.
+         */
+        post: operations["recordPortalAppUsage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/assessment-bests": {
         parameters: {
             query?: never;
@@ -9091,6 +9131,68 @@ export interface paths {
          */
         post: operations["cancelPortalEnrollment"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Favorites
+         * @description For the signed-in client or one it may act for (else 404).
+         */
+        get: operations["listPortalFavorites"];
+        put?: never;
+        /**
+         * Create Portal Favorite
+         * @description Idempotent: a repeat returns the existing favourite. Errors: unknown-target.
+         */
+        post: operations["createPortalFavorite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/favorites/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Favorite Schedule
+         * @description Upcoming sessions of the favourite program groups and reservation types, at most 31 days. Errors:
+         *     invalid-range.
+         */
+        get: operations["getPortalFavoriteSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/favorites/{client_favorite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Portal Favorite */
+        delete: operations["deletePortalFavorite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -16423,6 +16525,25 @@ export interface components {
             style: "large" | "small";
             /** Type */
             type: string;
+        };
+        /** AppUsageDayOut */
+        AppUsageDayOut: {
+            /** Count */
+            count: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+        };
+        /** AppUsageDays */
+        AppUsageDays: {
+            /** Data */
+            data: components["schemas"]["AppUsageDayOut"][];
         };
         /** AssessmentFieldCreate */
         AssessmentFieldCreate: {
@@ -29793,6 +29914,26 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * PortalAppUsageIn
+         * @description Anonymous counts from the member app; nothing about the sender is stored.
+         */
+        PortalAppUsageIn: {
+            /** Items */
+            items: components["schemas"]["PortalAppUsageItem"][];
+        };
+        /** PortalAppUsageItem */
+        PortalAppUsageItem: {
+            /** Count */
+            count: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "screen" | "action";
+            /** Name */
+            name: string;
+        };
         /** PortalAssessmentBestOut */
         PortalAssessmentBestOut: {
             /**
@@ -30471,6 +30612,101 @@ export interface components {
             status: string;
             /** Target Kind */
             target_kind: string;
+        };
+        /** PortalFavorite */
+        PortalFavorite: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /** PortalFavoriteIn */
+        PortalFavoriteIn: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "reservation_type" | "program_group";
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /** PortalFavoriteSchedule */
+        PortalFavoriteSchedule: {
+            /** Data */
+            data: components["schemas"]["PortalFavoriteScheduleItem"][];
+        };
+        /**
+         * PortalFavoriteScheduleItem
+         * @description A session from the portal listing that matches a favourite; `program_group_id` set when it came from one.
+         */
+        PortalFavoriteScheduleItem: {
+            /** Can Join Waitlist */
+            can_join_waitlist: boolean;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Bookable */
+            is_bookable: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Spots Left */
+            spots_left: number | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Time Zone */
+            time_zone: string;
+            /** Title */
+            title: string | null;
+        };
+        /** PortalFavorites */
+        PortalFavorites: {
+            /** Data */
+            data: components["schemas"]["PortalFavorite"][];
         };
         /**
          * PortalFeedbackIn
@@ -41519,6 +41755,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppInquiryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAppUsage: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                kind?: ("screen" | "action") | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppUsageDays"];
                 };
             };
             /** @description Validation Error */
@@ -62525,6 +62797,40 @@ export interface operations {
             };
         };
     };
+    recordPortalAppUsage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalAppUsageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalAssessmentBests: {
         parameters: {
             query?: {
@@ -63545,6 +63851,144 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PortalEnrollmentOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalFavorites: {
+        parameters: {
+            query: {
+                client_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalFavorites"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalFavorite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalFavoriteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalFavorite"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalFavoriteSchedule: {
+        parameters: {
+            query: {
+                client_id: string;
+                from: string;
+                to: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalFavoriteSchedule"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deletePortalFavorite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_favorite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

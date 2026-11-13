@@ -1,9 +1,11 @@
 """engagement HTTP surface (slice): communication preferences, staff and portal (openapi-programs.yaml)."""
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
+from pydantic import AwareDatetime
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
@@ -22,7 +24,7 @@ from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import hit, rate_limit
 from app.modules import platform
-from app.modules.engagement import content, service, signup
+from app.modules.engagement import content, member, service, signup
 from app.modules.engagement import schemas as s
 
 router = APIRouter(
@@ -43,6 +45,7 @@ SuppressionAdmin = Annotated[Ctx, Depends(require("engagement.suppression.manage
 Contacts = Annotated[Ctx, Depends(require("engagement.location_contact.manage"))]
 InboxRead = Annotated[Ctx, Depends(require("engagement.app_inquiry.read"))]
 InboxManage = Annotated[Ctx, Depends(require("engagement.app_inquiry.manage"))]
+UsageRead = Annotated[Ctx, Depends(require("engagement.app_usage.read"))]
 _link_limit = [Depends(rate_limit("consume"))]
 
 
@@ -680,3 +683,47 @@ def create_public_trial_request(
     session.info["actor"] = system_principal("trial request")
     content.request_trial(session, body.model_dump())
     return Response(status_code=202, headers=dict(response.headers))
+
+
+# --- Phase 11 C2 part 2: favourites and a personal schedule (APP-13), anonymous app usage counts (APP-17) --------
+
+
+@router.get("/portal/favorites", response_model=s.PortalFavorites)
+def list_portal_favorites(client_id: UUID, ctx: Portal):
+    """For the signed-in client or one it may act for (else 404)."""
+    return {"data": member.list_favorites(ctx.session, ctx.principal, client_id)}
+
+
+@router.post("/portal/favorites", response_model=s.PortalFavorite, status_code=201)
+def create_portal_favorite(body: s.PortalFavoriteIn, ctx: Portal):
+    """Idempotent: a repeat returns the existing favourite. Errors: unknown-target."""
+    return member.add_favorite(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.delete("/portal/favorites/{client_favorite_id}", status_code=204)
+def delete_portal_favorite(client_favorite_id: UUID, ctx: Portal):
+    member.remove_favorite(ctx.session, ctx.principal, client_favorite_id)
+
+
+@router.get("/portal/favorites/schedule", response_model=s.PortalFavoriteSchedule)
+def get_portal_favorite_schedule(
+    client_id: UUID, ctx: Portal, from_: AwareDatetime = Query(alias="from"), to: AwareDatetime = Query()
+):
+    """Upcoming sessions of the favourite program groups and reservation types, at most 31 days. Errors:
+    invalid-range."""
+    return {"data": member.favorite_schedule(ctx.session, ctx.principal, client_id, from_, to)}
+
+
+@router.post("/portal/app-usage", status_code=204, dependencies=[Depends(rate_limit("app-usage"))])
+def record_portal_app_usage(body: s.PortalAppUsageIn, ctx: Portal):
+    """Up to 50 counts added to today's (UTC) totals; nothing about the sender is stored."""
+    member.record_usage(ctx.session, ctx.principal, body.model_dump()["items"])
+
+
+@router.get("/app-usage", response_model=s.AppUsageDays)
+def list_app_usage(
+    ctx: UsageRead, from_: date = Query(alias="from"), to: date = Query(),
+    kind: Literal["screen", "action"] | None = None,
+):  # fmt: skip
+    """Daily screen and action counts, `from` to `to` inclusive (UTC days), at most 90 days. Errors: invalid-range."""
+    return {"data": member.list_usage(ctx.session, ctx.principal, from_, to, kind)}

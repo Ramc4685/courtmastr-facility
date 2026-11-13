@@ -6059,44 +6059,51 @@ paths:
     get:
       operationId: listPortalFavorites
       tags: [engagement]
-      summary: My favourite classes, trainers and locations
+      summary: Favourite reservation types and program groups of me or someone I act for (Phase 11 C2)
       x-priority: P1
       x-permission: client:self
       x-features: [APP-13]
-  /portal/favorites/{subject_kind}/{subject_id}:
-    parameters:
-    - {name: subject_kind, in: path, required: true, schema: {type: string}}
-    - {name: subject_id, in: path, required: true, schema: {type: string, format: uuid}}
-    put:
-      operationId: addPortalFavorite
+    post:
+      operationId: createPortalFavorite
       tags: [engagement]
-      summary: Add a favourite
+      summary: Add a favourite (201, idempotent; unknown-target)
       x-priority: P1
       x-permission: client:self
       x-features: [APP-13]
+  /portal/favorites/{client_favorite_id}:
+    parameters:
+    - {name: client_favorite_id, in: path, required: true, schema: {type: string, format: uuid}}
     delete:
-      operationId: removePortalFavorite
+      operationId: deletePortalFavorite
       tags: [engagement]
       summary: Remove a favourite
       x-priority: P1
       x-permission: client:self
       x-features: [APP-13]
-  /portal/app-events:
-    post:
-      operationId: recordPortalAppEvents
+  /portal/favorites/schedule:
+    get:
+      operationId: getPortalFavoriteSchedule
       tags: [engagement]
-      summary: Batch app analytics events
+      summary: Personal schedule from the favourites, at most 31 days (invalid-range)
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-13]
+  /portal/app-usage:
+    post:
+      operationId: recordPortalAppUsage
+      tags: [engagement]
+      summary: Add up to 50 anonymous screen and action counts to today's UTC totals (204)
       x-priority: P1
       x-permission: client:self
       x-features: [APP-17]
-  /app-analytics:
+  /app-usage:
     get:
-      operationId: getAppAnalytics
+      operationId: listAppUsage
       tags: [engagement]
-      summary: Daily app engagement metrics
+      summary: Daily anonymous app usage counts, at most 90 days (invalid-range)
       x-priority: P1
-      x-permission: reporting.marketing.run
-      x-features: [APP-17, RPT-38]
+      x-permission: engagement.app_usage.read
+      x-features: [APP-17]
   /portal/menu:
     get:
       operationId: getPortalMenu

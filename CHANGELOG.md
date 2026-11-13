@@ -14,6 +14,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Member app: staff can publish news, info pages, announcements, promotions and gallery images, with an optional picture and a publish window, for one location or all of them.
 - Member app: staff can list department phone lines and service contacts per location, shown in the app and on the public page while the portal is open.
 - Member app: visitors can ask for a trial pass and members can send feedback; both land in a new staff inbox.
+- Member app: members can mark favourite activities and programs and see a personal schedule of their upcoming sessions.
+- Member app: the app reports anonymous daily screen and action counts that admins and managers can read for up to 90 days.
 - Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.
 - Leagues: double elimination with a reset game, three games guaranteed, and pool-to-bracket crossover.
 - Leagues: league venues, per-team scheduling preferences, ladders, player stat tables with formula stats, and game card PDFs.

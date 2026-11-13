@@ -540,6 +540,7 @@ allow-list (STF-06, PLT-07).
 | `engagement.location_contact.manage` | L | | | Y | Y | - | - | - | - | - | APP-08, APP-09 (Phase 11 C2: published department and service contacts) |
 | `engagement.app_inquiry.read` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (Phase 11 C2: the trial request and feedback inbox) |
 | `engagement.app_inquiry.manage` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (status changes in that inbox) |
+| `engagement.app_usage.read` | T | | | Y | Y | - | - | - | - | - | APP-17 (Phase 11 C2: anonymous daily screen and action counts; tenant-wide, no location) |
 | `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10 |
 | `engagement.notification_rule.manage` | L | | | Y | Y | - | - | - | - | - | MKT-13, MKT-14, STF-12, PAY-07, PAY-08 |
 | `engagement.automation.manage` | L | B | | Y | Y | - | - | - | - | - | MKT-20 |

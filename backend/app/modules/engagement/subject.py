@@ -4,12 +4,14 @@ subject and body; inbox items and devices are deleted; queued sends are cancelle
 
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, tuple_, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
+from app.modules.engagement import member
 from app.modules.engagement.models import (
     AppInquiry,
+    ClientFavorite,
     DeviceRegistration,
     InboxItem,
     Message,
@@ -85,6 +87,31 @@ def _erase_inquiries(session: Session, client_id: UUID) -> dict:
     return {"app_feedback_cleared": cleared.rowcount}
 
 
+# Favourites (APP-13): a merge moves them to the survivor, dropping any the survivor already has; an erasure
+# deletes them.
+def _repoint_favorites(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
+    held = select(ClientFavorite.kind, ClientFavorite.target_id).where(ClientFavorite.client_id == survivor_id)
+    session.execute(delete(ClientFavorite).where(
+        ClientFavorite.client_id == loser_id, tuple_(ClientFavorite.kind, ClientFavorite.target_id).in_(held)))  # fmt: skip
+    session.execute(update(ClientFavorite).where(ClientFavorite.client_id == loser_id).values(client_id=survivor_id))
+
+
+def _export_favorites(session: Session, client_id: UUID) -> dict:
+    rows = session.scalars(select(ClientFavorite).where(ClientFavorite.client_id == client_id))
+    return {"app_favorites": [{"kind": r.kind, "target_id": str(r.target_id),
+                               "created_at": r.created_at.isoformat()} for r in rows]}  # fmt: skip
+
+
+def _erase_favorites(session: Session, client_id: UUID) -> dict:
+    gone = session.execute(delete(ClientFavorite).where(ClientFavorite.client_id == client_id)).rowcount
+    return {"app_favorites_deleted": gone}
+
+
+clients.merge.register_merge_handler("engagement_favorite", tables=("client_favorite",), repoint=_repoint_favorites)
+platform.privacy.register_subject_handler(
+    "engagement_favorite", tables=("client_favorite",), export=_export_favorites, erase=_erase_favorites
+)
+platform.retention.register_purge("engagement_app_usage_day", member.purge_usage)  # anonymous, so no erasure reaches it
 clients.merge.register_merge_handler("engagement_app_inquiry", tables=("app_inquiry",), repoint=_repoint_inquiries)
 platform.privacy.register_subject_handler(
     "engagement_app_inquiry", tables=("app_inquiry",), export=_export_inquiries, erase=_erase_inquiries
