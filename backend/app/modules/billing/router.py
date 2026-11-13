@@ -18,6 +18,7 @@ from app.core.pagination import ListQuery, list_query, paginate
 from app.core.ratelimit import rate_limit
 from app.modules.billing import (
     autopay,
+    bulk,
     catalog,
     catalogue,
     checkout,
@@ -508,11 +509,29 @@ def get_invoice_pdf(invoice_id: UUID, ctx: Ctx = Depends(require("billing.invoic
     return _pdf(documents.get_invoice_pdf(ctx.session, ctx.principal, invoice_id))
 
 
-@router.post("/billing-bulk-actions", response_model=s.BulkInvoiceResult)
-def create_billing_bulk_action(body: s.BulkInvoiceRequest, ctx: Ctx = Depends(require("billing.invoice.bulk_create"))):
-    """Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports
-    per client; `is_dry_run` previews."""
-    return documents.bulk_invoice(ctx.session, ctx.principal, body.model_dump())
+@router.post("/billing-bulk-actions", response_model=s.BulkActionOut, status_code=202)
+def create_billing_bulk_action(
+    body: s.BulkActionCreate,
+    idempotency_key: Annotated[str | None, Header(min_length=8, max_length=255, pattern=KEY_PATTERN)] = None,
+    ctx: Ctx = Depends(require(*bulk.KEYS.values())),
+):
+    """Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,
+    email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
+    location. A dry run or up to 25 items finish in the request; more run as a job (poll the action)."""
+    return bulk.create_bulk_action(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@router.get("/billing-bulk-actions/{billing_bulk_action_id}", response_model=s.BulkActionOut)
+def get_billing_bulk_action(billing_bulk_action_id: UUID, ctx: Ctx = Depends(require("billing.charge.read"))):
+    return bulk.get_bulk_action(ctx.session, ctx.principal, billing_bulk_action_id)
+
+
+@router.get("/billing-bulk-actions/{billing_bulk_action_id}/items", response_model=s.Page[s.BulkActionItemOut])
+def list_billing_bulk_action_items(
+    billing_bulk_action_id: UUID, query: Lists, ctx: Ctx = Depends(require("billing.charge.read"))
+):
+    """Filter: status."""
+    return bulk.list_bulk_action_items(ctx.session, ctx.principal, billing_bulk_action_id, query)
 
 
 @router.get("/billing-history", response_model=s.Page[s.HistoryOut])

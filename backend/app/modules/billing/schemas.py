@@ -586,31 +586,44 @@ class InvoiceDocument(Out):
     instalments: list[DocumentInstalment]
 
 
-class BulkInvoiceRequest(In):
-    """`action` is fixed to creating invoices: one per client. Give charge_ids, or a location."""
+class BulkActionCreate(In):
+    """`charge_ids` for create_invoices (or `location_id` alone, optionally `only_mine`) and reverse_charges;
+    `invoice_ids` for email_invoices and render_invoices; `client_ids` for add_catalog_item. `params`: `reason`
+    and `revenue_on` for a reversal, `catalog_item_id` to add an item, `due_on` and `is_autopay` for invoicing."""
 
-    action: Literal["create_invoices"] = "create_invoices"
-    charge_ids: Annotated[list[UUID], Field(max_length=1000)] | None = None
-    location_id: UUID | None = None
+    location_id: UUID
+    action: Literal["create_invoices", "reverse_charges", "email_invoices", "render_invoices", "add_catalog_item"]
+    charge_ids: Annotated[list[UUID], Field(max_length=1000)] = []
+    invoice_ids: Annotated[list[UUID], Field(max_length=1000)] = []
+    client_ids: Annotated[list[UUID], Field(max_length=1000)] = []
     only_mine: bool = False
-    due_on: date | None = None
-    is_autopay: bool = False
+    params: dict[str, str | bool | None] = {}
     is_dry_run: bool = False
 
 
-class BulkInvoiceItem(Out):
-    client_id: UUID | None
-    location_id: UUID | None
-    charge_ids: list[UUID]
-    total_minor: int
-    invoice_id: UUID | None
-    status: Literal["pending", "done", "failed", "skipped"]
-    error_code: str | None
-
-
-class BulkInvoiceResult(Out):
+class BulkActionOut(Out):
+    id: UUID
+    location_id: UUID
+    action: str
     is_dry_run: bool
-    items: list[BulkInvoiceItem]
+    status: Literal["queued", "running", "completed", "completed_with_errors"]
+    item_count: int
+    done_count: int
+    failed_count: int
+    requested_by_staff_user_id: UUID | None
+    finished_at: datetime | None
+    created_at: datetime
+
+
+class BulkActionItemOut(Out):
+    id: UUID
+    subject_type: Literal["charge", "invoice", "client"]
+    subject_id: UUID
+    group_client_id: UUID | None
+    status: Literal["pending", "done", "failed", "skipped"]
+    result_type: str | None
+    result_id: UUID | None
+    error_code: str | None
 
 
 class HistoryOut(Out):

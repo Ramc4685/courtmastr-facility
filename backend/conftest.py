@@ -495,7 +495,11 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     profile = client.put(f"/api/v1/clients/{person['id']}/collections-profile", headers=headers,
                          json={"collections_tag_id": tag["id"]})  # fmt: skip
     assert profile.status_code == 200, profile.text
+    bulk = post("/billing-bulk-actions", {  # billing_bulk_action + billing_bulk_action_item
+        "action": "render_invoices", "location_id": location["id"], "invoice_ids": [unpaid["id"]],
+    })  # fmt: skip
     return {
+        "billing_bulk_action_id": bulk["id"],
         "collections_tag_id": tag["id"],
         "statement_batch_id": batch["id"],
         "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],

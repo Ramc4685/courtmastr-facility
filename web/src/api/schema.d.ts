@@ -1221,10 +1221,48 @@ export interface paths {
         put?: never;
         /**
          * Create Billing Bulk Action
-         * @description Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports
-         *     per client; `is_dry_run` previews.
+         * @description Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,
+         *     email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
+         *     location. A dry run or up to 25 items finish in the request; more run as a job (poll the action).
          */
         post: operations["createBillingBulkAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Billing Bulk Action */
+        get: operations["getBillingBulkAction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Billing Bulk Action Items
+         * @description Filter: status.
+         */
+        get: operations["listBillingBulkActionItems"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -19506,65 +19544,123 @@ export interface components {
             /** Tenant Logo Url */
             tenant_logo_url: string | null;
         };
-        /** BulkInvoiceItem */
-        BulkInvoiceItem: {
-            /** Charge Ids */
-            charge_ids: string[];
-            /** Client Id */
-            client_id: string | null;
-            /** Error Code */
-            error_code: string | null;
-            /** Invoice Id */
-            invoice_id: string | null;
-            /** Location Id */
-            location_id: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "pending" | "done" | "failed" | "skipped";
-            /** Total Minor */
-            total_minor: number;
-        };
         /**
-         * BulkInvoiceRequest
-         * @description `action` is fixed to creating invoices: one per client. Give charge_ids, or a location.
+         * BulkActionCreate
+         * @description `charge_ids` for create_invoices (or `location_id` alone, optionally `only_mine`) and reverse_charges;
+         *     `invoice_ids` for email_invoices and render_invoices; `client_ids` for add_catalog_item. `params`: `reason`
+         *     and `revenue_on` for a reversal, `catalog_item_id` to add an item, `due_on` and `is_autopay` for invoicing.
          */
-        BulkInvoiceRequest: {
+        BulkActionCreate: {
             /**
              * Action
-             * @default create_invoices
-             * @constant
+             * @enum {string}
              */
-            action: "create_invoices";
-            /** Charge Ids */
-            charge_ids?: string[] | null;
-            /** Due On */
-            due_on?: string | null;
+            action: "create_invoices" | "reverse_charges" | "email_invoices" | "render_invoices" | "add_catalog_item";
             /**
-             * Is Autopay
-             * @default false
+             * Charge Ids
+             * @default []
              */
-            is_autopay: boolean;
+            charge_ids: string[];
+            /**
+             * Client Ids
+             * @default []
+             */
+            client_ids: string[];
+            /**
+             * Invoice Ids
+             * @default []
+             */
+            invoice_ids: string[];
             /**
              * Is Dry Run
              * @default false
              */
             is_dry_run: boolean;
-            /** Location Id */
-            location_id?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
             /**
              * Only Mine
              * @default false
              */
             only_mine: boolean;
+            /**
+             * Params
+             * @default {}
+             */
+            params: {
+                [key: string]: string | boolean | null;
+            };
         };
-        /** BulkInvoiceResult */
-        BulkInvoiceResult: {
+        /** BulkActionItemOut */
+        BulkActionItemOut: {
+            /** Error Code */
+            error_code: string | null;
+            /** Group Client Id */
+            group_client_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Result Id */
+            result_id: string | null;
+            /** Result Type */
+            result_type: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "done" | "failed" | "skipped";
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "charge" | "invoice" | "client";
+        };
+        /** BulkActionOut */
+        BulkActionOut: {
+            /** Action */
+            action: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Done Count */
+            done_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Is Dry Run */
             is_dry_run: boolean;
-            /** Items */
-            items: components["schemas"]["BulkInvoiceItem"][];
+            /** Item Count */
+            item_count: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Requested By Staff User Id */
+            requested_by_staff_user_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "completed_with_errors";
         };
         /** CalendarEntry */
         CalendarEntry: {
@@ -30241,6 +30337,12 @@ export interface components {
         Page_BrandOut_: {
             /** Data */
             data: components["schemas"]["BrandOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[BulkActionItemOut] */
+        Page_BulkActionItemOut_: {
+            /** Data */
+            data: components["schemas"]["BulkActionItemOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[CalendarFeedOut] */
@@ -46675,9 +46777,43 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BulkInvoiceRequest"];
+                "application/json": components["schemas"]["BulkActionCreate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBillingBulkAction: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                billing_bulk_action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -46685,7 +46821,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BulkInvoiceResult"];
+                    "application/json": components["schemas"]["BulkActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBillingBulkActionItems: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                billing_bulk_action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_BulkActionItemOut_"];
                 };
             };
             /** @description Validation Error */

@@ -1089,3 +1089,60 @@ class ClientCollectionsProfile(TenantOwned, Timestamps, Base):
     placed_on: Mapped[date]
     notes: Mapped[str | None]
     updated_by_staff_user_id: Mapped[UUID | None]
+
+
+# --- bulk actions from the workbench (BIL-02) --------------------------------------------------------------
+
+BulkActionKind = _values("create_invoices", "reverse_charges", "email_invoices", "render_invoices", "add_catalog_item")
+BulkActionStatus = _values("queued", "running", "completed", "completed_with_errors")
+BulkItemSubject = _values("charge", "invoice", "client")
+BulkItemStatus = _values("pending", "done", "failed", "skipped")
+
+
+class BillingBulkAction(TenantOwned, Timestamps, Base):
+    """One bulk command at one location, its subjects stored as items and worked through by a chunked job."""
+
+    __tablename__ = "billing_bulk_action"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("requested_by_staff_user_id", "staff_user"),
+        enum_check("action", BulkActionKind),
+        enum_check("status", BulkActionStatus),
+        Index(
+            "uq_billing_bulk_action_key", "tenant_id", "idempotency_key", unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID]
+    action: Mapped[str] = enum_column()
+    is_dry_run: Mapped[bool] = mapped_column(server_default=text("false"))
+    params: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    status: Mapped[str] = enum_column(server_default=text("'queued'"))
+    item_count: Mapped[int] = mapped_column(server_default=text("0"))
+    done_count: Mapped[int] = mapped_column(server_default=text("0"))
+    failed_count: Mapped[int] = mapped_column(server_default=text("0"))
+    requested_by_staff_user_id: Mapped[UUID | None]
+    idempotency_key: Mapped[str | None]
+    request_hash: Mapped[str | None]  # the key is bound to the request body that first used it
+    finished_at: Mapped[datetime | None]
+
+
+class BillingBulkActionItem(TenantOwned, Timestamps, Base):
+    __tablename__ = "billing_bulk_action_item"
+    __table_args__ = tenant_args(
+        *tfk("billing_bulk_action_id", "billing_bulk_action", index=False),
+        UniqueConstraint("tenant_id", "billing_bulk_action_id", "subject_id", name="uq_billing_bulk_action_item_subject"),
+        Index("ix_billing_bulk_action_item_status", "tenant_id", "billing_bulk_action_id", "status"),
+        enum_check("subject_type", BulkItemSubject),
+        enum_check("status", BulkItemStatus),
+    )  # fmt: skip
+
+    billing_bulk_action_id: Mapped[UUID]
+    subject_type: Mapped[str] = enum_column()
+    subject_id: Mapped[UUID]  # a charge, invoice or client id, by subject_type
+    group_client_id: Mapped[UUID | None]  # create_invoices: one invoice per client
+    status: Mapped[str] = enum_column(server_default=text("'pending'"))
+    result_type: Mapped[str | None]
+    result_id: Mapped[UUID | None]
+    error_code: Mapped[str | None]

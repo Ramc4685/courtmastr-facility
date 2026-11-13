@@ -40,9 +40,12 @@ def test_revenue_date_and_category_move_by_adjustment(client, shop, owner):
         # the original month keeps its posting and its negation: net zero there, all of it on the new date
         assert _revenue(session, shop.category_id) == {}
         assert _revenue(session, other) == {date(2026, 12, 1): 2000}
-        assert session.scalar(
-            select(func.count()).select_from(LedgerEntry).where(LedgerEntry.effective_on == date(2026, 11, 1))
-        ) > 0
+        assert (
+            session.scalar(
+                select(func.count()).select_from(LedgerEntry).where(LedgerEntry.effective_on == date(2026, 11, 1))
+            )
+            > 0
+        )
         assert_books_agree(session)
 
 

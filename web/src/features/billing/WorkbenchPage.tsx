@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Schemas } from '../../api/client'
@@ -17,66 +17,115 @@ import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, today } from './money'
 import { ClientName, FormDialog, ListTable, LocationSelect, Money, StatusBadge } from './shared'
 
 type Charge = Schemas['ChargeOut']
-type Scope = { charge_ids: string[]; only_mine: false } | { location_id: string; only_mine: boolean }
+type Scope = { location_id: string; charge_ids?: string[]; only_mine?: boolean }
+type BulkAction = Schemas['BulkActionOut']
+const RUNNING = ['queued', 'running']
+const NONE = { charge_ids: [], client_ids: [], invoice_ids: [], only_mine: false, is_dry_run: false }
+
+/** A stored bulk action (BIL-02): poll it while the job runs, then read its per-subject results. */
+function useBulkAction(started: BulkAction | undefined) {
+  const id = started?.id ?? ''
+  const status = useQuery({
+    queryKey: ['billing', 'bulk', id],
+    enabled: Boolean(started),
+    initialData: started,
+    queryFn: () => api.get('/api/v1/billing-bulk-actions/{billing_bulk_action_id}', { path: { billing_bulk_action_id: id } }),
+    refetchInterval: (q) => (q.state.data && RUNNING.includes(q.state.data.status) ? 2000 : false),
+  })
+  const action = status.data
+  const finished = Boolean(action && !RUNNING.includes(action.status))
+  const items = useQuery({
+    queryKey: ['billing', 'bulk', id, 'items'],
+    enabled: finished,
+    queryFn: () => api.get('/api/v1/billing-bulk-actions/{billing_bulk_action_id}/items', { path: { billing_bulk_action_id: id }, query: { limit: 100 } }),
+  })
+  return { action, finished, items: items.data?.data ?? [] }
+}
 
 /** Bulk invoicing: preview first (dry run), then create. One invoice per client, never mixed. */
 export function BulkInvoiceDialog({ scope, onClose }: { scope: Scope; onClose: () => void }) {
   const qc = useQueryClient()
-  const toast = useToast()
   const [dueOn, setDueOn] = useState(today())
   const [autopay, setAutopay] = useState(false)
   const run = useMutation({
-    mutationFn: (dry: boolean) => api.post('/api/v1/billing-bulk-actions', { body: { action: 'create_invoices', ...scope, due_on: dueOn || null, is_autopay: autopay, is_dry_run: dry } }),
+    mutationFn: (dry: boolean) => api.post('/api/v1/billing-bulk-actions', { body: { ...NONE, action: 'create_invoices', ...scope, params: { due_on: dueOn || null, is_autopay: autopay }, is_dry_run: dry } }),
     onSuccess: (r) => {
-      if (r.is_dry_run) return
-      void qc.invalidateQueries({ queryKey: ['billing'] })
-      const made = r.items.filter((i) => i.status === 'done').length
-      const failed = r.items.filter((i) => i.status === 'failed').length
-      toast(failed ? 'error' : 'success', `${made} invoices created${failed ? `, ${failed} failed` : ''}.`)
+      if (!r.is_dry_run) void qc.invalidateQueries({ queryKey: ['billing'] })
     },
   })
-  const result = run.data
+  const { action, finished, items } = useBulkAction(run.data)
+  const groups = Object.values(
+    items.reduce<Record<string, { client: string | null; count: number; result: string | null; status: string; error: string | null }>>((acc, i) => {
+      const k = `${i.group_client_id ?? i.subject_id}-${i.status}`
+      acc[k] = acc[k] ?? { client: i.group_client_id, count: 0, result: i.result_id, status: i.status, error: i.error_code }
+      acc[k].count += 1
+      return acc
+    }, {}),
+  )
+  const dry = action?.is_dry_run
   return (
     <FormDialog
       title="Invoice items in bulk"
       description="One invoice per client. Preview shows what would be created; nothing is saved until you create."
-      submitLabel={result?.is_dry_run ? 'Create invoices' : result ? 'Done' : 'Preview'}
-      busy={run.isPending}
+      submitLabel={dry ? 'Create invoices' : action ? 'Done' : 'Preview'}
+      busy={run.isPending || (Boolean(action) && !finished)}
       error={run.error}
       onClose={onClose}
-      onSubmit={() => (result && !result.is_dry_run ? onClose() : run.mutate(!result))}
+      onSubmit={() => (action && !dry ? onClose() : run.mutate(!action))}
       size="lg"
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Due date" type="date" value={dueOn} disabled={Boolean(result)} onChange={(e) => setDueOn(e.target.value)} />
+        <Input label="Due date" type="date" value={dueOn} disabled={Boolean(action)} onChange={(e) => setDueOn(e.target.value)} />
         <div className="flex items-end pb-2">
-          <Checkbox label="Collect by autopay" checked={autopay} disabled={Boolean(result)} onChange={(e) => setAutopay(e.target.checked)} />
+          <Checkbox label="Collect by autopay" checked={autopay} disabled={Boolean(action)} onChange={(e) => setAutopay(e.target.checked)} />
         </div>
       </div>
-      {result && (
+      {action && !finished && <p role="status">Working: {action.done_count + action.failed_count} of {action.item_count} items done.</p>}
+      {action && finished && (
         <ListTable
-          caption={result.is_dry_run ? 'Invoices that would be created' : 'Bulk invoicing result'}
-          rows={result.items}
-          rowKey={(i) => `${i.client_id}-${i.location_id}-${i.charge_ids.join()}`}
+          caption={dry ? 'Invoices that would be created' : 'Bulk invoicing result'}
+          rows={groups}
+          rowKey={(g) => `${g.client}-${g.status}-${g.result}`}
           empty={<EmptyState title="Nothing to invoice" />}
           columns={[
-            { header: 'Client', cell: (i) => <ClientName id={i.client_id} link={false} /> },
-            { header: 'Items', cell: (i) => i.charge_ids.length, className: 'text-right' },
-            { header: 'Total', cell: (i) => <Money minor={i.total_minor} />, className: 'text-right' },
+            { header: 'Client', cell: (g) => <ClientName id={g.client} link={false} /> },
+            { header: 'Items', cell: (g) => g.count, className: 'text-right' },
             {
               header: 'Result',
-              cell: (i) =>
-                i.invoice_id ? (
-                  <Link className="text-primary underline" to={`/billing/invoices/${i.invoice_id}`}>
+              cell: (g) =>
+                g.result ? (
+                  <Link className="text-primary underline" to={`/billing/invoices/${g.result}`}>
                     Invoice created
                   </Link>
                 ) : (
-                  <Badge tone={i.status === 'failed' ? 'danger' : i.status === 'skipped' ? 'warning' : 'neutral'}>{i.error_code ?? (result.is_dry_run ? 'Will be invoiced' : i.status)}</Badge>
+                  <Badge tone={g.status === 'failed' ? 'danger' : g.status === 'skipped' ? 'warning' : 'neutral'}>{g.error ?? (dry ? 'Will be invoiced' : g.status)}</Badge>
                 ),
             },
           ]}
         />
       )}
+    </FormDialog>
+  )
+}
+
+/** Reverse many items at once, each with the same reason and revenue date (BIL-02, BIL-07). */
+function BulkReverseDialog({ scope, onClose }: { scope: Scope; onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [reason, setReason] = useState('')
+  const [revenueOn, setRevenueOn] = useState(today())
+  const run = useMutation({
+    mutationFn: () => api.post('/api/v1/billing-bulk-actions', { body: { ...NONE, action: 'reverse_charges', ...scope, params: { reason: reason.trim(), revenue_on: revenueOn || null } } }),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['billing'] })
+      toast('success', RUNNING.includes(r.status) ? 'Reversing in the background.' : `${r.done_count} reversed${r.failed_count ? `, ${r.failed_count} failed` : ''}.`)
+      onClose()
+    },
+  })
+  return (
+    <FormDialog title="Reverse items in bulk" description="Each item gets a negating line dated as below; money applied to it becomes account credit." submitLabel="Reverse items" busy={run.isPending} error={run.error} onClose={onClose} onSubmit={() => run.mutate()}>
+      <Input label="Reason" required value={reason} onChange={(e) => setReason(e.target.value)} />
+      <Input label="Revenue date of the reversals" type="date" value={revenueOn} onChange={(e) => setRevenueOn(e.target.value)} />
     </FormDialog>
   )
 }
@@ -87,7 +136,7 @@ function ItemsWorkbench() {
   const [filters, setFilters] = useState({ location_id: locationId ?? '', state: 'uninvoiced', status: '', kind: '', q: '' })
   const q = useDebounced(filters.q.trim(), 300)
   const [chosen, setChosen] = useState<string[]>([])
-  const [bulk, setBulk] = useState(false)
+  const [bulk, setBulk] = useState<'' | 'invoice' | 'reverse'>('')
   const query = {
     location_id: filters.location_id || undefined,
     status: filters.status || undefined,
@@ -100,7 +149,7 @@ function ItemsWorkbench() {
     {
       header: 'Select',
       cell: (c) =>
-        !c.invoice_id && c.status === 'active' && c.kind !== 'reversal' ? (
+        c.status === 'active' && c.kind !== 'reversal' ? (
           <input type="checkbox" className="h-4 w-4" aria-label={`Select ${c.description}`} checked={chosen.includes(c.id)} onChange={(e) => setChosen(e.target.checked ? [...chosen, c.id] : chosen.filter((x) => x !== c.id))} />
         ) : null,
     },
@@ -112,6 +161,10 @@ function ItemsWorkbench() {
     { header: 'Invoice', cell: (c) => (c.invoice_id ? <Link className="text-primary underline" to={`/billing/invoices/${c.invoice_id}`}>Open</Link> : <Badge tone="warning">Uninvoiced</Badge>) },
     { header: 'Status', cell: (c) => (c.kind === 'standard' ? <StatusBadge map={CHARGE_STATUS} value={c.status} /> : <Badge>{c.kind}</Badge>) },
   ]
+  const done = () => {
+    setBulk('')
+    setChosen([])
+  }
   const set = (p: Partial<typeof filters>) => {
     setFilters({ ...filters, ...p })
     setChosen([])
@@ -125,23 +178,22 @@ function ItemsWorkbench() {
         <Select label="Kind" value={filters.kind} onChange={(e) => set({ kind: e.target.value })} placeholder="All kinds" options={['standard', 'adjustment', 'reversal', 'surcharge'].map((k) => ({ value: k, label: k }))} />
         <Input label="Search" type="search" value={filters.q} onChange={(e) => set({ q: e.target.value })} placeholder="Description" />
       </div>
-      {can('billing.invoice.bulk_create') && (
-        <div className="flex justify-end">
-          <Button disabled={chosen.length === 0} onClick={() => setBulk(true)}>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {!filters.location_id && <p className="text-sm text-muted">Choose a location to act on selected items.</p>}
+        {can('billing.charge.reverse') && (
+          <Button variant="secondary" disabled={chosen.length === 0 || !filters.location_id} onClick={() => setBulk('reverse')}>
+            Reverse selected ({chosen.length})
+          </Button>
+        )}
+        {can('billing.invoice.bulk_create') && (
+          <Button disabled={chosen.length === 0 || !filters.location_id} onClick={() => setBulk('invoice')}>
             Invoice selected ({chosen.length})
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       <Table caption="Billing items" columns={columns} rowKey={(c) => c.id} paging={paging} empty={<EmptyState title="No items match" />} />
-      {bulk && (
-        <BulkInvoiceDialog
-          scope={{ charge_ids: chosen, only_mine: false }}
-          onClose={() => {
-            setBulk(false)
-            setChosen([])
-          }}
-        />
-      )}
+      {bulk === 'invoice' && <BulkInvoiceDialog scope={{ location_id: filters.location_id, charge_ids: chosen }} onClose={done} />}
+      {bulk === 'reverse' && <BulkReverseDialog scope={{ location_id: filters.location_id, charge_ids: chosen }} onClose={done} />}
     </div>
   )
 }

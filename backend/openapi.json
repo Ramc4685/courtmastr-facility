@@ -7391,28 +7391,94 @@
         "title": "BrandingOut",
         "type": "object"
       },
-      "BulkInvoiceItem": {
+      "BulkActionCreate": {
+        "additionalProperties": false,
+        "description": "`charge_ids` for create_invoices (or `location_id` alone, optionally `only_mine`) and reverse_charges;\n`invoice_ids` for email_invoices and render_invoices; `client_ids` for add_catalog_item. `params`: `reason`\nand `revenue_on` for a reversal, `catalog_item_id` to add an item, `due_on` and `is_autopay` for invoicing.",
         "properties": {
+          "action": {
+            "enum": [
+              "create_invoices",
+              "reverse_charges",
+              "email_invoices",
+              "render_invoices",
+              "add_catalog_item"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
           "charge_ids": {
+            "default": [],
             "items": {
               "format": "uuid",
               "type": "string"
             },
+            "maxItems": 1000,
             "title": "Charge Ids",
             "type": "array"
           },
-          "client_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Id"
+          "client_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Client Ids",
+            "type": "array"
           },
+          "invoice_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Invoice Ids",
+            "type": "array"
+          },
+          "is_dry_run": {
+            "default": false,
+            "title": "Is Dry Run",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "only_mine": {
+            "default": false,
+            "title": "Only Mine",
+            "type": "boolean"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "default": {},
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "location_id",
+          "action"
+        ],
+        "title": "BulkActionCreate",
+        "type": "object"
+      },
+      "BulkActionItemOut": {
+        "properties": {
           "error_code": {
             "anyOf": [
               {
@@ -7424,7 +7490,7 @@
             ],
             "title": "Error Code"
           },
-          "invoice_id": {
+          "group_client_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7434,9 +7500,14 @@
                 "type": "null"
               }
             ],
-            "title": "Invoice Id"
+            "title": "Group Client Id"
           },
-          "location_id": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "result_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7446,7 +7517,18 @@
                 "type": "null"
               }
             ],
-            "title": "Location Id"
+            "title": "Result Id"
+          },
+          "result_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Type"
           },
           "status": {
             "enum": [
@@ -7458,72 +7540,84 @@
             "title": "Status",
             "type": "string"
           },
-          "total_minor": {
-            "title": "Total Minor",
-            "type": "integer"
+          "subject_id": {
+            "format": "uuid",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "charge",
+              "invoice",
+              "client"
+            ],
+            "title": "Subject Type",
+            "type": "string"
           }
         },
         "required": [
-          "client_id",
-          "location_id",
-          "charge_ids",
-          "total_minor",
-          "invoice_id",
+          "id",
+          "subject_type",
+          "subject_id",
+          "group_client_id",
           "status",
+          "result_type",
+          "result_id",
           "error_code"
         ],
-        "title": "BulkInvoiceItem",
+        "title": "BulkActionItemOut",
         "type": "object"
       },
-      "BulkInvoiceRequest": {
-        "additionalProperties": false,
-        "description": "`action` is fixed to creating invoices: one per client. Give charge_ids, or a location.",
+      "BulkActionOut": {
         "properties": {
           "action": {
-            "const": "create_invoices",
-            "default": "create_invoices",
             "title": "Action",
             "type": "string"
           },
-          "charge_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "maxItems": 1000,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Ids"
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
           },
-          "due_on": {
+          "done_count": {
+            "title": "Done Count",
+            "type": "integer"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "finished_at": {
             "anyOf": [
               {
-                "format": "date",
+                "format": "date-time",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Due On"
+            "title": "Finished At"
           },
-          "is_autopay": {
-            "default": false,
-            "title": "Is Autopay",
-            "type": "boolean"
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "is_dry_run": {
-            "default": false,
             "title": "Is Dry Run",
             "type": "boolean"
           },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
           "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "requested_by_staff_user_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7533,36 +7627,33 @@
                 "type": "null"
               }
             ],
-            "title": "Location Id"
+            "title": "Requested By Staff User Id"
           },
-          "only_mine": {
-            "default": false,
-            "title": "Only Mine",
-            "type": "boolean"
-          }
-        },
-        "title": "BulkInvoiceRequest",
-        "type": "object"
-      },
-      "BulkInvoiceResult": {
-        "properties": {
-          "is_dry_run": {
-            "title": "Is Dry Run",
-            "type": "boolean"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BulkInvoiceItem"
-            },
-            "title": "Items",
-            "type": "array"
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "completed_with_errors"
+            ],
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
+          "id",
+          "location_id",
+          "action",
           "is_dry_run",
-          "items"
+          "status",
+          "item_count",
+          "done_count",
+          "failed_count",
+          "requested_by_staff_user_id",
+          "finished_at",
+          "created_at"
         ],
-        "title": "BulkInvoiceResult",
+        "title": "BulkActionOut",
         "type": "object"
       },
       "CalendarEntry": {
@@ -42267,6 +42358,26 @@
           "page"
         ],
         "title": "Page[BrandOut]",
+        "type": "object"
+      },
+      "Page_BulkActionItemOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BulkActionItemOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[BulkActionItemOut]",
         "type": "object"
       },
       "Page_CalendarFeedOut_": {
@@ -89036,7 +89147,7 @@
     },
     "/api/v1/billing-bulk-actions": {
       "post": {
-        "description": "Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports\nper client; `is_dry_run` previews.",
+        "description": "Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,\nemail or render invoices, or add a pre-defined item to clients. Each action needs its own key at the\nlocation. A dry run or up to 25 items finish in the request; more run as a job (poll the action).",
         "operationId": "createBillingBulkAction",
         "parameters": [
           {
@@ -89063,18 +89174,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BulkInvoiceRequest"
+                "$ref": "#/components/schemas/BulkActionCreate"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BulkInvoiceResult"
+                  "$ref": "#/components/schemas/BulkActionOut"
                 }
               }
             },
@@ -89096,7 +89207,228 @@
           "billing"
         ],
         "x-api-key-scopes": [
-          "billing.invoice.bulk_create"
+          "billing.invoice.bulk_create",
+          "billing.charge.reverse",
+          "billing.invoice.send",
+          "billing.invoice.send",
+          "billing.charge.create"
+        ]
+      }
+    },
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}": {
+      "get": {
+        "operationId": "getBillingBulkAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "billing_bulk_action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Billing Bulk Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Billing Bulk Action",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
+        ]
+      }
+    },
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}/items": {
+      "get": {
+        "description": "Filter: status.",
+        "operationId": "listBillingBulkActionItems",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "billing_bulk_action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Billing Bulk Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BulkActionItemOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Billing Bulk Action Items",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
         ]
       }
     },

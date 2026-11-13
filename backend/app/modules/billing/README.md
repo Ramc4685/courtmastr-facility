@@ -14,7 +14,8 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `catalog.py` | pre-defined items (BIL-14): selling, renewing and cancelling item sales, membership add-on terms |
 | `methods.py` | the processor connection and stored payment methods |
 | `autopay.py` | collection runs, dunning, the autopay-error queue, billing notices, the daily pass |
-| `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history, bulk invoicing |
+| `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history |
+| `bulk.py` | stored bulk actions from the workbench (BIL-02) and their chunked job |
 | `statements.py` | statement batches: one stored row per recipient with its status, run in the request or as a job, resend |
 | `webhooks.py` | provider webhook intake, the tenant actor that applies an event, the reconciliation sweep, `billing_daily` |
 | `checkout.py` | online checkout (`secure_online_checkout`), the payment-link confirm and the coupon release handler |
@@ -297,9 +298,22 @@ handlers re-read the object from the provider.
   covers this invoice; otherwise 422 `idempotency-key-reused` and nothing is sold.
 - **Portal responses use portal schemas** (`PortalInvoiceOut`, `PortalPaymentOut`, `PortalPaymentDetail`):
   no memo, external reference, failure message, refund reason, void reason or collection state (M-13).
-- **Bulk invoicing runs in the request** (up to 1000 items, by `charge_ids` or by `location_id`; a location with
-  more uninvoiced items is refused with 422 on `/location_id`) and is not stored; there is no
-  `billing_bulk_action` table.
+- **Bulk actions are stored jobs (BIL-02, `bulk.py`, migration 1802).** `POST /billing-bulk-actions` (202) stores a
+  `billing_bulk_action` at one location and one `billing_bulk_action_item` per subject: `create_invoices` (charges;
+  `charge_ids`, or the location's uninvoiced items, optionally `only_mine`; one invoice per client, never mixed,
+  whole clients per chunk), `reverse_charges` (`params.reason`, optional `params.revenue_on`), `email_invoices` and
+  `render_invoices` (`invoice_ids`; render records a `download` delivery with its stored PDF), `add_catalog_item`
+  (`client_ids`, `params.catalog_item_id` of that location, sold through `catalog.sell`). Each action needs its own
+  key at the action's location (`bulk.KEYS`); subjects at other locations, or not in a state to act on, are stored
+  as `skipped`. At most 1000 subjects. A dry run, or 25 items or fewer, runs in the request; more run as
+  `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, as the system: the person was
+  authorized on every subject when the action was created. Every item (or client group) is a savepoint, so a
+  failure is recorded on its row (`error_code`) and the rest continue. A dry run does the same work and rolls each
+  savepoint back (result ids are null); email and render dry runs only check the invoice. The optional
+  `Idempotency-Key` (scoped to the caller) is bound to a hash of the request body: the same body replays the
+  first action, another body is 409 `idempotency-key-reused`. `GET /billing-bulk-actions/{id}` and `/items`
+  need `billing.charge.read` at the action's location. Not built: saved filter presets; bulk email of a client
+  with no address fails that item (`no-email-address`).
 - **Documents are JSON, with a PDF beside them.** `GET /invoices/{id}/document` and `/payments/{id}/receipt`
   return JSON; the PDF is a separate `/pdf` path (`/invoices/{id}/pdf`, `/payments/{id}/receipt/pdf`,
   `/clients/{id}/statement/pdf`, portal `/portal/invoices/{id}/pdf`, `/portal/statement/pdf`) instead of the

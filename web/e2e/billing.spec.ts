@@ -128,6 +128,22 @@ test('bulk invoicing previews before it creates', async ({ page }) => {
   await expect(dialog.getByRole('link', { name: 'Invoice created' })).toBeVisible()
 })
 
+test('bulk reverse takes one reason for the selected items', async ({ page }) => {
+  const item = `Locker fee ${Date.now()}`
+  await signIn(page, '/billing')
+  await openMorgan(page)
+  await addItem(page, item, '5.00')
+  await page.goto('/billing')
+  await page.getByRole('searchbox', { name: 'Search' }).fill(item)
+  await page.getByRole('checkbox', { name: `Select ${item}` }).check()
+  await page.getByRole('button', { name: /Reverse selected \(1\)/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Reverse items in bulk' })
+  await scan(page, 'bulk reverse dialog')
+  await dialog.getByRole('textbox', { name: 'Reason' }).fill('Entered twice')
+  await dialog.getByRole('button', { name: 'Reverse items' }).click()
+  await expect(page.getByText('1 reversed.')).toBeVisible()
+})
+
 test('every billing screen passes the axe WCAG 2.1 AA scan', async ({ page }) => {
   test.setTimeout(180_000) // about forty scans
   await signIn(page, '/billing')
