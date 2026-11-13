@@ -308,11 +308,13 @@ export function PortalSessions() {
   const step = (n: number) => setAnchor(view === 'week' ? addDays(anchor, 7 * n) : addMonths(anchor, n))
 
   // Join online shows on every booked place whose session has a meeting, until the session ends; the API refuses
-  // outside the join window (10 minutes before the start) and the refusal is shown.
+  // outside the join window (10 minutes before the start) and the refusal is shown. A program registration has no
+  // times of its own: it shows while the API lists a meeting of one of its sessions.
   const meetings = useQuery({ queryKey: ['portal', 'enrollment-meetings'], queryFn: () => api.get('/api/v1/portal/enrollment-meetings') })
   const withMeeting = new Set((meetings.data ?? []).map((m) => m.enrollment_id))
   const now = useNow()
-  const joinable = (e: { id: string; ends_at?: string | null }) => withMeeting.has(e.id) && !!e.ends_at && now < Date.parse(e.ends_at)
+  const joinable = (e: { id: string; target_kind: string; ends_at?: string | null }) =>
+    withMeeting.has(e.id) && (e.target_kind !== 'session' || (!!e.ends_at && now < Date.parse(e.ends_at)))
   const online = useMutation({
     mutationFn: (enrollmentId: string) => api.post('/api/v1/portal/enrollments/{enrollment_id}/join', { path: { enrollment_id: enrollmentId } }),
     onMutate: () => window.open('', '_blank'), // opened in the click, so pop-up blockers allow it; pointed at the link once it arrives
@@ -349,7 +351,7 @@ export function PortalSessions() {
     onError: (e) => toast('error', e.message),
   })
 
-  const mine = (enrollments.data?.data ?? []).filter((e) => e.status === 'enrolled' && e.target_kind === 'session')
+  const mine = (enrollments.data?.data ?? []).filter((e) => e.status === 'enrolled' && (e.target_kind === 'session' || withMeeting.has(e.id)))
   const queued = (waitlist.data ?? []).filter((w) => w.status === 'waiting' || w.status === 'offered')
   return (
     <>
@@ -416,7 +418,7 @@ export function PortalSessions() {
               {mine.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <span>
-                    <span className="block font-medium">{e.session_id && known.has(e.session_id) ? titleOf(e.session_id) : e.starts_at ? `Session, ${formatDateTime(e.starts_at)}` : 'Session'}</span>
+                    <span className="block font-medium">{e.session_id && known.has(e.session_id) ? titleOf(e.session_id) : e.starts_at ? `Session, ${formatDateTime(e.starts_at)}` : e.target_kind === 'session' ? 'Session' : 'Program registration'}</span>
                     <span className="text-sm text-muted">{names.get(e.client_id)}</span>
                   </span>
                   <span className="flex gap-2">
@@ -425,9 +427,11 @@ export function PortalSessions() {
                         Join online
                       </Button>
                     )}
-                    <Button size="sm" variant="secondary" aria-label={`Cancel booking for ${names.get(e.client_id) ?? 'client'}`} loading={cancel.isPending && cancel.variables === e.id} onClick={() => cancel.mutate(e.id)}>
-                      Cancel
-                    </Button>
+                    {e.target_kind === 'session' && (
+                      <Button size="sm" variant="secondary" aria-label={`Cancel booking for ${names.get(e.client_id) ?? 'client'}`} loading={cancel.isPending && cancel.variables === e.id} onClick={() => cancel.mutate(e.id)}>
+                        Cancel
+                      </Button>
+                    )}
                   </span>
                 </li>
               ))}

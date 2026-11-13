@@ -265,31 +265,6 @@ def plan_program(client, owner, f, balance_due_on: str = "2031-06-01", **fields)
     return camp, fee
 
 
-def test_a_discounted_plan_defers_what_was_billed_less_the_deposit(client, owner, tenant, f, mailbox, monkeypatch):
-    """The balance left for later is the billed charge (after discounts) less the deposit, not the list fee."""
-    from app.modules.programs import groups
-
-    real_bill = groups.bill
-
-    def discounted(session, row, fees):
-        ids = [billing.service.adjust_charge(session, charge_id, reason="Sibling", discount_minor=3000).id
-               for charge_id in real_bill(session, row, fees)]  # fmt: skip
-        row.charge_id = ids[0]
-        return ids
-
-    monkeypatch.setattr(groups, "bill", discounted)
-    camp, fee = plan_program(client, owner, f)
-    person, portal = member(client, tenant, owner, f, mailbox)
-    cart = basket(client, portal, f, PORTAL)
-    ok(add(client, portal, cart["id"], camp["id"], person["id"], PORTAL, program_fee_id=fee["id"]), 200)
-    paid = ok(client.post(f"{API}/{PORTAL}/{cart['id']}/confirm", headers=keyed(portal),
-                          json={"method_token": "tok_card_ok"}), 200)  # fmt: skip
-    bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
-    assert (bill["total_minor"], bill["balance_minor"]) == (6000, 3000)  # the 3000 deposit was paid now
-    schedule = ok(client.get(f"{API}/invoices/{paid['invoice_id']}/payment-schedule", headers=owner), 200)
-    assert [(i["due_on"], i["amount_minor"]) for i in schedule["instalments"]][1:] == [("2031-06-01", 3000)]
-
-
 def test_a_balance_date_already_passed_is_due_now(client, owner, tenant, f, mailbox):
     """A balance date in the past would land on the deposit's date and wait for autopay: it is paid now."""
     camp, fee = plan_program(client, owner, f, balance_due_on="2020-01-01")

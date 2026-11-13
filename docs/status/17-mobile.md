@@ -99,3 +99,5 @@ route, the app screen and the revoke path exist on a fake adapter that builds an
 - The pinned tenant comes from JS config, not native Info.plist (APP-02 note).
 - Push and biometrics need a development build on a device.
 - Card entry uses the fake processor's token flow unless Stripe test mode is configured (APP-19).
+- Portal plan lists are not filtered by location (plans have no location link): the app offers every package and
+  membership plan the client may buy, whichever location is picked (APP-19).

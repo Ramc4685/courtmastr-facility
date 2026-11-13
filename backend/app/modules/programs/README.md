@@ -228,12 +228,16 @@ captain rosters (REG-26).
   whole basket, as the guest's own abandon: places released, `guest_details` cleared, audited as
   `programs.registration_checkout.cancel` with the reason), then the delete or archive goes ahead; the guest's later
   confirm is 409 `checkout-closed`. No waitlist is promoted into the subtree being removed. A basket whose confirm is
-  in flight (its row locked) is skipped, so that one still answers 409 `has-guest-holds`.
+  in flight (its row locked) is skipped, so that one still answers 409 `has-guest-holds`. **Decision:** the flag
+  throws away a guest's basket, so it needs `programs.registration_config.manage` (Admin, Manager, League Manager;
+  not the front desk) on top of the delete or archive key, checked in the service: without it, 403.
 - Per-IP limits count an IPv6 client by its /64 network (an IPv4 or IPv4-mapped client by its address): the hold cap's
   digest and the `guest-checkout-create` and `guest-checkout` buckets all use `checkout.guest_ip_key()`, so rotating
   addresses inside one /64 gains nothing.
 - Guest create and confirm lock every group chain of the basket up front in one global order (depth, then id;
-  `groups.lock_chains`) and hold places in group id order, so two baskets naming the same programs in opposite order
+  `groups.lock_chains`) and hold places in group id order; every path that releases places locks the same way first
+  (abandon, the expiry job across all its baskets, and delete or archive, which lock the node's chain, its subtree
+  and the chains of the guest baskets they cancel before touching any of them), so two baskets naming the same programs in opposite order
   cannot deadlock on group rows. **Known limit:** guest confirm holds those group row locks (taken by
   `check_held_place`) across the payment processor call in `secure_online_checkout`, so staff edits, other
   registrations and other guests' baskets in the same program wait for the processor's answer. The portal confirm
@@ -251,8 +255,8 @@ captain rosters (REG-26).
 - Payment plans (REG-10, decision Q5): a group's registration config may set `payment_plan` = `deposit` (each fee's
   `deposit_minor` now, the rest on `balance_due_on`) or `instalments` (the rest in `instalment_count` equal parts
   every `instalment_unit` from `balance_due_on`). Rules we chose: a plan needs `immediate_card_payment`; the deposit
-  is the first row of the invoice's payment schedule and tax is paid with it; what is left for later is the billed
-  charge (after any discount) less the deposit, not the list fee; rows dated today or earlier (a `balance_due_on`
+  is the first row of the invoice's payment schedule and tax is paid with it; what is left for later is the fee
+  less the deposit (nothing discounts a program charge as it is billed, and a plan takes no coupon); rows dated today or earlier (a `balance_due_on`
   already past) are paid now with the deposit; the confirmed checkout reads its plan back from the invoice
   schedule; the portal terms acceptance's subject is the checkout (the whole basket);
   no pay-later and no coupon with a plan; the card is saved as the autopay method so billing's autopay collects the

@@ -66,11 +66,12 @@ def _missing(session: Db, checkout: RegistrationCheckout, items: list[Enrollment
     return missing
 
 
-def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], *, billed: bool = False) -> list:
+def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment]) -> list:
     """REG-10 (decision Q5): what falls due after checkout under each group's payment plan, as (due_on, amount)
     rows merged by date. A deposit plan leaves each place's balance (its price less the fee's deposit) on the
-    balance date; an instalment plan splits it into equal instalments from that date. `billed`: the price is the
-    charge billed (after any discount), else the list fee. A date already passed is due now, with the deposit."""
+    balance date; an instalment plan splits it into equal instalments from that date. The price is the list fee:
+    a plan checkout takes no coupon and nothing discounts a program charge as it is billed. A date already passed
+    is due now, with the deposit."""
     today = platform.service.location_today(session, checkout.location_id)
     later: dict = {}
     for row in items:
@@ -78,8 +79,7 @@ def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment],
         fee = session.get(ProgramFee, row.program_fee_id) if row.program_fee_id else None
         if config is None or config.payment_plan == "pay_in_full" or fee is None:
             continue
-        price = billing.service.get_charge(session, row.charge_id).net_minor if billed and row.charge_id else None
-        balance = (fee.amount_minor if price is None else price) - (fee.deposit_minor or 0)
+        balance = fee.amount_minor - (fee.deposit_minor or 0)
         if balance <= 0:
             continue
         start = max(config.balance_due_on, today)
@@ -231,7 +231,15 @@ def _complete(session: Db, checkout: RegistrationCheckout, items: list[Enrollmen
     session.flush()
 
 
+def _held_groups(session: Db, checkout: RegistrationCheckout) -> list[ProgramGroup]:
+    """The groups a basket holds places in: its roster rows' and a guest's held places (no roster row)."""
+    ids = [row.program_group_id for row in _items(session, checkout)]
+    ids += [UUID(item["program_group_id"]) for item in (checkout.guest_details or {}).get("items", [])]
+    return [session.get(ProgramGroup, group_id) for group_id in ids]
+
+
 def _abandon(session: Db, checkout: RegistrationCheckout, *, status: str, actor: str) -> None:
+    groups.lock_chains(session, _held_groups(session, checkout))  # every chain up front, in the one order
     for row in _items(session, checkout):
         kind = "hold_expired" if status == "expired" else "early"
         groups.cancel(session, None, row, kind=kind, disposition="none", reason=f"checkout {status}", actor=actor)
@@ -418,7 +426,6 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
     found = _bill(session, checkout, items, is_autopay=bool(later))
     checkout.invoice_id = found.id if found is not None else None
     if later and found is not None:
-        later = _later(session, checkout, items, billed=True)  # what was billed, after any discount
         _secure_plan(session, checkout, found, later, data, idempotency_key)
         _complete(session, checkout, items, accepted)
         audit.record(session, groups.ENROLL, checkout, location_id=checkout.location_id,
@@ -696,11 +703,14 @@ def guest_abandon(session: Db, checkout_id: UUID, token: str) -> dict:
 def expire_holds(session: Db) -> int:
     """Internal (every minute): release held places of baskets that ran out of time, oldest first."""
     expired = 0
-    for checkout in session.scalars(
+    due = session.scalars(
         select(RegistrationCheckout)
         .where(RegistrationCheckout.status == "open", RegistrationCheckout.expires_at <= clock.now())
         .with_for_update(skip_locked=True)
-    ).all():
+    ).all()
+    # every basket's chains up front, in the one order, before any place is released
+    groups.lock_chains(session, [group for checkout in due for group in _held_groups(session, checkout)])
+    for checkout in due:
         _abandon(session, checkout, status="expired", actor="system")
         audit.record(session, "programs.registration_checkout.expire", checkout, location_id=checkout.location_id,
                      changes={"status": ["open", "expired"]})  # fmt: skip

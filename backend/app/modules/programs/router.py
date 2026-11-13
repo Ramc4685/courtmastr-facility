@@ -166,7 +166,8 @@ def update_program_group(program_group_id: UUID, body: s.ProgramGroupUpdate, ctx
 @router.delete("/program-groups/{program_group_id}", status_code=204)
 def delete_program_group(program_group_id: UUID, ctx: Ctx = GroupDelete, cancel_guest_holds: bool = False):
     """Soft delete of the node and its subtree. `cancel_guest_holds=true` first abandons the open guest baskets
-    holding a place in it (the whole basket; the guest can no longer pay). Errors: has-registrations,
+    holding a place in it (the whole basket; the guest can no longer pay); the flag also needs
+    programs.registration_config.manage. Errors: has-registrations,
     has-guest-holds (without the flag, or a guest's payment is in flight)."""
     groups.delete_group(ctx.session, ctx.principal, program_group_id, cancel_guest_holds=cancel_guest_holds)
     return Response(status_code=204)
@@ -184,7 +185,8 @@ def complete_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
 
 @router.post("/program-groups/{program_group_id}/archive", response_model=s.ProgramGroupOut)
 def archive_program_group(program_group_id: UUID, ctx: Ctx = GroupManage, cancel_guest_holds: bool = False):
-    """`cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree. Errors:
+    """`cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree; the flag
+    also needs programs.registration_config.manage. Errors:
     invalid-transition, has-guest-holds (a guest basket holds a place, without the flag or with a payment in flight)."""
     row = groups.archive_group(ctx.session, ctx.principal, program_group_id, cancel_guest_holds=cancel_guest_holds)
     return groups.group_view(ctx.session, row)

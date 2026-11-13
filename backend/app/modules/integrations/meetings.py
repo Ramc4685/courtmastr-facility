@@ -251,38 +251,53 @@ def on_session_cancelled(session: Session, session_id: UUID) -> None:
 
 
 def portal_meetings(session: Session, principal: Principal) -> list[dict]:
-    """The caller's booked session places (theirs and their household's) whose session has a scheduled meeting.
-    Computed here, not on the programs enrolment read, because programs may not import integrations."""
-    query = ListQuery(200, None, None, False, None, {"status": "enrolled", "target_kind": "session"})
-    places = list(_pages(lambda q: programs.selfservice.portal_list_enrollments(session, principal, q), query))
+    """The caller's booked places (theirs and their household's) whose session has a scheduled meeting, one row
+    per session: a group registration sits in every session linked to its group or an ancestor. Computed here,
+    not on the programs enrolment read, because programs may not import integrations."""
+    query = ListQuery(200, None, None, False, None, {"status": "enrolled"})
+    places = [
+        (place["id"], seat)
+        for place in _pages(lambda q: programs.selfservice.portal_list_enrollments(session, principal, q), query)
+        for seat in programs.selfservice.covered_session_ids(session, place)
+    ]
     online = set(
         session.scalars(
             select(VideoMeeting.session_id).where(
-                VideoMeeting.session_id.in_({place["session_id"] for place in places}),
+                VideoMeeting.session_id.in_({seat for _, seat in places}),
                 VideoMeeting.status == MeetingStatus.SCHEDULED,
             )
         )
     )
-    return [{"enrollment_id": p["id"], "session_id": p["session_id"]} for p in places if p["session_id"] in online]
+    return [{"enrollment_id": place, "session_id": seat} for place, seat in places if seat in online]
 
 
 def join(session: Session, principal: Principal, enrollment_id: UUID) -> dict:
     """The join URL for one's own confirmed place, from 10 minutes before the start until the end, and the
-    attendance mark that goes with it. Errors: invalid-state-transition (not a booked place, or the session
-    is cancelled), policy-violation (outside the join window)."""
+    attendance mark that goes with it. A group registration joins the meeting of its sessions that is open now,
+    else its earliest. Errors: invalid-state-transition (not a booked place, or the session is cancelled),
+    policy-violation (outside the join window)."""
     place = programs.selfservice.own_place(session, principal, enrollment_id)
-    if place["session_id"] is None:
+    rows = {
+        row.session_id: row
+        for row in session.scalars(select(VideoMeeting).where(VideoMeeting.session_id.in_(place["session_ids"])))
+    }
+    seats = scheduling.service.get_sessions(session, set(rows))
+    if not seats:
         raise NotFound()
-    row = session.scalar(select(VideoMeeting).where(VideoMeeting.session_id == place["session_id"]))
-    if row is None:
-        raise NotFound()
-    seat = scheduling.service.get_session(session, place["session_id"])
+    now = clock.now()
+    open_now = [
+        sid for sid, seat in seats.items()
+        if seat["status"] == "confirmed" and rows[sid].status == MeetingStatus.SCHEDULED
+        and seat["starts_at"] - JOIN_OPENS <= now < seat["ends_at"]
+    ]  # fmt: skip
+    seat = seats[open_now[0]] if open_now else min(seats.values(), key=lambda view: view["starts_at"])
+    row = rows[seat["id"]]
     if place["status"] != "enrolled" or seat["status"] != "confirmed" or row.status != MeetingStatus.SCHEDULED:
         raise Conflict("This place cannot join the session", code="invalid-state-transition")
-    now = clock.now()
     if not (seat["starts_at"] - JOIN_OPENS <= now < seat["ends_at"]):
         raise Conflict("The session opens 10 minutes before it starts", code="policy-violation",
                        reason="outside-join-window")  # fmt: skip
+    # shortcut: marks session places only; a group registration's join is not marked (staff mark the roster)
     programs.service.mark_attended_by_check_in(
         session, client_id=place["client_id"], location_id=place["location_id"], at=now,
         early=seat["ends_at"] - seat["starts_at"], late=JOIN_OPENS, source="video_join", session_id=seat["id"],

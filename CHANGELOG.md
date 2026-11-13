@@ -112,12 +112,14 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Staff can only sign in from the networks the owner lists, when a list is set; this now applies to owners and admins too.
 - Staff are signed out after 30 minutes without activity (the owner can set 15 to 60) and after 12 hours in any case.
 - Sending a campaign to every client needs its own permission.
+- Cancelling guests' held places while deleting or archiving a program needs the online registration permission as well.
 
 ### Fixed
 - Member app: invoice amounts show in the invoice's own currency even in demo mode or with the member app switched off, and Pay stays off until an amount is shown. The web portal no longer starts a card setup just to learn which processor is connected.
-- Program payment plans: a balance date that has already passed is charged at checkout, the amount left for later follows the price actually billed, and a confirmed checkout still shows what is due later.
+- Program payment plans: a balance date that has already passed is charged at checkout, and a confirmed checkout still shows what is due later.
 - Guest checkout shows the full price a guest pays instead of the members' deposit plan.
 - Portal: Join online now shows on every booking with an online meeting until the session ends, including sessions that have started or are not listed.
+- Portal: a member registered in a program or one of its groups can join that program's online sessions.
 - Member calendar feeds mark each session with its last-changed time, so calendar apps pick up edits.
 - Portal: Stop my calendar feed shows only when you have a feed.
 - Reports: receivables and open invoices no longer fail as "too large" on a tenant with many settled invoices; expiring memberships at one location are no longer hidden by a renewal at another; package session value no longer loses a cent to rounding (100.00 over three sessions reports 100.00).

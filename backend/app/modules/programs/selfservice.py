@@ -19,7 +19,7 @@ from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import clients, memberships, platform, scheduling
 from app.modules.programs import groups, service
-from app.modules.programs.models import Enrollment, SessionBookingPolicy, WaitlistEntry
+from app.modules.programs.models import Enrollment, ProgramGroup, SessionBookingPolicy, WaitlistEntry
 
 POLICY = "engagement.portal_settings.manage"  # engagement owns the key; programs may not import engagement
 # League managers kept booking policies through this key; it stays accepted so no role loses them without the
@@ -274,10 +274,20 @@ def _own_row(session: Db, principal: Principal, model, row_id: UUID):
 
 def own_place(session: Db, principal: Principal, enrollment_id: UUID) -> dict:
     """Internal read (integrations, the virtual-session join): an enrolment the portal caller may act for, or
-    NotFound. Returns its client, session, location and status."""
+    NotFound. Returns its client, session, group, location and status, and the sessions it sits in."""
     row = _own_row(session, principal, Enrollment, enrollment_id)
-    return {"client_id": row.client_id, "session_id": row.session_id, "location_id": row.location_id,
-            "status": row.status}  # fmt: skip
+    place = {"client_id": row.client_id, "session_id": row.session_id, "program_group_id": row.program_group_id,
+             "location_id": row.location_id, "status": row.status}  # fmt: skip
+    return place | {"session_ids": covered_session_ids(session, place)}
+
+
+def covered_session_ids(session: Db, place: dict) -> list[UUID]:
+    """Internal read (integrations): the sessions a place sits in. A session booking is its own session; a group
+    registration takes a seat in every session linked to its group or an ancestor (CLS-10), not a sibling's."""
+    if place["session_id"] is not None:
+        return [place["session_id"]]
+    group = session.get(ProgramGroup, place["program_group_id"]) if place["program_group_id"] else None
+    return groups._linked_sessions(session, [node.id for node in groups._chain(session, group)]) if group else []
 
 
 def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enrollment:

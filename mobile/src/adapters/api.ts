@@ -222,7 +222,8 @@ export const apiAdapter: PortalAdapter = {
   // A read, never a setup intent: with a real processor every intent is a real object at the processor.
   checkoutProvider: async (): Promise<CheckoutProvider> =>
     (await raw<S['PortalProcessor']>('/portal/payment-methods/processor')).provider ?? null,
-  // Neither plan list takes a location; package plans are what this client may buy (members-only rules).
+  // Plans have no location link, so neither list is filtered by location: the offers are the whole catalogue.
+  // Package plans are the ones this client may buy (members-only rules).
   listOffers: async (clientId) => {
     const [packages, memberships] = await Promise.all([
       all<S['PortalPackagePlanOut']>('/portal/package-plans', { client_id: clientId }),

@@ -205,6 +205,26 @@ describe('Portal online sessions and calendar feed', { timeout: 20_000 }, () => 
     expect(calls.filter((c) => c.url.endsWith('/join')).map((c) => c.url)).toEqual(['/api/v1/portal/enrollments/e1/join', '/api/v1/portal/enrollments/e2/join'])
   })
 
+  it('offers Join online on a program registration with a meeting, without a portal cancel', async () => {
+    const user = userEvent.setup()
+    const tab = { opener: {} as unknown, location: { href: '' }, close: vi.fn() }
+    vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window)
+    const group = (id: string) => ({ ...enrolment(id, '', 0), session_id: null, target_kind: 'group', program_group_id: 'g1', starts_at: null, ends_at: null })
+    open('/portal/sessions', {
+      'GET /api/v1/portal/session-listings': { status: 200, body: [] },
+      'GET /api/v1/portal/enrollments': page([group('g-online'), group('g-plain')]),
+      'GET /api/v1/portal/enrollment-meetings': { status: 200, body: [{ enrollment_id: 'g-online', session_id: 's9' }] },
+      'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
+      'GET /api/v1/portal/calendar-feeds': { status: 200, body: [] },
+      'POST /api/v1/portal/enrollments/g-online/join': { status: 200, body: { join_url: 'https://meet.example.com/camp', passcode: null } },
+    })
+    const bookings = await screen.findByRole('list', { name: 'Your bookings' })
+    await user.click(await within(bookings).findByRole('button', { name: /^Join online/ }))
+    await vi.waitFor(() => expect(tab.location.href).toBe('https://meet.example.com/camp'))
+    expect(within(bookings).getAllByRole('listitem')).toHaveLength(1) // the registration without a meeting stays off
+    expect(within(bookings).queryByRole('button', { name: /^Cancel booking/ })).not.toBeInTheDocument()
+  })
+
   it('offers to stop the calendar feed only when there is one, and asks first', async () => {
     const user = userEvent.setup()
     let feeds = [feed]

@@ -463,3 +463,28 @@ def test_staff_may_cancel_open_guest_holds_to_delete_or_archive(client, owner, t
                            json={"guest_token": cart["guest_token"], "method_token": "tok_card_ok"})  # fmt: skip
         assert (late.status_code, late.json()["code"]) == (409, "checkout-closed")
         assert guest_clients(tenant, f"{action}@example.com") == []
+
+
+def test_cancelling_guest_holds_needs_the_online_registration_key_too(client, owner, tenant, f):
+    """`cancel_guest_holds=true` throws away a guest's basket: on top of the delete or archive key it needs
+    programs.registration_config.manage (managers, not the front desk). Without the flag the holds refuse."""
+    from conftest import add_staff, login
+
+    camp, fee = online(client, owner, f, "immediate_card_payment", name="Gated")
+    allow_guests(client, owner, camp["id"])
+    body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest",
+            "email": "gated@example.com", "birth_on": "1985-02-03"}, "participants": [],
+            "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"]}]}  # fmt: skip
+    cart = ok(client.post(GUEST, headers=public(tenant), json=body))
+    email, staff_id = add_staff(tenant, "manager", location_ids=[f.location])
+    deny = {"grants": [{"permission_key": "programs.registration_config.manage", "is_allowed": False}]}
+    ok(client.put(f"{API}/staff-users/{staff_id}/permission-overrides", headers=owner, json=deny), 200)
+    manager = login(client, tenant, email)
+    url = f"{API}/program-groups/{camp['id']}"
+    for call, path in ((client.delete, url), (client.post, f"{url}/archive")):
+        gated = call(path, headers=manager, params={"cancel_guest_holds": "true"})
+        assert gated.status_code == 403, gated.text
+        refused = call(path, headers=manager)
+        assert (refused.status_code, refused.json()["code"]) == (409, "has-guest-holds")
+    assert details_of(tenant, cart["id"]) is not None  # the basket is untouched
+    assert client.delete(url, headers=owner, params={"cancel_guest_holds": "true"}).status_code == 204

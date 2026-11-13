@@ -11779,7 +11779,8 @@ export interface paths {
         /**
          * Delete Program Group
          * @description Soft delete of the node and its subtree. `cancel_guest_holds=true` first abandons the open guest baskets
-         *     holding a place in it (the whole basket; the guest can no longer pay). Errors: has-registrations,
+         *     holding a place in it (the whole basket; the guest can no longer pay); the flag also needs
+         *     programs.registration_config.manage. Errors: has-registrations,
          *     has-guest-holds (without the flag, or a guest's payment is in flight).
          */
         delete: operations["deleteProgramGroup"];
@@ -11803,7 +11804,8 @@ export interface paths {
         put?: never;
         /**
          * Archive Program Group
-         * @description `cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree. Errors:
+         * @description `cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree; the flag
+         *     also needs programs.registration_config.manage. Errors:
          *     invalid-transition, has-guest-holds (a guest basket holds a place, without the flag or with a payment in flight).
          */
         post: operations["archiveProgramGroup"];
