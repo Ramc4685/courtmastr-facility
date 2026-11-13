@@ -1384,9 +1384,7 @@ def confirm_refund(session: Session, refund_id: UUID) -> Refund:
     return row
 
 
-def _reapply_released(
-    session: Session, payment: Payment, allocation_ids: Sequence[UUID]
-) -> tuple[int, str | None]:
+def _reapply_released(session: Session, payment: Payment, allocation_ids: Sequence[UUID]) -> tuple[int, str | None]:
     """A failed refund puts back what its release took off items: each allocation it released goes to the same
     item again, capped at what the item still owes and at the payment's free money. The release cannot wait for
     success instead: a pending refund already counts in refunded_minor, so the money must leave the items.

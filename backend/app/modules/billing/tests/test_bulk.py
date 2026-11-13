@@ -208,7 +208,9 @@ def test_a_job_fails_an_add_item_whose_price_changed_after_it_was_priced(api, sh
 
 def test_a_due_date_that_is_not_a_date_is_a_422(client, shop):
     body = {"action": "create_invoices", "location_id": str(shop.location_id), "params": {"due_on": "not-a-date"}}
-    refused = client.post(f"{API}/billing-bulk-actions", headers=shop.owner | {"Idempotency-Key": uuid4().hex}, json=body)
+    refused = client.post(
+        f"{API}/billing-bulk-actions", headers=shop.owner | {"Idempotency-Key": uuid4().hex}, json=body
+    )
     assert refused.status_code == 422, refused.text
     assert refused.json()["errors"][0]["pointer"] == "/params/due_on"
 
@@ -216,6 +218,8 @@ def test_a_due_date_that_is_not_a_date_is_a_422(client, shop):
 def test_a_bulk_reversal_reason_with_a_card_number_is_refused(client, shop):
     body = {"action": "reverse_charges", "location_id": str(shop.location_id), "charge_ids": [str(uuid4())],
             "params": {"reason": "card 4111 1111 1111 1111"}}  # fmt: skip
-    refused = client.post(f"{API}/billing-bulk-actions", headers=shop.owner | {"Idempotency-Key": uuid4().hex}, json=body)
+    refused = client.post(
+        f"{API}/billing-bulk-actions", headers=shop.owner | {"Idempotency-Key": uuid4().hex}, json=body
+    )
     assert (refused.status_code, refused.json()["code"]) == (422, "card-data-not-allowed")
     assert "4111" not in refused.text

@@ -710,7 +710,9 @@ def test_a_credit_refund_under_a_held_payment_lock_pays_nothing_and_is_told_to_r
         assert_books_agree(session)
 
 
-def test_a_pending_refund_that_fails_after_the_payer_link_ended_is_recorded_and_leaves_credit(client, shop, monkeypatch):
+def test_a_pending_refund_that_fails_after_the_payer_link_ended_is_recorded_and_leaves_credit(
+    client, shop, monkeypatch
+):
     """A parent paid the child's item, the composite refund went pending, then the relationship ended: the item can
     no longer be re-paid from the parent's payment (payer-mismatch), but recording the failure must still succeed,
     the money stays as credit on the payment and the audit carries the amount and the reason code."""
