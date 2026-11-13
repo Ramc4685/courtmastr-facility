@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, fieldErrors } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Field'
@@ -11,6 +12,7 @@ import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
 import { FormDialog, ListTable, LocationSelect, TextArea } from '../billing/shared'
 import { fromLocalInput, measure, toLocalInput, useTemplates, type Field, type Result } from './queries'
+import { TrendChart } from './TrendChart'
 
 type ClientRef = { id: string; home_location_id?: string | null }
 
@@ -98,6 +100,21 @@ export function ClientAssessmentsTab({ client }: { client: ClientRef }) {
           ]}
         />
       </Card>
+      {(series.data?.series ?? []).some((s) => s.points.length > 1) && (
+        <Card title="Trend">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(series.data?.series ?? []).map((s) => {
+              const field = allFields.get(s.assessment_field_id)
+              return field ? <TrendChart key={s.assessment_field_id} points={s.points} field={field} /> : null
+            })}
+          </div>
+        </Card>
+      )}
+      {can('reporting.client.run') && (
+        <Link className="text-sm text-primary underline" to={`/reports/assessment_history?client_id=${client.id}`}>
+          Assessment history report (print, CSV, Excel or PDF)
+        </Link>
+      )}
       <Card title="Entries">
         <ListTable
           caption="Assessment entries"
