@@ -102,7 +102,16 @@ Status per feature: `docs/status/15-reporting.md`.
   ones excluded); there is no status-event table. A contract is lost in the month of a voluntary cancellation or of
   an end without a renewal. No "both dates" option for actions. A month without losses has no drill-down.
 - **Expiring memberships (RPT-15)** show email and phone; **referrals (RPT-16)** value a contract as the sum of
-  its schedule periods. MEM-21's un-accrued revenue report is not built.
+  its schedule periods. MEM-21's un-accrued revenue is `deferred_membership_revenue` (earned means applied to items
+  whose revenue date is on or before the cut-off).
+- **Client reports (RPT-17 to RPT-20, RPT-24 to RPT-26, CHK-20, IMP-03)**: clients are tenant-wide, so a client row
+  carries the client's home location and location scope means "clients whose home location you can see". Check-in
+  counts use the location of the check-in and its local day and hour; denied check-ins never count. A trial is a
+  complimentary package; it converts when the client buys a paid package within the window after it. Retention
+  and non-training use scheduled sessions (cancelled bookings excluded) and the client's default trainer.
+- **Campaign history (RPT-29)** reads the counters and messages `engagement` records; opens, clicks and bounces stay
+  zero until the provider webhooks (Phase 13, parked) report them.
+- **`rpt_client_package`** is one view shared by the package (chip B) and trial-conversion (chip C) reports.
 
 ## Deviations from the contract
 
@@ -118,6 +127,6 @@ Status per feature: `docs/status/15-reporting.md`.
 
 ## Not built
 
-The reports outside the P0 set; a dashboard per-location breakdown; catch-up of missed schedule days; pausing a
+A dashboard per-location breakdown; catch-up of missed schedule days; pausing a
 schedule from the web (the API's `PATCH` does it). Id-list filters show only when the caller may list the
 choices (revenue categories, membership types, reservation types, trainers, staff).

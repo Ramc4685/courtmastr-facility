@@ -29,8 +29,27 @@ Counts: P0 8 done, 2 partial; P1 (phase 12 chip B) 11 done.
 | RPT-23 Package pipeline | P1 | done | `package_summary`, `expiring_packages`, `renewal_candidates` | `test_money_memberships` (two zones, trainer own reach) | Trainers see the clients they are default trainer of. |
 | RPT-12 Memberships by status | P0 | done | `memberships_by_status` | every-report test | Counts by type and status; options to include ended contracts and sharers. |
 | RPT-21 Attendance and attendance overview | P0 | done | `attendance`, `attendance_overview` | coach own-reach test, every-report test | Status, reservation type, trainer and start-time filters; coaches see only their own sessions. |
-| RPT-30 POS sales | P0 | partial | `pos_sales` | every-report test | By category, employee, register, product, brand or supplier, with order details. **Not built**: coupon grouping, buying price and margin. |
+| RPT-30 POS sales | P0 | done | `pos_sales` | every-report test, `test_chip_c::test_pos_sales_group_by_coupon_with_buying_price_and_margin` | By category, employee, register, product, brand, supplier or coupon, with buying price and margin and order details (phase 12 chip C). |
 | RPT-32 Daily register | P0 | done | `daily_register` | every-report test | Per register: sales, discounts, tenders, drawer counts and variance. |
 | RPT-35 Locker reports | P1 | done | `assigned_lockers`, `expiring_lockers` | every-report test | Uncleared leases; expiring within N days in each location's today, plus lapsed ones. |
 | RPT-36 Game cards | P1 | done | `league_game_cards`, `league_manual_game_cards` | every-report test | Scheduled games by sport, and active teams per competition for hand-written cards. |
 | RPT-37 Time clock | P0 | done | `time_clock` | every-report test | Clocked minutes per person with entries as details; payroll rounding is module 12's. |
+| RPT-17 Low usage check-in | P1 | done | `low_usage_check_ins` | test_chip_c (two zones) | Active clients whose granted check-ins in the period fall between a minimum and a maximum. |
+| RPT-18 Client activity items | P1 | done | `client_activity_items` | test_chip_c (two zones) | Follow-up tasks by status, subject, assignee and due date. |
+| RPT-19 Contacts and demographics | P1 | done | `client_export`, `client_demographics` | test_chip_c (two zones) | Contact list with optional current membership; active clients by age band and gender. |
+| RPT-20 Client referrals | P1 | done | `client_referrals` | test_chip_c (two zones) | Clients created in the period by referral source or category. |
+| RPT-24 Trial conversions | P1 | done | `trial_conversions` | test_chip_c (two zones) | Complimentary packages by default trainer and whether a paid package followed within the window. |
+| RPT-25 Client retention | P1 | done | `client_retention` | test_chip_c (two zones) | Per trainer, clients scheduled in each of two periods and the share retained. |
+| RPT-26 Non-training clients | P1 | done | `non_training_clients` | test_chip_c (two zones) | Active clients with nothing scheduled after a date. |
+| RPT-27 Group roster | P1 | done | `group_roster` | test_chip_c (two zones) | Registrants of a group and its sub-groups with fee paid and owed. |
+| RPT-28 Group waitlists | P1 | done | `group_waitlists` | test_chip_c (two zones) | Waiting registrants in queue order. |
+| RPT-29 Email campaign history | P1 | partial | `campaign_history` | test_chip_c (two zones) | Audience and delivery counts per campaign and each recipient's latest status. **Not built**: opens, clicks and bounces need provider webhooks (Phase 13, parked). |
+| RPT-31 Order returns and refunds | P1 | done | `pos_returns` | test_chip_c (two zones) | Returns by processor and refund tender. |
+| RPT-33 Inventory | P1 | done | `inventory`, `inventory_reorder` | test_chip_c (two zones) | Stock on hand per location with buying and selling prices; products at or below re-order level. |
+| RPT-34 Equipment rental | P1 | done | `equipment_inventory`, `equipment_checked_out` | test_chip_c (two zones) | Units, units on loan and fees; open loans with days overdue. |
+| RPT-39 = RNT-12 Rental plan sales | P1 | done | `rental_plan_sales` | test_chip_c (two zones) | Plans sold by plan, sale price, units remaining, staff or self-service. |
+| CHK-20 Check-in summary | P1 | done | `check_in_summary` | `test_chip_c::test_check_ins_count_on_each_location_s_own_day` | By weekday, local hour, gender, client category and membership type with distinct clients. |
+| IMP-03 Client demographic export | P1 | done | `client_export` (CSV/XLSX/PDF through the export engine) | test_chip_c (two zones) | Same spec as RPT-19's contact list. |
+| BIL-19 Accounts receivable | P1 | done | `receivables` | `test_money_memberships::test_receivables_by_due_date_count_instalments_as_they_fall_due` | Folded into RPT-06's due-date mode; export from the engine. |
+| MEM-21 Membership revenue and lifecycle | P1 | done | `membership_revenue_by_month`, `deferred_membership_revenue`, `membership_actions`, `membership_attrition`, `expiring_memberships`, `membership_referrals` | `test_money_memberships` | Covered by RPT-11 and RPT-13 to RPT-16. |
+| PKG-15 Package sales and usage | P1 | done | `package_sales`, `package_summary`, `unused_session_value`, `accrued_session_revenue` | `test_money_memberships::test_package_pipeline_and_sales` | Covered by RPT-10, RPT-22 and RPT-23 plus a package sales report. |
