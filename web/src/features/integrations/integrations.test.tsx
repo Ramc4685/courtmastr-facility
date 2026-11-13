@@ -7,6 +7,7 @@ import { AppRoutes, makeQueryClient, ROUTER_FUTURE } from '../../app/App'
 import { ToastProvider } from '../../components/Toast'
 import { AuthProvider } from '../../lib/auth'
 import { mockFetch } from '../../test/fetchMock'
+import { VideoMeetingPanel } from './VideoMeetingPanel'
 
 const ALL = ['integrations.connection.manage', 'integrations.api_key.manage', 'integrations.webhook.manage', 'integrations.delivery.read', 'clients.client.read', 'billing.charge.create']
 const tenant = { id: 't1', name: 'Courtside Demo Club', slug: 'courtside-demo', status: 'active', currency: 'USD', default_time_zone: 'America/Chicago', locale: 'en-US', staff_mfa_policy: 'privileged', trial_ends_on: null, settings: {} }
@@ -195,6 +196,33 @@ describe('integrations settings', () => {
     expect((snippet as HTMLTextAreaElement).value).toContain('/api/v1/public/schedule?location_id=l1')
     expect((snippet as HTMLTextAreaElement).value).toContain("'X-Tenant-Slug': 'courtside-demo'")
     expect(snippet).toHaveAccessibleDescription(/not turned on at our proxy yet/)
+  })
+
+  it('a session with no meeting offers one, and a pasted link replaces the empty state', async () => {
+    const user = userEvent.setup()
+    const meeting = { id: 'm1', session_id: 'ss1', provider: 'manual', status: 'scheduled', join_url: 'https://meet.example.com/abc', has_passcode: false, last_error: null, external_connection_id: null, created_at: '2026-11-10T00:00:00Z', updated_at: '2026-11-10T00:00:00Z' }
+    let attempt = 0
+    const calls = mockFetch({
+      'PUT /api/v1/sessions/ss1/video-meeting': () =>
+        ++attempt === 1
+          ? { status: 422, body: { status: 422, code: 'validation-failed', detail: 'Invalid', errors: [{ pointer: '/join_url', code: 'invalid', detail: 'Use an https link' }] } }
+          : { status: 200, body: meeting },
+    }) // GET answers 404: no meeting yet
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <ToastProvider>
+          <VideoMeetingPanel sessionId="ss1" />
+        </ToastProvider>
+      </QueryClientProvider>,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Add a meeting' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Online meeting' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Meeting link' }), 'http://meet.example.com/abc')
+    await user.click(within(dialog).getByRole('button', { name: 'Save meeting' }))
+    expect(await within(dialog).findByText('Use an https link')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Save meeting' }))
+    expect(await screen.findByRole('link', { name: 'https://meet.example.com/abc' })).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ provider: 'manual', join_url: 'http://meet.example.com/abc', passcode: null })
   })
 
   it('shows a new calendar feed address once, to any staff member', async () => {

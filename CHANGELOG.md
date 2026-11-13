@@ -14,6 +14,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - The Integrations screen gains Connections and Calendar feeds tabs.
 - The API reference lists the key scopes each operation needs.
 - Connections: edit an accounting connection's account and class mappings, and queue a QuickBooks sync.
+- Staff can add, replace or remove a session's online meeting (a pasted link or a Zoom meeting) from the session panel.
 - A Public schedule tab to publish a location's schedule and copy an embed snippet (other sites cannot load it until the proxy allows it).
 
 ### Security
