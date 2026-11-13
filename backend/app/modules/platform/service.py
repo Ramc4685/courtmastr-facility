@@ -578,6 +578,12 @@ def tenant_hosts(session: Session) -> list[str]:
     return [str(host).lower() for host in rows]
 
 
+def client_identity_is_active(session: Session, identity_id: UUID) -> bool:
+    """Internal read for integrations: may this portal identity still act (its calendar feed serves only then)."""
+    identity = session.get(Identity, identity_id)
+    return identity is not None and identity.kind == "client" and identity.status == "active"
+
+
 def find_client_identity(session: Session, email: str) -> Identity | None:
     return session.scalar(select(Identity).where(Identity.kind == "client", Identity.email == email))
 

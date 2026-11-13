@@ -7080,6 +7080,38 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
       x-problem-codes: [invalid-state-transition, mappings-incomplete]
+    get:
+      operationId: getSyncStatus
+      tags: [integrations]
+      summary: The latest sync's status, cursor, counts and last chunk time, and whether it went stale
+      x-priority: P0
+      x-permission: integrations.sync.run
+      x-features: [INT-07]
+      responses:
+        '200': {description: The sync status}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /external-connections/{connection_id}/sync/reset:
+    parameters:
+    - name: connection_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    post:
+      operationId: resetSync
+      tags: [integrations]
+      summary: Mark a stale sync failed so a new one can start
+      x-priority: P0
+      x-permission: integrations.sync.run
+      x-features: [INT-07]
+      responses:
+        '200': {description: The sync status}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+      x-problem-codes: [sync-in-progress, invalid-state-transition]
   /accounting-exports/{accounting_export_id}/retry:
     parameters:
     - name: accounting_export_id
@@ -7295,6 +7327,22 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
       x-problem-codes: [invalid-state-transition, policy-violation]
+  /portal/enrollment-meetings:
+    get:
+      operationId: listPortalEnrollmentMeetings
+      tags: [integrations]
+      summary: My booked places whose session has an online meeting
+      description: Enrolment and session ids only, never the link (that comes from the join). The portal shows Join
+        online on these places until the session ends; the enrolment list carries the session times. Integrations
+        answers it because programs may not import integrations.
+      x-priority: P0
+      x-permission: client:self
+      x-features: [SSP-18, INT-09]
+      security: [{clientSession: []}]
+      responses:
+        '200': {description: 'OK: a list of {enrollment_id, session_id}.'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /calendar-feeds:
     get:
       operationId: listCalendarFeeds
@@ -7331,10 +7379,25 @@ paths:
       x-permission: authenticated
       x-features: [INT-08]
   /portal/calendar-feeds:
+    get:
+      operationId: listPortalCalendarFeeds
+      tags: [integrations]
+      summary: My schedule feed, if I have one (never its address)
+      description: Members only. At most one row, since a new feed retires the old; a revoked feed is gone.
+      x-priority: P1
+      x-permission: client:self
+      x-features: [INT-08, SSP-19]
     post:
       operationId: createPortalCalendarFeed
       tags: [integrations]
       summary: Create my schedule feed
+      x-priority: P1
+      x-permission: client:self
+      x-features: [INT-08, SSP-19]
+    delete:
+      operationId: revokePortalCalendarFeeds
+      tags: [integrations]
+      summary: Revoke my schedule feed (every address handed out stops)
       x-priority: P1
       x-permission: client:self
       x-features: [INT-08, SSP-19]

@@ -2,6 +2,8 @@
 
 Adapters: `fake_accounting` (simulated: records the command), `accounting_file` (writes the journal as JSON) and
 `quickbooks_online` (Intuit REST, disabled by default; exercised only with a mocked HTTP layer).
+`AccountingConnect` is the connection side (OAuth, refresh, revoke, chart of accounts, webhook signature):
+`FakeQuickBooks` and `QuickBooksConnect`.
 """
 
 from dataclasses import dataclass, field
@@ -33,3 +35,45 @@ class AccountingSync(Protocol):
     def post_journal(self, journal: Journal, *, request_id: str) -> str:
         """Post once per request_id (the provider deduplicates on it); returns the provider's journal id."""
         ...
+
+
+@dataclass(frozen=True)
+class Credentials:
+    access_token: str
+    refresh_token: str
+    expires_at: float  # unix seconds
+    company_id: str  # the provider's company (QuickBooks realm)
+
+
+@dataclass(frozen=True)
+class Option:
+    id: str
+    name: str
+    kind: str  # account | class
+
+
+class AccountingConnect(Protocol):
+    """The OAuth connection of an accounting provider (INT-07): authorise, exchange, refresh, revoke, the
+    accounts and classes to map to, and the inbound webhook signature."""
+
+    name: str
+    simulated: bool
+
+    def authorize_url(self, *, state: str, redirect_uri: str) -> str: ...
+
+    def exchange_code(self, *, code: str, company_id: str, redirect_uri: str) -> Credentials: ...
+
+    def token_company_id(self, credentials: Credentials) -> str | None:
+        """The company the token is actually authorised for, asked of the provider (never the browser's word),
+        or None when the token does not open `credentials.company_id`."""
+        ...
+
+    def refresh(self, credentials: Credentials) -> Credentials: ...
+
+    def revoke(self, credentials: Credentials) -> None: ...
+
+    def list_options(self, credentials: Credentials) -> list[Option]: ...
+
+    def verify_webhook(self, body: bytes, signature: str) -> bool: ...
+
+    def journal_poster(self, credentials: Credentials) -> AccountingSync: ...

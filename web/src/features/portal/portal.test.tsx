@@ -166,6 +166,69 @@ describe('PortalApp', { timeout: 20_000 }, () => {
   })
 })
 
+describe('Portal online sessions and calendar feed', { timeout: 20_000 }, () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  const at = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString()
+  const enrolment = (id: string, session: string, startsInMin: number) => ({
+    id, client_id: 'c1', session_id: session, status: 'enrolled', target_kind: 'session', program_group_id: null, enrolled_at: null, cancel_kind: null, cancelled_at: null,
+    starts_at: at(startsInMin), ends_at: at(startsInMin + 60),
+  })
+  const feed = { id: 'f1', name: 'My schedule', last_fetched_at: null, created_at: '2026-11-01T00:00:00Z' }
+
+  it('offers Join online on every place with a meeting until it ends, opens the link, and shows a refusal', async () => {
+    const user = userEvent.setup()
+    const tab = { opener: {} as unknown, location: { href: '' }, close: vi.fn() }
+    vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window)
+    const calls = open('/portal/sessions', {
+      'GET /api/v1/portal/session-listings': { status: 200, body: [] }, // started sessions are no longer listed
+      'GET /api/v1/portal/enrollments': page([enrolment('e1', 's1', -20), enrolment('e2', 's2', 2 * 24 * 60), enrolment('e3', 's3', -90), enrolment('e4', 's4', 30)]),
+      'GET /api/v1/portal/enrollment-meetings': { status: 200, body: ['e1', 'e2', 'e3'].map((id, i) => ({ enrollment_id: id, session_id: `s${i + 1}` })) },
+      'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
+      'GET /api/v1/portal/calendar-feeds': { status: 200, body: [] },
+      'POST /api/v1/portal/enrollments/e1/join': { status: 200, body: { join_url: 'https://meet.example.com/yoga', passcode: null } },
+      'POST /api/v1/portal/enrollments/e2/join': { status: 409, body: { status: 409, code: 'policy-violation', detail: 'The session opens 10 minutes before it starts' } },
+    })
+    const bookings = await screen.findByRole('list', { name: 'Your bookings' })
+    await vi.waitFor(() => expect(within(bookings).getAllByRole('button', { name: /^Join online/ })).toHaveLength(2)) // not the ended one, nor the one with no meeting
+    const [current, later] = within(bookings).getAllByRole('button', { name: /^Join online/ })
+    await user.click(current as HTMLElement)
+    await vi.waitFor(() => expect(tab.location.href).toBe('https://meet.example.com/yoga'))
+    expect(tab.opener).toBeNull()
+
+    await user.click(later as HTMLElement)
+    expect(await screen.findByText('The session opens 10 minutes before it starts')).toBeInTheDocument()
+    expect(tab.close).toHaveBeenCalled()
+    expect(calls.filter((c) => c.url.endsWith('/join')).map((c) => c.url)).toEqual(['/api/v1/portal/enrollments/e1/join', '/api/v1/portal/enrollments/e2/join'])
+  })
+
+  it('offers to stop the calendar feed only when there is one, and asks first', async () => {
+    const user = userEvent.setup()
+    let feeds = [feed]
+    const calls = open('/portal/sessions', {
+      'GET /api/v1/portal/session-listings': { status: 200, body: [] },
+      'GET /api/v1/portal/enrollments': page([]),
+      'GET /api/v1/portal/enrollment-meetings': { status: 200, body: [] },
+      'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
+      'GET /api/v1/portal/calendar-feeds': () => ({ status: 200, body: feeds }),
+      'DELETE /api/v1/portal/calendar-feeds': () => {
+        feeds = []
+        return { status: 204 }
+      },
+    })
+    await user.click(await screen.findByRole('button', { name: 'Stop my calendar feed' }))
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+    await user.click(within(await screen.findByRole('dialog', { name: 'Stop your calendar feed?' })).getByRole('button', { name: 'Stop feed' }))
+    expect(await screen.findByText(/Your calendar feed is stopped/)).toBeInTheDocument()
+    expect(calls.filter((c) => c.method === 'DELETE' && c.url === '/api/v1/portal/calendar-feeds')).toHaveLength(1)
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Stop my calendar feed' })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Get my calendar address' })).toBeInTheDocument()
+  })
+})
+
 describe('Portal statement', { timeout: 20_000 }, () => {
   afterEach(() => vi.unstubAllGlobals())
 

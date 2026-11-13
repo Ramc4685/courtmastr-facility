@@ -209,6 +209,8 @@ allow_indirect_imports = true
 ignore_imports = [
     "app.modules.integrations.service -> app.adapters.accounting",  # integrations picks the accounting adapter directly; should resolve it through a port or the adapter registry
     "app.modules.integrations.service -> app.adapters.video",  # same for the video-meeting adapter
+    "app.modules.integrations.quickbooks -> app.adapters.accounting",  # same for the QuickBooks connection adapter
+    "app.modules.integrations.meetings -> app.adapters.video",  # same for the Zoom adapter
     "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
 ]
 

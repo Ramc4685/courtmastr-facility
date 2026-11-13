@@ -81,6 +81,10 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     trial-request:    {limit: 5,  window_sec: 3600, closed: true}   # public "Try us" requests, per IP and per address
     app-usage:        {limit: 30, window_sec: 60}                   # anonymous member app usage counts, per IP
     portal-feedback:  {limit: 10, window_sec: 3600, closed: true}   # member app feedback, per signed-in identity
+    api-tenant:       {limit: 600, window_sec: 60}                  # every API key of one tenant together (ADR 0012 s.2)
+    calendar-feed:    {limit: 12, window_sec: 3600}                 # per calendar feed (after the token checks out)
+    calendar-feed-ip: {limit: 300, window_sec: 60}                  # per IP, before the token is looked up; calendar services share IPs
+    public-schedule:  {limit: 60, window_sec: 60}                   # embedded public schedule, per IP
     public-site:      {limit: 120, window_sec: 60}                  # public league site and TV board, per IP (a board polls)
     public-site-media: {limit: 600, window_sec: 60}                 # league gallery images and sponsor logos, per IP
     league-post:      {limit: 10, window_sec: 3600, closed: true}   # classifieds and pickup games posted, per IP

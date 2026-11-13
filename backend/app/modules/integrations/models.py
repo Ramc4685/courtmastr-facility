@@ -4,7 +4,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Index, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import CheckConstraint, Index, Text, UniqueConstraint, Uuid, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +40,7 @@ class Provider(StrEnum):
     QUICKBOOKS_ONLINE = "quickbooks_online"
     ACCOUNTING_FILE = "accounting_file"  # ours: the daily journal as a JSON file (no external account)
     ZOOM = "zoom"
+    GOOGLE_ANALYTICS = "google_analytics"  # INT-13: no credentials, only a public measurement id
 
 
 class ExportStatus(StrEnum):
@@ -197,3 +198,97 @@ class AdapterCommandLog(TenantOwned, Base):
     arguments: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
     outcome: Mapped[str] = enum_column(server_default=text("'ok'"))
     occurred_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class FeedKind(StrEnum):
+    STAFF_SCHEDULE = "staff_schedule"  # the owner's readable bookings, optionally their published shifts
+    TEAM_SCHEDULE = "team_schedule"  # one league team's games
+    MEMBER_SCHEDULE = "member_schedule"  # a portal identity's enrolled sessions
+
+
+class FeedStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class CalendarFeed(TenantOwned, Timestamps, Base):
+    """A one-way iCalendar subscription (INT-08, SCH-19, STF-13, LGE-25, SSP-19). The URL token is a read-only
+    capability: 256-bit, shown once, stored as SHA-256 with a lookup prefix; re-enabling mints a new one."""
+
+    __tablename__ = "calendar_feed"
+    __table_args__ = tenant_args(
+        enum_check("kind", FeedKind),
+        enum_check("status", FeedStatus),
+        *tfk("owner_staff_user_id", "staff_user", ondelete="CASCADE"),
+        *tfk("owner_identity_id", "identity", ondelete="CASCADE"),
+        *tfk("location_id", "location", ondelete="CASCADE"),
+        *tfk("competition_team_id", "competition_team", ondelete="CASCADE"),
+        UniqueConstraint("tenant_id", "token_prefix"),
+        CheckConstraint("num_nonnulls(owner_staff_user_id, owner_identity_id) = 1", name="owner"),
+    )
+
+    kind: Mapped[str] = enum_column()
+    name: Mapped[str]
+    status: Mapped[str] = enum_column(server_default=text("'active'"))
+    owner_staff_user_id: Mapped[UUID | None]
+    owner_identity_id: Mapped[UUID | None]
+    location_id: Mapped[UUID | None]  # staff feeds: only this location
+    competition_team_id: Mapped[UUID | None]  # team feeds
+    include_shifts: Mapped[bool] = mapped_column(server_default=text("false"))
+    token_prefix: Mapped[str] = mapped_column(info={"audit": "never"})
+    token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
+    last_fetched_at: Mapped[datetime | None]
+
+
+class PublicScheduleSetting(TenantOwned, Timestamps, Base):
+    """What the anonymous embeddable schedule of one location shows (SCH-20). No row = not published."""
+
+    __tablename__ = "public_schedule_setting"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "location_id"),
+        CheckConstraint("days_ahead BETWEEN 1 AND 31", name="days_ahead"),
+    )
+
+    location_id: Mapped[UUID]
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    days_ahead: Mapped[int] = mapped_column(server_default=text("7"), info={"audit": "value"})
+    show_sessions: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    show_busy: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+
+
+class MeetingProvider(StrEnum):
+    MANUAL = "manual"  # a pasted link
+    ZOOM = "zoom"  # created through the VideoMeeting port on the tenant's Zoom connection
+
+
+class MeetingStatus(StrEnum):
+    SCHEDULED = "scheduled"
+    FAILED = "failed"
+
+
+class VideoMeeting(TenantOwned, Timestamps, Base):
+    """The online meeting of one session (INT-09, SSP-18, CLS-08). The join URL and passcode are sealed: members
+    reach them only through the join route, which checks their place at click time."""
+
+    __tablename__ = "video_meeting"
+    __table_args__ = tenant_args(
+        enum_check("provider", MeetingProvider),
+        enum_check("status", MeetingStatus),
+        *tfk("session_id", "session", ondelete="CASCADE", index=False),
+        *tfk("location_id", "location", ondelete="CASCADE"),
+        *tfk("external_connection_id", "external_connection"),  # connections are disconnected, never deleted
+        UniqueConstraint("tenant_id", "session_id"),
+        CheckConstraint("(provider = 'zoom') = (external_connection_id IS NOT NULL)", name="connection"),
+    )
+
+    session_id: Mapped[UUID]
+    location_id: Mapped[UUID]
+    provider: Mapped[str] = enum_column()
+    status: Mapped[str] = enum_column(server_default=text("'scheduled'"))
+    external_connection_id: Mapped[UUID | None]
+    external_meeting_id: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    join_url_ciphertext: Mapped[str] = mapped_column(info={"audit": "never"})
+    host_start_url_ciphertext: Mapped[str | None] = mapped_column(info={"audit": "never"})
+    passcode_ciphertext: Mapped[str | None] = mapped_column(info={"audit": "never"})
+    last_error: Mapped[str | None]

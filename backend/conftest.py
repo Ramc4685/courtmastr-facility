@@ -301,6 +301,11 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     leagues |= _populate_league_site(client, headers, post, tenant, location["id"], person["id"])
     integration = _populate_integrations(client, headers, tenant, post, location, person)
+    meeting = client.put(
+        f"/api/v1/sessions/{space['schedule_session_id']}/video-meeting", headers=headers,
+        json={"provider": "manual", "join_url": "https://video.invalid/j/populate", "passcode": "123456"},
+    )  # fmt: skip
+    assert meeting.status_code == 200, meeting.text
     reporting = _populate_reporting(post, location["id"], tenant.owner_id)
     reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(
@@ -1347,7 +1352,7 @@ def _populate_integrations(client, headers, tenant, post, location, person) -> d
         == 200
     )
     connection = post("/external-connections", {"provider": "accounting_file", "location_id": location["id"]})
-    post("/accounting-exports", {
+    export = post("/accounting-exports", {
         "external_connection_id": connection["id"], "location_id": location["id"], "business_on": "2020-01-01",
     })  # fmt: skip
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
@@ -1359,7 +1364,12 @@ def _populate_integrations(client, headers, tenant, post, location, person) -> d
         integrations.service.video_meetings(session, location["id"]).delete_meeting("populate")
         session.flush()
         delivery_id = str(delivery.id)
+    feed = post("/calendar-feeds", {"kind": "staff_schedule", "name": "My bookings", "location_id": location["id"]})
+    published = client.patch(
+        "/api/v1/public-schedule-settings", headers=headers, json={"location_id": location["id"], "is_enabled": True}
+    )
+    assert published.status_code == 200, published.text
     return {
         "api_key_id": api_key["id"], "webhook_endpoint_id": endpoint["id"], "webhook_delivery_id": delivery_id,
-        "external_connection_id": connection["id"],
+        "external_connection_id": connection["id"], "calendar_feed_id": feed["id"], "accounting_export_id": export["id"],
     }  # fmt: skip

@@ -208,6 +208,27 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
     return out
 
 
+def public_seats(session: Db, location_id: UUID, starts_from, starts_before, *, limit: int) -> list[dict]:
+    """Internal (integrations' anonymous public schedule): the location's sessions anyone may see, by the same
+    listing rule as the portal: hidden and unlisted policies, sessions beyond the visible range, and full ones
+    where the policy hides them are left out. Returns scheduling's session views."""
+    now = clock.now()
+    seats = scheduling.service.session_window(session, starts_from, starts_before, location_id=location_id,
+                                              limit=limit)  # fmt: skip
+    out, cache = [], {}
+    for seat in seats:
+        key = (seat["location_id"], seat["reservation_type_id"])
+        policy = cache.get(key) or cache.setdefault(key, effective(session, *key))
+        if policy["listing_mode"] in ("hidden", "unlisted"):
+            continue
+        if seat["starts_at"] >= now + timedelta(days=policy["visible_range_days"]):
+            continue
+        if seat["booked_count"] >= seat["capacity"] and policy["hides_full_sessions"]:
+            continue
+        out.append(seat)
+    return out
+
+
 def _bookable_seat(session: Db, session_id: UUID, client_id: UUID, *, linked: bool = False) -> tuple[dict, dict]:
     try:
         seat = scheduling.service.get_session(session, session_id)
@@ -251,6 +272,14 @@ def _own_row(session: Db, principal: Principal, model, row_id: UUID):
     return row
 
 
+def own_place(session: Db, principal: Principal, enrollment_id: UUID) -> dict:
+    """Internal read (integrations, the virtual-session join): an enrolment the portal caller may act for, or
+    NotFound. Returns its client, session, location and status."""
+    row = _own_row(session, principal, Enrollment, enrollment_id)
+    return {"client_id": row.client_id, "session_id": row.session_id, "location_id": row.location_id,
+            "status": row.status}  # fmt: skip
+
+
 def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enrollment:
     """Cancel one's own session booking. Early or late is the server's call from the policy notice period;
     a policy without self-cancel refuses. Group registrations are cancelled by staff."""
@@ -271,17 +300,29 @@ def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enr
     return row
 
 
+_PLACE_FIELDS = ("id", "client_id", "target_kind", "session_id", "program_group_id", "status", "enrolled_at",
+                 "cancelled_at", "cancel_kind")  # fmt: skip
+
+
 def portal_list_enrollments(session: Db, principal: Principal, query: ListQuery) -> dict:
-    """The schedule of the identity and everyone it may book for."""
+    """The schedule of the identity and everyone it may book for, each session place with its session's times
+    (sessions that have started or are hidden leave the listings, so the portal reads the times from here)."""
     ids = clients.households.actable_client_ids(session, _identity(principal))
     e = Enrollment
     filters = {k: v for k, v in query.filters.items() if k in ("status", "target_kind", "client_id")}
     query = ListQuery(query.limit, query.cursor, query.sort, query.include_total, query.q, filters)
-    return paginate(
+    page = paginate(
         session, select(e).where(e.client_id.in_(ids)), query, id_column=e.id,
         sort_fields={"created_at": e.created_at}, default_sort="-created_at",
         filter_fields={"status": e.status, "target_kind": e.target_kind, "client_id": e.client_id},
     )  # fmt: skip
+    seats = scheduling.service.get_sessions(session, {row.session_id for row in page["data"] if row.session_id})
+    page["data"] = [
+        {key: getattr(row, key) for key in _PLACE_FIELDS}
+        | {key: seats[row.session_id][key] if row.session_id in seats else None for key in ("starts_at", "ends_at")}
+        for row in page["data"]
+    ]
+    return page
 
 
 def portal_join_link(session: Db, principal: Principal, session_id: UUID) -> dict:

@@ -470,6 +470,11 @@ def list_teams(session: Db, principal: Principal, query: ListQuery) -> dict:
     )  # fmt: skip
 
 
+def competition_of(session: Db, competition_team_id: UUID) -> UUID | None:
+    """Internal (integrations' team calendar feed): the competition a team entry plays in, to filter its games."""
+    return session.scalar(select(CompetitionTeam.competition_id).where(CompetitionTeam.id == competition_team_id))
+
+
 def get_team(session: Db, principal: Principal, team_id: UUID) -> Team:
     return _scoped(session, principal, Team, team_id, TEAMS)
 

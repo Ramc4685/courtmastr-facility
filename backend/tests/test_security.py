@@ -26,6 +26,7 @@ ANONYMOUS = {
     "/auth/oidc/callback",  # authenticated by the single-use state bound to the pre-session cookie, then the ID token
     "/auth/oidc/link",  # the emailed single-use link, redeemed in the browser that did the provider sign-in
     "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
+    "/webhooks/quickbooks",  # likewise (intuit-signature)
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",
     "/files/{tenant_id}/{file_id}",  # authenticated by the URL's signature, issued after a permission check
@@ -58,7 +59,16 @@ ROUTES = list(_walk(app.routes))
 
 def test_the_route_walk_sees_the_whole_api():
     operations = sum(len(methods) for methods in app.openapi()["paths"].values())
-    assert sum(len(route.methods) for _, route, _ in ROUTES) == operations > 40
+    assert sum(len(route.methods) for _, route, _ in ROUTES if route.include_in_schema) == operations > 40
+    # The tenancy, idempotency and contract suites are generated from the schema, so a hidden route escapes
+    # them: only this reviewed one (calendar apps' other methods, so none reaches a token-logging 405) may hide.
+    hidden = {(path, frozenset(route.methods)) for path, route, _ in ROUTES if not route.include_in_schema}
+    assert hidden == HIDDEN
+
+
+HIDDEN = {
+    ("/api/v1/public/calendar-feeds/{token}", frozenset({"HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"})),
+}
 
 
 @pytest.mark.parametrize(("path", "route", "calls"), ROUTES, ids=[f"{sorted(r.methods)[0]} {p}" for p, r, _ in ROUTES])

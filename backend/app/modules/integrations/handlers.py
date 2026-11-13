@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.events import SUBSCRIBERS, handles
 from app.core.jobs import tenant_actor
-from app.modules.integrations import service
+from app.modules.integrations import meetings, service
 from app.modules.integrations.catalogue import CATALOGUE
 
 
@@ -19,6 +19,17 @@ def webhook_fan_out(session: Session, event_id: str, payload: dict) -> None:
 
 for _event_type in CATALOGUE:
     SUBSCRIBERS[_event_type].append(webhook_fan_out)
+
+
+@handles("scheduling.booking.rescheduled")
+def move_virtual_meeting(session: Session, payload: dict) -> None:
+    if payload.get("kind") == "session":
+        meetings.on_session_moved(session, UUID(payload["booking_id"]))
+
+
+@handles("scheduling.session.cancelled")
+def drop_virtual_meeting(session: Session, payload: dict) -> None:
+    meetings.on_session_cancelled(session, UUID(payload["session_id"]))
 
 
 @handles("platform.staff_user.deactivated")
