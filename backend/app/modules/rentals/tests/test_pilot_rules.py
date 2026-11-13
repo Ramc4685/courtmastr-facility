@@ -241,10 +241,14 @@ def _cursor(value) -> str:
 
 BAD_CURSORS = [
     "WzEsMiwiMjAzMS0wNS0wNVQxMDowMDowMCJd",  # [1, 2, "2031-05-05T10:00:00"]: the verifier's 500
-    "!!!", _cursor("abc"), _cursor({"a": 1}), _cursor([None, None, "2031-05-05T15:00:00+00:00"]),
+    "!!!",
+    _cursor("abc"),
+    _cursor({"a": 1}),
+    _cursor([None, None, "2031-05-05T15:00:00+00:00"]),
     _cursor(["Court 1", "not-a-uuid", "2031-05-05T15:00:00+00:00"]),
     _cursor(["Court 1", str(uuid4()), "2031-05-05T15:00:00"]),  # naive: cannot be compared with a slot's start
-    _cursor(["Court 1", str(uuid4()), 5]), _cursor(["Court 1", str(uuid4())]),
+    _cursor(["Court 1", str(uuid4()), 5]),
+    _cursor(["Court 1", str(uuid4())]),
 ]
 
 

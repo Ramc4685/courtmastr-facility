@@ -1492,7 +1492,9 @@ def _hourly_pay(session: Session, sheet: _Sheet, payees: list[StaffPayee], zone)
         if rate is None:
             continue
         # A clocked minute inside a session this run pays is paid once, as the session (CIRQT pilot).
-        paid = pay.overlap_minutes(entry.clock_in_at, entry.clock_out_at, sheet.session_spans.get(entry.staff_user_id, ()))
+        paid = pay.overlap_minutes(
+            entry.clock_in_at, entry.clock_out_at, sheet.session_spans.get(entry.staff_user_id, ())
+        )
         minutes = (_minutes(entry.clock_in_at, entry.clock_out_at) or 0) - paid
         payee = by_user.get(entry.staff_user_id)
         statement = sheet.statement(payee=payee) if payee else sheet.statement(
