@@ -48,7 +48,8 @@ client_bookings_starting(session, *, client_id, location_id, start, end) -> list
 - `booking_ids` returns a SELECT of ids, not a list: callers run it with `session.scalars`. `add_rule` gates
   only when a `principal` is passed.
 - `__init__.py` registers `service.check_location_archive` with `platform.service.register_location_archive_check`.
-  Archiving a location with a confirmed booking still to start is refused with 409 `location-has-future-bookings`.
+  Archiving a location with a confirmed booking or a live (unexpired) checkout hold still to start is refused with
+  409 `location-has-future-bookings`; closure blocks never count.
 
 ## How conflicts are decided
 

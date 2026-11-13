@@ -922,7 +922,7 @@ paths:
       tags: [programs]
       summary: Email the roster of a session
       x-priority: P0
-      x-permission: engagement.message.send_direct
+      x-permission: scheduling.enrollment.create
       x-features: [CLS-03, MKT-11]
       security: [{staffSession: []}, {apiKey: []}]
       requestBody:
@@ -1044,7 +1044,7 @@ paths:
       tags: [programs]
       summary: List the default policy and overrides of a location
       x-priority: P0
-      x-permission: engagement.portal_settings.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-02, SSP-03]
       security: [{staffSession: []}, {apiKey: []}]
       parameters:
@@ -1074,7 +1074,7 @@ paths:
       tags: [programs]
       summary: Replace the location default booking policy
       x-priority: P0
-      x-permission: engagement.portal_settings.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-02]
       security: [{staffSession: []}, {apiKey: []}]
       requestBody:

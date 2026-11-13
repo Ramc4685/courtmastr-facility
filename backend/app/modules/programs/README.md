@@ -49,9 +49,12 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 
 ## Assumptions and limits
 
-- **Keys owned by engagement:** session booking policies use `engagement.portal_settings.manage` and the roster
-  message uses `engagement.message.send_direct` (with `own` reach on the session). Programs may not import
-  engagement, so both are plain key strings (`selfservice.POLICY`, `service.ROSTER_MESSAGE`).
+- **Keys and engagement:** session booking policies use `engagement.portal_settings.manage` or
+  `programs.registration_config.manage` (`selfservice.LEAGUE_POLICY`), so league managers and custom roles
+  holding the old key keep them without the rest of the portal settings. The roster message stays on
+  `scheduling.enrollment.create` on the session (`own` reach and the type's staff grants apply), so no role or
+  custom grant loses it; moving it to `engagement.message.send_direct` needs the owner's sign-off and a grant
+  migration. Programs may not import engagement, so `selfservice.POLICY` is a plain key string.
 - **The roster message is plain text** through the notification port, sent in the request. It returns the
   `202` job shape with `status: succeeded`, and has no consent gate because it is transactional.
 - **No booking-policy row means `selfservice.BUILT_IN`:** bookable, 30 days visible, no cut-off,

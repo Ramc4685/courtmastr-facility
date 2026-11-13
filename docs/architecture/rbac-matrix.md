@@ -249,7 +249,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `scheduling.block.manage` | L | | own | Y | Y | Y | own | - | - | - | SCH-08 |
 | `scheduling.session.manage` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | SCH-07, CLS-08 |
 | `scheduling.session.change_capacity` | L | | subj:reservation_type | Y | Y | - | - | - | - | - | CLS-04 |
-| `scheduling.enrollment.create` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | CLS-01, CLS-02, PKG-12 |
+| `scheduling.enrollment.create` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | CLS-01, CLS-02, PKG-12; programs' session roster message (CLS-10) |
 | `scheduling.enrollment.cancel` | L | | own, subj:reservation_type | Y | Y | Y | own | - | - | - | CLS-03 |
 | `scheduling.enrollment.free_book` | L | P | subj:reservation_type | Y | Y | - | - | - | - | - | CLS-05 |
 | `scheduling.enrollment.override_capacity` | L | P | | Y | Y | - | - | - | - | - | CLS-04 |
@@ -365,7 +365,7 @@ combined key. The reference sets "customize contract" per user only and Billing 
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `programs.program.manage` | L | | | Y | Y | - | - | Y | - | - | REG-01..REG-06, REG-13, CLS-10 |
 | `programs.program.delete` | L | D | | Y | Y | - | - | - | - | - | REG-05 |
-| `programs.registration_config.manage` | L | | | Y | Y | - | - | Y | - | - | REG-10, REG-11, SSP-17 |
+| `programs.registration_config.manage` | L | | | Y | Y | - | - | Y | - | - | REG-10, REG-11, SSP-17; session booking policies (CLS-09), so league managers keep them |
 | `programs.registration.read` | L | | own | Y | Y | Y | own | Y | - | - | REG-04, REG-21 |
 | `programs.registration.create` | L | | | Y | Y | Y | - | Y | - | - | REG-07 |
 | `programs.registration.update` | L | | | Y | Y | Y | - | Y | - | - | REG-08, REG-21 |
@@ -532,10 +532,10 @@ allow-list (STF-06, PLT-07).
 | `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an all-clients audience, filtered or not) |
 | `engagement.sms_campaign.send` | L | B | | Y | Y | - | - | - | - | - | MKT-15, MKT-23 |
 | `engagement.push.send` | L | B | | Y | Y | - | - | - | - | - | MKT-16, MKT-17, PLT-13 ("send notifications for this location") |
-| `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10; programs' session roster message (CLS-10, `own` = the coach's session) |
+| `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
 | `engagement.inbox.reply` | L | | | Y | Y | Y | - | - | - | - | MKT-23 |
 | `engagement.app_content.manage` | L | | | Y | Y | - | - | - | - | - | PLT-13 ("manage location in app"), APP-04..APP-14, SSP-13..SSP-16 |
-| `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10; programs' session booking policies (CLS-09) |
+| `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10; programs' session booking policies (CLS-09), also open to `programs.registration_config.manage` |
 | `engagement.notification_rule.manage` | L | | | Y | Y | - | - | - | - | - | MKT-13, MKT-14, STF-12, PAY-07, PAY-08 |
 | `engagement.automation.manage` | L | B | | Y | Y | - | - | - | - | - | MKT-20 |
 | `engagement.suppression.manage` | T | | | Y | - | - | - | - | - | - | MKT-08 (un-suppress is a compliance act) |

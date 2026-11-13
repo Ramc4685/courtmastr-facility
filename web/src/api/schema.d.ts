@@ -13129,7 +13129,8 @@ export interface paths {
         put?: never;
         /**
          * Send Session Roster Message
-         * @description Emails everyone registered (engagement.message.send_direct, with `own` reach on the session).
+         * @description Emails everyone registered. Gated by scheduling.enrollment.create on the session (`own` reach and the
+         *     type's staff grants apply); moving it to engagement.message.send_direct waits on the owner (module README).
          */
         post: operations["sendSessionRosterMessage"];
         delete?: never;
@@ -29969,7 +29970,7 @@ export interface components {
         };
         /**
          * PortalRentalConfirm
-         * @description A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.
+         * @description A PaymentProvider client token; never raw card data. This route takes a one-off token, not a stored method.
          */
         PortalRentalConfirm: {
             /** Provider Payment Token */
