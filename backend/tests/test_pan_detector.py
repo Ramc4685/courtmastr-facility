@@ -89,6 +89,90 @@ def test_non_free_text_fields_are_not_scanned():
     assert _Sample(sku="4111111111111111", note="call 217-555-0123").sku  # codes and barcodes are not free text
 
 
+@pytest.mark.parametrize(
+    "field",
+    ["statement_email_body", "invoice_description", "online_description", "internal_description", "public_title",
+     "confirmation_message", "interest", "a_field_nobody_classified_yet"],
+)  # fmt: skip
+def test_every_string_field_is_scanned_unless_allow_listed(field):
+    model = type("_Any", (In,), {"__annotations__": {field: str}})
+    assert _refused(model, **{field: "4111 1111 1111 1111"}) == [("card-data-not-allowed", (field,))]
+
+
+@pytest.mark.parametrize("field", ["value", "card_payload", "member_number", "phone", "external_ref", "token"])
+def test_allow_listed_fields_keep_long_digit_runs(field):
+    model = type("_Code", (In,), {"__annotations__": {field: str}})
+    assert getattr(model(**{field: "4111111111111111"}), field)  # a fob or member card is a digit run by design
+
+
+def test_html_fields_are_scanned_with_their_tags_removed():
+    model = type("_Html", (In,), {"__annotations__": {"body_html": str}})
+    assert _refused(model, body_html="<p>4111<b>1111</b>1111 <i>1111</i></p>") == [
+        ("card-data-not-allowed", ("body_html",))
+    ]
+    assert model(body_html="<p>Court <b>4</b> at 6pm, call 217-555-0123</p>").body_html
+
+
+def _request_string_fields() -> set[str]:
+    """Names of string properties reachable from every JSON request body in the OpenAPI document."""
+    from app.main import app
+
+    doc = app.openapi()
+    schemas = doc["components"]["schemas"]
+    plain = {"uuid", "date", "date-time", "email", "uri", "time", "duration", "binary"}
+
+    def resolve(node):
+        while "$ref" in node:
+            node = schemas[node["$ref"].rsplit("/", 1)[-1]]
+        return node
+
+    def stringy(node) -> bool:
+        node = resolve(node)
+        if any(k in node for k in ("anyOf", "oneOf", "allOf")):
+            return any(stringy(n) for k in ("anyOf", "oneOf", "allOf") for n in node.get(k, []))
+        if node.get("type") == "array":
+            return stringy(node.get("items", {}))
+        if node.get("type") == "object" and isinstance(node.get("additionalProperties"), dict):
+            return stringy(node["additionalProperties"])
+        return node.get("type") == "string" and not {"enum", "const"} & node.keys() and node.get("format") not in plain
+
+    found: set[str] = set()
+    seen: set[str] = set()
+
+    def walk(node) -> None:
+        if "$ref" in node:
+            name = node["$ref"].rsplit("/", 1)[-1]
+            if name in seen:
+                return
+            seen.add(name)
+            node = schemas[name]
+        for key in ("anyOf", "oneOf", "allOf"):
+            for sub in node.get(key, []):
+                walk(sub)
+        if node.get("type") == "array":
+            walk(node.get("items", {}))
+        for prop, sub in node.get("properties", {}).items():
+            if stringy(sub):
+                found.add(prop)
+            walk(sub)
+
+    for operations in doc["paths"].values():
+        for operation in operations.values():
+            body = operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema")
+            if body:
+                walk(body)
+    return found
+
+
+def test_every_request_string_field_is_classified():
+    """A new string field on a request body must be put in FREE_TEXT_FIELDS (scanned) or NOT_FREE_TEXT (with the
+    reason, grouped as there). Until then the runtime scans it anyway."""
+    from app.core.schemas import FREE_TEXT_FIELDS, NOT_FREE_TEXT
+
+    assert not FREE_TEXT_FIELDS & NOT_FREE_TEXT
+    assert sorted(_request_string_fields() - FREE_TEXT_FIELDS - NOT_FREE_TEXT) == []
+
+
 def test_api_refuses_a_note_with_a_card_number(client, owner):
     location = client.post(f"{API}/locations", headers=owner, json={"name": "Main", "time_zone": "America/Chicago",
                                                                     "country_code": "US"}).json()  # fmt: skip
