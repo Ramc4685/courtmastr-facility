@@ -229,6 +229,12 @@ def list_methods(session: Session, principal: Principal) -> list[PaymentMethod]:
     return methods.methods_of(session, _client(session, principal, None))
 
 
+def processor(session: Session, principal: Principal) -> dict:
+    """Read-only: which processor takes new cards, so the app need not create a setup intent to find out."""
+    _clients(session, principal)
+    return documents.browser_processor(session)
+
+
 def create_setup(session: Session, principal: Principal, kinds: tuple[str, ...]) -> dict:
     return methods.create_setup(session, _client(session, principal, None), kinds)
 

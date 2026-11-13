@@ -4,13 +4,6 @@ import type { components } from '../api/schema';
 
 type S = components['schemas'];
 
-/** The portal has no endpoint for this yet; the screen shows a "not available yet" state. */
-export class NotAvailable extends Error {
-  constructor(readonly what: string) {
-    super(`${what} is not available yet.`);
-  }
-}
-
 export type Page<T> = { data: T[]; page: { next_cursor: string | null; has_more: boolean } };
 
 /** openapi-programs searchAppDirectory -> AppDirectoryEntry */
@@ -29,6 +22,8 @@ export type AppConfig = {
   theme: { primary?: string | null; accent?: string | null };
   features: { booking: boolean; purchases: boolean; membership_card: boolean; wallet_pass: boolean };
   home_screen: HomeScreen | null;
+  /** The facility's ISO currency (public portal config); money shows in it, never a guessed default. */
+  currency: string;
 };
 
 /** openapi-people portalListActableClients -> ActableClient */
@@ -145,7 +140,7 @@ export type PortalPayment = {
 };
 
 /** listPortalPackagePlans / listPublicMembershipPlans, reduced to what the buy screen shows. */
-export type PlanOffer = { kind: 'package' | 'membership'; id: string; name: string; price_minor: number | null; detail: string | null };
+export type PlanOffer = { kind: 'package' | 'membership'; id: string; name: string; price_minor: number | null; currency: string | null; detail: string | null };
 
 /** The result of a portal sale (PortalPackageSaleOut / PortalContractSaleOut subset). */
 export type Sale = { id: string; name: string; payment_status: string | null };
@@ -162,7 +157,7 @@ export type WalletPass = {
   is_signed?: boolean;
 };
 
-/** The processor behind online checkout (from a portal setup intent). The app supports the fake one in
+/** The processor behind online checkout (GET /portal/payment-methods/processor). The app supports the fake one in
  * development; real cards need the processor's native sheet, which is not bundled yet. */
 export type CheckoutProvider = 'fake' | 'stripe' | null;
 
@@ -230,7 +225,8 @@ export interface PortalAdapter {
   /** confirmPortalPayment: re-read the payment after the bank check and apply it. Safe to repeat. */
   confirmPayment(args: { paymentId: string; invoiceIds: string[]; idempotencyKey: string }): Promise<PortalPayment>;
   checkoutProvider(): Promise<CheckoutProvider>;
-  listOffers(locationId: string): Promise<PlanOffer[]>;
+  /** For the acting client; `currency` is null when the plan does not carry one (the facility's applies). */
+  listOffers(clientId: string): Promise<PlanOffer[]>;
   /** One Idempotency-Key per purchase attempt; the server ends every sale in secure_online_checkout. */
   buy(args: { offer: PlanOffer; clientId: string; locationId: string; methodToken: string; idempotencyKey: string }): Promise<Sale>;
   listWalletPasses(): Promise<WalletPass[]>;

@@ -53,10 +53,12 @@ only: no app list shows programs or booking types to favourite), sharing a booki
 system share sheet, and anonymous screen counts (`src/lib/usage.ts`: route names only, batches of 50, every 60 s
 and on background, only while signed in). Add-to-calendar is not built (no calendar module is bundled).
 
-Two things have no endpoint yet and show **not available yet** instead of guessing:
-
-- Facility search by name (`searchAppDirectory`): the facility screen asks for the code instead.
-- The live tenant theme (`getPublicAppConfig`): the app uses the bundled theme.
+Facility search by name (`searchAppDirectory`) and the live tenant theme, home layout and currency
+(`getPublicAppConfig`) come from the real public API; when the theme cannot be loaded the app uses the saved or
+bundled one. The buy screen asks the server which card processor applies with a read
+(`GET /portal/payment-methods/processor`), never by creating a setup intent, and shows prices in the
+facility's currency. "Try us" shows the same thank-you for every server answer, but says the request was not
+sent when there was no answer (offline) or a server error.
 
 `EXPO_PUBLIC_PORTAL_ADAPTER=demo` switches to `src/adapters/demo.ts`, an in-memory stand-in for UI work with
 no backend. Every screen it feeds shows a **DEMO DATA** banner, and demo card tokens end in `.DEMO`.

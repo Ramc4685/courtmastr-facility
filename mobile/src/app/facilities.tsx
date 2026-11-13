@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { portal } from '../adapters';
-import { NotAvailable } from '../adapters/types';
 import { ApiError } from '../api/errors';
 import { useApp } from '../lib/app-state';
 import { lookupTenant, normaliseSlug } from '../lib/tenant';
@@ -45,8 +44,6 @@ export default function Facilities() {
       <Surface>
         {directory.isLoading ? (
           <Loading />
-        ) : directory.error instanceof NotAvailable ? (
-          <Empty text="Search by name is not available yet. Enter the facility code below." />
         ) : directory.error ? (
           <ErrorBox error={directory.error} />
         ) : directory.data?.length ? (

@@ -9858,6 +9858,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/payment-methods/processor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Payment Processor */
+        get: operations["getPortalPaymentProcessor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/payment-methods/setup-intents": {
         parameters: {
             query?: never;
@@ -32406,6 +32423,15 @@ export interface components {
         PortalPreferencesReplace: {
             /** Changes */
             changes: components["schemas"]["PreferenceChange"][];
+        };
+        /** PortalProcessor */
+        PortalProcessor: {
+            /** Account Ref */
+            account_ref?: string | null;
+            /** Provider */
+            provider: ("stripe" | "fake") | null;
+            /** Publishable Key */
+            publishable_key?: string | null;
         };
         /** PortalReceiptLine */
         PortalReceiptLine: {
@@ -66984,6 +67010,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalPaymentProcessor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalProcessor"];
                 };
             };
             /** @description Validation Error */

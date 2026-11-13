@@ -185,8 +185,8 @@ describe('api adapter', () => {
     ]);
     expect(calls[0]!.url).toContain('/api/v1/public/app-directory?q=court&limit=20');
     expect(calls[0]!.headers.authorization).toBeUndefined();
-    calls = mockFetch([() => json({ app_name: 'Court', theme: {}, features: {}, schedule: {}, portal: {} })]);
-    expect(await apiAdapter.getAppConfig()).toMatchObject({ app_name: 'Court', icon_url: null, home_screen: null });
+    calls = mockFetch([() => json({ app_name: 'Court', theme: {}, features: {}, schedule: {}, portal: { currency: 'CAD' } })]);
+    expect(await apiAdapter.getAppConfig()).toMatchObject({ app_name: 'Court', icon_url: null, home_screen: null, currency: 'CAD' });
     expect(calls[0]!.url).toContain('/api/v1/public/app-config');
   });
 
@@ -227,6 +227,25 @@ describe('api adapter', () => {
     calls = mockFetch([() => new Response(null, { status: 204 })]);
     await apiAdapter.recordUsage([{ kind: 'screen', name: 'screen.news', count: 2 }]);
     expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/portal/app-usage`, body: { items: [{ kind: 'screen', name: 'screen.news', count: 2 }] } });
+  });
+
+  it('reads the card processor without creating a setup intent', async () => {
+    const calls = mockFetch([() => json({ provider: 'fake', publishable_key: null, account_ref: null })]);
+    expect(await apiAdapter.checkoutProvider()).toBe('fake');
+    expect(calls[0]).toMatchObject({ method: 'GET', url: 'http://localhost:8150/api/v1/portal/payment-methods/processor' });
+  });
+
+  it('lists offers for the acting client, packages scoped by the server to what that client may buy', async () => {
+    const packagePlans = page([{ id: 'pp1', name: 'Ten visits', fee_minor: 12000, session_count: 10, is_purchasable: true }, { id: 'pp2', name: 'Hidden', is_purchasable: false }]);
+    const membershipPlans = page([{ id: 'mp1', name: 'Monthly', term_fee_minor: 8900, billing_interval_count: 1, billing_interval_unit: 'month' }]);
+    const answer = (c: Call) => json(c.url.includes('/portal/package-plans') ? packagePlans : membershipPlans);
+    const calls = mockFetch([answer, answer]);
+    expect(await apiAdapter.listOffers('c1')).toEqual([
+      { kind: 'membership', id: 'mp1', name: 'Monthly', price_minor: 8900, currency: null, detail: 'every month' },
+      { kind: 'package', id: 'pp1', name: 'Ten visits', price_minor: 12000, currency: null, detail: '10 sessions' },
+    ]);
+    const packages = new URL(calls.find((c) => c.url.includes('/portal/package-plans'))!.url);
+    expect(packages.searchParams.get('client_id')).toBe('c1');
   });
 
   it('surfaces problem+json from a missing endpoint as an ApiError', async () => {

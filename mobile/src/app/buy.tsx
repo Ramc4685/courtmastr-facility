@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { portal, type PlanOffer } from '../adapters';
 import { useApp } from '../lib/app-state';
 import { clientName, useHousehold } from '../lib/household';
-import { useLocations } from '../lib/hooks';
+import { useAppConfig, useLocations } from '../lib/hooks';
 import { formatMoney } from '../ui/format';
 import { Body, Button, DemoBanner, Empty, ErrorBox, Heading, Loading, Row, Screen, Small, Surface } from '../ui/kit';
 import { NewCard, useAttemptKey } from '../ui/NewCard';
@@ -20,7 +20,14 @@ export default function Buy() {
   const qc = useQueryClient();
   const locations = useLocations().data ?? [];
   const locationId = actingFor?.client.home_location_id ?? locations[0]?.id ?? null;
-  const offers = useQuery({ queryKey: ['offers', tenant?.slug, locationId], queryFn: () => portal.listOffers(locationId!), enabled: !!locationId });
+  const clientId = actingFor?.client.id;
+  const offers = useQuery({ queryKey: ['offers', tenant?.slug, clientId], queryFn: () => portal.listOffers(clientId!), enabled: !!clientId });
+  const facilityCurrency = useAppConfig().data?.currency;
+  // The offer's own currency first, else the facility's; no price rather than a guessed currency.
+  const price = (o: PlanOffer) => {
+    const currency = o.currency ?? facilityCurrency;
+    return o.price_minor !== null && currency ? formatMoney(o.price_minor, currency) : null;
+  };
   const [offer, setOffer] = useState<PlanOffer | null>(null);
   const [token, setToken] = useState('');
   const attempt = useAttemptKey();
@@ -43,7 +50,7 @@ export default function Buy() {
         <Row
           key={`${o.kind}-${o.id}`}
           title={o.name}
-          subtitle={[o.kind === 'membership' ? 'Membership' : 'Package', o.price_minor !== null ? formatMoney(o.price_minor) : null, o.detail, offer?.id === o.id ? 'Selected' : null].filter(Boolean).join(' · ')}
+          subtitle={[o.kind === 'membership' ? 'Membership' : 'Package', price(o), o.detail, offer?.id === o.id ? 'Selected' : null].filter(Boolean).join(' · ')}
           onPress={() => {
             setOffer(o);
             buy.reset();

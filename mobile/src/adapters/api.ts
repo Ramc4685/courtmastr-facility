@@ -153,7 +153,7 @@ export const apiAdapter: PortalAdapter = {
   searchDirectory,
   getAppConfig: async (): Promise<AppConfig> => {
     const c = await raw<S['PublicAppConfig']>('/public/app-config');
-    return { ...c, icon_url: c.icon_url ?? null, home_screen: (c.home_screen ?? null) as AppConfig['home_screen'] };
+    return { ...c, icon_url: c.icon_url ?? null, home_screen: (c.home_screen ?? null) as AppConfig['home_screen'], currency: c.portal.currency };
   },
   listActableClients: async () => (await raw<S['PortalClientList']>('/portal/clients')).data.map(toActable),
   issueAppCard: (clientId, deviceLabel) =>
@@ -219,20 +219,20 @@ export const apiAdapter: PortalAdapter = {
       }),
       invoiceIds,
     ),
-  checkoutProvider: async (): Promise<CheckoutProvider> => {
-    const intent = await raw<S['SetupIntentOut']>('/portal/payment-methods/setup-intents', { method: 'POST', body: { kinds: ['card'] } });
-    return intent.provider === 'fake' || intent.provider === 'stripe' ? intent.provider : null;
-  },
-  listOffers: async () => {
+  // A read, never a setup intent: with a real processor every intent is a real object at the processor.
+  checkoutProvider: async (): Promise<CheckoutProvider> =>
+    (await raw<S['PortalProcessor']>('/portal/payment-methods/processor')).provider ?? null,
+  // Neither plan list takes a location; package plans are what this client may buy (members-only rules).
+  listOffers: async (clientId) => {
     const [packages, memberships] = await Promise.all([
-      all<S['PortalPackagePlanOut']>('/portal/package-plans'),
+      all<S['PortalPackagePlanOut']>('/portal/package-plans', { client_id: clientId }),
       all<S['PublicPlanOut']>('/public/membership-plans'),
     ]);
     return [
-      ...memberships.map((m): PlanOffer => ({ kind: 'membership', id: m.id, name: m.name, price_minor: m.term_fee_minor, detail: every(m.billing_interval_count, m.billing_interval_unit) })),
+      ...memberships.map((m): PlanOffer => ({ kind: 'membership', id: m.id, name: m.name, price_minor: m.term_fee_minor, currency: null, detail: every(m.billing_interval_count, m.billing_interval_unit) })),
       ...packages
         .filter((p) => p.is_purchasable)
-        .map((p): PlanOffer => ({ kind: 'package', id: p.id, name: p.name, price_minor: p.fee_minor ?? null, detail: p.session_count ? `${p.session_count} sessions` : null })),
+        .map((p): PlanOffer => ({ kind: 'package', id: p.id, name: p.name, price_minor: p.fee_minor ?? null, currency: null, detail: p.session_count ? `${p.session_count} sessions` : null })),
     ];
   },
   buy: async ({ offer, clientId, locationId, methodToken, idempotencyKey }): Promise<Sale> => {

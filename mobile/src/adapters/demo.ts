@@ -207,8 +207,8 @@ export const demoAdapter: PortalAdapter = {
   checkoutProvider: () => delay('fake' as const),
   listOffers: () =>
     delay([
-      { kind: 'membership' as const, id: 'demo-mp-1', name: 'Adult monthly', price_minor: 8900, detail: 'every month' },
-      { kind: 'package' as const, id: 'demo-pp-1', name: '10-Visit Court Pass', price_minor: 12000, detail: '10 sessions' },
+      { kind: 'membership' as const, id: 'demo-mp-1', name: 'Adult monthly', price_minor: 8900, currency: 'USD', detail: 'every month' },
+      { kind: 'package' as const, id: 'demo-pp-1', name: '10-Visit Court Pass', price_minor: 12000, currency: 'USD', detail: '10 sessions' },
     ]),
   buy: ({ offer, methodToken }) =>
     methodToken === 'tok_card_ok' ? delay({ id: `demo-sale-${state.seq++}`, name: offer.name, payment_status: 'succeeded' }) : Promise.reject(new Error('The card was declined.')),

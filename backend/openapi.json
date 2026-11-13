@@ -50851,6 +50851,52 @@
         "title": "PortalPreferencesReplace",
         "type": "object"
       },
+      "PortalProcessor": {
+        "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "stripe",
+                  "fake"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "PortalProcessor",
+        "type": "object"
+      },
       "PortalReceiptLine": {
         "properties": {
           "amount_minor": {
@@ -131535,6 +131581,58 @@
           }
         },
         "summary": "Attach Portal Payment Method",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payment-methods/processor": {
+      "get": {
+        "operationId": "getPortalPaymentProcessor",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalProcessor"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Payment Processor",
         "tags": [
           "billing"
         ]

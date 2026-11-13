@@ -782,6 +782,10 @@ class BrowserKeys(Out):
     account_ref: str | None = None
 
 
+class PortalProcessor(BrowserKeys):
+    provider: Literal["stripe", "fake"] | None  # None: no processor connected, the app cannot take cards
+
+
 class SetupIntentOut(BrowserKeys):
     provider: str
     client_secret: str

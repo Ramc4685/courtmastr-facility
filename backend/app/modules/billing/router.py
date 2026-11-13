@@ -944,6 +944,11 @@ def attach_portal_payment_method(body: s.PaymentMethodAttach, ctx: Client):
     return portal.attach_method(ctx.session, ctx.principal, body.model_dump())
 
 
+@router.get("/portal/payment-methods/processor", response_model=s.PortalProcessor)
+def get_portal_payment_processor(ctx: Client):
+    return portal.processor(ctx.session, ctx.principal)
+
+
 @router.post("/portal/payment-methods/setup-intents", response_model=s.SetupIntentOut, status_code=201)
 def create_portal_setup_intent(body: s.SetupIntentRequest, ctx: Client):
     return portal.create_setup(ctx.session, ctx.principal, tuple(body.kinds))
