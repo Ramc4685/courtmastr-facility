@@ -1,8 +1,9 @@
 """engagement consent tables (docs/architecture/data-model-programs.md sections 3.2 and 3.2a). Thin slice shipped
 with build module 4 for CLI-16; build module 13 adds the rest of engagement around them."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, Index, Text, UniqueConstraint, func, text
@@ -535,6 +536,10 @@ class PortalSettings(TenantOwned, Timestamps, Base):
         UniqueConstraint("tenant_id", "location_id", name="uq_portal_settings_location"),
         Index("uq_portal_settings_slug", "tenant_id", text("lower(slug)"), unique=True),
         CheckConstraint("slug ~ '^[a-z0-9][a-z0-9-]{1,62}$'", name="slug"),
+        CheckConstraint("jsonb_typeof(menu) = 'array'", name="menu"),
+        CheckConstraint("jsonb_typeof(social_links) = 'object'", name="social_links"),
+        CheckConstraint("jsonb_typeof(group_redirect_urls) = 'object'", name="group_redirect_urls"),
+        CheckConstraint("redirect_url IS NULL OR redirect_url LIKE 'https://%'", name="redirect_url"),
     )
 
     location_id: Mapped[UUID]
@@ -546,6 +551,46 @@ class PortalSettings(TenantOwned, Timestamps, Base):
     terms_version: Mapped[int] = mapped_column(server_default=text("1"), info={"audit": "value"})
     allows_online_rentals: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
     allows_online_purchases: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    # Phase 11 chip A: public sign-up (SSP-05, off by default), menu (SSP-13), redirects (SSP-07), social (SSP-15)
+    allows_self_signup: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    menu: Mapped[list] = mapped_column(JsonDict, server_default=text("'[]'"))  # [{key, label, is_visible}], in order
+    social_links: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))  # {network: https url}
+    redirect_url: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    group_redirect_urls: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))  # {group id: url}
+    redirect_domains: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+
+
+class PortalSignupStatus(StrEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    SUPERSEDED = "superseded"
+
+
+class PortalSignup(TenantOwned, Timestamps, Base):
+    """A public self-registration waiting for its email to be verified (SSP-05). The token is emailed in the URL
+    fragment and only its hash is kept; single use, 24 hours. Confirming creates the client and the portal login."""
+
+    __tablename__ = "portal_signup"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("client_id", "client"),
+        enum_check("status", PortalSignupStatus),
+        UniqueConstraint("token_hash", name="uq_portal_signup_token_hash"),
+        Index("ix_portal_signup_email", "tenant_id", "email"),
+    )
+
+    location_id: Mapped[UUID]
+    email: Mapped[str] = mapped_column(CITEXT, info={"audit": "flag"})
+    first_name: Mapped[str] = mapped_column(info={"audit": "flag"})
+    last_name: Mapped[str] = mapped_column(info={"audit": "flag"})
+    phone_mobile: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    birth_on: Mapped[date | None] = mapped_column(info={"audit": "flag"})
+    token_hash: Mapped[str]
+    expires_at: Mapped[datetime]
+    status: Mapped[str] = enum_column(server_default=text("'pending'"))
+    confirmed_at: Mapped[datetime | None]
+    client_id: Mapped[UUID | None]
+    ip: Mapped[Any | None] = mapped_column(INET, info={"audit": "flag"})
 
 
 class Video(TenantOwned, Timestamps, Base):

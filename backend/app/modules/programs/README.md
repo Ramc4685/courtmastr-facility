@@ -153,3 +153,19 @@ address is signed up).
   by submitting it to five forms.
 - Erased rows share `forms.ERASED_EMAIL` and are left out of `uq_form_submission_public_email`; the index
   predicate repeats that literal, and a test checks the two agree.
+Virtual meeting links (CLS-08), group classifiers, search and copy tools (REG-03, 04, 13), moving members
+between groups (REG-08), account-wide registration defaults (REG-11), event forms (REG-15 to 24), and
+captain rosters (REG-26).
+
+## Guest checkout (Phase 11 chip A: REG-12)
+
+- Per group, off by default (`registration_config.allows_guest_checkout`). `POST /public/guest-checkouts` makes the
+  payer and each participant new clients (`created_via=registration`, never matched by email), holds the places
+  like any basket and returns a `fhg_` guest token once; only its digest is kept and it is the only key for
+  `/confirm` and `/abandon` (a wrong token is 404). The checkout channel is `guest`; items record `public_link`.
+- Confirm pays the whole total now by a new card through `secure_online_checkout` (no stored methods, no account
+  credit, no instalments) after the portal terms check; a replay of a completed checkout returns it unchanged.
+- **Assumption: documents.** A guest's email is unverified and documents are only sent to verified addresses, so a
+  group with a blocking online document refuses guests (409 `guest-documents-required`). **Limit:** 3-D Secure
+  cards fail for guests, since `secure_online_checkout` cancels a payment that needs action.
+- Rate limit bucket `guest-checkout` (20 per 15 minutes per IP, closed on Redis failure).

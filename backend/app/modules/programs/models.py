@@ -110,6 +110,7 @@ class CheckoutChannel(StrEnum):
     PUBLIC_LINK = "public_link"
     MOBILE = "mobile"
     API = "api"
+    GUEST = "guest"  # REG-12: no login; the guest token in the browser is the only key
 
 
 class CheckoutStatus(StrEnum):
@@ -435,6 +436,7 @@ class RegistrationConfig(TenantOwned, Timestamps, Base):
     is_portal_visible: Mapped[bool] = mapped_column(server_default=text("false"))
     portal_publish_name: Mapped[str | None]
     portal_published_at: Mapped[datetime | None]
+    allows_guest_checkout: Mapped[bool] = mapped_column(server_default=text("false"))  # REG-12, off by default
 
 
 class RegistrationCheckout(TenantOwned, Timestamps, Base):
@@ -463,6 +465,7 @@ class RegistrationCheckout(TenantOwned, Timestamps, Base):
     comment: Mapped[str | None]
     expires_at: Mapped[datetime]
     completed_at: Mapped[datetime | None]
+    guest_token_hash: Mapped[str | None]  # REG-12: digest of the token the guest's browser holds
 
 
 class SessionBookingPolicy(TenantOwned, Timestamps, Base):

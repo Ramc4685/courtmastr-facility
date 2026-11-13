@@ -627,8 +627,13 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
                                             "location_id": location_id,
                                             "message_template_id": template["id"], "delay_minutes": 60})  # fmt: skip
     response = client.put(f"/api/v1/locations/{location_id}/portal-settings", headers=login(client, tenant),
-                          json={"is_enabled": True, "is_public": True, "welcome_text": "Welcome"})  # fmt: skip
+                          json={"is_enabled": True, "is_public": True, "welcome_text": "Welcome",
+                                "allows_self_signup": True})  # fmt: skip
     assert response.status_code == 200, response.text
+    signup = {"location_id": location_id, "email": f"new-{uuid4().hex[:8]}@{tenant.slug}.example.com",
+              "first_name": "Nia", "last_name": "Newcomer"}  # fmt: skip
+    response = client.post("/api/v1/public/portal-signups", headers={"X-Tenant-Slug": tenant.slug}, json=signup)
+    assert response.status_code == 202, response.text  # portal_signup (SSP-05)
     video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
                              "is_published": True})  # fmt: skip
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
@@ -690,6 +695,14 @@ def _populate_documents(client, headers, tenant, location_id, person) -> dict:
     verify_email(tenant, person["id"], person["primary_email"])
     pending = call("POST", "/client-documents",
                    issue | {"acceptance_method": "email_link", "recipient_emails": [person["primary_email"]]})  # fmt: skip
+    from app.modules import documents
+
+    terms = call("PUT", "/document-bindings", {"scope_type": "portal_terms", "custom_text": "Play fair."})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # terms_acceptance (SSP-14)
+        version = documents.service.portal_terms_version(session)[1]["terms_version_id"]
+        documents.service.record_terms_acceptance(session, client_id=person["id"], terms_version_id=version,
+                                                  sale_kind="package", subject_id=uuid4())  # fmt: skip
+    call("DELETE", f"/document-bindings/{terms['id']}")  # later portal sales in populate's tenant need no terms
     return {"template_id": template["id"], "binding_id": binding["id"], "document_id": signed["id"],
             "pending_document_id": pending["id"]}  # fmt: skip
 

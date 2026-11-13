@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTermsGate } from '../entry/FacilityApp'
 import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -61,11 +62,15 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
   const [token, setToken] = useState('')
   const [coupon, setCoupon] = useState('')
   const attempt = useAttemptKey()
+  const gate = useTermsGate()
   const paid = (plan.fee_minor ?? 0) > 0
   const buy = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/client-packages', { body: { client_id: actingFor.id, package_plan_id: plan.id, location_id: locationId, method_token: token || null, tender_kind: 'card', coupon_code: coupon || null }, idempotencyKey: attempt.key }),
+    mutationFn: () => api.post('/api/v1/portal/client-packages', { body: { client_id: actingFor.id, package_plan_id: plan.id, location_id: locationId, method_token: token || null, tender_kind: 'card', coupon_code: coupon || null, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
-    onError: attempt.settle,
+    onError: (error) => {
+      attempt.settle(error)
+      gate.onError(error)
+    },
   })
   const sale = buy.data
   return (
@@ -82,7 +87,7 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={buy.isPending} disabled={paid && !token} onClick={() => buy.mutate()}>
+            <Button loading={buy.isPending} disabled={(paid && !token) || !gate.ready} onClick={() => buy.mutate()}>
               {paid ? `Pay ${money(plan.fee_minor)}` : 'Get it'}
             </Button>
           </>
@@ -101,6 +106,7 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
           <FormError error={buy.error} />
           {paid && <CouponField subtotalMinor={plan.fee_minor ?? 0} onChange={setCoupon} />}
           {paid && <NewCardField value={token} onChange={setToken} />}
+          {gate.box}
         </div>
       )}
     </Dialog>

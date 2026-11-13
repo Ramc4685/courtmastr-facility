@@ -1379,10 +1379,12 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
     the provider answers (billing.invoice.paid then confirms a pay-in-full checkout)."""
     row, booking = _portal_rental(session, principal, rental_id, lock=True)
     quote, invoice_id = _checkout_quote(session, row)
-    if booking.status == "confirmed":
+    if booking.status == "confirmed":  # an idempotent replay of a paid confirm: already acknowledged
         return _checkout(session, row, booking, quote, invoice_id, False)
     if booking.status != "tentative" or booking.expires_at <= clock.now():
         raise Conflict("The hold on this time has expired.", code="hold-expired")
+    clients.terms.acknowledge(session, client_id=booking.client_id, terms_version_id=data.get("terms_version_id"),
+                              sale_kind="rental", subject_id=row.id)  # fmt: skip
     payment = billing.service.take_payment(
         session, client_id=booking.client_id, location_id=row.location_id, amount_minor=_amount_due(quote),
         tender_kind="card", idempotency_key=f"rental:{row.id}:{idempotency_key}",

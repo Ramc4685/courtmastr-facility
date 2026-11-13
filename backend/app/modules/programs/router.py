@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
+from app.core.auth import system_principal
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
@@ -704,3 +705,37 @@ def create_public_form_submission(
     # or duplicate attempts cannot burn someone else's allowance.
     hit("public-form-email", body.contact_email, response, tenant=session.info["tenant_id"])
     return receipt
+# --- guest checkout (REG-12): anonymous, rate limited, its own schemas -----------------------------------------
+
+
+def _guest_session(session: Public) -> Session:
+    session.info["actor"] = system_principal("guest checkout")
+    return session
+
+
+Guest = Annotated[Session, Depends(_guest_session)]
+_guest_limit = [Depends(rate_limit("guest-checkout"))]
+
+
+@public.post("/public/guest-checkouts", response_model=s.GuestCheckoutOut, status_code=201, dependencies=_guest_limit)
+def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest):
+    """Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
+    only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required."""
+    return checkout.guest_create(session, body.model_dump())
+
+
+@public.post(
+    "/public/guest-checkouts/{checkout_id}/confirm", response_model=s.GuestCheckoutOut, dependencies=_guest_limit
+)
+def confirm_guest_checkout(
+    checkout_id: UUID, body: s.GuestCheckoutConfirm, session: Guest, idempotency_key: RequiredKey
+):
+    """Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed."""
+    return checkout.guest_confirm(session, checkout_id, body.model_dump(), idempotency_key)
+
+
+@public.post(
+    "/public/guest-checkouts/{checkout_id}/abandon", response_model=s.GuestCheckoutOut, dependencies=_guest_limit
+)
+def abandon_guest_checkout(checkout_id: UUID, body: s.GuestCheckoutToken, session: Guest):
+    return checkout.guest_abandon(session, checkout_id, body.guest_token)

@@ -18,6 +18,12 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Leagues: publish a program as a league or tournament; captains manage their roster in the portal ("My teams"); split a team fee across players.
 - Lockers: set up locker rooms (create lockers in bulk), priced locker terms and padlocks, then rent, renew and clear lockers from the Lockers board. Padlock combinations are stored encrypted and shown only to staff allowed to reveal them; every reveal is logged.
 - Rental plans can renew automatically and charge the saved card, be sold to members only, and be shared with related clients; members can buy a rental plan and stop its renewal in the portal.
+- Public facility page at /f/your-address with locations, programs, social links and sign-in.
+- People can create their own portal account online after confirming their email (a portal setting, off by default).
+- Guest checkout: pay for a program by card without an account (a program setting, off by default).
+- Portal menu: hide or rename portal tabs per location; add social links and an after-registration page.
+- Portal colours from the account settings, used only where they stay readable.
+- Online purchases record the terms and conditions the buyer agreed to, and ask again when the text changed.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.

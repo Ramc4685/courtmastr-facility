@@ -84,14 +84,19 @@ function confirmIdentity(): Promise<boolean> {
 
 // Anonymous routes find the tenant from the host; where the host carries no tenant (local development on
 // localhost) the slug is sent as a header. It is an address, not a credential.
-const TENANT_SLUG: string | undefined =
+let TENANT_SLUG: string | undefined =
   import.meta.env.VITE_TENANT_SLUG ?? (import.meta.env.DEV || import.meta.env.MODE === 'test' ? 'courtside-demo' : undefined)
+
+/** /f/:slug pages name the facility in the URL (SSP-01); the API answers 404 when it differs from the session's. */
+export function setTenantSlug(slug: string) {
+  TENANT_SLUG = slug
+}
 
 // Anonymous auth endpoints guarded by the pre-session token (security-baseline 5.3 item 4).
 const PRE_SESSION = [
   '/api/v1/auth/sign-in', '/api/v1/auth/magic-links', '/api/v1/auth/password-resets', '/api/v1/auth/magic-links/consume',
   '/api/v1/auth/password-resets/consume', '/api/v1/auth/invitations/accept', '/api/v1/auth/mfa/enrolment',
-  '/api/v1/auth/mfa/verify', '/api/v1/auth/oidc/authorize', '/api/v1/auth/oidc/callback', '/api/v1/auth/oidc/link',
+  '/api/v1/auth/mfa/verify', '/api/v1/public/portal-signups', '/api/v1/public/portal-signups/confirm', '/api/v1/auth/oidc/authorize', '/api/v1/auth/oidc/callback', '/api/v1/auth/oidc/link',
 ]
 // A 401 from these is an answer, not an expired session. Kiosk routes use the device's kiosk cookie.
 const NOT_SESSION = [...PRE_SESSION, '/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit']

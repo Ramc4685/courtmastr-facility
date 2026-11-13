@@ -9,7 +9,7 @@ from datetime import date
 from uuid import UUID
 from zoneinfo import ZoneInfo, available_timezones
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,7 @@ from app.modules.platform.models import (
     StaffUser,
     Tenant,
     TenantCounter,
+    TenantDomain,
     UserLocationAccess,
 )
 
@@ -546,6 +547,15 @@ def is_staff_address(session: Session, email: str) -> bool:
         session.scalar(select(Identity.id).where(Identity.kind == "staff", Identity.email == email).limit(1))
         is not None
     )
+
+
+def tenant_hosts(session: Session) -> list[str]:
+    """Internal: the tenant's own web hosts (its subdomain and verified custom domains), lower-case. A redirect
+    to one of these is always allowed (SSP-07)."""
+    rows = session.scalars(
+        select(TenantDomain.host).where(or_(TenantDomain.kind == "subdomain", TenantDomain.verified_at.is_not(None)))
+    )
+    return [str(host).lower() for host in rows]
 
 
 def find_client_identity(session: Session, email: str) -> Identity | None:

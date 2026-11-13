@@ -481,6 +481,22 @@ def consume_password_reset(
     return grant
 
 
+def cookie_flags() -> dict:
+    """The session cookie's flags. Path=/; Secure; HttpOnly; SameSite=Lax and nothing else: no Domain, no Max-Age
+    (security-baseline 5.2). Shared with engagement's sign-up confirm, which also starts a web session."""
+    return {"path": "/", "httponly": True, "secure": get_settings().auth.cookie_secure, "samesite": "lax"}
+
+
+def sign_in_verified(session: Session, identity: Identity, *, client_kind: str, reason: str) -> Grant | Challenge:
+    """Internal: start a session for a client identity whose mailbox the caller has just proved, as consuming a
+    link does (public sign-up, SSP-05). A second factor still comes first when the identity has one."""
+    if challenge := _second_factor(session, identity, client_kind, reason):
+        return challenge
+    grant = _start_session(session, identity, client_kind)
+    audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal, reason=reason)
+    return grant
+
+
 # Other contexts append fn(session, identity_id) to run when an invited identity activates (clients: access rows).
 ACTIVATION_HOOKS: list = []
 

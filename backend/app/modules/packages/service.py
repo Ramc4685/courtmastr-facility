@@ -1217,6 +1217,8 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     something to pay."""
     data = dict(data)
     subject = _portal_client(session, principal, data.pop("client_id", None), "buy")
+    clients.terms.acknowledge(session, client_id=subject, terms_version_id=data.pop("terms_version_id", None),
+                              sale_kind="package", subject_id=data["package_plan_id"])  # fmt: skip
     token = data.pop("method_token", None)
     tender = data.pop("tender_kind", "card")
     coupon = data.pop("coupon_code", None)

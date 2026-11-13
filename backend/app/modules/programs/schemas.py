@@ -321,6 +321,7 @@ class RegistrationConfigPut(In):
     confirmation_message: Text | None = None
     public_slug: Annotated[str, StringConstraints(max_length=80)] | None = None
     portal_publish_name: Name | None = None
+    allows_guest_checkout: bool | None = None  # REG-12: off by default
 
 
 class RegistrationConfigOut(Out):
@@ -337,6 +338,7 @@ class RegistrationConfigOut(Out):
     is_portal_visible: bool
     portal_publish_name: str | None
     portal_published_at: datetime | None
+    allows_guest_checkout: bool
 
 
 # --- public listing (anonymous) -----------------------------------------------------------------------------
@@ -361,6 +363,7 @@ class PublicProgramGroup(Out):
     payment_requirement: str
     confirmation_message: str | None
     closed_message: str | None
+    allows_guest_checkout: bool  # REG-12: a guest may check out without an account
     fees: list[PublicFee]
     children: list["PublicProgramGroup"]
 
@@ -436,6 +439,7 @@ class PortalCheckoutConfirm(In):
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
     payment_method_id: UUID | None = None
     pay_later: bool = False
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
         None  # SSP-11
     )
@@ -468,6 +472,77 @@ class PortalCheckoutOut(Out):
     completed_at: datetime | None
     missing_documents: list[PortalMissingDocument]
     items: list[PortalCheckoutItem]
+
+
+# --- guest checkout (REG-12, phase-11 Q6): anonymous, its own schemas ------------------------------------------
+
+GuestName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+GuestToken = Annotated[str, StringConstraints(min_length=10, max_length=200)]
+
+
+class GuestPayer(In):
+    first_name: GuestName
+    last_name: GuestName
+    email: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=3, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
+    ]
+    phone_mobile: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)] | None = None
+
+
+class GuestParticipant(In):
+    first_name: GuestName
+    last_name: GuestName
+    birth_on: date | None = None
+
+
+class GuestItem(In):
+    program_group_id: UUID
+    program_fee_id: UUID | None = None
+    participant: Annotated[int, Field(ge=0, le=5)] | None = None  # index into participants; null: the payer
+
+
+class GuestCheckoutCreate(In):
+    location_id: UUID
+    payer: GuestPayer
+    participants: Annotated[list[GuestParticipant], Field(max_length=6)] = []
+    items: Annotated[list[GuestItem], Field(min_length=1, max_length=10)]
+
+
+class GuestCheckoutConfirm(In):
+    """A guest pays in full by a new card: no stored methods, no account credit, no instalments."""
+
+    guest_token: GuestToken
+    method_token: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = None
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
+
+
+class GuestCheckoutToken(In):
+    guest_token: GuestToken
+
+
+class GuestCheckoutItem(Out):
+    id: UUID
+    client_name: str
+    program_group_id: UUID
+    program_group_name: str
+    amount_minor: int
+    status: str
+
+
+class GuestCheckoutOut(Out):
+    id: UUID
+    location_id: UUID
+    status: str
+    total_minor: int
+    expires_at: datetime
+    completed_at: datetime | None
+    items: list[GuestCheckoutItem]
+    guest_token: str | None = None  # only on create: keep it in memory to confirm or abandon
+    provider: str | None = None  # only on create: the processor the card is tokenised for, None when none
+    publishable_key: str | None = None
+    account_ref: str | None = None
 
 
 # --- session booking policy and self-service (CLS-09) -------------------------------------------------------

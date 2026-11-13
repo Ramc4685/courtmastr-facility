@@ -33,7 +33,10 @@ def public_url(row: StoredFile) -> str:
 def branding(session: Session) -> dict:
     """Internal (no principal: logos are public): the tenant's logo URL and each location's."""
     rows = session.execute(select(Logo.location_id, StoredFile).join(StoredFile, StoredFile.id == Logo.file_id)).all()
+    tenant = service.get_tenant(session)
     return {
+        "primary_color": tenant.brand_primary_color,
+        "accent_color": tenant.brand_accent_color,
         "tenant_logo_url": next((public_url(f) for loc, f in rows if loc is None), None),
         "locations": [{"location_id": loc, "logo_url": public_url(f)} for loc, f in rows if loc is not None],
     }

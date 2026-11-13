@@ -118,3 +118,21 @@ unchanged by this module: `/portal/clients`, `/portal/membership-contracts`, `/p
 The HTML builder and image library (MKT-04, MKT-06), CSV export of campaign history, the daily staff summary
 (MKT-14), SMS (MKT-15), targeted push (MKT-17), portal theming and terms acknowledgment at checkout (SSP-14),
 and slug routing in the web app (SSP-01).
+
+## Portal entry and accounts (Phase 11 chip A: SSP-01, 05, 07, 13, 15)
+
+- **Sign-up (`signup.py`, `portal_signup`).** Per location, off by default. `POST /public/portal-signups` answers
+  202 whatever the address: unknown gets a verification link (`fhp_` token in the URL fragment, only its hash kept,
+  single use, 24 hours); an address with an active login gets a sign-in link; any other identity state gets nothing.
+  A new request supersedes older pending ones. Confirming creates a new client (never matched by email; staff merge
+  duplicates), an active verified client login linked to it, publishes `PortalSignupConfirmed` and signs in
+  (cookie for the web, tokens for mobile, or the MFA challenge). Rate limits: `magic-link` and `link-address`
+  buckets on request, `consume` on confirm; both carry the login-CSRF check.
+- **Assumption: field policy.** The form collects name, email and mobile only, so a location whose portal field
+  policy requires more (address, birth date) refuses the sign-up with the policy's 422; staff relax the policy or
+  invite instead. Recorded, not guessed.
+- **Menu, social links, redirects** live on `portal_settings` (programs may not import engagement, so the per-group
+  redirect map is here too, keyed by program group id). Redirects are https only, no userinfo or explicit port,
+  and the host must be one of the tenant's own hosts (`platform.service.tenant_hosts`) or an allow-listed domain or
+  its subdomain; they are re-checked on every public read, so removing a domain disables a stored URL at once.
+- **Slug.** `GET /public/portal-config` carries `tenant_slug`; the web `/f/:slug` pages send it as `X-Tenant-Slug`.

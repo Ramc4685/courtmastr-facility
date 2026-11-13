@@ -2014,7 +2014,10 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     paid by card or bank debit and go through, or nothing is sold; with nothing due now, the card or bank
     account is stored as the owner's autopay method for what falls due later. A plan whose document is
     enforced online leaves the contract `upcoming` until that document is accepted in the portal (MEM-08)."""
-    contract, invoice = _sell(session, principal, _portal_sale(session, principal, data), "portal")
+    sale = _portal_sale(session, principal, data)
+    clients.terms.acknowledge(session, client_id=sale["client_id"], terms_version_id=data.get("terms_version_id"),
+                              sale_kind="membership", subject_id=sale["membership_plan_id"])  # fmt: skip
+    contract, invoice = _sell(session, principal, sale, "portal")
     token, tender = data.get("method_token"), data.get("tender_kind") or "card"
     mode = settings_row(session).online_card_save_mode
     paying_now = invoice is not None and invoice.balance_minor > 0

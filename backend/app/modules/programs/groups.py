@@ -587,7 +587,7 @@ def chosen_fees(
 
 _CONFIG_FIELDS = (
     "is_enabled", "opens_on", "closes_on", "payment_requirement", "displays_openings", "online_description",
-    "closed_message", "confirmation_message", "public_slug", "portal_publish_name",
+    "closed_message", "confirmation_message", "public_slug", "portal_publish_name", "allows_guest_checkout",
 )  # fmt: skip
 _CONFIG_HIDDEN = ("id", "tenant_id", "created_at", "updated_at")
 _DEFAULTED = (
@@ -612,7 +612,7 @@ def _config_view(group: ProgramGroup, config: RegistrationConfig | None) -> dict
             "program_group_id": group.id, "is_enabled": False, "opens_on": None, "closes_on": None,
             "payment_requirement": "immediate_card_payment", "displays_openings": False, "online_description": None,
             "closed_message": None, "confirmation_message": None, "public_slug": None, "is_portal_visible": False,
-            "portal_publish_name": None, "portal_published_at": None,
+            "portal_publish_name": None, "portal_published_at": None, "allows_guest_checkout": False,
         }  # fmt: skip
     return {c.key: getattr(config, c.key) for c in RegistrationConfig.__table__.columns if c.key not in _CONFIG_HIDDEN}
 
@@ -704,7 +704,7 @@ def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *
         "spots_left": spots_left(session, group) if config.displays_openings else None,
         "registration_state": registration_state(session, group, config),
         "payment_requirement": config.payment_requirement, "confirmation_message": config.confirmation_message,
-        "closed_message": config.closed_message,
+        "closed_message": config.closed_message, "allows_guest_checkout": config.allows_guest_checkout,
         "fees": [
             {"id": f.id, "fee_kind": f.fee_kind, "description": f.description, "amount_minor": f.amount_minor}
             for f in active_fees(session, group, online=True)

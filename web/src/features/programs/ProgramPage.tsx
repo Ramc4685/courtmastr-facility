@@ -431,6 +431,7 @@ function ConfigForm({ group, config, canConfig }: { group: ProgramGroup; config:
     closed_message: config.closed_message ?? '',
     public_slug: config.public_slug ?? '',
     portal_publish_name: config.portal_publish_name ?? '',
+    allows_guest_checkout: config.allows_guest_checkout,
   })
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch })
   const done = () => void qc.invalidateQueries({ queryKey: ['program-group', group.id, 'config'] })
@@ -449,6 +450,7 @@ function ConfigForm({ group, config, canConfig }: { group: ProgramGroup; config:
           closed_message: f.closed_message || null,
           public_slug: f.public_slug || null,
           portal_publish_name: f.portal_publish_name || null,
+          allows_guest_checkout: f.allows_guest_checkout,
         },
       }),
     onSuccess: () => {
@@ -509,6 +511,7 @@ function ConfigForm({ group, config, canConfig }: { group: ProgramGroup; config:
           <Input label="Closes on" type="date" value={f.closes_on} error={e.closes_on} onChange={(ev) => set({ closes_on: ev.target.value })} />
           <Input label="Name shown online" value={f.portal_publish_name} hint="Blank uses the program name." error={e.portal_publish_name} onChange={(ev) => set({ portal_publish_name: ev.target.value })} />
           <Checkbox label="Show places left" checked={f.displays_openings} onChange={(ev) => set({ displays_openings: ev.target.checked })} />
+          <Checkbox label="Allow guest checkout" hint="People pay by card without an account; each guest becomes a new client. Not offered when a document must be signed first." checked={f.allows_guest_checkout} onChange={(ev) => set({ allows_guest_checkout: ev.target.checked })} />
           <Input className="sm:col-span-2" label="Online description" value={f.online_description} error={e.online_description} onChange={(ev) => set({ online_description: ev.target.value })} />
           <Input className="sm:col-span-2" label="Confirmation message" value={f.confirmation_message} error={e.confirmation_message} onChange={(ev) => set({ confirmation_message: ev.target.value })} />
           <Input className="sm:col-span-2" label="Message when closed" value={f.closed_message} error={e.closed_message} onChange={(ev) => set({ closed_message: ev.target.value })} />

@@ -1,6 +1,6 @@
 """engagement request and response models: communication preferences (CLI-16)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -350,6 +350,31 @@ class NotificationRouteUpdate(In):
     emails: Annotated[list[Email], Field(max_length=20)] | None = None
 
 
+SocialNetwork = Literal["facebook", "instagram", "x", "youtube", "tiktok", "linkedin"]
+HttpsUrl = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500, pattern=r"^https://[^\s]+$")]
+Host = Annotated[
+    str, StringConstraints(strip_whitespace=True, to_lower=True, max_length=253, pattern=r"^[a-z0-9.-]+\.[a-z]{2,}$")
+]
+
+
+class PortalMenuItem(In):
+    """One portal section (SSP-13): shown or hidden, in list order, optionally renamed."""
+
+    key: Annotated[str, StringConstraints(pattern=r"^[a-z_]{1,30}$")]
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)] | None = None
+    is_visible: bool = True
+
+
+class PortalMenuItemOut(Out):
+    key: str
+    label: str | None
+    is_visible: bool
+
+
+class PublicMenuItem(PortalMenuItemOut):
+    """The same item on the public side: portal routes never share a staff model (test_portal_schemas)."""
+
+
 class PortalSettingsOut(Out):
     location_id: UUID
     is_enabled: bool
@@ -360,6 +385,12 @@ class PortalSettingsOut(Out):
     terms_version: int | None
     allows_online_rentals: bool
     allows_online_purchases: bool
+    allows_self_signup: bool
+    menu: list[PortalMenuItemOut]
+    social_links: dict[str, str]
+    redirect_url: str | None
+    group_redirect_urls: dict[str, str]
+    redirect_domains: list[str]
 
 
 class PortalSettingsUpdate(In):
@@ -370,6 +401,12 @@ class PortalSettingsUpdate(In):
     terms_text: Annotated[str, StringConstraints(max_length=20000)] | None = None
     allows_online_rentals: bool | None = None
     allows_online_purchases: bool | None = None
+    allows_self_signup: bool | None = None  # SSP-05: off by default
+    menu: Annotated[list[PortalMenuItem], Field(max_length=30)] | None = None
+    social_links: dict[SocialNetwork, HttpsUrl] | None = None
+    redirect_url: HttpsUrl | None = None  # SSP-07: after a successful checkout or sign-up; null clears
+    group_redirect_urls: Annotated[dict[UUID, HttpsUrl], Field(max_length=200)] | None = None
+    redirect_domains: Annotated[list[Host], Field(max_length=20)] | None = None
 
 
 class PublicPortalLocation(Out):
@@ -381,11 +418,33 @@ class PublicPortalLocation(Out):
     terms_version: int
     allows_online_rentals: bool
     allows_online_purchases: bool
+    allows_self_signup: bool
+    menu: list[PublicMenuItem]
+    social_links: dict[str, str]
+    redirect_url: str | None  # re-checked against the allow-list on every read
+    group_redirect_urls: dict[str, str]
 
 
 class PublicPortalConfig(Out):
     facility_name: str
+    tenant_slug: str
     locations: list[PublicPortalLocation]
+
+
+class PortalSignupIn(In):
+    """Public self-registration (SSP-05). The answer is the same whether or not the address is known."""
+
+    location_id: UUID
+    email: Email
+    first_name: Name
+    last_name: Name
+    phone_mobile: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)] | None = None
+    birth_on: date | None = None
+
+
+class PortalSignupConfirmIn(In):
+    token: Annotated[str, StringConstraints(min_length=10, max_length=200)]
+    client_kind: Literal["web", "mobile"] = "web"
 
 
 class VideoOut(Out):
@@ -484,3 +543,15 @@ class PublicPreferencesOut(Out):
 class PublicPreferencesReplace(In):
     token: Annotated[str, StringConstraints(min_length=10, max_length=200)]
     changes: Annotated[list[PreferenceChange], Field(min_length=1, max_length=20)]
+
+
+class PortalSignupSession(Out):
+    """The confirm answer, in the portal's own shape: `signed_in` (web: the session cookie is set and the CSRF
+    token is here; mobile: the tokens are here) or `mfa_required` (202, finish with the MFA verify route)."""
+
+    status: Literal["signed_in", "mfa_required"]
+    csrf_token: str | None = None
+    access_token: str | None = None
+    refresh_token: str | None = None
+    mfa_token: str | None = None
+    expires_at: datetime | None = None

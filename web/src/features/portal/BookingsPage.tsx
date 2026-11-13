@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTermsGate } from '../entry/FacilityApp'
 import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -29,13 +30,17 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
   const { money, zoneOf } = usePortal()
   const [token, setToken] = useState('')
   const attempt = useAttemptKey()
+  const gate = useTermsGate()
   const confirm = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/rentals/{rental_id}/confirm', { path: { rental_id: checkout.rental.id }, body: { provider_payment_token: token }, idempotencyKey: attempt.key }),
+    mutationFn: () => api.post('/api/v1/portal/rentals/{rental_id}/confirm', { path: { rental_id: checkout.rental.id }, body: { provider_payment_token: token, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: ['portal'] })
       onDone(c)
     },
-    onError: attempt.settle,
+    onError: (error) => {
+      attempt.settle(error)
+      gate.onError(error)
+    },
   })
   const q = checkout.quote
   return (
@@ -43,7 +48,7 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
-        if (token) confirm.mutate()
+        if (token && gate.ready) confirm.mutate()
       }}
     >
       <ul className="divide-y divide-border text-sm">
@@ -66,7 +71,8 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
       {checkout.expires_at && <p className="text-sm text-muted">We are holding this time until {formatDateTime(checkout.expires_at, zoneOf(checkout.rental.location_id))}.</p>}
       <FormError error={confirm.error} />
       <NewCardField value={token} onChange={setToken} />
-      <Button type="submit" loading={confirm.isPending} disabled={!token}>
+      {gate.box}
+      <Button type="submit" loading={confirm.isPending} disabled={!token || !gate.ready}>
         Pay {money(checkout.amount_due_minor)}
       </Button>
     </form>

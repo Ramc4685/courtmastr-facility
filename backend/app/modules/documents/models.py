@@ -383,3 +383,32 @@ class DocumentLocationSettings(TenantOwned, Timestamps, Base):
 
     location_id: Mapped[UUID]
     is_consent_required: Mapped[bool] = mapped_column(server_default=text("false"))
+
+
+class TermsSaleKind(StrEnum):
+    MEMBERSHIP = "membership"
+    PACKAGE = "package"
+    PROGRAM = "program"
+    RENTAL = "rental"
+
+
+class TermsAcceptance(TenantOwned, Timestamps, Base):
+    """One recorded acknowledgment of the bound portal terms at one version, taken at the start of a portal sale
+    (SSP-14). `terms_version_id` is the version the buyer was shown (see service.portal_terms_version);
+    `subject_id` is what was being bought (plan, program group or rental), since the sale has no id yet."""
+
+    __tablename__ = "terms_acceptance"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client"),
+        *tfk("binding_id", "document_binding"),
+        enum_check("sale_kind", TermsSaleKind),
+    )
+
+    client_id: Mapped[UUID]
+    binding_id: Mapped[UUID]
+    terms_version_id: Mapped[str] = mapped_column(info={"audit": "value"})
+    sale_kind: Mapped[str] = enum_column()
+    subject_id: Mapped[UUID]
+    identity_id: Mapped[UUID | None]
+    accepted_at: Mapped[datetime]
+    ip: Mapped[Any | None] = mapped_column(INET, info=_FLAG)

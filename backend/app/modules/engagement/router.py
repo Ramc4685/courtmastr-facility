@@ -8,13 +8,22 @@ from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth import system_principal, tokens
-from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
-from app.core.errors import NotFound
+from app.core.auth.deps import (
+    Ctx,
+    current_ctx,
+    pre_session_csrf,
+    public_session,
+    request_session,
+    require,
+    session_cookie,
+)
+from app.core.errors import NotFound, Unauthenticated
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import hit, rate_limit
+from app.modules import platform
 from app.modules.engagement import schemas as s
-from app.modules.engagement import service
+from app.modules.engagement import service, signup
 
 router = APIRouter(
     route_class=TxRoute, tags=["engagement"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -473,3 +482,42 @@ def put_public_communication_preferences(body: s.PublicPreferencesReplace, reque
 def get_public_portal_config(session: Annotated[Session, Depends(public_session)]):
     """Enabled, public locations and their landing text. Tenant from the host or X-Tenant-Slug."""
     return service.public_portal_config(session)
+
+
+# --- public self-registration (SSP-05) ------------------------------------------------------------------------
+
+
+@public.post(
+    "/public/portal-signups", status_code=202,
+    dependencies=[Depends(rate_limit("magic-link")), Depends(pre_session_csrf)],
+)  # fmt: skip
+def create_portal_signup(
+    body: s.PortalSignupIn, response: Response, session: Annotated[Session, Depends(public_session)]
+):
+    """Email a verification link to finish signing up. 202 whether or not the address is known. Errors:
+    signup-disabled (the location does not take online sign-ups), field-required, rate-limited."""
+    hit("link-address", f"client:{body.email}", response, tenant=session.info["tenant_id"])
+    session.info["actor"] = system_principal("portal sign-up")
+    signup.request_signup(session, body.model_dump())
+
+
+@public.post(
+    "/public/portal-signups/confirm", response_model=s.PortalSignupSession, response_model_exclude_none=True,
+    responses={202: {"model": s.PortalSignupSession}},
+    dependencies=[Depends(rate_limit("consume")), Depends(pre_session_csrf)],
+)  # fmt: skip
+def confirm_portal_signup(body: s.PortalSignupConfirmIn, request: Request, response: Response):
+    """Create the client and the portal login and sign in. Errors: token-invalid, token-expired."""
+    tenant_id = tokens.tenant_of(body.token, signup.TOKEN_PREFIX)
+    if tenant_id is None:
+        raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
+    session = request_session(request, tenant_id)
+    session.info["actor"] = system_principal("portal sign-up")
+    result = signup.confirm_signup(session, token=body.token, client_kind=body.client_kind)
+    if isinstance(result, platform.auth.Challenge):
+        response.status_code = 202
+        return {"status": "mfa_required", "mfa_token": result.token, "expires_at": result.expires_at}
+    if result.auth_session.kind == "mobile":
+        return {"status": "signed_in", "access_token": result.access_token, "refresh_token": result.refresh_token}
+    response.set_cookie(session_cookie(), f"{result.access_token}.{result.csrf_token}", **platform.auth.cookie_flags())
+    return {"status": "signed_in", "csrf_token": result.csrf_token}
