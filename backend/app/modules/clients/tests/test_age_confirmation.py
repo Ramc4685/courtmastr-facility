@@ -236,3 +236,67 @@ def test_confirm_age_has_its_own_key_and_stays_in_location_scope(client, owner, 
     assert confirm(client, away, who).status_code == 404
     desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
     assert ok(confirm(client, desk, who), 200)["age_confirmed"] is True
+
+
+# --- a merge never launders a confirmation (verification blocker) -------------------------------------------------
+
+
+def merge(client, owner, survivor: str, *losers: str) -> dict:
+    return ok(
+        client.post(f"{API}/clients/{survivor}/merge", headers=owner, json={"merged_client_ids": list(losers)}), 200
+    )
+
+
+def queued(client, owner) -> set[str]:
+    return {c["id"] for c in ok(client.get(f"{API}/client-age-reviews", headers=owner), 200)["data"]}
+
+
+def test_merging_an_unconfirmed_signup_with_a_login_into_a_confirmed_record_unconfirms_it(client, owner, tenant, f):
+    staff_record = new_client(client, owner, f.location, birth_on=ADULT)["id"]
+    ok(confirm(client, owner, staff_record), 200)
+    signup, portal = portal_client(client, owner, tenant, f, birth_on=ADULT)
+    merged = merge(client, owner, staff_record, signup)
+    assert merged["age_confirmed"] is False and merged["age_confirmed_at"] is None
+    seen = ok(client.get(f"{API}/portal/clients", headers=portal), 200)["data"]
+    assert [c["age_confirmed"] for c in seen if c["id"] == staff_record] == [False]
+    assert confirmed_events(tenant, staff_record) == 1  # only the earlier action's
+    assert staff_record in queued(client, owner)
+    with tenant_session(tenant.id) as session:
+        record = session.scalars(select(AuditEvent).where(
+            AuditEvent.entity_id == staff_record, AuditEvent.action == "clients.client.merge")).one()  # fmt: skip
+    assert record.changes["age_confirmation_reset"] is True and ADULT not in str(record.changes)
+
+
+def test_a_confirmed_loser_does_not_confirm_an_unconfirmed_survivor(client, owner, tenant, f):
+    survivor = self_declared(client, owner, tenant, f)
+    loser = self_declared(client, owner, tenant, f)
+    ok(confirm(client, owner, loser), 200)
+    assert merge(client, owner, survivor, loser)["age_confirmed"] is False
+    assert confirmed_events(tenant, survivor) == 0
+
+
+def test_a_confirmed_loser_with_its_own_login_unconfirms_the_survivor(client, owner, tenant, f):
+    survivor = new_client(client, owner, f.location, birth_on=ADULT)["id"]
+    ok(confirm(client, owner, survivor), 200)
+    loser, _ = portal_client(client, owner, tenant, f, birth_on=ADULT)
+    ok(confirm(client, owner, loser), 200)  # an ID was seen for the record, not for whoever holds the login now
+    assert merge(client, owner, survivor, loser)["age_confirmed"] is False
+
+
+def test_two_confirmed_records_with_different_dates_merge_unconfirmed(client, owner, tenant, f):
+    survivor = new_client(client, owner, f.location, birth_on=ADULT)["id"]
+    loser = new_client(client, owner, f.location, birth_on="1990-01-03", last_name="Other")["id"]
+    for who in (survivor, loser):
+        ok(confirm(client, owner, who), 200)
+    assert merge(client, owner, survivor, loser)["age_confirmed"] is False
+
+
+def test_two_confirmed_records_with_the_same_date_stay_confirmed(client, owner, tenant, f):
+    survivor = new_client(client, owner, f.location, birth_on=ADULT)["id"]
+    loser = new_client(client, owner, f.location, birth_on=ADULT)["id"]
+    for who in (survivor, loser):
+        ok(confirm(client, owner, who), 200)
+    merged = merge(client, owner, survivor, loser)
+    assert merged["age_confirmed"] is True and merged["age_confirmed_at"]
+    assert confirmed_events(tenant, survivor) == 1
+    assert survivor not in queued(client, owner)

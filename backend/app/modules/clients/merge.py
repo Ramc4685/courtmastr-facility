@@ -221,6 +221,15 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
             {**b, "client_id": str(b["client_id"])} for b in blockers
         ])  # fmt: skip
     now = clock.now()
+    # "Staff confirm once": the survivor stays confirmed only if every record was confirmed for the same date and
+    # no loser brings a login the survivor lacked. A merge never confirms and never fires age_confirmed.
+    was_confirmed = service._age_confirmed(survivor)
+    logins = _own_login(session, survivor.id)
+    if was_confirmed and any(
+        not service._age_confirmed(x) or x.birth_on != survivor.birth_on or _own_login(session, x.id) - logins
+        for x in losers
+    ):
+        service._mark_age_unconfirmed(survivor)
     for loser in losers:
         filled = {}
         for field in _backfill_fields(survivor, [loser]):
@@ -234,6 +243,8 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
                 service._mark_age_unconfirmed(survivor)
             setattr(survivor, field, value)
         survivor.custom_values = loser.custom_values | survivor.custom_values
+        if loser.earliest_booking_at:  # the age-check queue keeps the loser's bookings
+            survivor.earliest_booking_at = min(filter(None, (survivor.earliest_booking_at, loser.earliest_booking_at)))
         session.flush()
         for handler in HANDLERS.values():
             handler.repoint(session, loser.id, survivor.id)
@@ -248,8 +259,10 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
                      changes={"merged_into_id": [None, str(survivor.id)]})  # fmt: skip
         events.publish(session, ClientMerged(client_id=loser.id, survivor_client_id=survivor.id), loser.id)
     survivor.version += 1
-    audit.record(session, "clients.client.merge", survivor, location_id=survivor.home_location_id,
-                 changes={"absorbed": [str(x.id) for x in losers]})  # fmt: skip
+    changes: dict = {"absorbed": [str(x.id) for x in losers]}
+    if was_confirmed and not service._age_confirmed(survivor):
+        changes["age_confirmation_reset"] = True  # flag-only: no date in the audit
+    audit.record(session, "clients.client.merge", survivor, location_id=survivor.home_location_id, changes=changes)
     events.publish(session, service.ClientUpdated(client_id=survivor.id), survivor.id)
     session.flush()
     return survivor

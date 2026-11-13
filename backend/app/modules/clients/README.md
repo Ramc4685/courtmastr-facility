@@ -32,6 +32,9 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   update confirms only when it sends `confirm_age: true` and the caller holds the key. Every other write of
   `birth_on` (sign-up, guest checkout, a dependant, a desk edit, the till, an import, a merge backfill, an API key)
   leaves the date unconfirmed; changing a confirmed date resets it and the response says `age_confirmation_reset`.
+- **A merge never confirms.** The survivor stays confirmed only if it and every merged record were confirmed for
+  the same date and no merged record brings a login the survivor did not have; otherwise it becomes unconfirmed
+  (merge audit `age_confirmation_reset`, flag-only), keeps the earliest booking and joins the queue. No event fires.
 - **Self-service needs a declared date.** Sign-up, guest checkout and portal dependants require `birth_on` and
   `birth_on_declared: true`; a person may not change a recorded date (`field-locked`).
 - **Seam for building-control.** Event `clients.client.age_confirmed` (fired once, on the transition) and
