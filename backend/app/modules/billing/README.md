@@ -69,6 +69,8 @@ allocate(session, payment_id, *, invoice_id=None, allocations=None); release_all
 refund(session, payment_id, *, amount_minor, reason, idempotency_key=None, method=None, comments=None,
        refund_batch_id=None, release_allocation_ids=()) -> Refund;  confirm_refund(session, refund_id)
 resume_refund(session, refund_id, *, abandon=False) -> Refund        # the sweep's half of the pre-provider row
+failed_refund_attempts(session, payment_id, key_prefix) -> int        # declined or cancelled refunds under a key
+                                                                      # prefix: append it to a fixed key ("try again")
 reverse(session, charge_id, *, reason, revenue_on=None) -> Charge       # the negating charge
 void_charge(session, charge_id, *, reason) -> Charge
 adjust_charge(session, charge_id, *, reason, quantity=None, unit_price_minor=None, discount_minor=None,
@@ -267,10 +269,20 @@ handlers re-read the object from the provider.
   locks the payment and calls the processor, with the same 500 ms fallback as payments. A retry with the key
   finishes that row (same provider key, so the card is refunded once); `webhooks.reconcile` finishes an
   `initiated` refund older than five minutes from `find_refund` and cancels one the processor never heard of
-  after 30 minutes. A refund the processor made is applied by the sweep even if the money was spent since (it
-  left the account either way; the remainder check constraint then refuses and the sweep fails loudly).
-  The early amount check runs before the row is written, so a plain mistake leaves no row; the
-  locked re-check after it can still refuse a race, which leaves an `initiated` row for the sweep to cancel.
+  after 30 minutes. **An `initiated` refund reserves its amount**: `unapplied_minor` is the remainder less what
+  `initiated` refunds of the payment hold back (never below zero; a negative remainder is still refused by the
+  check constraint), written in the same short transaction, so autopay and staff allocations cannot spend money
+  the processor may already be returning. The row keeps `release_allocation_ids` (migration 1803). When the
+  processor did pay out, the sweep re-applies that release (it rolled back with the request) and, if the
+  remainder still falls short, releases the payment's newest live allocations until it is covered (whole
+  allocations: any excess stays as account credit). If even that cannot cover it the item is
+  `refund-unreconcilable`: each sweep item runs in its own savepoint, the error is written to the refund's
+  `failure_message` ("Could not reconcile: ...") for staff, and the rest of `billing_daily` (autopay first)
+  carries on; the next sweep tries again. Billing locks rows `FOR NO KEY UPDATE`, so a caller that already
+  holds the payment (membership cancel, POS return) still gets the pre-provider row committed; only the
+  reservation then happens in the caller's transaction. The early amount check (unapplied plus what the named
+  allocations would free) runs before the row is written, so a plain mistake leaves no row; the locked
+  re-check after it can still refuse a race, which leaves an `initiated` row for the sweep to cancel.
   **A refund key is bound to its payment and its request**: a key already used on another payment, or on
   this payment with another amount, method or reason, is 409 `idempotency-key-reused` before anything is
   released or sent to the processor; the same request replays the stored refund. Uniqueness is per payment
@@ -278,10 +290,13 @@ handlers re-read the object from the provider.
   (`external`) refunds are written in the request (no call to make) but keep the key, so they replay too.
   `release_allocation_ids` are not part of the stored request: a replay never releases, whatever it names.
 - **Release-then-refund (PAY-05).** `release_allocation_ids` on `refund()` and `POST /payments/{id}/refunds`
-  releases those allocations of the same payment (to credit, posted) and then refunds, in one transaction and
+  releases those allocations of the same payment (to credit, posted) and refunds, in one transaction and
   one audit row for the payment; the staff route also needs `billing.payment.reallocate` at the payment's
-  location, as the separate release does. A replay with the key returns the first refund before releasing
-  anything. What is released but not refunded stays as account credit. Not built: a refund the processor
+  location, as the separate release does. The ids are checked before anything is written; the release itself
+  happens only once the processor has accepted the refund, so a declined refund leaves the items paid and the
+  books as they were (the 201 says `failed`). A replay with the key returns the first refund before releasing
+  anything, and a retry of an `initiated` row releases what the first request named. What is released but not
+  refunded stays as account credit. Not built: a refund the processor
   reverses after it succeeded (Stripe `refund.failed` after `succeeded`); the `refund_returned` ledger kind
   is reserved for it.
 - **A voided invoice has total 0** (totals are projections of its items, and it has none); the audit event
@@ -314,7 +329,9 @@ handlers re-read the object from the provider.
   `render_invoices` (`invoice_ids`; render records a `download` delivery with its stored PDF), `add_catalog_item`
   (`client_ids`, `params.catalog_item_id` of that location, sold through `catalog.sell`). Each action needs its own
   key at the action's location (`bulk.KEYS`); subjects at other locations, or not in a state to act on, are stored
-  as `skipped`. At most 1000 subjects. A dry run, or 25 items or fewer, runs in the request; more run as
+  as `skipped`; so is a clientless (POS) charge when invoicing (`charge-has-no-client`: it has no payer). A chunk
+  that selects nothing while items are still pending fails them (`not-processed`) instead of re-running for
+  ever. At most 1000 subjects. A dry run, or 25 items or fewer, runs in the request; more run as
   `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, as the system: the person was
   authorized on every subject when the action was created. Every item (or client group) is a savepoint, so a
   failure is recorded on its row (`error_code`) and the rest continue. A dry run does the same work and rolls each

@@ -123,9 +123,15 @@ def assert_books_agree(session) -> None:
                 PaymentAllocation.payment_id == row.id, live
             )
         )
-        expected = row.amount_minor - allocated - row.refunded_minor if row.status == "succeeded" else 0
+        reserved = session.scalar(  # an `initiated` refund holds its amount back from spending (PAY-05)
+            select(func.coalesce(func.sum(Refund.amount_minor), 0)).where(
+                Refund.payment_id == row.id, Refund.status == "initiated"
+            )
+        )
+        base = row.amount_minor - allocated - row.refunded_minor if row.status == "succeeded" else 0
+        expected = base - min(base, reserved)
         assert row.unapplied_minor == expected, "payment.unapplied_minor drifted"
-        credit += row.unapplied_minor
+        credit += base
     applied_total = session.scalar(
         select(func.coalesce(func.sum(PaymentAllocation.amount_minor), 0)).where(PaymentAllocation.status == "applied")
     )

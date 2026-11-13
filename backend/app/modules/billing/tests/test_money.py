@@ -553,15 +553,15 @@ def test_the_sweep_finishes_an_orphan_and_cancels_what_never_reached_the_process
         patched.setattr(fake, "create_payment", lambda **_: (_ for _ in ()).throw(RuntimeError("no network")))
         card(session, shop, 300, idempotency_key=lost)
     with work(shop.tenant) as session:
-        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0}  # too fresh to touch
+        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}  # too fresh to touch
     with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
-        assert webhooks.reconcile(session) == {"payments": 2, "cancelled": 0, "refunds": 0}
+        assert webhooks.reconcile(session) == {"payments": 2, "cancelled": 0, "refunds": 0, "failed": 0}
         states = dict(session.execute(select(Payment.idempotency_key, Payment.status)).all())
         assert states == {charged: "succeeded", lost: "initiated"}
     with clock.freeze(clock.now() + timedelta(minutes=45)), work(shop.tenant) as session:
         assert webhooks.reconcile(session)["cancelled"] == 1
         assert session.scalar(select(Payment.status).where(Payment.idempotency_key == lost)) == "cancelled"
-        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0}
+        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}
         assert_books_agree(session)
 
 

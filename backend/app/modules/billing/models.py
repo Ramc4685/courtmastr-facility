@@ -21,6 +21,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.audit import ActorType
@@ -508,6 +509,8 @@ class Refund(TenantOwned, Timestamps, Base):
     failure_message: Mapped[str | None]
     issued_by_staff_user_id: Mapped[UUID | None]
     idempotency_key: Mapped[str | None]  # a processed refund's row is found again by it (written before the call)
+    # The allocations a release-then-refund releases, kept so the sweep can re-apply the release (migration 1803).
+    release_allocation_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PgUUID(as_uuid=True)))
 
 
 class Dispute(TenantOwned, Timestamps, Base):

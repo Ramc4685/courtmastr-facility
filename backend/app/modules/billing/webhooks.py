@@ -10,7 +10,7 @@ import logging
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core import clock, inbound_webhooks
@@ -112,7 +112,7 @@ def reconcile(session: Session) -> dict:
     """The sweep: finish what a webhook or a dying request left behind. Re-reads every payment that is not in
     a final state and every pending or `initiated` refund; an `initiated` payment or refund the provider has no
     record of after 30 minutes is cancelled. Idempotent; run it as often as you like."""
-    now, counts = clock.now(), {"payments": 0, "cancelled": 0, "refunds": 0}
+    now, counts = clock.now(), {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}
     unsettled = session.scalars(
         select(Payment.id)
         .where(
@@ -129,15 +129,33 @@ def reconcile(session: Session) -> dict:
             service._apply_state(session, payment, PaymentState(provider_payment_ref="", outcome="cancelled"))
             counts["cancelled"] += 1
     for refund_id in session.scalars(select(Refund.id).where(Refund.status == "pending")).all():
-        service.confirm_refund(session, refund_id)
-        counts["refunds"] += 1
+        done = _isolated(session, refund_id, lambda rid=refund_id: service.confirm_refund(session, rid))
+        counts["refunds" if done else "failed"] += 1
     orphans = session.execute(
         select(Refund.id, Refund.created_at).where(Refund.status == "initiated", Refund.created_at < now - STALE_AFTER)
     ).all()
     for refund_id, created_at in orphans:  # a refund whose request died around the processor call (PAY-05)
-        service.resume_refund(session, refund_id, abandon=created_at < now - ABANDON_AFTER)
-        counts["refunds"] += 1
+        abandon = created_at < now - ABANDON_AFTER
+        done = _isolated(
+            session, refund_id, lambda rid=refund_id, a=abandon: service.resume_refund(session, rid, abandon=a)
+        )
+        counts["refunds" if done else "failed"] += 1
     return counts
+
+
+def _isolated(session: Session, refund_id: UUID, work) -> bool:
+    """One sweep item in a savepoint: a refund that cannot be reconciled is recorded on its row for staff (the
+    payment's refund list shows the message) and the rest of the pass, autopay included, carries on."""
+    try:
+        with session.begin_nested():
+            work()
+    except Exception as error:  # noqa: BLE001  (recorded on the row; retried by the next sweep)
+        log.warning("refund %s could not be reconciled: %s", refund_id, error)
+        session.execute(
+            update(Refund).where(Refund.id == refund_id).values(failure_message=f"Could not reconcile: {error}"[:500])
+        )
+        return False
+    return True
 
 
 @tenant_actor

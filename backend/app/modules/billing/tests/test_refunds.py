@@ -36,7 +36,7 @@ def test_a_refund_row_is_committed_before_the_processor_and_a_retry_finishes_it(
     with work(shop.tenant) as session:
         left = session.scalars(select(Refund)).one()
         assert (left.status, left.idempotency_key, left.provider_refund_ref) == ("initiated", refund_key, None)
-        assert session.get(svc.Payment, payment_id).unapplied_minor == 500  # nothing reserved, nothing posted
+        assert session.get(svc.Payment, payment_id).unapplied_minor == 200  # reserved, not yet posted
         posted = transactions(session)
         again = svc.refund(session, payment_id, amount_minor=300, reason="Changed plans", idempotency_key=refund_key)
         assert (again.id, again.status) == (left.id, "succeeded")
@@ -173,3 +173,135 @@ def test_a_key_reused_on_another_payment_releases_nothing(shop):
                 release_allocation_ids=[allocation.id],
             )  # fmt: skip
         assert allocation.status == "applied" and item.applied_minor == 1083
+
+
+def test_release_then_refund_of_too_much_leaves_no_started_row(shop):
+    """More than the unapplied remainder plus what is released is refused before the `initiated` row is written."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        item = charge(session, shop, 1000)
+        payment = card(session, shop, 1083, allocations=[(item.id, 1083)])
+        allocation = session.scalars(select(PaymentAllocation).where(PaymentAllocation.payment_id == payment.id)).one()
+        payment_id, allocation_id = payment.id, allocation.id
+    with pytest.raises(ValidationFailed) as caught, work(shop.tenant) as session:
+        svc.refund(
+            session, payment_id, amount_minor=1084, reason="Too much", idempotency_key=uuid4().hex,
+            release_allocation_ids=[allocation_id],
+        )  # fmt: skip
+    assert caught.value.code == "refund-exceeds-unapplied"
+    with work(shop.tenant) as session:
+        assert session.scalar(select(func.count()).select_from(Refund)) == 0
+        assert session.get(PaymentAllocation, allocation_id).status == "applied"
+
+
+def _applied(shop, amount=1083):
+    with work(shop.tenant) as session:
+        item = charge(session, shop, 1000)
+        payment = card(session, shop, amount, allocations=[(item.id, amount)])
+        allocation = session.scalars(select(PaymentAllocation).where(PaymentAllocation.payment_id == payment.id)).one()
+        return item.id, payment.id, allocation.id
+
+
+def test_a_composite_refund_that_dies_after_the_processor_is_reconciled_by_the_sweep(shop):
+    ready(shop)
+    item_id, payment_id, allocation_id = _applied(shop)
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc.refund(
+            session, payment_id, amount_minor=600, reason="Closed", idempotency_key="crash",
+            release_allocation_ids=[allocation_id],
+        )  # fmt: skip
+        raise RuntimeError("died after the processor refunded")
+    with work(shop.tenant) as session:
+        row = session.scalars(select(Refund)).one()
+        assert (row.status, row.release_allocation_ids) == ("initiated", [allocation_id])
+        assert session.get(PaymentAllocation, allocation_id).status == "applied"  # the release rolled back
+    with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
+        assert webhooks.reconcile(session)["refunds"] == 1
+        assert session.scalar(select(Refund.status)) == "succeeded"
+        assert session.get(PaymentAllocation, allocation_id).status == "released"
+        assert session.get(svc.Charge, item_id).applied_minor == 0  # the invoice is open again
+        assert session.get(svc.Payment, payment_id).unapplied_minor == 483
+        assert_books_agree(session)
+
+
+def test_an_initiated_refund_reserves_its_amount_and_the_sweep_covers_a_shortfall(shop):
+    """A plain refund's money cannot be spent while it is `initiated`; if the remainder is gone anyway (applied
+    by hand before the reservation existed), the sweep releases the newest allocations to cover it."""
+    ready(shop)
+    payment_id = _paid(shop, 500)
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc.refund(session, payment_id, amount_minor=300, reason="Changed plans", idempotency_key="reserve")
+        raise RuntimeError("died after the processor refunded")
+    with work(shop.tenant) as session:
+        assert session.get(svc.Payment, payment_id).unapplied_minor == 200  # 300 is reserved
+        item = charge(session, shop, 1000)
+        assert svc.spend_credit(session, shop.client_id, allocations=None) == 200  # the reserved 300 stays put
+        assert_books_agree(session)
+        # simulate money applied behind the reservation's back: the sweep must still balance
+        session.execute(svc.update(Refund).values(amount_minor=400))
+    with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
+        webhooks.reconcile(session)
+        row = session.scalars(select(Refund)).one()
+        assert row.status == "succeeded"
+        assert session.get(svc.Charge, item.id).applied_minor == 0  # released to cover the refund
+        assert_books_agree(session)
+
+
+def test_one_unreconcilable_refund_does_not_stop_the_sweep(shop):
+    ready(shop)
+    bad, good = _paid(shop, 500), _paid(shop, 500)
+    for payment_id, refund_key in ((bad, "bad"), (good, "good")):
+        with pytest.raises(RuntimeError), work(shop.tenant) as session:
+            svc.refund(session, payment_id, amount_minor=200, reason="x", idempotency_key=refund_key)
+            raise RuntimeError("died")
+    with work(shop.tenant) as session:  # the processor refunded more than the payment can cover
+        session.execute(svc.update(Refund).where(Refund.idempotency_key == "bad").values(amount_minor=900))
+    with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
+        counts = webhooks.reconcile(session)
+        assert (counts["refunds"], counts["failed"]) == (1, 1)
+    with work(shop.tenant) as session:
+        states = {r.idempotency_key: (r.status, r.failure_message) for r in session.scalars(select(Refund))}
+        assert states["good"] == ("succeeded", None)
+        assert states["bad"][0] == "initiated" and "reconcile" in states["bad"][1]
+
+
+def test_a_declined_composite_refund_releases_nothing(shop, monkeypatch):
+    ready(shop)
+    item_id, payment_id, allocation_id = _applied(shop)
+    monkeypatch.setattr(payment_provider.get("fake"), "refund", lambda **_: RefundState("fake_ref_no", "failed", "No"))
+    with work(shop.tenant) as session:
+        row = svc.refund(
+            session, payment_id, amount_minor=600, reason="Closed", idempotency_key=uuid4().hex,
+            release_allocation_ids=[allocation_id],
+        )  # fmt: skip
+        assert row.status == "failed"
+        assert session.get(PaymentAllocation, allocation_id).status == "applied"
+        assert session.get(svc.Charge, item_id).applied_minor == 1083
+        assert_books_agree(session)
+
+
+def test_a_caller_holding_the_payment_lock_still_gets_a_committed_refund_row(shop):
+    """Cross-context refunds (membership cancel, POS return) lock the payment first; the pre-provider row must
+    still commit on its own so a crash after the processor call is recoverable."""
+    ready(shop)
+    payment_id = _paid(shop)
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc._lock(session, svc.Payment, payment_id)
+        svc.refund(session, payment_id, amount_minor=100, reason="Cancel", idempotency_key="locked")
+        raise RuntimeError("died")
+    with work(shop.tenant) as session:
+        assert session.scalar(select(Refund.status).where(Refund.idempotency_key == "locked")) == "initiated"
+
+
+def test_an_on_account_refund_replays_with_its_key(shop):
+    """A record-only (external) refund of account credit keeps its key: the same request returns the first row."""
+    with work(shop.tenant) as session:
+        payment = cash(session, shop, 800)
+        refund_key = uuid4().hex
+        first = svc.refund(session, payment.id, amount_minor=300, reason="On account", idempotency_key=refund_key)
+        again = svc.refund(session, payment.id, amount_minor=300, reason="On account", idempotency_key=refund_key)
+        assert (again.id, first.method, payment.unapplied_minor) == (first.id, "external", 500)
+        with pytest.raises(Conflict) as caught:
+            svc.refund(session, payment.id, amount_minor=200, reason="On account", idempotency_key=refund_key)
+        assert caught.value.code == "idempotency-key-reused"
+        assert_books_agree(session)

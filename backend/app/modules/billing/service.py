@@ -819,6 +819,16 @@ def find_payment(session: Session, idempotency_key: str) -> Payment | None:
     return _payment_by_key(session, idempotency_key)
 
 
+def failed_refund_attempts(session: Session, payment_id: UUID, key_prefix: str) -> int:
+    """Internal read: how many refunds of the payment under keys starting with `key_prefix` were declined or
+    cancelled. A caller with a fixed key per use case appends this as an attempt number, so "try again" after a
+    decline makes a new refund instead of replaying the failed one."""
+    return _int(session, select(func.count()).select_from(Refund).where(
+        Refund.payment_id == payment_id, Refund.idempotency_key.startswith(key_prefix, autoescape=True),
+        Refund.status.in_(("failed", "cancelled")),
+    ))  # fmt: skip
+
+
 def refundable_minor(session: Session, payment_id: UUID) -> int:
     """Internal: what refund() can still return from this payment (its settled, unapplied remainder)."""
     payment = _lock(session, Payment, payment_id)
@@ -1026,7 +1036,7 @@ def _allocate(
 ) -> int:
     if payment.status not in ("succeeded", "processing"):
         raise Conflict("Only a settled or pending payment can be applied.", code="payment-not-allocatable")
-    available = payment.amount_minor - payment.refunded_minor - _live_total(session, payment.id)
+    available = _remainder(session, payment) - _reserved(session, payment.id)  # an initiated refund holds its share
     if limit is not None:
         available = min(available, limit)
     plan = _plan(session, payment.client_id, available, invoice_id, allocations)
@@ -1083,24 +1093,27 @@ def refund(
         _same_refund(row, payment_id, amount_minor, method, reason)
         if row.status != "initiated":
             return row  # a replay is answered before any guard: the first call already consumed the remainder
-    if method == "original":
-        if row is None:
-            if not release_allocation_ids and not 0 < amount_minor <= payment.unapplied_minor:
-                _too_much()  # refuse early so a plain mistake leaves no row behind
-            row = _initiate_refund(session, {
-                "payment_id": payment.id, "client_id": payment.client_id, "location_id": payment.location_id,
-                "amount_minor": amount_minor, "currency": payment.currency, "method": method, "status": "initiated",
-                "refund_on": platform.service.location_today(session, payment.location_id), "reason": reason,
-                "comments": comments, "issued_by_staff_user_id": _staff_id(session),
-                "refund_batch_id": refund_batch_id, "idempotency_key": idempotency_key,
-            })  # fmt: skip
-            if row.status != "initiated":  # a concurrent request with the same key finished first
-                return row
+    fresh = row is None
+    releasable = _releasable(session, payment, release_allocation_ids, strict=True) if fresh else 0  # before any write
+    if method == "original" and fresh:
+        if not 0 < amount_minor <= payment.unapplied_minor + releasable:
+            _too_much()  # refuse early so a plain mistake leaves no row behind
+        row = _initiate_refund(session, {
+            "payment_id": payment.id, "client_id": payment.client_id, "location_id": payment.location_id,
+            "amount_minor": amount_minor, "currency": payment.currency, "method": method, "status": "initiated",
+            "refund_on": platform.service.location_today(session, payment.location_id), "reason": reason,
+            "comments": comments, "issued_by_staff_user_id": _staff_id(session),
+            "refund_batch_id": refund_batch_id, "idempotency_key": idempotency_key,
+            "release_allocation_ids": list(dict.fromkeys(release_allocation_ids)) or None,
+        })  # fmt: skip
+        if row.status != "initiated":  # a concurrent request with the same key finished first
+            return row
+    # A retry of an `initiated` row releases what the first request named, never what this one does.
+    release = (row.release_allocation_ids or ()) if row is not None else release_allocation_ids
     payment = _lock(session, Payment, payment_id)
     _refundable(payment, method, reason)  # re-checked under the lock
-    if release_allocation_ids:
-        _release_for_refund(session, payment, release_allocation_ids)
-    if not 0 < amount_minor <= payment.unapplied_minor:
+    others = _reserved(session, payment.id, excluding=row.id if row is not None else None)
+    if not 0 < amount_minor <= _remainder(session, payment) - others + _releasable(session, payment, release):
         _too_much()
     if row is None:  # record-only: nothing to call, so nothing to write first
         row = Refund(
@@ -1112,6 +1125,7 @@ def refund(
         )  # fmt: skip
         session.add(row)
         session.flush()
+        _release_for_refund(session, payment, release)
         _finish_refund(session, row, payment, "succeeded")
         return row
     account = session.get(ProviderAccount, payment.provider_account_id)
@@ -1120,24 +1134,62 @@ def refund(
         amount_minor=amount_minor, idempotency_key=_refund_provider_key(session, row),
     )  # fmt: skip
     row.provider_refund_ref, row.failure_message = result.provider_refund_ref or None, result.failure_message
+    if result.outcome != "failed":  # a declined refund leaves the items paid, as they were
+        _release_for_refund(session, payment, release)
     _finish_refund(session, row, payment, result.outcome)
     return row
 
 
-def _release_for_refund(session: Session, payment: Payment, allocation_ids: Sequence[UUID]) -> None:
-    released = 0
+def _releasable(session: Session, payment: Payment, allocation_ids: Sequence[UUID], *, strict: bool = False) -> int:
+    """What releasing these allocations of the payment would free. Strict (a new request): an unknown id, one
+    on another payment or one already released is refused; otherwise released or foreign ones count as 0."""
+    total = 0
     for allocation_id in dict.fromkeys(allocation_ids):
-        allocation = _get(session, PaymentAllocation, allocation_id, pointer="/release_allocation_ids")
-        if allocation.payment_id != payment.id:
+        allocation = session.get(PaymentAllocation, allocation_id)
+        if strict and (allocation is None or allocation.payment_id != payment.id):
             raise ValidationFailed("This allocation is not on this payment.", pointer="/release_allocation_ids")
-        if allocation.status == "released":
+        if strict and allocation.status == "released":
             raise Conflict("This allocation was already released.", code="allocation-released")
+        if allocation is not None and allocation.payment_id == payment.id and allocation.status != "released":
+            total += allocation.amount_minor
+    return total
+
+
+def _release_for_refund(session: Session, payment: Payment, allocation_ids: Sequence[UUID], *, cover: int = 0) -> None:
+    """Release the named live allocations of the payment, then (sweep only) the newest others until `cover`
+    more is free. One reallocate audit row for the payment when anything moved."""
+    released = 0
+    named = [session.get(PaymentAllocation, i) for i in dict.fromkeys(allocation_ids)]
+    for allocation in named:
+        if allocation is not None and allocation.payment_id == payment.id and allocation.status != "released":
+            _release(session, allocation, "unapplied")
+            released += allocation.amount_minor
+    newest = (
+        _live_allocations(PaymentAllocation.payment_id == payment.id)
+        .order_by(None)
+        .order_by(PaymentAllocation.created_at.desc(), PaymentAllocation.id.desc())
+    )
+    while cover > 0 and (allocation := session.scalars(newest).first()) is not None:
         _release(session, allocation, "unapplied")
-        released += allocation.amount_minor
-    audit.record(
-        session, "billing.payment.reallocate", payment, location_id=payment.location_id,
-        changes={"released_minor": [None, released]},
-    )  # fmt: skip
+        released, cover = released + allocation.amount_minor, cover - allocation.amount_minor
+    if released:
+        audit.record(
+            session, "billing.payment.reallocate", payment, location_id=payment.location_id,
+            changes={"released_minor": [None, released]},
+        )  # fmt: skip
+
+
+def _remainder(session: Session, payment: Payment) -> int:
+    """The payment's money not applied and not refunded, before any reservation."""
+    return payment.amount_minor - payment.refunded_minor - _live_total(session, payment.id)
+
+
+def _reserved(session: Session, payment_id: UUID, *, excluding: UUID | None = None) -> int:
+    """What `initiated` refunds of the payment hold back: the processor may already have paid them out."""
+    where = [Refund.payment_id == payment_id, Refund.status == "initiated"]
+    if excluding is not None:
+        where.append(Refund.id != excluding)
+    return _int(session, select(func.coalesce(func.sum(Refund.amount_minor), 0)).where(*where))
 
 
 def _refundable(payment: Payment, method: str, reason: str) -> None:
@@ -1176,7 +1228,13 @@ def _refund_provider_key(session: Session, row: Refund) -> str:
 def _initiate_refund(session: Session, values: dict) -> Refund:
     """Commit the `initiated` refund row in a short transaction of its own before the provider call, as
     _initiate does for payments; the same 500 ms fallback inserts it in the caller's transaction instead when
-    the short one cannot see or lock what it needs (replay stays safe through the provider's key)."""
+    the short one cannot see or lock what it needs (replay stays safe through the provider's key).
+
+    The row reserves its amount in the payment's remainder in the same short transaction, so nothing (autopay's
+    credit spending, a staff allocation) can spend money the processor may already be returning. A caller that
+    holds the payment lock (a membership cancel, a POS return) still gets the row committed: our locks are
+    FOR NO KEY UPDATE, which the row's foreign key check does not wait on; only the reservation is skipped
+    there, and the caller's own transaction applies it."""
     try:
         with tenant_session(session.info["tenant_id"], actor=session.info.get("actor")) as short:
             short.execute(text("SET LOCAL lock_timeout = '500ms'"))
@@ -1184,6 +1242,12 @@ def _initiate_refund(session: Session, values: dict) -> Refund:
             short.add(row)
             short.flush()
             refund_id = row.id
+            try:
+                with short.begin_nested():
+                    held = short.get(Payment, values["payment_id"], with_for_update={"key_share": True, "nowait": True})
+                    _settle_projections(short, held, ())
+            except OperationalError:
+                pass  # the caller holds the payment; its transaction reserves instead
     except (IntegrityError, OperationalError):
         existing = _refund_by_key(session, values["idempotency_key"])  # lost a race to the same key?
         if existing is not None:
@@ -1214,9 +1278,11 @@ def _finish_refund(session: Session, row: Refund, payment: Payment, outcome: str
 
 def resume_refund(session: Session, refund_id: UUID, *, abandon: bool = False) -> Refund:
     """The sweep's half of the pre-provider row: an `initiated` refund whose request died. Asks the processor
-    what, if anything, it did under the refund's key and applies that answer even when the money has since
-    been applied elsewhere (it has left the account either way). With `abandon` a refund the processor never
-    heard of is cancelled; without it, it is left for a later sweep."""
+    what, if anything, it did under the refund's key. When it paid out, the release the request named is
+    re-applied (it rolled back with the request), and if the remainder still falls short (money applied since)
+    the payment's newest allocations are released until it is covered: the money has left the account either
+    way. If even that cannot cover it, Conflict `refund-unreconcilable` (the sweep records it on the row and
+    moves on). With `abandon` a refund the processor never heard of is cancelled; without it, it waits."""
     row = _lock(session, Refund, refund_id)
     if row.status != "initiated":
         return row
@@ -1228,6 +1294,12 @@ def resume_refund(session: Session, refund_id: UUID, *, abandon: bool = False) -
     )  # fmt: skip
     if found is not None:
         row.provider_refund_ref, row.failure_message = found.provider_refund_ref or None, found.failure_message
+        if found.outcome != "failed":
+            free = _remainder(session, payment) - _reserved(session, payment.id, excluding=row.id)
+            needed = max(0, row.amount_minor - free - _releasable(session, payment, row.release_allocation_ids or ()))
+            _release_for_refund(session, payment, row.release_allocation_ids or (), cover=needed)
+            if row.amount_minor > _remainder(session, payment) - _reserved(session, payment.id, excluding=row.id):
+                raise Conflict("The processor refunded more than this payment can cover.", code="refund-unreconcilable")
         _finish_refund(session, row, payment, found.outcome)
     elif abandon:
         row.status, row.failure_message = "cancelled", "The refund never reached the processor."
@@ -1235,6 +1307,7 @@ def resume_refund(session: Session, refund_id: UUID, *, abandon: bool = False) -
             session, "billing.refund.confirm", row, location_id=row.location_id,
             changes={"status": ["initiated", "cancelled"]},
         )  # fmt: skip
+        _settle_projections(session, payment, ())  # the reservation is free again
     return row
 
 
@@ -1836,7 +1909,9 @@ def category_taxes(session: Session, revenue_category_id: UUID, on: date) -> lis
 
 def _get(session: Session, model, row_id: UUID, *, pointer: str | None = None, lock: bool = False):
     """Load by id under RLS. A missing row is 404 for a path id, 422 on the body pointer for a body id."""
-    row = session.get(model, row_id, with_for_update=lock or None, populate_existing=lock)
+    # FOR NO KEY UPDATE: excludes every other writer, but lets a short transaction insert a row that only
+    # references this one (the pre-provider refund row while a caller holds its payment).
+    row = session.get(model, row_id, with_for_update={"key_share": True} if lock else None, populate_existing=lock)
     if row is None:
         if pointer:
             raise ValidationFailed(f"Unknown {model.__tablename__.replace('_', ' ')}.", pointer=pointer)
@@ -2137,11 +2212,11 @@ def _settle_projections(session: Session, payment: Payment, invoice_ids: Iterabl
     """Recompute the cached remainders after any allocation, release, settlement or refund. They are
     projections of the rows, never inputs to the ledger (ADR 0003 section 2)."""
     session.flush()
-    payment.unapplied_minor = (
-        payment.amount_minor - payment.refunded_minor - _live_total(session, payment.id)
-        if payment.status == "succeeded"
-        else 0
-    )
+    if payment.status == "succeeded":
+        base = _remainder(session, payment)  # a negative base is a real overdraw: the check constraint refuses it
+        payment.unapplied_minor = base - min(max(base, 0), _reserved(session, payment.id))
+    else:
+        payment.unapplied_minor = 0
     session.flush()
     for invoice_id in sorted({i for i in invoice_ids if i}):
         _refresh_invoice(session, invoice_id)
