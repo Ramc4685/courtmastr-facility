@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { api, fieldErrors } from '../../api/client'
+import { api, ApiError, fieldErrors } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
@@ -143,6 +143,8 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
   const [repeat, setRepeat] = useState(false)
   const [rule, setRule] = useState<Rule>(defaultRule(date))
   const [charge, setCharge] = useState<ChargeDecision>(BILL)
+  const [minorReason, setMinorReason] = useState('')
+  const { can } = useAuth()
   const choices = type && type.resource_ids.length ? ctx.resources.filter((r) => type.resource_ids.includes(r.id)) : ctx.resources
 
   const body = () => ({
@@ -156,6 +158,7 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
     charge: cleanCharge(charge),
     parties: [],
     override_policy: false,
+    minor_override_reason: minorReason.trim() || null,
   })
   const preview = useMutation({ mutationFn: () => api.post('/api/v1/rentals/preview', { body: { ...body(), on_conflict: 'skip' } }) })
   const save = useMutation({
@@ -171,6 +174,8 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
   const conflicts = conflictsOf(save.error) ?? conflictsOf(preview.error)
   const failure = save.error ?? preview.error
   const p = preview.data
+  // The minors rule: a court is never booked in a child's name, unless a manager records why.
+  const minorRefused = failure instanceof ApiError && (failure.code === 'minor-cannot-hold-rental' || failure.code === 'minor-needs-guardian')
   return (
     <Dialog
       open
@@ -218,6 +223,9 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
           <Input label="Start" type="time" step={900} value={start} onChange={(ev) => setStart(ev.target.value)} />
           <Input label="End" type="time" step={900} value={end} error={e.ends_at} onChange={(ev) => setEnd(ev.target.value)} />
         </div>
+        {(minorRefused || minorReason) && can('rentals.booking.override_minor') && (
+          <Input label="Reason to book for a minor" hint="Only when a parent cannot hold the booking; the reason is kept on the rental." value={minorReason} maxLength={500} onChange={(ev) => setMinorReason(ev.target.value)} />
+        )}
         <Checkbox label="Repeats" checked={repeat} onChange={(ev) => setRepeat(ev.target.checked)} />
         {repeat && <RecurrenceEditor rule={rule} date={date} onChange={setRule} errors={e} />}
         <ChargeFields typeId={typeId} value={charge} onChange={setCharge} clientId={client?.id} allowPlan errors={e} />

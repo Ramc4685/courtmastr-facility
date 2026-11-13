@@ -210,6 +210,8 @@ class RentalCreate(In):
     charge: ChargeDecision
     on_conflict: OnConflict = "abort"
     override_policy: bool = False
+    # Past the minors rule: needs rentals.booking.override_minor; kept on the rental, flag-only in audit.
+    minor_override_reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None = None
 
 
 class QuoteLine(Out):
@@ -441,6 +443,7 @@ class PortalRentalCreate(In):
     starts_at: datetime
     ends_at: datetime
     rental_plan_purchase_id: UUID | None = None
+    player_client_ids: Annotated[list[UUID], Field(max_length=10)] = []  # household members who will play
 
 
 class PortalRentalConfirm(In):

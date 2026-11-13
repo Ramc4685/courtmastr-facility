@@ -46,6 +46,29 @@ describe('RentalsPage', SCREEN, () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ reason: 'staff', charge_action: 'keep_charge', waive_late_fee: false, scope: { mode: 'following', anchor_booking_id: 'b41' } })
   })
 
+  it('asks a manager for a reason before booking a court in a minor\'s name', async () => {
+    let tries = 0
+    const calls = renderAsStaff(<RentalsPage />, [...ALL, 'rentals.booking.override_minor'], {
+      ...base,
+      'GET /api/v1/rentals': page([]),
+      'POST /api/v1/rentals': () => {
+        tries += 1
+        return tries === 1
+          ? { status: 422, body: { status: 422, code: 'minor-cannot-hold-rental', detail: 'A child cannot hold a court booking. Book it in a parent\'s name and add the child as a player.' } }
+          : { status: 201, body: { rental: null, booking_series_id: null, created_count: 1, conflict_count: 0, results: [], quote: null, invoice_ids: [], status_url: null } }
+      },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'New rental' }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog', { name: 'New rental' })
+    expect(within(dialog).queryByRole('textbox', { name: /Reason to book for a minor/ })).toBeNull()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Book rental' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('A child cannot hold a court booking.')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /Reason to book for a minor/ }), 'Coach supervises')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Book rental' }))
+    await waitFor(() => expect(tries).toBe(2))
+    expect(calls.filter((c) => c.method === 'POST').at(-1)?.body).toMatchObject({ minor_override_reason: 'Coach supervises' })
+  })
+
   it('bills selected rentals from the unbilled queue after a preview', async () => {
     const calls = renderAsStaff(<RentalsPage />, ALL, {
       ...base,

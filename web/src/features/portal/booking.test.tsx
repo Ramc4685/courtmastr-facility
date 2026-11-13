@@ -130,6 +130,32 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(confirms[0]?.headers['idempotency-key']).toBeTruthy()
   })
 
+  it('books a court for a child in the parent\'s name with the child playing, and says when the price changed', async () => {
+    const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
+    const rental = { id: 'r1', client_id: 'c1', location_id: 'l1', rental_type_id: 'rt1', title: 'Court rental', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', status: 'tentative', resources: [] }
+    const quote = { lines: [{ description: 'Court rental', amount_minor: 2400 }], subtotal_minor: 2400, tax_minor: 0, total_minor: 2400 }
+    const holds: Call[] = []
+    const calls = open('/portal/bookings', {
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c2', 'Kit', 'guardian')] } },
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+      'GET /api/v1/portal/rental-availability': page([{ resource_id: 'res1', resource_name: 'Court 3', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', price_minor: 2000, is_member_price: true }]),
+      'POST /api/v1/portal/rentals': (call) => {
+        holds.push(call)
+        return { status: 201, body: { rental, quote, amount_due_minor: 2400, payment_required: true, expires_at: null, invoice_id: null } }
+      },
+    })
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Acting for' }), 'c2')
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    expect(within(dialog).getByRole('note')).toHaveTextContent('Children cannot hold a court booking on their own.')
+    expect(within(dialog).getByRole('checkbox', { name: 'Kit' })).toBeChecked()
+    await userEvent.click(await within(dialog).findByRole('button', { name: /Court 3.*member price/ }))
+    expect(holds[0]?.body).toMatchObject({ client_id: 'c1', player_client_ids: ['c2'] })
+    expect(calls.find((c) => c.url.includes('/portal/rental-availability'))?.url).toContain('client_id=c1')
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('The price changed since you picked this time')
+  })
+
   it('shows the week in the location zone and books from the calendar', async () => {
     const noon = toInstant(today(ZONE), 12 * 60, ZONE)
     const calls = open('/portal/sessions', sessionRoutes([listing('s1', noon, { title: 'Yoga' })], { 'POST /api/v1/portal/enrollments': { status: 201, body: { id: 'e1' } } }))

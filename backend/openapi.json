@@ -43951,6 +43951,26 @@
         "title": "Page[PortalRentalPlanPurchaseOut]",
         "type": "object"
       },
+      "Page_PortalRentalSlot_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalRentalSlot"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalRentalSlot]",
+        "type": "object"
+      },
       "Page_PortalVideo_": {
         "properties": {
           "data": {
@@ -52553,6 +52573,16 @@
             "title": "Ends At",
             "type": "string"
           },
+          "player_client_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Player Client Ids",
+            "type": "array"
+          },
           "rental_plan_purchase_id": {
             "anyOf": [
               {
@@ -52998,6 +53028,48 @@
           "role"
         ],
         "title": "PortalRentalResourceOut",
+        "type": "object"
+      },
+      "PortalRentalSlot": {
+        "description": "An open time priced for the signed-in client (portal schema, never the public one).",
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "is_member_price": {
+            "title": "Is Member Price",
+            "type": "boolean"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_name": {
+            "title": "Resource Name",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at",
+          "resource_id",
+          "resource_name",
+          "price_minor",
+          "is_member_price"
+        ],
+        "title": "PortalRentalSlot",
         "type": "object"
       },
       "PortalRosterEntryCreate": {
@@ -66044,6 +66116,19 @@
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
+          },
+          "minor_override_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Override Reason"
           },
           "notes": {
             "anyOf": [
@@ -139038,6 +139123,134 @@
         "summary": "Portal End Relationship",
         "tags": [
           "clients"
+        ]
+      }
+    },
+    "/api/v1/portal/rental-availability": {
+      "get": {
+        "description": "The open times priced for the client who will hold the rental: member prices, as the checkout charges.",
+        "operationId": "searchPortalRentalAvailability",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "On",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Length Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalRentalSlot_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Portal Rental Availability",
+        "tags": [
+          "rentals"
         ]
       }
     },

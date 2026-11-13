@@ -108,7 +108,15 @@ function PayCheckout({ checkout, quotedMinor, onDone }: { checkout: Checkout; qu
 
 function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
-  const { actingFor, money, zoneOf, locations } = usePortal()
+  const { actingFor, clients, money, zoneOf, locations } = usePortal()
+  // A rental is held and paid by an adult: acting for a child (guardian or delegate), the booking is in the
+  // signed-in person's own name and the child is named as a player (the minors rule, rentals README).
+  const self = clients.find((c) => c.authority === 'self') ?? actingFor
+  const forChild = actingFor.authority === 'guardian' || actingFor.authority === 'delegate'
+  const holder = forChild ? self : actingFor
+  const household = clients.filter((c) => c.id !== holder.id && c.authority !== 'delegate')
+  const [players, setPlayers] = useState<string[]>(() => (forChild ? [actingFor.id] : []))
+  const [quoted, setQuoted] = useState<number | null>(null)
   const types = useRentalTypes()
   const [typeId, setTypeId] = useState('')
   const type: RentalType | undefined = types.data?.find((t) => t.id === typeId) ?? types.data?.[0]
@@ -121,13 +129,15 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const attempt = useAttemptKey()
 
   const slots = useQuery({
-    queryKey: ['portal', 'availability', type?.id, on, minutes],
-    queryFn: () => api.get('/api/v1/public/rental-availability', { query: { rental_type_id: type?.id, on, length_min: minutes, limit: 60 } }),
+    queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes],
+    queryFn: () => api.get('/api/v1/portal/rental-availability', { query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, limit: 60 } }),
     enabled: Boolean(type && on),
   })
   const hold = useMutation({
-    mutationFn: (slot: Schemas['RentalSlot']) =>
-      api.post('/api/v1/portal/rentals', { body: { client_id: actingFor.id, rental_type_id: type?.id ?? '', resource_id: slot.resource_id, starts_at: slot.starts_at, ends_at: slot.ends_at }, idempotencyKey: attempt.key }),
+    mutationFn: (slot: Schemas['PortalRentalSlot']) => {
+      setQuoted(slot.price_minor)
+      return api.post('/api/v1/portal/rentals', { body: { client_id: holder.id, rental_type_id: type?.id ?? '', resource_id: slot.resource_id, starts_at: slot.starts_at, ends_at: slot.ends_at, player_client_ids: players }, idempotencyKey: attempt.key })
+    },
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: ['portal', 'rentals'] })
       if (c.payment_required) setCheckout(c)
@@ -179,6 +189,26 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
             Cancel at least {type.cancel_cutoff_hours} hours ahead{type.late_cancel_fee_pct ? `; later cancellations keep ${Number(type.late_cancel_fee_pct)}% as a fee` : ''}.
           </p>
         )}
+        {forChild && (
+          <p role="note" className="rounded-md border border-border px-3 py-2 text-sm">
+            Children cannot hold a court booking on their own. This books the court in your name, {self.preferred_name || self.first_name}, with {actingFor.preferred_name || actingFor.first_name} playing; you pay and come along.
+          </p>
+        )}
+        {household.length > 0 && (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Who else is playing (optional)</legend>
+            <div className="flex flex-wrap gap-4">
+              {household.map((c) => (
+                <Checkbox
+                  key={c.id}
+                  label={c.preferred_name || c.first_name}
+                  checked={players.includes(c.id)}
+                  onChange={(e) => setPlayers((now) => (e.target.checked ? [...now, c.id] : now.filter((id) => id !== c.id)))}
+                />
+              ))}
+            </div>
+          </fieldset>
+        )}
         <FormError error={hold.error} />
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Available times{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}</legend>
@@ -210,7 +240,7 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
     )
   }
   return (
-    <Dialog open onClose={close} size="lg" title="Book a rental" description={`Booking for ${actingFor.preferred_name || actingFor.first_name}.`} footer={<Button variant="secondary" onClick={close}>{result ? 'Done' : 'Cancel'}</Button>}>
+    <Dialog open onClose={close} size="lg" title="Book a rental" description={`Booking for ${holder.preferred_name || holder.first_name}.`} footer={<Button variant="secondary" onClick={close}>{result ? 'Done' : 'Cancel'}</Button>}>
       {body()}
     </Dialog>
   )

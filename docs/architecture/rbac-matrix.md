@@ -275,6 +275,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `rentals.booking.update` | L | | | Y | Y | Y | - | - | - | - | RNT-04 |
 | `rentals.booking.cancel` | L | | | Y | Y | Y | - | - | - | - | RNT-08 (refund is a separate key) |
 | `rentals.booking.override_rate` | L | P | | Y | Y | - | - | - | - | - | RNT-02 |
+| `rentals.booking.override_minor` | L | P | | Y | Y | - | - | - | - | - | pilot minors rule (rentals README) |
 | `rentals.rental_type.manage` | T | | | Y | Y | - | - | - | - | - | RNT-01, RNT-02, RNT-05, SSP-04 |
 | `rentals.rental_plan.manage` | T | | | Y | Y | - | - | - | - | - | RNT-09 |
 | `rentals.rental_plan.sell` | L | | | Y | Y | Y | - | - | - | - | RNT-09 |

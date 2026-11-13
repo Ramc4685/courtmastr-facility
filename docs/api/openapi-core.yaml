@@ -3841,7 +3841,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, blackout, series-too-large, rate-not-applicable, insufficient-plan-balance, idempotency-key-reused,
-        request-in-progress]
+        request-in-progress, minor-cannot-hold-rental, minor-needs-guardian]
   /rentals/preview:
     post:
       operationId: previewRental
@@ -4135,7 +4135,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, not-eligible, outside-booking-window, too-many-open-holds, insufficient-plan-balance,
-        idempotency-key-reused, request-in-progress]
+        idempotency-key-reused, request-in-progress, minor-cannot-hold-rental, minor-needs-guardian]
   /portal/rentals/{rental_id}/confirm:
     post:
       operationId: confirmPortalRental
@@ -5924,6 +5924,12 @@ components:
         buffer_after_min: {type: integer}
         recurrence: {$ref: '#/components/schemas/RecurrenceRule'}
         charge: {$ref: '#/components/schemas/RentalChargeDecision'}
+        minor_override_reason:
+          type: string
+          maxLength: 500
+          description: 'Books a court in a minor''s name (or a minor as a party without their guardian holding it): needs
+            rentals.booking.override_minor and this reason, else 422 minor-cannot-hold-rental / minor-needs-guardian. The reason
+            is kept on the rental; the audit record carries only a flag.'
         on_conflict: {type: string, enum: [skip, abort]}
         override_policy: {type: boolean}
     RentalQuoteLine:
@@ -6095,6 +6101,13 @@ components:
           type: string
           format: uuid
           description: must satisfy can_use_entitlement(client_id, plan purchase) (ADR 0009 section 8.3), else 403
+        player_client_ids:
+          type: array
+          maxItems: 10
+          items: {type: string, format: uuid}
+          description: 'Household members who will play (not charged): each must be a client the identity can act for, else
+            404. A minor may play only when `client_id` is one of their guardians (minor-needs-guardian); a minor never
+            holds a rental (minor-cannot-hold-rental): the parent books in their own name and names the child here.'
     RentalCheckout:
       type: object
       description: 'pay_in_full: tentative booking with real holds and `expires_at` (checkout clock, default 10 minutes).

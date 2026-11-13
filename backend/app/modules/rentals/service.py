@@ -60,6 +60,7 @@ TYPES, PLANS, SELL, REMOVE = (
 PUBLISH = "rentals.public_listing.publish"
 SHARE, LOCKER_RENT = "rentals.rental_plan.share", "rentals.locker_rental.manage"
 PORTAL_SETTINGS = "rentals.portal_setting.manage"
+OVERRIDE_MINOR = "rentals.booking.override_minor"
 SOURCE = ("rentals", "rental_booking")
 CONSTRAINT_CODES["uq_rental_type_name"] = "already-exists"
 CONSTRAINT_CODES["uq_rental_rate_name"] = "already-exists"
@@ -484,6 +485,7 @@ def _on_booking(session: Db, booking, data: dict) -> None:
         id=booking.source_id, location_id=booking.location_id, booking_id=booking.id,
         rental_type_id=UUID(data["rental_type_id"]), charge_state=data.get("charge_state") or "unbilled",
         booked_via=data["booked_via"], starts_at=booking.starts_at, ends_at=booking.ends_at,
+        minor_override_reason=data.get("minor_override_reason"),
     )  # fmt: skip
     session.add(row)
     session.flush()
@@ -779,6 +781,31 @@ def _check_override(principal: Principal, decision: dict, location_id: UUID) -> 
 # --- staff commands: create, preview, bill selected, extend ----------------------------------------------
 
 
+def _is_minor(session: Db, client_id: UUID, on: date) -> bool:
+    """The one minor lookup for rentals: under the tenant's minor age (`platform.service.minor_age`, which Phase 13
+    consolidates households' `age_of_majority` into) on the rental's local date. An unknown birth date counts as
+    an adult, as everywhere else (`clients.service.is_minor`, ADR 0002 section 5)."""
+    return clients.service.is_minor(clients.service.get(session, client_id), on, platform.service.minor_age(session))
+
+
+def _check_minors(session: Db, holder: UUID, parties, on: date, pointer: str = "/parties") -> None:
+    """The minors rule (pilot): a minor never holds a rental; a minor may play (an uncharged party) only on a
+    rental held, and so paid, by one of their guardians."""
+    if _is_minor(session, holder, on):
+        raise ValidationFailed(
+            "A child cannot hold a court booking. Book it in a parent's name and add the child as a player.",
+            pointer="/client_id", code="minor-cannot-hold-rental",
+        )  # fmt: skip
+    for index, party in enumerate(parties):
+        if _is_minor(session, party["client_id"], on) and (
+            party.get("is_charged") or holder not in clients.households.guardian_ids(session, party["client_id"])
+        ):
+            raise ValidationFailed(
+                "A child can play only on a booking held and paid by their parent or guardian.",
+                pointer=f"{pointer}/{index}", code="minor-needs-guardian",
+            )  # fmt: skip
+
+
 def _parties(session: Db, data: dict) -> list[dict]:
     seen, parties = {data["client_id"]}, []
     for index, party in enumerate(data.get("parties") or ()):
@@ -809,6 +836,12 @@ def _rental_template(session: Db, principal: Principal, data: dict) -> tuple[Ren
         authorize(principal, scheduling.service.OVERRIDE, location_id=location_id)
     _check_override(principal, data["charge"], location_id)
     clients.service.require_active(session, data["client_id"])
+    reason = data.get("minor_override_reason")
+    if reason:
+        authorize(principal, OVERRIDE_MINOR, location_id=location_id)
+    else:
+        on = data["starts_at"].astimezone(_zone(session, location_id)).date()
+        _check_minors(session, data["client_id"], data.get("parties") or (), on)
     template = scheduling.service.template_for(
         session, location_id,
         {
@@ -824,7 +857,8 @@ def _rental_template(session: Db, principal: Principal, data: dict) -> tuple[Ren
     template["client_id"] = str(data["client_id"])
     template["source"] = {
         "context": "rentals", "type": "rental_booking",
-        "data": {"rental_type_id": str(rtype.id), "booked_via": "staff", "charge_state": state, "parties": _parties(session, data)},
+        "data": {"rental_type_id": str(rtype.id), "booked_via": "staff", "charge_state": state, "parties": _parties(session, data),
+                 "minor_override_reason": reason},
     }  # fmt: skip
     return rtype, template
 
@@ -875,6 +909,7 @@ def create_rental(session: Db, principal: Principal, data: dict) -> dict:
     )
     rows = session.scalars(select(RentalBooking).where(RentalBooking.booking_id.in_(booking_ids))).all()
     quote, invoice_ids = _decide(session, rtype, data["client_id"], rows, decision)
+    flag = {"minor_override_reason": True} if data.get("minor_override_reason") else {}  # free text: flag only
     for row in rows:
         audit.record(
             session, CREATE, row, location_id=row.location_id,
@@ -1417,6 +1452,15 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         raise ValidationFailed("This resource is not offered for this rental type.", pointer="/resource_id")
     _check_online_slot(session, rtype, data["starts_at"], data["ends_at"])
     clients.service.require_active(session, client_id)
+    players = []
+    for player in dict.fromkeys(data.get("player_client_ids") or ()):
+        if player == client_id:
+            continue
+        if clients.households.can_act_for(session, principal.identity_id, player) is None:
+            raise NotFound()
+        clients.service.require_active(session, player, pointer="/player_client_ids")
+        players.append({"client_id": player, "is_charged": False})
+    _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids")
     plan = data.get("rental_plan_purchase_id")
     hold = None
     if rtype.online_payment_mode == "pay_in_full" and not plan:
@@ -1428,7 +1472,8 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         buffer_before_min=rtype.buffer_before_min, buffer_after_min=rtype.buffer_after_min,
         source=(*SOURCE, rental_id), created_via="portal", hold_minutes=hold,
     )  # fmt: skip
-    _on_booking(session, booking, {"rental_type_id": str(rtype.id), "booked_via": "portal"})
+    parties = [{"client_id": str(p["client_id"]), "is_charged": False} for p in players]
+    _on_booking(session, booking, {"rental_type_id": str(rtype.id), "booked_via": "portal", "parties": parties})
     row = session.get(RentalBooking, rental_id)
     if plan:
         decision = {"decision": "plan", "rental_plan_purchase_id": plan}

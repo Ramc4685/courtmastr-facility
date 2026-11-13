@@ -156,3 +156,89 @@ def test_a_membership_that_lapses_after_the_quote_the_charge_wins(client, owner,
     checkout = ok(client.post(f"{API}/portal/rentals", headers=portal, json=request))
     assert checkout["quote"]["subtotal_minor"] == 2400  # the guest price, shown on the checkout before paying
     assert not checkout["quote"]["lines"][0]["is_member_price"]
+
+
+# --- the minors rule ---------------------------------------------------------------------------------------------
+
+
+def family(client, owner, f) -> tuple[str, str]:
+    parent = new_client(client, owner, f.location, first_name="Pat")["id"]
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    parent_of = next(
+        t for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200) if t["code"] == "parent_of"
+    )
+    ok(client.post(f"{API}/clients/{parent}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+    return parent, kid
+
+
+def refused(response, status: int, code: str) -> None:
+    assert (response.status_code, response.json().get("code")) == (status, code), response.text
+
+
+def test_a_minor_cannot_hold_a_rental_and_override_needs_the_key_and_a_reason(client, owner, tenant, f):
+    _, kid = family(client, owner, f)
+    refused(rent(client, owner, body(f, kid, 15, 16)), 422, "minor-cannot-hold-rental")
+    refused(client.post(f"{API}/rentals/preview", headers=owner, json=body(f, kid, 15, 16)), 422,
+            "minor-cannot-hold-rental")  # fmt: skip
+    desk = login(client, tenant, add_staff(tenant, "front_desk", all_locations=True)[0])
+    assert rent(client, desk, body(f, kid, 15, 16, minor_override_reason="Coach's own child")).status_code == 403
+    allowed = ok(rent(client, owner, body(f, kid, 15, 16, minor_override_reason="Coach's own child")))
+    with tenant_session(tenant.id) as session:
+        record = session.scalars(
+            select(AuditEvent).where(AuditEvent.entity_id == allowed["rental"]["id"]).order_by(AuditEvent.id.desc())
+        ).first()
+    assert record.changes["minor_override_reason"] is True  # free text is flag-only
+
+
+def test_a_guardian_books_and_names_the_children_who_play(client, owner, f):
+    parent, kid = family(client, owner, f)
+    party = [{"client_id": kid}]
+    created = ok(rent(client, owner, body(f, parent, 15, 16, parties=party)))
+    assert created["rental"]["parties"] == [{"client_id": kid, "is_charged": False}]
+    refused(rent(client, owner, body(f, f.guest, 16, 17, parties=party)), 422, "minor-needs-guardian")
+    refused(rent(client, owner, body(f, parent, 17, 18, parties=[{"client_id": kid, "is_charged": True}])), 422,
+            "minor-needs-guardian")  # fmt: skip
+    unknown = new_client(client, owner, f.location)["id"]  # no birth date: treated as an adult (ADR 0002 section 5)
+    ok(rent(client, owner, body(f, unknown, 18, 19)))
+
+
+def test_the_minor_age_is_the_tenant_setting(client, owner, f):
+    _, kid = family(client, owner, f)
+    ok(client.patch(f"{API}/tenant", headers=owner, json={"settings": {"minor_age": 8}}), 200)
+    ok(rent(client, owner, body(f, kid, 15, 16)))
+
+
+def test_portal_parent_books_in_own_name_with_the_child_playing(client, owner, tenant, f):
+    me, portal = portal_client(client, owner, tenant, f)
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    parent_of = next(
+        t for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200) if t["code"] == "parent_of"
+    )
+    ok(client.post(f"{API}/clients/{me}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+    checkout = ok(client.post(f"{API}/portal/rentals", headers=portal,
+                              json=online(f, me, 15, 16) | {"player_client_ids": [kid]}))  # fmt: skip
+    staff_view = ok(client.get(f"{API}/rentals/{checkout['rental']['id']}", headers=owner), 200)
+    assert staff_view["parties"] == [{"client_id": kid, "is_charged": False}]
+    assert "parties" not in checkout["rental"]  # the portal view carries no co-party ids (S-06)
+    stranger = new_client(client, owner, f.location)["id"]
+    assert client.post(f"{API}/portal/rentals", headers=portal,
+                       json=online(f, me, 16, 17) | {"player_client_ids": [stranger]}).status_code == 404  # fmt: skip
+
+
+def test_coaching_keeps_its_rules_a_parent_registers_a_child(client, owner, tenant, f):
+    """Sessions are not rentals: a parent may still register a child alone (dropped off at coaching)."""
+    policy(client, owner, f)
+    seat = ok(book(client, owner, f, [f.coach], at(13, SOON), at(14, SOON), kind="session"))["booking"]["session"]
+    me, portal = portal_client(client, owner, tenant, f)
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    parent_of = next(
+        t for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200) if t["code"] == "parent_of"
+    )
+    ok(client.post(f"{API}/clients/{me}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+    enrolled = ok(client.post(f"{API}/portal/enrollments", headers=portal,
+                              json={"client_id": kid, "session_id": seat["id"]}))  # fmt: skip
+    assert enrolled["client_id"] == kid and enrolled["status"] == "enrolled"
+
