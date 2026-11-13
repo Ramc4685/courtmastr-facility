@@ -397,6 +397,17 @@ def test_a_failed_code_email_is_retried_by_the_tick_and_marked_only_once_handed_
         assert len(mailbox) == 1
 
 
+def test_the_code_email_names_the_end_date_when_the_window_crosses_midnight(b, mailbox):
+    import re
+
+    stamp = re.compile(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d\d \w{3} \d\d:\d\d")
+    with clock.freeze(at(8)):
+        sync(b, book(b, 10, 11))
+        sync(b, book(b, 12, 36))  # a day and a night: the window ends on another local date
+    same_day, overnight = (m.body for m in mailbox[-2:])
+    assert len(stamp.findall(same_day)) == 1 and len(stamp.findall(overnight)) == 2
+
+
 def test_a_changed_holder_loses_the_code_and_the_new_holder_gets_one(client, owner, b, mailbox):
     """No route changes a booking's holder today (a client merge moves the code with the person); if one ever
     does, the tick revokes the old holder's code and issues and sends the new holder's within a minute."""

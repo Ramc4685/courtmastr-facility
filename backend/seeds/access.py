@@ -35,7 +35,11 @@ def seed(session: Session) -> None:
 def _building(session: Session, actor, location: Location) -> None:
     if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location.id)):
         return
-    building.create_door(session, actor, {"location_id": location.id, "name": "Front door", "device_ref": "door-front"})
+    building.create_door(
+        session,
+        actor,
+        {"location_id": location.id, "name": "Front door", "device_ref": "door-front", "is_entrance": True},
+    )
     courts = session.scalars(
         select(Resource).join(ResourceGroup, ResourceGroup.id == Resource.resource_group_id)
         .where(Resource.location_id == location.id, ResourceGroup.name == "Courts", Resource.parent_id.is_(None))

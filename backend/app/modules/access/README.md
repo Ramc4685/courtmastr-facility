@@ -215,7 +215,11 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - **Code storage (decision).** A keyed HMAC (`crypto.mac`, per location) for lookup, plus the code sealed with the
   tenant data key (`crypto.encrypt`) so the portal and the app can show it again. Regenerating on view would change
   a code already emailed; a plain hash could not be shown again. Codes never appear in logs, the notification log
-  or audit: audit changes carry `"code": true` only.
+  or audit: audit changes carry `"code": true` only. Known limits, not built: the lookup HMAC uses one key for every
+  tenant, derived from the environment's `FH_DATA_KEY`, and it is the same derived key that signs short-lived URLs
+  (`crypto.mac`); there is no rotation. Production needs a code-lookup key of its own (a separate derivation label
+  at least, ideally per tenant from the KMS), versioned so a rotation re-hashes live codes (at most seven days of
+  them) without a gap.
 - **Minors (unmanned building rule).** One function, `building.code_recipients`, decides who may receive, see or use
   a person's code; delivery, the portal list and the portal unlock all call it. Nobody when the check-in evaluation
   refuses the person. An adult's code goes to that adult only. A minor's, or someone of unknown age's, goes to each

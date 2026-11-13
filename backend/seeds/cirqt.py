@@ -168,7 +168,11 @@ def _building(session, actor, location, courts: dict) -> None:
     """The front door and one lighting zone per court on the simulated controller (CHK-15, CHK-16)."""
     if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location.id)):
         return
-    building.create_door(session, actor, {"location_id": location.id, "name": "Front door", "device_ref": "door-front"})
+    building.create_door(
+        session,
+        actor,
+        {"location_id": location.id, "name": "Front door", "device_ref": "door-front", "is_entrance": True},
+    )
     for number, court in enumerate(COURTS, start=1):
         building.create_zone(session, actor, {"location_id": location.id, "name": f"{court} lights",
                                               "zone_ref": f"relay-{number}", "resource_ids": [courts[court]]})  # fmt: skip
