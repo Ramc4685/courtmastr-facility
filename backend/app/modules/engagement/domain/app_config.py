@@ -10,6 +10,11 @@ TILE_TYPES = (
     "invoices",
     "notifications",
     "facility",
+    "news",
+    "contacts",
+    "favorites",
+    "feedback",
+    "try_us",
 )
 TILE_STYLES = ("large", "small")
 MAX_TILES = 12

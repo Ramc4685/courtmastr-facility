@@ -52,7 +52,7 @@ describe('engagement', () => {
     const user = userEvent.setup()
     wrap(<AppConfigPage />)
     const preview = within(await screen.findByRole('list', { name: 'Home tiles' }))
-    expect(preview.getAllByRole('listitem')).toHaveLength(6) // the built-in layout until a custom one is chosen
+    expect(preview.getAllByRole('listitem')).toHaveLength(10) // the built-in layout until a custom one is chosen
     expect(screen.getByText('Club')).toBeVisible()
     await user.type(screen.getByLabelText('App name'), 'Club App')
     expect(screen.getByText('Club App')).toBeVisible()
@@ -60,11 +60,11 @@ describe('engagement', () => {
     await user.click(screen.getByRole('button', { name: 'Remove tile 6' }))
     await user.type(screen.getByLabelText('Tile 1 caption'), 'Book a court')
     await user.click(screen.getByRole('button', { name: 'Move tile 2 up' }))
-    expect(preview.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['My card', 'Book a court', 'Memberships', 'Invoices', 'Notifications'])
+    expect(preview.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['My card', 'Book a court', 'Memberships', 'Invoices', 'Notifications', 'News', 'Contacts', 'Favourites', 'Feedback'])
     await user.click(screen.getByRole('button', { name: 'Save app settings' }))
     const put = calls.find((c) => c.method === 'PUT')?.body as { app_name: string; home_screen: { tiles: { type: string; caption: string | null }[] } }
     expect(put.app_name).toBe('Club App')
-    expect(put.home_screen.tiles.map((t) => t.type)).toEqual(['card', 'book', 'memberships', 'invoices', 'notifications'])
+    expect(put.home_screen.tiles.map((t) => t.type)).toEqual(['card', 'book', 'memberships', 'invoices', 'notifications', 'news', 'contacts', 'favorites', 'feedback'])
     expect(put.home_screen.tiles[1]?.caption).toBe('Book a court')
     expect(put).not.toHaveProperty('theme') // colours come from the account branding
   }, 30000)

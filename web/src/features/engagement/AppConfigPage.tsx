@@ -22,8 +22,14 @@ export const TILE_LABELS: Record<string, string> = {
   invoices: 'Invoices',
   notifications: 'Notifications',
   facility: 'Facility info',
+  news: 'News',
+  contacts: 'Contacts',
+  favorites: 'Favourites',
+  feedback: 'Feedback',
+  try_us: 'Try us',
 }
-const BUILT_IN: Tile[] = Object.keys(TILE_LABELS).map((type) => ({ type, caption: null, style: 'small' }))
+// try_us is for visitors, so the built-in home (mobile/src/lib/tiles.tsx) leaves it out.
+const BUILT_IN: Tile[] = Object.keys(TILE_LABELS).filter((type) => type !== 'try_us').map((type) => ({ type, caption: null, style: 'small' }))
 const BUNDLED = { primary: '#1F6FEB', accent: '#0E9384' }
 const label = (type: string) => TILE_LABELS[type] ?? type
 
