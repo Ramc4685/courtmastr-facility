@@ -75,7 +75,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   `kiosk_match`, bound to the device, 120 seconds, deleted on use); check-ins carry the token, never a client id,
   and a replayed token is 422 `match-token-expired`. Minors are not listed. An admitted response identified by
   possession shows only the alerts the settings allow; one found by name or a typed or static value shows none
-  (every alert is the person's private state); "see staff" shows none. Check-ins are rate limited per device (30 a minute).
+  (every alert is the person's private state); "see staff" shows none. Places the check-in marked present come
+  as `attended_count` for every visit; the list with each session (`attended`) only on a possession visit. Check-ins are rate limited per device (30 a minute).
   Leaving kiosk mode needs the location's exit PIN (6 to 8 digits, argon2-hashed, rate limited per IP); each wrong
   PIN is counted on the device and audited without the PIN, and the fifth in a row (`KIOSK_EXIT_ATTEMPTS`) revokes
   the device. With no PIN set, exit is refused (409) and staff revoke the device instead.

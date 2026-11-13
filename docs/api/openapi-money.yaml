@@ -7759,14 +7759,15 @@ components:
     KioskCheckInResult:
       type: object
       description: Never carries amounts, reasons or plan names (security-baseline 10).
-      required: [check_in_id, status, first_name, displayed_alert_codes, sessions, attended]
+      required: [check_in_id, status, first_name, displayed_alert_codes, sessions, attended, attended_count]
       properties:
         check_in_id: {type: string, format: uuid}
         status: {type: string, enum: [admitted, see_staff]}
         first_name: {type: string}
-        displayed_alert_codes: {type: array, items: {type: string}}
+        displayed_alert_codes: {type: array, items: {type: string}, description: 'Empty unless the visit was identified by possession (a verified app QR or wallet pass).'}
         sessions: {type: array, items: {$ref: '#/components/schemas/KioskSession'}}
-        attended: {type: array, items: {$ref: '#/components/schemas/CheckInAttendance'}}
+        attended: {type: array, items: {$ref: '#/components/schemas/CheckInAttendance'}, description: 'The places marked present; empty unless the visit was identified by possession.'}
+        attended_count: {type: integer, description: 'How many places the check-in marked present, for every visit.'}
         visit_token: {type: [string, 'null'], description: 'Single use; the next action on this visit spends it. Null when seeing staff.'}
     KioskAttendanceCreate:
       type: object

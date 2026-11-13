@@ -469,8 +469,9 @@ class KioskCheckInResult(Out):
     check_in_id: UUID
     status: Literal["admitted", "see_staff"]
     first_name: str
-    displayed_alert_codes: list[str]
-    attended: list[KioskAttendedOut]
+    displayed_alert_codes: list[str]  # empty unless the visit was identified by possession
+    attended: list[KioskAttendedOut]  # the places marked; empty unless identified by possession
+    attended_count: int  # how many places the check-in marked present, for every visit
     welcome_message: str | None
     sessions: list[KioskSession]  # the reservation page (CHK-05); empty when the client must see staff
     visit_token: str | None = None  # single use: the next action on this visit spends it; None when seeing staff

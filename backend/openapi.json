@@ -30370,6 +30370,10 @@
             "title": "Attended",
             "type": "array"
           },
+          "attended_count": {
+            "title": "Attended Count",
+            "type": "integer"
+          },
           "check_in_id": {
             "format": "uuid",
             "title": "Check In Id",
@@ -30430,6 +30434,7 @@
           "first_name",
           "displayed_alert_codes",
           "attended",
+          "attended_count",
           "welcome_message",
           "sessions"
         ],

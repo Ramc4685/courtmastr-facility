@@ -157,14 +157,19 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict, *, fre
 def result(session: Session, row: CheckIn, config: dict, sessions: list[dict], token: str | None = None) -> dict:
     """The kiosk's view of a visit: first name, the alerts the location shows, places marked, the reservation
     page and the visit token for the next action. Never amounts, reasons or plan names; found by name, no alert
-    (each one is the person's private state) and a page that is the same for everyone (`_sessions`)."""
+    (each one is the person's private state), the places marked as a count only, and a page that is the same for
+    everyone (`_sessions`)."""
     admitted = row.result != "denied"
-    shown = set(config["displayed_alert_codes"]) if admitted and _by_possession(row) else set()
+    possession = _by_possession(row)
+    shown = set(config["displayed_alert_codes"]) if admitted and possession else set()
+    attended = service.check_in_view(session, row)["attended"]
     return {
         "check_in_id": row.id, "status": "admitted" if admitted else "see_staff",
         "first_name": clients.service.get(session, row.client_id).first_name,
         "displayed_alert_codes": [c for c in row.alert_codes if c in shown],
-        "attended": service.check_in_view(session, row)["attended"], "welcome_message": config["welcome_message"],
+        # Found by name, the places marked are a count: their sessions would name what the person attends.
+        "attended": attended if possession else [], "attended_count": len(attended),
+        "welcome_message": config["welcome_message"],
         "sessions": sessions if admitted else [], "visit_token": token if admitted else None,
     }  # fmt: skip
 

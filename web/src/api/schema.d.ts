@@ -26619,6 +26619,8 @@ export interface components {
         KioskCheckInResult: {
             /** Attended */
             attended: components["schemas"]["KioskAttendedOut"][];
+            /** Attended Count */
+            attended_count: number;
             /**
              * Check In Id
              * Format: uuid

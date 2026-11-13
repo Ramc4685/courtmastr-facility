@@ -193,7 +193,7 @@ function Kiosk({ config }: { config: Config }) {
         ) : result ? (
           <div className={`rounded-lg border p-6 ${result.status === 'admitted' ? 'border-success' : 'border-danger'}`}>
             <p className="text-2xl font-semibold">{result.status === 'admitted' ? `You're checked in, ${result.first_name}!` : `Please see the front desk, ${result.first_name}.`}</p>
-            {result.attended.length > 0 && <p className="mt-2">You are marked present for {result.attended.length === 1 ? 'your class' : `${result.attended.length} classes`}.</p>}
+            {result.attended_count > 0 && <p className="mt-2">You are marked present for {result.attended_count === 1 ? 'your class' : `${result.attended_count} classes`}.</p>}
             {result.displayed_alert_codes.length > 0 && (
               <ul className="mt-3 list-disc pl-5">
                 {result.displayed_alert_codes.map((c) => <li key={c}>{ALERT_LABEL[c] ?? c}</li>)}

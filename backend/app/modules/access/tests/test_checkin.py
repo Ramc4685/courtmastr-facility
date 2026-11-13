@@ -214,10 +214,12 @@ def test_kiosk_attendance_window_runs_from_early_before_start_to_late_after(clie
         monkeypatch.setattr(service, "clock", SimpleNamespace(now=lambda: moment))
         found = ok(client.post(f"{API}/kiosk/lookups", json={"last_name_prefix": kid["last_name"][:5]}))["matches"]
         (token,) = [m["match_token"] for m in found]
-        return ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": token}), 201)["attended"]
+        entered = ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": token}), 201)
+        assert entered["attended"] == []  # found by name: how many places were marked, never which sessions
+        return entered["attended_count"]
 
-    assert kiosk_at(starts + timedelta(minutes=45)) == []
-    assert [a["session_id"] for a in kiosk_at(starts - timedelta(minutes=50))] == [str(seat["id"])]
+    assert kiosk_at(starts + timedelta(minutes=45)) == 0
+    assert kiosk_at(starts - timedelta(minutes=50)) == 1
 
 
 def test_kiosk_settings_gate_lookups_and_alerts(client, tenant, owner, f):

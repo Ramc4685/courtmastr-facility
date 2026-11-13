@@ -255,8 +255,8 @@ def test_auto_book_on_a_name_search_skips_a_session_that_would_spend_a_package(c
     give_package(client, owner, tenant, k, paid.type_id)
     ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner, json={"is_auto_book": True}))
     entered = enter(client, k.person)
-    assert [a["session_id"] for a in entered["attended"]] == [free.id]
-    assert pricing(tenant, paid.id) is None
+    assert entered["attended_count"] == 1 and entered["attended"] == []  # by name: a count, never which session
+    assert pricing(tenant, free.id) == "free" and pricing(tenant, paid.id) is None
 
 
 def test_auto_book_on_an_app_card_never_spends_a_package(client, tenant, owner, k):
