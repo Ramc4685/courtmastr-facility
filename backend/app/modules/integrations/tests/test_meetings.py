@@ -51,6 +51,19 @@ def test_video_meeting_contract(make):
     assert adapter.delete_meeting(made.external_meeting_id) is None
 
 
+def test_zoom_encodes_the_host_as_one_path_segment():
+    paths: list[str] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.raw_path.decode())
+        return _zoom(request)
+
+    http = httpx.Client(transport=httpx.MockTransport(record))
+    zoom = ZoomVideo(account_id="acct-1", client_id="cid", client_secret="secret", client=http)
+    zoom.create_meeting(topic="t", starts_at=WHEN, minutes=30, host_user_id="../a/b@x.com")
+    assert paths[-1] == "/v2/users/..%2Fa%2Fb@x.com/meetings"
+
+
 def test_zoom_refuses_credentials_for_another_account():
     with pytest.raises(httpx.HTTPStatusError):
         _real("someone-else").check_account()
@@ -229,7 +242,7 @@ def test_a_zoom_meeting_follows_its_session_after_commit(client, tenant, owner, 
 def test_a_zoom_host_id_cannot_walk_the_api_path(client, owner):
     f = facility(client, owner)
     seat = _session(client, owner, f, WHEN)
-    for bad in ("..", ".", "../users", "a/b", "me?x=1"):
+    for bad in ("..", ".", "../users", "a/b", "me?x=1", "%2e%2e", "%2e%2e%2f@x.com", "a%2fb@example.com"):
         body = {"provider": "zoom", "host_external_user_id": bad}
         assert client.put(_meeting(seat), headers=owner, json=body).status_code == 422, bad
 

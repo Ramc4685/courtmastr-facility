@@ -260,7 +260,7 @@ class VideoMeetingIn(In):
         Annotated[
             str,
             StringConstraints(
-                pattern=r"^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)$",
+                pattern=r"^(?:[A-Za-z0-9_-]{1,64}|[A-Za-z0-9._-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)$",
                 max_length=128,
             ),  # fmt: skip
         ]

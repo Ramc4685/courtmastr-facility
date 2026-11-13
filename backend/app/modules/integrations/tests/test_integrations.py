@@ -3,6 +3,7 @@ export and adapters. Real PostgreSQL; the network is mocked except in the local-
 
 import hashlib
 import http.server
+import importlib
 import json
 import threading
 import time
@@ -156,6 +157,21 @@ def test_keys_hold_only_the_documented_api_resources(client, owner, scope):
         "A", "I", "G", "K", "OO", "OD", "+"}) for p in CATALOGUE.values())  # fmt: skip
 
 
+def test_a_stored_scope_off_the_allow_list_never_reaches_the_key_and_the_migration_strips_it(client, tenant, owner):
+    key = _key(client, owner, scopes=["clients.client.read"])
+    with _system(tenant) as session:  # written another way: an old row, a manual fix, a restore
+        session.execute(update(ApiKey).values(scopes=["clients.client.read", "platform.audit.read"]))
+    h = _bearer(key["secret"])
+    assert client.get(f"{API}/clients", headers=h).status_code == 200
+    assert client.get(f"{API}/audit-events", headers=h).status_code == 403
+    with _system(tenant) as session:
+        assert set(auth.authenticate(session, key["secret"]).permissions) == {"clients.client.read"}
+        session.execute(
+            text(importlib.import_module("migrations.versions.1705_integrations_key_scope_allow_list").STRIP)
+        )
+        assert session.scalar(select(ApiKey.scopes)) == ["clients.client.read"]
+
+
 def test_scopes_are_bounded_by_the_catalogue_the_rules_and_the_creator(client, tenant, owner):
     assert _key(client, owner, 422, scopes=["integrations.api_key.manage"])["code"] == "scope-not-grantable"
     assert _key(client, owner, 422, scopes=["nope.nope.nope"])["code"] == "validation-failed"
@@ -188,13 +204,14 @@ def test_key_principal_is_the_creator_narrowed():
     creator = Principal(
         kind="staff",
         staff_user_id=uuid4(),
-        permissions={"a.b.c": "all", "d.e.f": "own"},
+        permissions={"clients.client.read": "all", "billing.charge.read": "own", "platform.audit.read": "all"},
         location_ids=frozenset({l1, l2}),
     )
-    key = ApiKey(id=uuid4(), name="k", scopes=["a.b.c", "x.y.z"], location_ids=[l2, l3])
+    scopes = ["clients.client.read", "rentals.rental.read", "platform.audit.read"]  # not held; off the allow-list
+    key = ApiKey(id=uuid4(), name="k", scopes=scopes, location_ids=[l2, l3])
     principal = auth._bounded(creator, key)
     assert principal.kind == "api_key" and principal.api_key_id == key.id and principal.staff_user_id is None
-    assert dict(principal.permissions) == {"a.b.c": "all"} and principal.location_ids == {l2}
+    assert dict(principal.permissions) == {"clients.client.read": "all"} and principal.location_ids == {l2}
     assert principal.actor_id == key.id
     key.location_ids = None
     assert auth._bounded(creator, key).location_ids == {l1, l2}

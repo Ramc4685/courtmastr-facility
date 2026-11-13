@@ -5,6 +5,7 @@ exists, so tests drive `ZoomVideo` through httpx.MockTransport only (docs/status
 import base64
 import time
 from datetime import UTC, datetime
+from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
@@ -69,7 +70,8 @@ class ZoomVideo:
     def create_meeting(self, *, topic: str, starts_at: datetime, minutes: int, host_user_id: str) -> Meeting:
         body = {"topic": topic[:200], "type": 2, "start_time": self._when(starts_at), "timezone": "UTC",
                 "duration": minutes, "settings": {"waiting_room": True, "join_before_host": False}}  # fmt: skip
-        response = self.client.post(f"{self.API}/users/{host_user_id}/meetings", json=body, headers=self._bearer())
+        user = quote(host_user_id, safe="@")  # one path segment whatever the schema let through
+        response = self.client.post(f"{self.API}/users/{user}/meetings", json=body, headers=self._bearer())
         response.raise_for_status()
         made = response.json()
         return Meeting(str(made["id"]), made["join_url"], made["start_url"], made.get("password") or None)

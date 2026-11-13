@@ -14,12 +14,13 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core import clock, ratelimit
-from app.core.auth import Principal, tokens
+from app.core.auth import CATALOGUE, Principal, tokens
 from app.core.errors import DomainError, PermissionDenied, Unauthenticated
 from app.core.ratelimit import _redis
 from app.core.settings import get_settings
 from app.modules import platform
 from app.modules.integrations.models import ApiKey, ApiKeyStatus
+from app.modules.integrations.service import grantable_to_key
 
 log = logging.getLogger(__name__)
 _INVALID = "Invalid or expired API key"
@@ -55,7 +56,12 @@ def _bounded(creator: Principal, key: ApiKey) -> Principal:
     return replace(
         creator, kind="api_key", api_key_id=key.id, staff_user_id=None, session_id=None, role_system_key=None,
         display_name=f"API key: {key.name}",
-        permissions={k: creator.permissions[k] for k in key.scopes if k in creator.permissions},
+        # The allow-list applies here too, so a scope stored some other way never reaches the key.
+        permissions={
+            k: creator.permissions[k]
+            for k in key.scopes
+            if k in creator.permissions and k in CATALOGUE and grantable_to_key(CATALOGUE[k])
+        },
         location_ids=locations,
     )  # fmt: skip
 

@@ -37,7 +37,8 @@ through `service.adapter_for`.
   it), minus rbac-matrix section 11's flags, held by the
   creator, and confirmed when they move money (`$`) or set prices (`P`). A location-limited creator must name
   locations inside their own and sees only keys within them. The key's principal is recomputed from the
-  creator on every request, so it shrinks with them. Rotating re-binds the key to the person who rotated it,
+  creator on every request, so it shrinks with them, and its scopes pass the allow-list again there, so a scope
+  stored some other way never takes effect (migration 1705 stripped any already stored). Rotating re-binds the key to the person who rotated it,
   so a new secret never carries someone else's wider reach; a rotation by someone else ends the old secret at once.
 - **Keys reach only routes gated by `require(<key>)`.** Keyless routes answer `403 api-key-not-allowed`: the
   self-service routes such as `/me`, and the staff routes gated by a bare `require()` (configuration reads such
@@ -178,7 +179,8 @@ through `service.adapter_for`.
 - **Meeting lifecycle.** Subscribers move a session's Zoom meeting on `scheduling.booking.rescheduled` and
   delete it (at Zoom and here) on `scheduling.session.cancelled`, after the scheduling transaction commits; a
   refused move marks the meeting failed (`reschedule-failed`). Disconnecting Zoom audits each meeting it fails.
-  `host_external_user_id` is a Zoom user id or an email, never a path segment such as `..`.
+  `host_external_user_id` is a Zoom user id or an email (no `%` or `+`), never a path segment such as `..`; the
+  adapter also percent-encodes it as one path segment.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because
   scheduling was owned by another builder in Phase 15; it reads through `scheduling.service.booking_ids` and
   `booking_views`. Moving it is a file move.

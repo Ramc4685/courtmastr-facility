@@ -1,7 +1,7 @@
 # Phase 15: public API and integrations
 
 Branch `claude/phase15-public-api-integrations`. Plan: `docs/planning/phase-15.md`. Module rules:
-`backend/app/modules/integrations/README.md`. Migrations 1701 to 1704.
+`backend/app/modules/integrations/README.md`. Migrations 1701 to 1705.
 
 ## Never run live
 
