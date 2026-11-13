@@ -316,7 +316,7 @@ def test_calendar_app_methods_never_log_the_token(client, owner, caplog):
         assert head.headers["content-type"].startswith("text/calendar")
         assert client.options(url).status_code == 204
         assert client.request("PROPFIND", url).status_code == 404
-        for method in ("POST", "PUT", "DELETE"):
+        for method in ("POST", "PUT", "DELETE", "PATCH", "REPORT", "PROPPATCH", "MKCALENDAR", "TRACE", "LOCK"):
             refused = client.request(method, url)
             assert refused.status_code == 405 and refused.headers["allow"] == "GET, HEAD, OPTIONS", method
     server = [r for r in caplog.records if not r.name.startswith("httpx")]

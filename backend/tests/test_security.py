@@ -67,7 +67,32 @@ def test_the_route_walk_sees_the_whole_api():
 
 
 HIDDEN = {
-    ("/api/v1/public/calendar-feeds/{token}", frozenset({"HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"})),
+    (
+        "/api/v1/public/calendar-feeds/{token}",
+        frozenset(
+            {
+                "HEAD",
+                "OPTIONS",
+                "PROPFIND",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "TRACE",
+                "CONNECT",
+                "REPORT",
+                "PROPPATCH",
+                "MKCOL",
+                "MKCALENDAR",
+                "COPY",
+                "MOVE",
+                "LOCK",
+                "UNLOCK",
+                "SEARCH",
+                "ACL",
+            }
+        ),
+    ),  # fmt: skip
 }
 
 

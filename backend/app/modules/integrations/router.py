@@ -405,11 +405,16 @@ def get_public_calendar_feed(token: str, request: Request, response: Response):
 # Every other method is answered here, so none reaches the framework's 405, which logs the full path before any
 # handler runs (handover: redact in core.api). Listed in tests/test_security.py HIDDEN.
 _FEED_METHODS = {"Allow": "GET, HEAD, OPTIONS"}
+# Every HTTP and WebDAV/CalDAV method a client or scanner sends (RFC 9110, 4918, 3253, 4791, 5789).
+_OTHER_METHODS = [
+    "HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE", "PATCH", "TRACE", "CONNECT", "REPORT", "PROPPATCH",
+    "MKCOL", "MKCALENDAR", "COPY", "MOVE", "LOCK", "UNLOCK", "SEARCH", "ACL",
+]  # fmt: skip
 
 
 @inbound.api_route(
     "/public/calendar-feeds/{token}",
-    methods=["HEAD", "OPTIONS", "PROPFIND", "POST", "PUT", "DELETE"],
+    methods=_OTHER_METHODS,
     include_in_schema=False,
 )
 def other_public_calendar_feed_methods(token: str, request: Request, response: Response):
