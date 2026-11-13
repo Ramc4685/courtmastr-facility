@@ -497,7 +497,7 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     assert profile.status_code == 200, profile.text
     bulk = post("/billing-bulk-actions", {  # billing_bulk_action + billing_bulk_action_item
         "action": "render_invoices", "location_id": location["id"], "invoice_ids": [unpaid["id"]],
-    })  # fmt: skip
+    }, key="populate-bulk-render")  # fmt: skip
     return {
         "billing_bulk_action_id": bulk["id"],
         "collections_tag_id": tag["id"],

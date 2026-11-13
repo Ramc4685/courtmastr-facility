@@ -36,14 +36,16 @@ _TABLES = {
 }  # fmt: skip
 # Writes under the client-following billing.payment.take that post to another location's books (M-04).
 LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment"}
+# Reads under the client-following billing.charge.read that the service authorizes at the bulk action's location.
+LOCATION_BOUND_READS = {"getBillingBulkAction", "listBillingBulkActionItems"}
+LOCATION_BOUND_EXTRA = LOCATION_BOUND_WRITES | LOCATION_BOUND_READS
 # Reviewed: id routes whose key is client-following or tenant-wide, so a limited admin may reach them anywhere.
 # Backlog 18: billing.invoice.read/send and billing.payment.read stay client-following (spec section 6).
-# get/listBillingBulkAction(Items): billing.charge.read at the route; the service authorizes at the action's location.
 # get/setClientAccessMode: the access mode is one row per client that every location enforces (CHK-08), so it follows the client.
 CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
-        createSetupIntent getAccountCredit getAutopayRun getBillingBulkAction listBillingBulkActionItems
+        createSetupIntent getAccountCredit getAutopayRun
         getCharge getClientBillingSummary
         getClientDocument getClientDocumentFile getClientPackage getClientStatement getClientStatementPdf
         getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getInvoicePdf
@@ -136,7 +138,7 @@ def _staff_id_routes():
 
 
 def _location_bound(path: str, name: str, keys: tuple[str, ...]) -> bool:
-    if name in LOCATION_BOUND_WRITES:
+    if name in LOCATION_BOUND_EXTRA:
         return True
     match = re.search(r"\{(\w+)_id\}", path)
     if match is None:
@@ -187,7 +189,7 @@ def test_other_location_admin_gets_404(scoped, method, path, name):
 
 def test_every_staff_id_route_resolves_and_some_are_location_bound():
     assert len(_BOUND) > 40
-    assert LOCATION_BOUND_WRITES <= {n for _, _, n in _BOUND}
+    assert LOCATION_BOUND_EXTRA <= {n for _, _, n in _BOUND}
     assert set(LOCATION_SCOPE) <= {n for _, _, n in _BOUND}, "a known-open entry names no location-bound route"
 
 
@@ -195,6 +197,6 @@ def test_client_following_and_tenant_wide_routes_are_reviewed():
     """Routes whose key is `C` or `T`: reachable from any location by design. A diff here is a review."""
     found: dict[str, set[str]] = {}
     for _, _, name, keys in _ALL:
-        if keys and name not in LOCATION_BOUND_WRITES and all(CATALOGUE[k].scope != Scope.LOCATION for k in keys):
+        if keys and name not in LOCATION_BOUND_EXTRA and all(CATALOGUE[k].scope != Scope.LOCATION for k in keys):
             found.setdefault(_scope_of(keys), set()).add(name)
     assert found == CLIENT_OR_TENANT_ROUTES
