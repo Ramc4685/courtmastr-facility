@@ -47983,6 +47983,50 @@
         "title": "PortalCalendarFeedCreate",
         "type": "object"
       },
+      "PortalCalendarFeedCreated": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fetched At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "url_token": {
+            "description": "Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}",
+            "title": "Url Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "last_fetched_at",
+          "created_at",
+          "url_token"
+        ],
+        "title": "PortalCalendarFeedCreated",
+        "type": "object"
+      },
       "PortalCalendarFeedOut": {
         "description": "A member's own feed, without the address: that is shown once, when the feed is made.",
         "properties": {
@@ -133250,7 +133294,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CalendarFeedCreated"
+                  "$ref": "#/components/schemas/PortalCalendarFeedCreated"
                 }
               }
             },

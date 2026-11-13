@@ -32143,6 +32143,28 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** PortalCalendarFeedCreated */
+        PortalCalendarFeedCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Url Token
+             * @description Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}
+             */
+            url_token: string;
+        };
         /**
          * PortalCalendarFeedOut
          * @description A member's own feed, without the address: that is shown once, when the feed is made.
@@ -67698,7 +67720,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CalendarFeedCreated"];
+                    "application/json": components["schemas"]["PortalCalendarFeedCreated"];
                 };
             };
             /** @description Validation Error */

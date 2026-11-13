@@ -57,3 +57,8 @@ Carried from main (re-verified, line numbers updated)
 - [contract] `platform/README.md:48` still says scheduling refuses "while a confirmed booking is still to start"; the code also refuses on a live tentative checkout hold (`service.py:995-1003`).
 
 Fixed since the last report and dropped: nothing from main's findings was closed by the merge. Line numbers for the merge items moved (`merge_series` is now at `service.py:2183`); main's `test_merge_*` additions are not re-checked here.
+
+Fixed since the last refresh (2026-11-13, follow-up round): participant attendance (`sharing.mark_attendance`)
+requires `scheduling.attendance.mark_exception` for every change other than scheduled to attended, goes through
+`authorize_reach`, and answers 404 to an `own`-scoped coach on a booking without their resource. The README
+states this; no new drift.

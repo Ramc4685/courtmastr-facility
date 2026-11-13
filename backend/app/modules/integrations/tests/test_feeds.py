@@ -228,7 +228,7 @@ def test_member_feed_shows_enrolled_sessions_and_stops_with_the_identity(client,
     for session_id in (seat, internal):
         ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": session_id, "client_id": client_id}))
     created = ok(client.post(f"{API}/portal/calendar-feeds", headers=member, json={}))
-    assert created["kind"] == "member_schedule"
+    assert set(created) == {"id", "name", "last_fetched_at", "created_at", "url_token"}  # the portal shape only
     text = _fetch(client, created["url_token"]).text
     assert "SUMMARY:Kids clinic" in text and "SUMMARY:Session" in text and "Not mine" not in text
     assert text.count("LAST-MODIFIED:") == 2
@@ -236,7 +236,9 @@ def test_member_feed_shows_enrolled_sessions_and_stops_with_the_identity(client,
     staff_only = client.post(f"{API}/calendar-feeds", headers=member, json={"kind": "staff_schedule", "name": "X"})
     assert staff_only.status_code == 403
     with tenant_session(tenant.id) as session:
-        identity = session.get(CalendarFeed, created["id"]).owner_identity_id
+        feed = session.get(CalendarFeed, created["id"])
+        assert feed.kind == "member_schedule"
+        identity = feed.owner_identity_id
         session.get(Identity, identity).status = "disabled"
     assert _fetch(client, created["url_token"]).status_code == 404
 

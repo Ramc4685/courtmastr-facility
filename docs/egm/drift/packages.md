@@ -66,3 +66,8 @@ README structure and stale statements
 - [missing] Link hint: the README names no code symbols for the close rules apart from `postbilled.py`. Adding `_plan`, `_run`, `_credit_back`, `_live_charge`, `_clear_stale_failures`, `_bill`, `close_period` and `retry_close` would make future drift checks cheaper.
 
 Fixed since the last report and dropped: the README now describes the catch-all failure capture (`unexpected-error`), audited stale-failure clearing bounded by period, the retry lock order, the flat discount cap, the int casts and the no-double-credit rule for hand-removed sessions. The module docstring of `postbilled.py` is the only text not checked against these.
+
+Fixed since the last refresh (2026-11-13, follow-up round): `_credit_back` refuses a fractional live quantity with
+`fractional-quantity` (stored as the package's failure) instead of truncating it; `_clear_stale_failures` locks
+other closes `ORDER BY id`; the catch-all in `_run` logs the step, package id and exception type only. The README
+states all three; no new drift.

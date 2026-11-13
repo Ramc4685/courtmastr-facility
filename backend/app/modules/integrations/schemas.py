@@ -350,6 +350,10 @@ class PortalCalendarFeedOut(Out):
     created_at: datetime
 
 
+class PortalCalendarFeedCreated(PortalCalendarFeedOut):
+    url_token: str = Field(description="Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}")
+
+
 class PortalEnrollmentMeetingOut(Out):
     """One of my booked places whose session has an online meeting. The link comes only from the join command."""
 
