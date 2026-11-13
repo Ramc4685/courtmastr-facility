@@ -56,6 +56,21 @@ test('post-billed rates, the period close, and the client dialogs pass axe', asy
   await scan(page, 'membership agreement dialog')
 })
 
+test('a session drawer shows its direct link, sharing and merge controls, and passes axe', async ({ page }) => {
+  await signIn(page, '/schedule')
+  await page.getByRole('button', { name: 'week', exact: true }).click()
+  await page.getByRole('button', { name: /^Private Lesson.*full/ }).first().click()
+  await expect(page.getByRole('heading', { name: 'Shared with' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Link into series' })).toBeVisible()
+  await page.getByRole('button', { name: /^(Create|Show) link$/ }).click()
+  const link = page.getByRole('textbox', { name: 'Registration link' })
+  await expect(link).toHaveValue(/\/direct-link#token=/)
+  expect(await link.inputValue()).not.toContain('?')
+  await scan(page, 'session drawer with a direct link')
+  await page.getByRole('button', { name: 'Turn off link' }).click() // leave the seeded session as it was
+  await expect(link).toBeHidden()
+})
+
 test('a direct link that is not valid says so, and the token leaves the address bar', async ({ page }) => {
   await page.goto('/direct-link#token=not-a-real-link-token')
   await expect(page.getByRole('alert')).toContainText('This link is not valid any more.')
