@@ -53,6 +53,9 @@ DOOR_BAD_WINDOW = timedelta(minutes=5)  # wrong codes older than this stop count
 DOOR_LOCK_WAIT = 30.0  # seconds a queued verify waits for its turn before it is denied
 EVAL_FLOOR_SECONDS = 0.25  # an evaluation answers after this long, so a matched code is not slower than a wrong one
 FAILURES_BEFORE_ALERT = 3  # failed light commands in a row before staff are emailed
+REASSERT_EVERY = timedelta(minutes=5)  # a lit zone is told "on" again this often when the controller cannot report
+MAX_OVERRIDE = timedelta(hours=24)
+MIN_RUN_ON = timedelta(minutes=1)  # a court in play is never cut within the same minute
 _RESOURCE = table("resource", column("id"), column("location_id"))  # read under RLS; resources may not be imported
 log = logging.getLogger(__name__)
 
@@ -718,8 +721,11 @@ def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> d
 # --- lights --------------------------------------------------------------------------------------------------
 
 
-def _lit_resources(session: Session, location_id: UUID, resource_ids, now: datetime) -> dict[UUID, str]:
-    """resource -> booking number for each resource a confirmed booking holds inside its lit window now."""
+def _lit_resources(
+    session: Session, location_id: UUID, resource_ids, now: datetime
+) -> dict[UUID, tuple[str, datetime]]:
+    """resource -> (booking:<number>, end of its lit window) for each resource a confirmed booking holds inside
+    its lit window now."""
     if not resource_ids:
         return {}
     cfg = _cfg(session, location_id)
@@ -728,28 +734,41 @@ def _lit_resources(session: Session, location_id: UUID, resource_ids, now: datet
         session, resource_ids, Range(now - run_on, now + lead + timedelta(seconds=1))
     )
     views = scheduling.service.booking_views(session, {UUID(h["booking_id"]) for h in held})
-    lit: dict[UUID, str] = {}
+    lit: dict[UUID, tuple[str, datetime]] = {}
     for h in held:
         booking = views[UUID(h["booking_id"])]
         if booking["status"] == "confirmed" and booking["kind"] in LIT_KINDS:
             if booking["starts_at"] - lead <= now < booking["ends_at"] + run_on:
-                lit.setdefault(UUID(h["resource_id"]), f"booking:{booking['booking_number']}")
+                lit.setdefault(
+                    UUID(h["resource_id"]), (f"booking:{booking['booking_number']}", booking["ends_at"] + run_on)
+                )
     return lit
 
 
-def _desired(session: Session, zones: list[LightingZone], now: datetime) -> dict[UUID, tuple[bool, str]]:
-    """zone -> (should be on, why: override, booking:<number> or idle)."""
+def _desired(
+    session: Session, zones: list[LightingZone], now: datetime
+) -> dict[UUID, tuple[bool, str, datetime | None]]:
+    """zone -> (should be on, why: override, booking:<number>, run_on or idle, keep lit until). A zone a booking
+    lit stays on until `lit_until_at` (the run-on after the last minute it was wanted), so a booking moved or
+    cancelled mid-play never cuts the lights at once; only a staff override (confirmed) switches it off sooner."""
     if not zones:
         return {}
     mapped = _zone_resources(session, [z.id for z in zones])
-    lit = _lit_resources(session, zones[0].location_id, {r for ids in mapped.values() for r in ids}, now)
+    location_id = zones[0].location_id
+    lit = _lit_resources(session, location_id, {r for ids in mapped.values() for r in ids}, now)
+    run_on = max(timedelta(minutes=_cfg(session, location_id)["light_run_on_min"]), MIN_RUN_ON)
     found = {}
     for zone in zones:
         if zone.override_until_at and zone.override_until_at > now:
-            found[zone.id] = (bool(zone.override_is_on), "override")
+            found[zone.id] = (bool(zone.override_is_on), "override", None)
             continue
-        why = next((lit[r] for r in mapped[zone.id] if r in lit), None)
-        found[zone.id] = (why is not None, why or "idle")
+        hit = next((lit[r] for r in mapped[zone.id] if r in lit), None)
+        if hit is not None:
+            found[zone.id] = (True, hit[0], min(hit[1], now + run_on))
+        elif zone.lit_until_at and zone.lit_until_at > now:
+            found[zone.id] = (True, "run_on", None)
+        else:
+            found[zone.id] = (False, "idle", None)
     return found
 
 
@@ -761,10 +780,27 @@ def _alert(session: Session, location_id: UUID, what: str, count: int, detail: s
                            {"what": what, "location": location.name, "count": count, "detail": detail})  # fmt: skip
 
 
+def _reassert(zone: LightingZone, want: bool) -> bool:
+    """Whether to send a state we already commanded again: the controller reports something else (read_zone), or,
+    when it cannot report, a lit zone has not been told for REASSERT_EVERY (a power cycle must not leave players in
+    the dark)."""
+    controller = building_control.current()
+    if controller is None:
+        return False
+    try:
+        reported = controller.read_zone(zone.zone_ref)
+    except BuildingControlError:
+        reported = None
+    if reported is not None:
+        return reported != want
+    return want and (zone.commanded_at is None or clock.now() - zone.commanded_at >= REASSERT_EVERY)
+
+
 def _command_zone(session: Session, zone: LightingZone, want: bool, why: str) -> None:
-    """Send the zone's wanted state unless it was already commanded. Never raises: a failure is counted, logged
-    and retried by the next tick."""
-    if zone.commanded_is_on == want:
+    """Send the zone's wanted state unless it was already commanded and the controller agrees. Never raises: a
+    failure is counted, logged and retried by the next tick."""
+    again = zone.commanded_is_on == want
+    if again and not _reassert(zone, want):
         zone.failure_count = 0
         return
     try:
@@ -783,7 +819,8 @@ def _command_zone(session: Session, zone: LightingZone, want: bool, why: str) ->
             )
         return
     zone.commanded_is_on, zone.commanded_at, zone.failure_count = want, clock.now(), 0
-    _event(session, zone.location_id, "light_on" if want else "light_off", lighting_zone_id=zone.id, detail=why)
+    if not again:  # a re-assert is not a switch
+        _event(session, zone.location_id, "light_on" if want else "light_off", lighting_zone_id=zone.id, detail=why)
 
 
 def reconcile_lights(session: Session, location_id: UUID) -> None:
@@ -798,29 +835,40 @@ def reconcile_lights(session: Session, location_id: UUID) -> None:
             zone.override_is_on = zone.override_until_at = zone.override_reason = None
     wanted = _desired(session, zones, now)
     for zone in zones:
-        _command_zone(session, zone, *wanted[zone.id])
+        want, why, keep_until = wanted[zone.id]
+        if keep_until is not None:
+            zone.lit_until_at = keep_until
+        _command_zone(session, zone, want, why)
     session.flush()
 
 
 def override_zone(session: Session, principal: Principal, zone_id: UUID, data: dict) -> dict:
-    """Staff hold a zone on or off until a time (cleaning, an event), or clear the hold (`is_on` null). Applied at
-    once; the bookings take over again when it ends."""
+    """Staff hold a zone on or off until a time within MAX_OVERRIDE (cleaning, an event), with a reason, or clear
+    the hold (`is_on` null: back to the bookings, the safe default). Holding a zone off while a booking is in play
+    needs `confirm_in_progress`. Applied at once; the bookings take over again when it ends."""
     zone = _loaded(session, principal, LightingZone, zone_id, LIGHTS)
     now = clock.now()
     if data["is_on"] is None:
         zone.override_is_on = zone.override_until_at = zone.override_reason = None
     else:
         until = data.get("until_at")
-        if until is None or until <= now or until > now + timedelta(days=7):
-            raise ValidationFailed("Pick an end within the next seven days.", pointer="/until_at")
-        zone.override_is_on, zone.override_until_at, zone.override_reason = data["is_on"], until, data.get("reason")
+        if until is None or until <= now or until > now + MAX_OVERRIDE:
+            raise ValidationFailed("Pick an end within the next 24 hours.", pointer="/until_at")
+        if not (data.get("reason") or "").strip():
+            raise ValidationFailed("Say why the lights are held.", pointer="/reason")
+        if data["is_on"] is False and not data.get("confirm_in_progress"):
+            want, why, _ = _desired(session, [zone], now)[zone.id] if zone.is_active else (False, "idle", None)
+            if want and why != "override":
+                raise Conflict("People may be playing on this court now. Confirm to turn the lights off anyway.",
+                               code="booking-in-progress")  # fmt: skip
+        zone.override_is_on, zone.override_until_at, zone.override_reason = data["is_on"], until, data["reason"]
     audit.record(
         session, LIGHTS, zone, location_id=zone.location_id, changes=audit.diff(zone), reason=data.get("reason")
     )
     _event(session, zone.location_id, "override", lighting_zone_id=zone.id, staff_user_id=principal.staff_user_id,
            detail="clear" if data["is_on"] is None else ("on" if data["is_on"] else "off"))  # fmt: skip
     if zone.is_active:
-        want, why = _desired(session, [zone], now)[zone.id]
+        want, why, _ = _desired(session, [zone], now)[zone.id]
         _command_zone(session, zone, want, why)
     session.flush()
     return zone_view(zone, _zone_resources(session, [zone.id])[zone.id])
@@ -902,7 +950,7 @@ def building_status(session: Session, principal: Principal, location_id: UUID) -
     mapped = _zone_resources(session, [z.id for z in zones])
     rows = []
     for zone in zones:
-        want, why = wanted.get(zone.id, (False, "inactive"))
+        want, why, _ = wanted.get(zone.id, (False, "inactive", None))
         rows.append(zone_view(zone, mapped[zone.id]) | {
             "should_be_on": want, "reason": why, "is_in_sync": not zone.is_active or zone.commanded_is_on == want})  # fmt: skip
     doors = session.scalars(select(DoorDevice).where(DoorDevice.location_id == location_id).order_by(DoorDevice.name))

@@ -264,9 +264,31 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every
   tick; the third failure in a row emails the location's alert address (or its email), and failures show in the
   activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds.
-- **Staff.** Overrides hold a zone on or off until a time within seven days (`PUT /lighting-zones/{id}/override`,
+- **Staff.** Overrides hold a zone on or off until a time within 24 hours, with a reason (`PUT /lighting-zones/{id}/override`,
   audited, applied at once). `GET /building-events` (filters `local_on`, `kind`, door, zone) is the activity view;
   `GET /building-status` gives per zone "should be on now", the reason and whether it matches the last command.
+
+### What the hardware must guarantee (building control)
+
+The building is unmanned and many players are children, so life safety never depends on this software, the network
+or the controller. Before any door or light is connected, the installation must provide, independently of us:
+
+- **Free egress at all times.** Every door opens from the inside by hand (lever, push bar), whatever the lock or
+  the software is doing. The software never locks a door: it only releases one for a few seconds; relocking is the
+  hardware's own spring or timer.
+- **Door release on fire alarm and on power loss.** The fire alarm panel releases access-controlled doors directly
+  (fail-safe hardware), and a power cut leaves them openable, as the fire code requires.
+- **Emergency and exit lighting never on a software-controlled circuit.** Exit signs and emergency lights are on
+  their own circuits with battery backup; only court lights are switched by `set_zone`.
+- **A manual light switch on site** for every zone, reachable without a code, that overrides the controller.
+
+Within that, the software keeps itself safe: a staff "force off" on a zone with a booking in play needs an explicit
+confirm and a reason; every hold needs a reason and lasts at most 24 hours; a booking moved or cancelled mid-play
+leaves its lights on for the run-on (at least a minute, `lighting_zone.lit_until_at`, migration 1975); and after any
+failed or unknown controller state the tick sends the wanted state again: when the controller reports a different
+state (`read_zone`) at once, and when it cannot report, a lit zone is told "on" again at least every five minutes,
+so a controller power cycle cannot leave players in the dark. Clearing a hold needs no reason: it hands the zone back
+to the bookings, the safe default.
 
 ### Assumptions and shortcuts (building control)
 
@@ -276,7 +298,7 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - Participants of a shared booking (other than its holder) get no code. A code checks in its own person, so a group
   entering together uses one code each or one code for the group (the code's owner is the one checked in).
 - A door check-in may consume a membership visit, like any check-in.
-- The status line compares with the last command, not with `read_zone`: no controller reports state yet.
+- The status line compares with the last command; the tick also asks `read_zone` and re-sends when it differs.
 - A zone never commanded shows as not in sync until the first tick sends its state.
 - Changing the code window settings re-issues upcoming codes (treated as a reschedule).
 

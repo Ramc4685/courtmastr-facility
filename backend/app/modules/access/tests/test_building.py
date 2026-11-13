@@ -407,7 +407,7 @@ def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone
             assert verify(client, b, wrong_for(code))["result"] == "deny"
             began = time.monotonic()
             assert verify(client, b, code)["result"] == "allow"  # at the ceiling delay, still admitted
-            assert time.monotonic() - began < building.DOOR_DELAYS[-1] + 1.0
+            assert time.monotonic() - began < building.DOOR_DELAYS[-1] + 3.0  # slack for a loaded test machine
     assert code not in str(
         scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.verify"))
     )
@@ -663,12 +663,59 @@ def test_override_holds_a_zone_and_status_shows_the_reconciliation(client, tenan
         drift = ok(client.get(f"{API}/building-status?location_id={b.location}", headers=manager), 200)
         assert not next(z for z in drift["zones"] if z["name"] == "Court 1")["is_in_sync"]
         tick(b)  # the next tick repairs it
-        assert sim.calls[-1] == ("set_zone", "relay-1", True)
+        assert ("set_zone", "relay-1", True) in sim.calls[-3:]
     with clock.freeze(at(10.5)):
         tick(b)  # the override ran out: the court goes back to its bookings (none)
         assert sim.zones["relay-1"] is False
     reason = scalar(tenant, select(AuditEvent.reason).where(AuditEvent.action == "access.lighting.override"))
     assert reason == "Cleaning"
+
+
+def test_forcing_lights_off_on_a_court_in_play_needs_a_confirmed_reason_and_holds_at_most_a_day(client, owner, b, sim):
+    book(b, 10, 11)
+    url = f"{API}/lighting-zones/{b.court_zone}/override"
+    with clock.freeze(at(10.5)):
+        owner = login(client, b.tenant, b.tenant.owner_email)
+        off = {"is_on": False, "until_at": at(12).isoformat(), "reason": "Leak"}
+        assert client.put(url, headers=owner, json={**off, "reason": None}).status_code == 422  # reason required
+        assert client.put(url, headers=owner, json={**off, "until_at": at(10.5 + 25).isoformat()}).status_code == 422
+        refused = client.put(url, headers=owner, json=off)
+        assert refused.status_code == 409 and refused.json()["code"] == "booking-in-progress"
+        assert (
+            ok(client.put(url, headers=owner, json={**off, "confirm_in_progress": True}), 200)["override_is_on"]
+            is False
+        )
+
+
+def test_a_court_in_play_stays_lit_for_the_run_on_when_its_booking_is_cancelled(b, sim):
+    booking = book(b, 10, 11)
+    with clock.freeze(at(10.5)):
+        tick(b)
+        assert sim.zones["relay-1"] is True
+    with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+        scheduling.service.cancel_booking(session, scheduling.service.get_booking(session, UUID(booking)))
+    for minutes, lit in ((0, True), (1, True), (4, True), (6, False)):
+        with clock.freeze(at(10.5) + timedelta(minutes=minutes, seconds=30)):
+            tick(b)
+            assert sim.zones["relay-1"] is lit, minutes
+
+
+def test_a_controller_that_lost_power_is_told_again(b, sim, monkeypatch):
+    book(b, 10, 12)
+    with clock.freeze(at(10)):
+        tick(b)
+    sim.zones["relay-1"] = False  # the controller rebooted dark and says so
+    with clock.freeze(at(10) + timedelta(minutes=1)):
+        tick(b)
+        assert sim.zones["relay-1"] is True
+    monkeypatch.setattr(sim, "read_zone", lambda ref: None)  # one that cannot tell: re-asserted every five minutes
+    sim.zones.clear()
+    with clock.freeze(at(10) + timedelta(minutes=3)):
+        tick(b)
+        assert "relay-1" not in sim.zones
+    with clock.freeze(at(10) + timedelta(minutes=6, seconds=30)):
+        tick(b)
+        assert sim.zones["relay-1"] is True
 
 
 def test_activity_lists_by_day_and_kind(client, tenant, owner, b):

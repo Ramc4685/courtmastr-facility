@@ -128,11 +128,12 @@ function HoldDialog({ zone, onClose, onDone }: { zone: Zone; onClose: () => void
   const [on, setOn] = useState('on')
   const [minutes, setMinutes] = useState('60')
   const [reason, setReason] = useState('')
+  const [confirmOff, setConfirmOff] = useState(false)
   const hold = useMutation({
     mutationFn: () =>
       api.put('/api/v1/lighting-zones/{lighting_zone_id}/override', {
         path: { lighting_zone_id: zone.id },
-        body: { is_on: on === 'on', until_at: new Date(Date.now() + Number(minutes) * 60_000).toISOString(), reason: reason || null },
+        body: { is_on: on === 'on', until_at: new Date(Date.now() + Number(minutes) * 60_000).toISOString(), reason, confirm_in_progress: on === 'off' && confirmOff },
       }),
     onSuccess: () => {
       onDone()
@@ -143,11 +144,15 @@ function HoldDialog({ zone, onClose, onDone }: { zone: Zone; onClose: () => void
   })
   return (
     <Dialog open onClose={onClose} title={`Hold ${zone.name}`} description="The schedule takes over again when the hold ends."
-      footer={<Button onClick={() => hold.mutate()} loading={hold.isPending}>Hold lights</Button>}>
+      footer={<Button onClick={() => hold.mutate()} loading={hold.isPending} disabled={!reason.trim()}>Hold lights</Button>}>
       <div className="space-y-4">
         <Select label="Lights" value={on} onChange={(e) => setOn(e.target.value)} options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} />
         <Select label="For" value={minutes} onChange={(e) => setMinutes(e.target.value)} options={HOLD_FOR} />
-        <Input label="Reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="Cleaning" />
+        <Input label="Reason" required value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="Cleaning" />
+        {on === 'off' && (
+          <Checkbox label="Turn off even if people are playing now" hint="Only when the court is empty: players would be left in the dark."
+            checked={confirmOff} onChange={(e) => setConfirmOff(e.target.checked)} />
+        )}
       </div>
     </Dialog>
   )

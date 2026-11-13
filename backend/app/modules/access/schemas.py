@@ -578,9 +578,10 @@ class LightingZoneOut(Out):
 
 
 class LightingZoneOverride(In):
-    is_on: bool | None  # null clears the override
+    is_on: bool | None  # null clears the override (back to the bookings)
     until_at: AwareDatetime | None = None
-    reason: Reason | None = None
+    reason: Reason | None = None  # required to hold a zone on or off
+    confirm_in_progress: bool = False  # required to hold a zone off while a booking is in play on it
 
 
 class BuildingEventOut(Out):

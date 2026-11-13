@@ -6,7 +6,12 @@ request someone is standing at the door for, and the lights tick runs inside a j
 
 Only the simulated adapter exists until a vendor is chosen (app.bootstrap wires it; settings refuse it outside
 dev and test). A real adapter raises `BuildingControlError` (or a subclass) on any failure, `TimeoutError`
-included, so callers record the failure and retry on the next tick instead of crashing the job."""
+included, so callers record the failure and retry on the next tick instead of crashing the job.
+
+What the hardware must guarantee (access README): free egress at all times; doors released by the fire alarm and on
+power loss; emergency and exit lighting never on a circuit this port switches; a manual light switch on site for
+every zone. This port never locks a door: `unlock` releases one for a few seconds and the hardware relocks it.
+`read_zone` lets the tick notice a controller that rebooted dark; return None when the device cannot tell."""
 
 from dataclasses import dataclass
 from datetime import datetime

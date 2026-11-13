@@ -488,6 +488,7 @@ class LightingZone(TenantOwned, Timestamps, Base):
     commanded_is_on: Mapped[bool | None]  # None: never commanded
     commanded_at: Mapped[datetime | None]
     failure_count: Mapped[int] = mapped_column(server_default=text("0"))  # failed commands in a row
+    lit_until_at: Mapped[datetime | None]  # a booking last wanted it on: stays on until here (run-on, never cut)
 
 
 class LightingZoneResource(TenantOwned, Timestamps, Base):
