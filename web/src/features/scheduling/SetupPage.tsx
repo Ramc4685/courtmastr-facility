@@ -213,7 +213,7 @@ function TypesTab({ locationId, canManage }: { locationId: string; canManage: bo
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         {canManage && <Button onClick={() => setEditing('new')}>New reservation type</Button>}
-        {can('programs.registration_config.manage') && (
+        {(can('engagement.portal_settings.manage') || can('programs.registration_config.manage')) && (
           <p className="text-sm text-muted">
             Online booking rules per type (how far ahead, cancellation window, limits) live in{' '}
             <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/programs/booking-policies">

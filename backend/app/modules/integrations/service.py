@@ -22,7 +22,7 @@ from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFail
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
-from app.modules import platform
+from app.modules import billing, platform
 from app.modules.integrations import transport
 from app.modules.integrations.catalogue import CATALOGUE, TEST_EVENT, EventType
 from app.modules.integrations.domain import journal
@@ -729,16 +729,8 @@ def _accounting_adapter(session: Session, connection: ExternalConnection) -> Any
 
 
 def _ledger_rows(session: Session, location_id: UUID, business_on: date) -> tuple[list, str]:
-    """(posting key, debit, credit) per ledger dimension for one location-day.
-    shortcut: reads billing's ledger_entry directly (read-only, under RLS) because billing exposes no day-totals
-    function and reporting's ledger copy does not exist yet; switch to that call when one ships."""
-    rows = session.execute(
-        text(
-            "SELECT account, revenue_category_id, tax_id, sum(debit_minor), sum(credit_minor), max(currency) "
-            "FROM ledger_entry WHERE location_id = :l AND effective_on = :d GROUP BY 1, 2, 3"
-        ),
-        {"l": location_id, "d": business_on},
-    ).all()
+    """(posting key, debit, credit) per ledger dimension for one location-day, from billing's internal read."""
+    rows = billing.service.ledger_day_totals(session, location_id, business_on)
     currency = next((r[5] for r in rows), "USD")
     return [(journal.posting_key(r[0], r[1], r[2]), int(r[3]), int(r[4])) for r in rows], currency
 

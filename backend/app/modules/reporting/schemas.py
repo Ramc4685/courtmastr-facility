@@ -2,16 +2,18 @@
 object here: each report's own parameter model (registry.py) validates them in the service, and its JSON Schema
 is served on the definition."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import StringConstraints
+from pydantic import Field, StringConstraints
 
 from app.core.schemas import In, Out, Page  # noqa: F401
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 Key = Annotated[str, StringConstraints(max_length=64)]
+WallTime = Annotated[str, StringConstraints(pattern=r"^([01][0-9]|2[0-3]):[0-5][0-9]$")]
+Recipients = Annotated[list[UUID], Field(min_length=1, max_length=20)]
 
 
 class ReportDefinitionOut(Out):
@@ -115,3 +117,72 @@ class ExportJobOut(Out):
     expires_at: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class ReportScheduleCreate(In):
+    saved_report_id: UUID
+    location_id: UUID = Field(description="The location whose time zone sets the send time and the day")
+    frequency: Literal["daily", "weekly", "monthly"]
+    weekday: int | None = Field(None, ge=0, le=6, description="Weekly: 0 Monday to 6 Sunday")
+    month_day: int | None = Field(None, ge=1, le=28, description="Monthly: day of the month")
+    send_time: WallTime = Field(description="Local wall time, HH:MM; delivered within the hour after it")
+    format: Literal["csv", "xlsx", "pdf"] = "csv"
+    includes_details: bool = False
+    recipient_staff_user_ids: Recipients
+    is_active: bool = True
+
+
+class ReportScheduleUpdate(In):
+    location_id: UUID | None = None
+    frequency: Literal["daily", "weekly", "monthly"] | None = None
+    weekday: int | None = Field(None, ge=0, le=6)
+    month_day: int | None = Field(None, ge=1, le=28)
+    send_time: WallTime | None = None
+    format: Literal["csv", "xlsx", "pdf"] | None = None
+    includes_details: bool | None = None
+    recipient_staff_user_ids: Recipients | None = None
+    is_active: bool | None = None
+
+
+class ReportScheduleOut(Out):
+    id: UUID
+    saved_report_id: UUID
+    owner_staff_user_id: UUID
+    location_id: UUID
+    frequency: str
+    weekday: int | None
+    month_day: int | None
+    send_time: str
+    format: str
+    includes_details: bool
+    recipient_staff_user_ids: list[UUID]
+    is_active: bool
+    last_run_on: date | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReportRecipientOut(Out):
+    id: UUID
+    display_name: str
+
+
+class DashboardTotalOut(Out):
+    key: str
+    label: str
+    type: str
+    value: Any
+
+
+class DashboardTileOut(Out):
+    key: str
+    name: str
+    period: str | None
+    available: bool  # false: too many rows for a tile; the totals are null and the full report says why
+    totals: list[DashboardTotalOut]
+
+
+class DashboardOut(Out):
+    location_id: UUID | None
+    generated_at: datetime
+    tiles: list[DashboardTileOut]

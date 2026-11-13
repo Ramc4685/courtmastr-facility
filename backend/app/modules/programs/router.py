@@ -38,7 +38,7 @@ GroupManage = Depends(require(groups.MANAGE))
 GroupDelete = Depends(require(groups.DELETE))
 GroupConfig = Depends(require(groups.CONFIG))
 GroupEnroll = Depends(require(groups.ENROLL))
-Policy = Depends(require(selfservice.POLICY))
+Policy = Depends(require(selfservice.POLICY, selfservice.LEAGUE_POLICY))
 FormManage = Depends(require(forms.MANAGE))
 FormRead = Depends(require(forms.READ))
 PublicForms = [Depends(rate_limit("public-form"))]
@@ -102,8 +102,8 @@ def put_session_attendance(schedule_session_id: UUID, body: s.AttendancePut, ctx
 def send_session_roster_message(
     schedule_session_id: UUID, body: s.RosterMessage, ctx: Ctx = Depends(require(service.ENROLL))
 ):
-    """Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers
-    engagement.message.send_direct (module README)."""
+    """Emails everyone registered. Gated by scheduling.enrollment.create on the session (`own` reach and the
+    type's staff grants apply); moving it to engagement.message.send_direct waits on the owner (module README)."""
     return service.send_roster_message(ctx.session, ctx.principal, schedule_session_id, body.model_dump())
 
 

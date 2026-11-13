@@ -133,9 +133,8 @@ through `service.adapter_for`.
   `RateLimit-*` headers on successful key responses need a core change (the authenticator sees no response).
 - Realms (INT-05, SSP-19): keys reach the back-office resources only; the member realm is `/portal/*` with a
   client identity token. Some key-gated reads need a person and refuse a key in the service: the caller's own
-  time-clock state, report runs, saved reports and export jobs (Phase 15 finding, `test_public_api.py`).
-- `_ledger_rows` reads `ledger_entry` with SQL rather than through a billing interface, because billing has no
-  journal read yet. Replace it when module 8 adds one.
+  time-clock state, report runs, saved reports, report schedules, export jobs and the management dashboard (Phase 15 finding, `test_public_api.py`).
+- The accounting export reads the day's ledger totals through billing's internal `ledger_day_totals`.
 - `sweep_webhook_deliveries` runs every minute (app/scheduler.py) and re-enqueues due deliveries whose message
   was lost; a duplicate is harmless because `attempt_delivery` locks and re-checks the row.
 - The disable email goes to the endpoint's creator, not to every Owner.

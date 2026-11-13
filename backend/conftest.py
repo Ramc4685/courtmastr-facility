@@ -297,13 +297,14 @@ def populate(client, tenant) -> SimpleNamespace:
     leagues |= _populate_league_depth(
         client, headers, post, tenant, location["id"], person["id"], space["resource_id"], leagues
     )
+    leagues |= _populate_league_site(client, headers, post, tenant, location["id"], person["id"])
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     meeting = client.put(
         f"/api/v1/sessions/{space['schedule_session_id']}/video-meeting", headers=headers,
         json={"provider": "manual", "join_url": "https://video.invalid/j/populate", "passcode": "123456"},
     )  # fmt: skip
     assert meeting.status_code == 200, meeting.text
-    reporting = _populate_reporting(post, location["id"])
+    reporting = _populate_reporting(post, location["id"], tenant.owner_id)
     reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
@@ -406,13 +407,19 @@ def _populate_imports(client, headers, tenant, location_id) -> dict:
     return {"import_job_id": job_id}
 
 
-def _populate_reporting(post, location_id) -> dict:
-    """Build module 15: a saved report, one run of it, and a (queued) CSV export of that run."""
+def _populate_reporting(post, location_id, owner_id) -> dict:
+    """Build module 15: a saved report, one run of it, a (queued) CSV export of that run, and a daily delivery
+    schedule on the saved report (phase 12 chip A)."""
     params = {"location_ids": [location_id], "from_on": "2020-01-01", "to_on": "2020-12-31"}
     saved = post("/saved-reports", {"report_key": "deposits", "name": "Deposits 2020", "params": params})
     run = post("/report-runs", {"report_key": "deposits", "saved_report_id": saved["id"]})
     export = post("/export-jobs", {"report_run_id": run["id"], "format": "csv"})
-    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"]}
+    schedule = post("/report-schedules", {
+        "saved_report_id": saved["id"], "location_id": location_id, "frequency": "daily", "send_time": "07:00",
+        "format": "xlsx", "recipient_staff_user_ids": [str(owner_id)],
+    })  # fmt: skip
+    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"],
+            "report_schedule_id": schedule["id"]}  # fmt: skip
 
 
 def _populate_assessments(client, headers, post, location_id, client_id) -> dict:
@@ -458,8 +465,6 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     }, key=key())  # fmt: skip
     assert declined["status"] == "failed"
     from datetime import timedelta
-
-    from app.core import clock
 
     today = clock.now().date()
     batch = post("/statement-batches", {  # statement_batch + statement_recipient (+ its stored PDF)
@@ -740,6 +745,7 @@ def _populate_memberships(
     period = next(p for p in call("GET", f"{url}/billing-schedule") if p["status"] == "scheduled")
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         memberships.service.record_visit(session, client_id=person_id, check_in_id=uuid4(), location_id=location_id)
+    call("POST", "/client-packages/complimentary", sale | {"package_plan_id": package_plan["id"]})  # a trial (RPT-24)
     package = call("POST", "/client-packages", sale | {"package_plan_id": package_plan["id"]})
     package_share = call("POST", f"/client-packages/{package['id']}/shares", {"client_id": kid_id})
     recurring = call("POST", "/client-packages", sale | {"package_plan_id": monthly["id"]})
@@ -1129,6 +1135,36 @@ def _populate_league_depth(client, headers, post, tenant, location_id, client_id
         "stat_definition_id": goals["id"],
         "ladder_competition_id": ladder["id"],
     }
+
+
+def _populate_league_site(client, headers, post, tenant, location_id, client_id) -> dict:
+    """Phase 14 chip B2: the enabled public league site with a link, a photo, a sponsor with a logo, a published
+    story and an approved classified (posted straight into the table: populate has no portal password)."""
+    from datetime import timedelta
+
+    from app.modules.leagues.models import LeaguePost
+
+    site = client.put("/api/v1/league-site", headers=headers, json={"is_enabled": True, "shows_classifieds": True})
+    assert site.status_code == 200, site.text
+    link = post("/league-links", {"title": "Rules", "url": "https://example.com/rules"})
+    image = {"Content-Type": "image/png"}
+    photo = client.post("/api/v1/league-photos?caption=Final", headers=headers | image, content=png_bytes())
+    assert photo.status_code == 201, photo.text
+    sponsor = post("/league-sponsors", {"name": "Corner Cafe", "url": "https://example.com"})
+    logo = client.put(f"/api/v1/league-sponsors/{sponsor['id']}/logo", headers=headers | image, content=png_bytes())
+    assert logo.status_code == 200, logo.text
+    story = post(
+        "/league-news", {"title": "Season opens", "body": "Games start soon.", "published_at": "2020-01-01T00:00:00Z"}
+    )
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        row = LeaguePost(location_id=location_id, kind="classified", category="player_wanted", client_id=client_id,
+                         title="Keeper wanted", body="Our Sunday side needs a keeper.", status="approved",
+                         expires_at=clock.now() + timedelta(days=30))  # fmt: skip
+        session.add(row)
+        session.flush()
+        post_id = str(row.id)
+    return {"link_id": link["id"], "photo_id": photo.json()["id"], "sponsor_id": sponsor["id"], "story_id": story["id"],
+            "post_id": post_id}  # fmt: skip
 
 
 @pytest.fixture(scope="session")

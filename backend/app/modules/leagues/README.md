@@ -5,7 +5,7 @@ schedule generator, games, results and standings, single-elimination brackets, o
 schedule and standings. A league and a tournament are the same `competition` row with a different `kind`
 (constraint C2: one data model, no separate league product).
 
-Migration `1101_leagues_core.py` creates 16 tables, each with forced RLS through `enable_rls` and composite
+Migration `1101_leagues_core.py` creates 16 tables (`1441_leagues_public_site.py` adds 6 for the public site), each with forced RLS through `enable_rls` and composite
 tenant FKs. Status per feature: `docs/status/11-leagues.md`.
 
 ## Rules
@@ -116,8 +116,46 @@ games to score.
   teams"), clients of the household or walk-ons.
 - **Game cards (LGE-16, RPT-36)** are PDFs through `core/pdf.py`: one game per card section, no page break per
   game (`core/pdf.py` has no `new_page()`); a run is capped at 31 days and 200 games.
-- **Not routed (P1/P2):** league site and alert settings, public brackets and team pages, portal games,
-  classifieds and sponsors (chip B2 and later).
+- **Not routed (P1/P2):** alert settings and portal games (chip C2 and later).
+- **Public league site (chip B2, migration `1441`).** Teams, schedules, standings, brackets (once published) and
+  results are public as soon as a competition is public; the site switch (`league_site.is_enabled`) governs
+  only the extra sections (facility info, news, classes, gallery, sponsors, links, classifieds, pickup games),
+  each with its own switch. The TV board (`/public/locations/{id}/league-board`) works with the site off.
+- **Players are private by default.** Player names and stats show publicly only when a competition's
+  `show_players` is on (default off, many players are minors), and only for active roster entries on active teams: a removed
+  player drops out of the public stats (staff keep the history). `show_players` wins: the public site never reads
+  the older `shows_roster_publicly`, which the API no longer accepts (it stays on the read model and in the
+  table). Team names are free text staff type; in an individual sport staff may name
+  an entry after a person, and nothing derives a team name from a player's name.
+- **The site options are tenant-wide** (`leagues.public_site.manage` at every location); a manager limited to
+  one location can read them but not save. Sponsors have their own key, held by league admins and admins.
+- **Classifieds and pickup games** are one table (`league_post`, `kind`). Posting needs a portal sign-in; staff
+  approve before a post shows (`leagues.classified.moderate`, location scoped); a post expires 30 days after it
+  is sent, and a pickup game when it starts; a client has at most 5 pending or live posts (`409 post-limit`,
+  serialised per client by an advisory lock). An expired post cannot be approved (`409 post-expired`). Posting
+  and replying follow the classifieds and pickup switches. An erased client's posts are deleted, and the public
+  view never carries a poster's name. Contact goes through a relay form
+  that emails the poster the sender's name, email and message; nobody's address is ever shown. The relay needs
+  a portal sign-in on both sides and is rate limited per IP and per sender. A pickup game needs a future start.
+- **Images** (photos, sponsor logos) go through `platform.files` and are capped at 900 KB (the API's 1 MiB body
+  cap); they are served by our own public routes, published photos and active sponsors only.
+- **Embedding (LGE-21) is not enabled yet.** The proxy (`infra/proxy/Caddyfile`) still refuses all framing
+  (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), so an embedded copy renders blank and the staff screen
+  offers a link to the public site instead of an embed snippet. Turning it on waits for the owner: the proxy
+  should then allow `/leagues/public*` and `/leagues/board/*` only. The web app is ready for that: when framed it
+  renders only those routes and refuses every other screen, because the app is one document and any route could
+  load behind an embeddable path. The second line of defence is the session cookie,
+  `SameSite=Lax`: a browser does not send it on requests from a frame on another site, so a framed screen has no
+  session.
+- **Shortcut: sponsor date windows use today's UTC date**, not a location's zone; a tenant-wide sponsor has no
+  single zone. A sponsor can start or end a few hours early or late at the edges.
+- **Classes on the site** are root program groups (program, camp, clinic, class series) published to the portal
+  with online registration on (the same gate as programs' own public list), not ended in their location's zone,
+  with the online description only (never the staff description or price); registering happens in the portal (`programs` is read, never written; it does not import us).
+- **Anonymous routes** are rate limited (`public-site`, 120 a minute per IP; gallery images and logos have their
+  own `public-site-media` bucket, 600 a minute, so a gallery cannot starve a TV board; the public gallery shows
+  the first 100 published photos in display order, `PHOTO_CAP`, and the staff screen says so), including the four public routes
+  that existed before B2. They return names, never staff or client ids.
 - **Gap: a hard "wants date" preference is greedy (`roundrobin.py`).** Rounds are placed in order, so a team that
   wants one date can pull an early round onto it and leave a later round with no free slot; the run then reports
   that round as unscheduled instead of backtracking. Workaround: widen the windows or soften the preference.
@@ -134,4 +172,6 @@ games to score.
 Staff: `/leagues` (competition list, new competition, publish from a program) and `/leagues/:id` (Teams,
 Schedule & results, Standings, Bracket, Ladder, Player stats, Staff), `/leagues/venues`, `/leagues/stats`, and
 the scorekeeper's `/leagues/scores` (gated on `leagues.result.enter`). Portal: `/portal/teams` for captains.
-Public: `/leagues/public` and `/leagues/public/:id`.
+Public: `/leagues/public` and `/leagues/public/:id` (filters in the URL, `?embed=1`, site sections, teams,
+brackets, player stats) and the TV board `/leagues/board/:locationId`. B2 staff: `/leagues/site` (Options with
+the embed code, News, Photos, Links, Sponsors) and `/leagues/posts` (moderation). Portal: `/portal/league-posts`.

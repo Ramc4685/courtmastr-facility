@@ -79,7 +79,8 @@ def test_api_reference_lists_key_operations(client, owner):
 
 _LIST_SKIP = {f"{API}/api-reference"}  # needs api_key.manage, which no key can hold
 # Reads about "me" behind a key-gated router: the service needs a person, so a key is refused there by design.
-_SELF_ROUTES = {f"{API}/time-entries/current", f"{API}/report-runs", f"{API}/saved-reports", f"{API}/export-jobs"}
+_SELF_ROUTES = {f"{API}/time-entries/current", f"{API}/report-runs", f"{API}/saved-reports", f"{API}/export-jobs",
+                 f"{API}/report-schedules", f"{API}/dashboards/management"}  # fmt: skip
 
 
 def _list_reads() -> dict[str, list[str]]:

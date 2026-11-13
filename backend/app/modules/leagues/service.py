@@ -290,7 +290,7 @@ list_seasons, get_season, create_season, update_season, delete_season = _referen
 
 _COMPETITION_FIELDS = (
     "name", "format", "age_group_id", "season_id", "division_label", "starts_on", "ends_on", "game_length_min",
-    "is_public", "shows_roster_publicly", "max_defaults", "max_forfeits", "min_sportsmanship", "team_fee_text",
+    "is_public", "show_players", "max_defaults", "max_forfeits", "min_sportsmanship", "team_fee_text",
     "more_info", "rules_text", "registration_url", "color", "team_fee_minor", "revenue_category_id", *_SCORING,
 )  # fmt: skip
 _COMPETITION_NULLABLE = (
@@ -2036,10 +2036,18 @@ def _public_view(row: Competition, sport_name: str) -> dict:
     return _columns(row) | {"sport_name": sport_name}
 
 
-def list_public_competitions(session: Db, location_id: UUID | None = None) -> list[dict]:
+def list_public_competitions(session: Db, location_id: UUID | None = None, filters: dict | None = None) -> list[dict]:
+    """LGE-17 filters: sport_id, season_id, kind, status (active or completed) and q (name contains)."""
     stmt = select(Competition).where(Competition.is_public.is_(True), Competition.status.in_(_PUBLIC_STATUSES))
     if location_id is not None:
         stmt = stmt.where(Competition.location_id == location_id)
+    for name, value in (filters or {}).items():
+        if value is None:
+            continue
+        if name == "q":
+            stmt = stmt.where(Competition.name.ilike(f"%{value.replace('%', '').replace('_', '')}%"))
+        else:
+            stmt = stmt.where(getattr(Competition, name) == value)
     rows = session.scalars(stmt.order_by(Competition.starts_on.desc(), Competition.name)).all()
     sports = dict(session.execute(select(Sport.id, Sport.name)).all())
     return [_public_view(row, sports.get(row.sport_id, "")) for row in rows]

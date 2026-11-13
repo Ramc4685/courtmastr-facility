@@ -2,15 +2,17 @@
 captaincies, fee payers and roster places to the survivor; where both records are active on the same team the
 merged record's place is removed. Fee shares move too, except where the survivor already has a share on that team:
 that share stays on the merged tombstone, like the ledger. Erasure keeps billed team entries and fee shares (money
-history) and past roster rows, drops the client as a team captain and takes them off every active roster."""
+history) and past roster rows, drops the client as a team captain and takes them off every active roster. Classified
+and pickup posts (Phase 14 B2) move to the survivor on merge and are deleted on erasure: they are the client's own
+free text."""
 
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
-from app.modules.leagues.models import CompetitionTeam, RosterEntry, Team, TeamFeeShare
+from app.modules.leagues.models import CompetitionTeam, LeaguePost, RosterEntry, Team, TeamFeeShare
 
 
 def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
@@ -25,6 +27,7 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
     session.execute(
         update(CompetitionTeam).where(CompetitionTeam.fee_client_id == loser_id).values(fee_client_id=survivor_id)
     )
+    session.execute(update(LeaguePost).where(LeaguePost.client_id == loser_id).values(client_id=survivor_id))
     s = TeamFeeShare
     shared = select(s.competition_team_id).where(s.client_id == survivor_id)
     session.execute(
@@ -46,6 +49,10 @@ def _export(session: Session, client_id: UUID) -> dict:
             {"competition_team_id": str(f.competition_team_id), "amount_minor": f.amount_minor}
             for f in session.scalars(select(TeamFeeShare).where(TeamFeeShare.client_id == client_id))
         ],
+        "league_posts": [
+            {"kind": p.kind, "title": p.title, "body": p.body, "status": p.status, "posted_at": p.created_at.isoformat()}
+            for p in session.scalars(select(LeaguePost).where(LeaguePost.client_id == client_id))
+        ],
     }  # fmt: skip
 
 
@@ -57,9 +64,10 @@ def _erase(session: Session, client_id: UUID) -> dict:
     removed = session.execute(
         update(r).where(r.client_id == client_id, r.status == "active").values(status="removed")
     ).rowcount
-    return {"captaincies_cleared": captain, "removed_roster_entries": removed}
+    posts = session.execute(delete(LeaguePost).where(LeaguePost.client_id == client_id)).rowcount
+    return {"captaincies_cleared": captain, "removed_roster_entries": removed, "deleted_league_posts": posts}
 
 
-_TABLES = ("team", "competition_team", "roster_entry", "team_fee_share")
+_TABLES = ("team", "competition_team", "roster_entry", "team_fee_share", "league_post")
 clients.merge.register_merge_handler("leagues", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("leagues", tables=_TABLES, export=_export, erase=_erase)

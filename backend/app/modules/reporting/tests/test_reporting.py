@@ -17,6 +17,7 @@ from app.core.jobs import broker
 from app.modules import billing
 from app.modules.platform.models import StoredFile
 from app.modules.reporting import jobs, views
+from app.modules.reporting.catalogue import REGISTRY
 from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.models import ExportJob, ReportRun
 from conftest import add_staff, login, new_client
@@ -125,14 +126,17 @@ def test_views_match_their_column_contract_and_run_as_the_invoker(tenant):
 
 def test_catalogue_lists_only_what_the_caller_may_run(client, tenant, owner):
     everything = ok(client.get(f"{API}/report-definitions", headers=owner))["data"]
-    assert len(everything) == 14 and all(d["params_schema"]["properties"] for d in everything)
+    assert len(everything) == len(REGISTRY) and all(d["params_schema"]["properties"] for d in everything)
     financial = ok(client.get(f"{API}/report-definitions?category=financial", headers=owner))["data"]
-    assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices"}
+    assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices", "receivables",
+                                             "unapplied_payments", "income_balances", "underpaid_items",
+                                             "accrued_session_revenue", "rental_plan_sales"}  # fmt: skip
     desk = login(client, tenant, add_staff(tenant, "front_desk", all_locations=True)[0])
     assert {d["key"] for d in ok(client.get(f"{API}/report-definitions", headers=desk))["data"]} == {
-        "attendance",
-        "attendance_overview",
-    }
+        "attendance", "attendance_overview", "unused_session_value", "package_summary", "expiring_packages",
+        "renewal_candidates", "package_sales", "check_in_summary", "check_in_details",
+        "trainer_performance", "resource_utilization", "peak_times", "class_popularity", "payroll_statements",
+    }  # fmt: skip
     assert code(client.get(f"{API}/report-definitions/revenue_summary", headers=desk), 403) == "permission-denied"
     assert code(client.get(f"{API}/report-definitions/nope", headers=owner), 404) == "not-found"
     assert ok(client.get(f"{API}/report-definitions/deposits", headers=owner))["date_basis"] == "payment_date"
@@ -188,7 +192,23 @@ def test_relative_periods_resolve_in_the_location_time_zone(client, tenant, worl
         new_york = ran(client, headers, "deposits", period="today", location_ids=[world.north])
         both = ran(client, headers, "deposits", period="today")
     assert chicago["params"]["from_on"] == "2026-03-07" and new_york["params"]["from_on"] == "2026-03-08"
-    assert both["params"]["from_on"] == "2026-03-07"  # the location furthest behind
+    assert (both["params"]["from_on"], both["params"]["to_on"]) == ("2026-03-07", "2026-03-08")  # each its own day
+
+
+def test_last_30_days_over_two_zones_keeps_each_location_s_own_days(client, tenant, world):
+    """Regression: between 23:00 and 24:00 Chicago a multi-location `last_30_days` ended on Chicago's date, so a
+    New York sale just after midnight there dropped out. Each location now uses its own 30 days."""
+    with clock.freeze(datetime(2026, 4, 14, 17, 0, tzinfo=UTC)):  # noon 14 April in Chicago: day 1 of 30 there
+        headers = login(client, tenant)
+        _sale(client, headers, world.person, world.main, world.category, 2000)
+    with clock.freeze(datetime(2026, 5, 14, 4, 15, tzinfo=UTC)):  # 23:15 on the 13th in Chicago, 00:15 the 14th in NY
+        headers = login(client, tenant)
+        _sale(client, headers, world.person, world.north, world.category, 3000)
+        revenue = ran(client, headers, "revenue_summary", period="last_30_days")
+        deposits = ran(client, headers, "deposits", period="last_30_days")
+    assert (revenue["params"]["from_on"], revenue["params"]["to_on"]) == ("2026-04-14", "2026-05-14")
+    assert revenue["totals"]["net_minor"] == 5000  # Chicago's first day and New York's last both count
+    assert deposits["totals"]["received_minor"] == 5500
 
 
 def test_parameters_are_validated_with_a_pointer(client, owner, world):
@@ -291,9 +311,6 @@ def test_saved_reports_are_personal_unless_shared_and_grant_nothing(client, tena
 def test_csv_exports_render_in_a_job_from_the_snapshot(client, tenant, owner, world):
     done = ran(client, owner, "revenue_summary", period="last_30_days")
     url = f"{API}/export-jobs"
-    assert code(client.post(url, headers=owner, json={"report_run_id": done["id"], "format": "xlsx"}), 422) == (
-        "not-supported"
-    )
     job = ok(client.post(url, headers=owner, json={"report_run_id": done["id"], "includes_details": True}), 202)
     assert job["status"] == "queued"
     assert code(client.get(f"{url}/{job['id']}/download", headers=owner), 409) == "invalid-state-transition"
@@ -353,6 +370,10 @@ def test_csv_cells_guard_formulas_and_format_money():
     assert data == "﻿Amount (EUR)\r\n1.00\r\n".encode()
 
 
+IN_2030 = {"trainer_performance", "resource_utilization", "class_popularity"}  # populate()'s sessions
+IN_2031 = {"league_game_cards", "league_games_by_venue", "league_officials", "assessment_history", "assessment_summary"}
+
+
 def test_every_report_has_rows_against_a_fully_populated_tenant(client, tenant):
     """populate() writes a row in every table, so every report family must find something (sessions are 2030)."""
     from conftest import populate
@@ -364,15 +385,24 @@ def test_every_report_has_rows_against_a_fully_populated_tenant(client, tenant):
     }
     found = {}
     for definition in ok(client.get(f"{API}/report-definitions", headers=world.headers))["data"]:
-        if definition["key"].startswith("attendance"):
+        if definition["key"].startswith("attendance") or definition["key"] in IN_2030:
             params = {"from_on": "2030-01-01", "to_on": "2030-12-31"}
-        elif definition["key"] == "league_game_cards":  # populate()'s league plays in 2031
-            params = {"from_on": "2031-04-01", "to_on": "2031-04-30"}
+        elif definition["key"] in IN_2031:  # populate()'s league plays and assessment are in 2031
+            params = {"from_on": "2031-01-01", "to_on": "2031-06-30"}
+        elif definition["key"] == "client_retention":
+            params = {"first_from_on": "2030-01-01", "first_to_on": "2030-12-31", "second_from_on": "2030-01-01",
+                      "second_to_on": "2030-12-31"}  # fmt: skip
         else:
             params = around_today if "period" in definition["params_schema"]["properties"] else {}
         done = ran(client, world.headers, definition["key"], **params)
         found[definition["key"]] = done["row_count"]
         if definition["supports_detail"] and done["row_count"]:
-            group = rows(client, world.headers, done["id"])["data"][0]["group_key"]
-            assert rows(client, world.headers, done["id"], group_key=group)["data"], definition["key"]
-    assert all(found.values()), found
+            group = next(
+                (r["group_key"] for r in rows(client, world.headers, done["id"])["data"] if r["group_key"]), None
+            )  # a month without losses (attrition) has nothing to drill into
+            assert group is None or rows(client, world.headers, done["id"], group_key=group)["data"], definition["key"]
+    # populate() writes no payment on account, consumption today, nearly used pack, expiring non-renewing contract
+    # or referral; test_money_memberships builds each of these
+    situational = {"unapplied_payments", "accrued_session_revenue", "renewal_candidates", "expiring_memberships",
+                   "membership_referrals"}  # fmt: skip
+    assert not [key for key, count in found.items() if not count and key not in situational], found

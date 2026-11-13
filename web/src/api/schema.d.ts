@@ -4199,6 +4199,23 @@ export interface paths {
         patch: operations["updateCustomField"];
         trace?: never;
     };
+    "/api/v1/dashboards/management": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Management Dashboard */
+        get: operations["getManagementDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data-subject-requests": {
         parameters: {
             query?: never;
@@ -6334,6 +6351,262 @@ export interface paths {
          * @description Exchange a pairing code for this device's kiosk cookie.
          */
         post: operations["pairKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List League Links */
+        get: operations["listLeagueLinks"];
+        put?: never;
+        /** Create League Link */
+        post: operations["createLeagueLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete League Link */
+        delete: operations["deleteLeagueLink"];
+        options?: never;
+        head?: never;
+        /** Update League Link */
+        patch: operations["updateLeagueLink"];
+        trace?: never;
+    };
+    "/api/v1/league-news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List League News
+         * @description Sort: created_at, published_at, title. Filter: is_pinned. q: title.
+         */
+        get: operations["listLeagueNews"];
+        put?: never;
+        /**
+         * Create League News Story
+         * @description Public once `published_at` is set and reached; leave it empty for a draft.
+         */
+        post: operations["createLeagueNewsStory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-news/{story_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get League News Story */
+        get: operations["getLeagueNewsStory"];
+        put?: never;
+        post?: never;
+        /** Delete League News Story */
+        delete: operations["deleteLeagueNewsStory"];
+        options?: never;
+        head?: never;
+        /** Update League News Story */
+        patch: operations["updateLeagueNewsStory"];
+        trace?: never;
+    };
+    "/api/v1/league-photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List League Photos */
+        get: operations["listLeaguePhotos"];
+        put?: never;
+        /**
+         * Upload League Photo
+         * @description JPEG or PNG bytes as the body, up to 900 KB, re-encoded and scanned. Errors: file-type-mismatch,
+         *     file-too-large, file-infected.
+         */
+        post: operations["uploadLeaguePhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-photos/{photo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete League Photo */
+        delete: operations["deleteLeaguePhoto"];
+        options?: never;
+        head?: never;
+        /** Update League Photo */
+        patch: operations["updateLeaguePhoto"];
+        trace?: never;
+    };
+    "/api/v1/league-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List League Posts
+         * @description The moderation queue at the caller's locations. Filters: status, kind, location_id. q: title.
+         */
+        get: operations["listLeaguePosts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-posts/{post_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve League Post
+         * @description Errors: post-not-pending.
+         */
+        post: operations["approveLeaguePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-posts/{post_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject League Post
+         * @description Refuse a pending post or take down an approved one. Errors: post-not-pending.
+         */
+        post: operations["rejectLeaguePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get League Site */
+        get: operations["getLeagueSite"];
+        /**
+         * Put League Site
+         * @description Tenant-wide: needs the key at every location.
+         */
+        put: operations["putLeagueSite"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-sponsors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List League Sponsors */
+        get: operations["listLeagueSponsors"];
+        put?: never;
+        /** Create League Sponsor */
+        post: operations["createLeagueSponsor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/league-sponsors/{sponsor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete League Sponsor */
+        delete: operations["deleteLeagueSponsor"];
+        options?: never;
+        head?: never;
+        /** Update League Sponsor */
+        patch: operations["updateLeagueSponsor"];
+        trace?: never;
+    };
+    "/api/v1/league-sponsors/{sponsor_id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set League Sponsor Logo
+         * @description JPEG or PNG bytes as the body, up to 900 KB; replaces any earlier logo.
+         */
+        put: operations["setLeagueSponsorLogo"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9191,6 +9464,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/league-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal League Posts */
+        get: operations["listPortalLeaguePosts"];
+        put?: never;
+        /**
+         * Create Portal League Post
+         * @description A classified or a pickup game; shown once staff approve, for 30 days. Errors: post-limit.
+         */
+        post: operations["createPortalLeaguePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/league-posts/{post_id}/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Contact Portal League Post
+         * @description The relay: the poster is emailed the message and your name and address; theirs is never shown.
+         *     Errors: contact-unavailable, rate-limited.
+         */
+        post: operations["contactPortalLeaguePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/league-posts/{post_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw Portal League Post */
+        post: operations["withdrawPortalLeaguePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/league-roster-entries/{roster_entry_id}": {
         parameters: {
             query?: never;
@@ -9869,6 +10201,26 @@ export interface paths {
          * @description Published videos. Filter: location_id.
          */
         get: operations["listPortalVideos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Video
+         * @description One published video; 404 when it is unpublished or not this tenant's.
+         */
+        get: operations["getPortalVideo"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11207,7 +11559,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Public Competitions */
+        /**
+         * List Public Competitions
+         * @description LGE-17: the filters also make the shareable URL and the embed (`/leagues/public?sport_id=...&embed=1`).
+         */
         get: operations["listPublicCompetitions"];
         put?: never;
         post?: never;
@@ -11234,6 +11589,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/competitions/{competition_id}/brackets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Brackets */
+        get: operations["listPublicBrackets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/competitions/{competition_id}/games": {
         parameters: {
             query?: never;
@@ -11251,6 +11623,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/competitions/{competition_id}/player-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public Player Stats
+         * @description 404 unless the competition shows players.
+         */
+        get: operations["listPublicPlayerStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/competitions/{competition_id}/standings": {
         parameters: {
             query?: never;
@@ -11260,6 +11652,26 @@ export interface paths {
         };
         /** List Public Standings */
         get: operations["listPublicStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public Teams
+         * @description Team names; player names only when the competition has `show_players` on.
+         */
+        get: operations["listPublicTeams"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11468,6 +11880,185 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/league-site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public League Site
+         * @description The enabled site's options and facility info; 404 while the site is off.
+         */
+        get: operations["getPublicLeagueSite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public League Classes
+         * @description CLS-07: programs, camps, clinics and class series published to the portal.
+         */
+        get: operations["listPublicLeagueClasses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public League Links */
+        get: operations["listPublicLeagueLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/news": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public League News */
+        get: operations["listPublicLeagueNews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/news/{story_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public League News Story */
+        get: operations["getPublicLeagueNewsStory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public League Photos */
+        get: operations["listPublicLeaguePhotos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/photos/{photo_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public League Photo Image */
+        get: operations["getPublicLeaguePhotoImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public League Posts
+         * @description Approved classifieds or pickup games still within their 30 days; no poster details.
+         */
+        get: operations["listPublicLeaguePosts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/sponsors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public League Sponsors */
+        get: operations["listPublicLeagueSponsors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/league-site/sponsors/{sponsor_id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public League Sponsor Logo */
+        get: operations["getPublicLeagueSponsorLogo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/locations": {
         parameters: {
             query?: never;
@@ -11480,6 +12071,26 @@ export interface paths {
          * @description Public location directory of the tenant resolved from the host.
          */
         get: operations["listPublicLocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/locations/{location_id}/league-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public League Board
+         * @description LGE-24: today's games and scores at one location, for a lobby screen; it refreshes every `refresh_sec`.
+         */
+        get: operations["getPublicLeagueBoard"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12491,6 +13102,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/report-definitions/{report_key}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Recipients */
+        get: operations["listReportRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/report-runs": {
         parameters: {
             query?: never;
@@ -12541,6 +13169,43 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Schedules */
+        get: operations["listReportSchedules"];
+        put?: never;
+        /** Create Report Schedule */
+        post: operations["createReportSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-schedules/{report_schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Schedule */
+        get: operations["getReportSchedule"];
+        put?: never;
+        post?: never;
+        /** Delete Report Schedule */
+        delete: operations["deleteReportSchedule"];
+        options?: never;
+        head?: never;
+        /** Update Report Schedule */
+        patch: operations["updateReportSchedule"];
         trace?: never;
     };
     "/api/v1/reservation-categories": {
@@ -13415,8 +14080,8 @@ export interface paths {
         put?: never;
         /**
          * Send Session Roster Message
-         * @description Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers
-         *     engagement.message.send_direct (module README).
+         * @description Emails everyone registered. Gated by scheduling.enrollment.create on the session (`own` reach and the
+         *     type's staff grants apply); moving it to engagement.message.send_direct waits on the owner (module README).
          */
         post: operations["sendSessionRosterMessage"];
         delete?: never;
@@ -16896,6 +17561,25 @@ export interface components {
             /** Starts At */
             starts_at?: string | null;
         };
+        /** BoardGameOut */
+        BoardGameOut: {
+            /** Away Name */
+            away_name: string | null;
+            /** Away Score */
+            away_score: number | null;
+            /** Competition Name */
+            competition_name: string;
+            /** Home Name */
+            home_name: string | null;
+            /** Home Score */
+            home_score: number | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Venue */
+            venue: string | null;
+        };
         /**
          * BonusRuleIn
          * @description `trained_hours` needs threshold_minutes; `off_hours` needs from_minute, to_minute (minutes after local
@@ -19881,8 +20565,8 @@ export interface components {
             rules_text?: string | null;
             /** Season Id */
             season_id?: string | null;
-            /** Shows Roster Publicly */
-            shows_roster_publicly?: boolean | null;
+            /** Show Players */
+            show_players?: boolean | null;
             /**
              * Sport Id
              * Format: uuid
@@ -19975,6 +20659,8 @@ export interface components {
             rules_text: string | null;
             /** Season Id */
             season_id: string | null;
+            /** Show Players */
+            show_players: boolean;
             /** Shows Roster Publicly */
             shows_roster_publicly: boolean;
             /**
@@ -20147,8 +20833,8 @@ export interface components {
             rules_text?: string | null;
             /** Season Id */
             season_id?: string | null;
-            /** Shows Roster Publicly */
-            shows_roster_publicly?: boolean | null;
+            /** Show Players */
+            show_players?: boolean | null;
             /** Standings Columns */
             standings_columns?: components["schemas"]["StandingsColumn"][] | null;
             /** Standings Sort */
@@ -21087,6 +21773,42 @@ export interface components {
             tenders: components["schemas"]["TenderTotal"][];
             /** Total Minor */
             total_minor: number;
+        };
+        /** DashboardOut */
+        DashboardOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Location Id */
+            location_id: string | null;
+            /** Tiles */
+            tiles: components["schemas"]["DashboardTileOut"][];
+        };
+        /** DashboardTileOut */
+        DashboardTileOut: {
+            /** Available */
+            available: boolean;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Period */
+            period: string | null;
+            /** Totals */
+            totals: components["schemas"]["DashboardTotalOut"][];
+        };
+        /** DashboardTotalOut */
+        DashboardTotalOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: unknown;
         };
         /** DeliveryOut */
         DeliveryOut: {
@@ -24512,6 +25234,216 @@ export interface components {
             /** Team Name */
             team_name: string | null;
         };
+        /** LeagueLinkCreate */
+        LeagueLinkCreate: {
+            /** Category */
+            category?: string | null;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** LeagueLinkOut */
+        LeagueLinkOut: {
+            /** Category */
+            category: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** LeagueLinkUpdate */
+        LeagueLinkUpdate: {
+            /** Category */
+            category?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Url */
+            url?: string | null;
+        };
+        /** LeagueNewsCreate */
+        LeagueNewsCreate: {
+            /** Body */
+            body: string;
+            /**
+             * Is Pinned
+             * @default false
+             */
+            is_pinned: boolean;
+            /** Published At */
+            published_at?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** LeagueNewsOut */
+        LeagueNewsOut: {
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Pinned */
+            is_pinned: boolean;
+            /** Published At */
+            published_at: string | null;
+            /** Summary */
+            summary: string | null;
+            /** Title */
+            title: string;
+        };
+        /** LeagueNewsUpdate */
+        LeagueNewsUpdate: {
+            /** Body */
+            body?: string | null;
+            /** Is Pinned */
+            is_pinned?: boolean | null;
+            /** Published At */
+            published_at?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** LeaguePhotoOut */
+        LeaguePhotoOut: {
+            /** Album */
+            album: string | null;
+            /** Caption */
+            caption: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Published */
+            is_published: boolean;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** LeaguePhotoUpdate */
+        LeaguePhotoUpdate: {
+            /** Album */
+            album?: string | null;
+            /** Caption */
+            caption?: string | null;
+            /** Is Published */
+            is_published?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** LeaguePostContact */
+        LeaguePostContact: {
+            /** Message */
+            message: string;
+        };
+        /** LeaguePostCreate */
+        LeaguePostCreate: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @default other
+             * @enum {string}
+             */
+            category: "player_wanted" | "team_wanted" | "coach_wanted" | "other";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "classified" | "pickup";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Players Needed */
+            players_needed?: number | null;
+            /** Skill Level */
+            skill_level?: string | null;
+            /** Sport Id */
+            sport_id?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Title */
+            title: string;
+        };
+        /** LeaguePostOut */
+        LeaguePostOut: {
+            /** Body */
+            body: string;
+            /** Category */
+            category: string;
+            /** Client Name */
+            client_name: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Location Name */
+            location_name: string;
+            /** Moderated At */
+            moderated_at: string | null;
+            /** Players Needed */
+            players_needed: number | null;
+            /**
+             * Posted At
+             * Format: date-time
+             */
+            posted_at: string;
+            /** Reject Reason */
+            reject_reason: string | null;
+            /** Skill Level */
+            skill_level: string | null;
+            /** Sport Name */
+            sport_name: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /** LeaguePostReject */
+        LeaguePostReject: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** LeagueRosterEntryOut */
         LeagueRosterEntryOut: {
             /** Client Id */
@@ -24538,6 +25470,168 @@ export interface components {
             role: string;
             /** Status */
             status: string;
+        };
+        /**
+         * LeagueSiteIn
+         * @description PUT replaces the whole options set (LGE-19, PLT-12).
+         */
+        LeagueSiteIn: {
+            /** About Text */
+            about_text?: string | null;
+            /** Accent Color */
+            accent_color?: string | null;
+            /**
+             * Board Refresh Sec
+             * @default 60
+             */
+            board_refresh_sec: number;
+            /**
+             * Is Enabled
+             * @default false
+             */
+            is_enabled: boolean;
+            /**
+             * Shows Classes
+             * @default true
+             */
+            shows_classes: boolean;
+            /**
+             * Shows Classifieds
+             * @default false
+             */
+            shows_classifieds: boolean;
+            /**
+             * Shows Facility Info
+             * @default true
+             */
+            shows_facility_info: boolean;
+            /**
+             * Shows Gallery
+             * @default true
+             */
+            shows_gallery: boolean;
+            /**
+             * Shows Links
+             * @default true
+             */
+            shows_links: boolean;
+            /**
+             * Shows News
+             * @default true
+             */
+            shows_news: boolean;
+            /**
+             * Shows Pickup Games
+             * @default false
+             */
+            shows_pickup_games: boolean;
+            /**
+             * Shows Sponsors
+             * @default true
+             */
+            shows_sponsors: boolean;
+            /** Tagline */
+            tagline?: string | null;
+            /**
+             * Title
+             * @default Leagues
+             */
+            title: string;
+        };
+        /** LeagueSiteOut */
+        LeagueSiteOut: {
+            /** About Text */
+            about_text: string | null;
+            /** Accent Color */
+            accent_color: string | null;
+            /** Board Refresh Sec */
+            board_refresh_sec: number;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Shows Classes */
+            shows_classes: boolean;
+            /** Shows Classifieds */
+            shows_classifieds: boolean;
+            /** Shows Facility Info */
+            shows_facility_info: boolean;
+            /** Shows Gallery */
+            shows_gallery: boolean;
+            /** Shows Links */
+            shows_links: boolean;
+            /** Shows News */
+            shows_news: boolean;
+            /** Shows Pickup Games */
+            shows_pickup_games: boolean;
+            /** Shows Sponsors */
+            shows_sponsors: boolean;
+            /** Tagline */
+            tagline: string | null;
+            /** Title */
+            title: string;
+        };
+        /** LeagueSponsorCreate */
+        LeagueSponsorCreate: {
+            /** Blurb */
+            blurb?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Url */
+            url?: string | null;
+        };
+        /** LeagueSponsorOut */
+        LeagueSponsorOut: {
+            /** Blurb */
+            blurb: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Has Logo */
+            has_logo: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Starts On */
+            starts_on: string | null;
+            /** Url */
+            url: string | null;
+        };
+        /** LeagueSponsorUpdate */
+        LeagueSponsorUpdate: {
+            /** Blurb */
+            blurb?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Url */
+            url?: string | null;
         };
         /** LeagueStandingOut */
         LeagueStandingOut: {
@@ -27758,6 +28852,18 @@ export interface components {
             data: components["schemas"]["KioskDeviceOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[LeagueNewsOut] */
+        Page_LeagueNewsOut_: {
+            /** Data */
+            data: components["schemas"]["LeagueNewsOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LeaguePostOut] */
+        Page_LeaguePostOut_: {
+            /** Data */
+            data: components["schemas"]["LeaguePostOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[LeagueRosterEntryOut] */
         Page_LeagueRosterEntryOut_: {
             /** Data */
@@ -28118,10 +29224,22 @@ export interface components {
             data: components["schemas"]["ReportDefinitionOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ReportRecipientOut] */
+        Page_ReportRecipientOut_: {
+            /** Data */
+            data: components["schemas"]["ReportRecipientOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ReportRunOut] */
         Page_ReportRunOut_: {
             /** Data */
             data: components["schemas"]["ReportRunOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ReportScheduleOut] */
+        Page_ReportScheduleOut_: {
+            /** Data */
+            data: components["schemas"]["ReportScheduleOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ResourceGroupOut] */
@@ -29978,6 +31096,44 @@ export interface components {
             status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
             /** Total Minor */
             total_minor: number;
+        };
+        /** PortalLeaguePostOut */
+        PortalLeaguePostOut: {
+            /** Body */
+            body: string;
+            /** Category */
+            category: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Location Name */
+            location_name: string;
+            /** Players Needed */
+            players_needed: number | null;
+            /**
+             * Posted At
+             * Format: date-time
+             */
+            posted_at: string;
+            /** Skill Level */
+            skill_level: string | null;
+            /** Sport Name */
+            sport_name: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
         };
         /** PortalLeagueTeamOut */
         PortalLeagueTeamOut: {
@@ -32579,6 +33735,67 @@ export interface components {
              */
             provider: "stripe" | "fake";
         };
+        /** PublicBoardOut */
+        PublicBoardOut: {
+            /** Games */
+            games: components["schemas"]["BoardGameOut"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Location Name */
+            location_name: string;
+            /**
+             * On Date
+             * Format: date
+             */
+            on_date: string;
+            /** Refresh Sec */
+            refresh_sec: number;
+            /** Time Zone */
+            time_zone: string;
+        };
+        /** PublicBracketOut */
+        PublicBracketOut: {
+            /** Bracket Type */
+            bracket_type: string;
+            /** Name */
+            name: string;
+            /** Slots */
+            slots: components["schemas"]["PublicBracketSlotOut"][];
+            /** Status */
+            status: string;
+        };
+        /** PublicBracketSlotOut */
+        PublicBracketSlotOut: {
+            /** Away Name */
+            away_name: string | null;
+            /** Away Score */
+            away_score: number | null;
+            /** Away Seed */
+            away_seed: number | null;
+            /** Home Name */
+            home_name: string | null;
+            /** Home Score */
+            home_score: number | null;
+            /** Home Seed */
+            home_seed: number | null;
+            /** Is Bye */
+            is_bye: boolean;
+            /** Position */
+            position: number;
+            /** Round Name */
+            round_name: string;
+            /** Round No */
+            round_no: number;
+            /** Side */
+            side: string;
+            /** Starts At */
+            starts_at: string | null;
+            /** Winner */
+            winner: ("home" | "away") | null;
+        };
         /** PublicBranding */
         PublicBranding: {
             /** Locations */
@@ -32603,6 +33820,30 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+        };
+        /** PublicClassOut */
+        PublicClassOut: {
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Open */
+            is_open: boolean;
+            /** Kind */
+            kind: string;
+            /** Location Name */
+            location_name: string;
+            /** Name */
+            name: string;
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
         };
         /** PublicCompetitionOut */
         PublicCompetitionOut: {
@@ -32632,6 +33873,15 @@ export interface components {
             registration_url: string | null;
             /** Rules Text */
             rules_text: string | null;
+            /** Season Id */
+            season_id: string | null;
+            /** Show Players */
+            show_players: boolean;
+            /**
+             * Sport Id
+             * Format: uuid
+             */
+            sport_id: string;
             /** Sport Name */
             sport_name: string;
             /**
@@ -32691,6 +33941,32 @@ export interface components {
             tenant_name: string;
             /** Title */
             title: string;
+        };
+        /** PublicFacilityOut */
+        PublicFacilityOut: {
+            /** Address Line1 */
+            address_line1: string | null;
+            /** Address Line2 */
+            address_line2: string | null;
+            /** City */
+            city: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Postal Code */
+            postal_code: string | null;
+            /** Region */
+            region: string | null;
+            /** Website Url */
+            website_url: string | null;
         };
         /** PublicFee */
         PublicFee: {
@@ -32853,6 +34129,133 @@ export interface components {
             /** Venue */
             venue: string | null;
         };
+        /** PublicLeagueLinkOut */
+        PublicLeagueLinkOut: {
+            /** Category */
+            category: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** PublicLeagueNewsOut */
+        PublicLeagueNewsOut: {
+            /** Body */
+            body: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Pinned */
+            is_pinned: boolean;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /** Summary */
+            summary: string | null;
+            /** Title */
+            title: string;
+        };
+        /** PublicLeaguePhotoOut */
+        PublicLeaguePhotoOut: {
+            /** Album */
+            album: string | null;
+            /** Caption */
+            caption: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /** PublicLeaguePostOut */
+        PublicLeaguePostOut: {
+            /** Body */
+            body: string;
+            /** Category */
+            category: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Location Name */
+            location_name: string;
+            /** Players Needed */
+            players_needed: number | null;
+            /**
+             * Posted At
+             * Format: date-time
+             */
+            posted_at: string;
+            /** Skill Level */
+            skill_level: string | null;
+            /** Sport Name */
+            sport_name: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Title */
+            title: string;
+        };
+        /** PublicLeagueSiteOut */
+        PublicLeagueSiteOut: {
+            /** About Text */
+            about_text: string | null;
+            /** Accent Color */
+            accent_color: string | null;
+            /** Board Refresh Sec */
+            board_refresh_sec: number;
+            /** Facilities */
+            facilities: components["schemas"]["PublicFacilityOut"][];
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Shows Classes */
+            shows_classes: boolean;
+            /** Shows Classifieds */
+            shows_classifieds: boolean;
+            /** Shows Facility Info */
+            shows_facility_info: boolean;
+            /** Shows Gallery */
+            shows_gallery: boolean;
+            /** Shows Links */
+            shows_links: boolean;
+            /** Shows News */
+            shows_news: boolean;
+            /** Shows Pickup Games */
+            shows_pickup_games: boolean;
+            /** Shows Sponsors */
+            shows_sponsors: boolean;
+            /** Tagline */
+            tagline: string | null;
+            /** Title */
+            title: string;
+        };
+        /** PublicLeagueSponsorOut */
+        PublicLeagueSponsorOut: {
+            /** Blurb */
+            blurb: string | null;
+            /** Has Logo */
+            has_logo: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Url */
+            url: string | null;
+        };
         /** PublicLocation */
         PublicLocation: {
             /** City */
@@ -32925,6 +34328,17 @@ export interface components {
             proration_mode: string;
             /** Term Fee Minor */
             term_fee_minor: number;
+        };
+        /** PublicPlayerStatOut */
+        PublicPlayerStatOut: {
+            /** Player Name */
+            player_name: string;
+            /** Stats */
+            stats: {
+                [key: string]: string | null;
+            };
+            /** Team Name */
+            team_name: string;
         };
         /** PublicPortalConfig */
         PublicPortalConfig: {
@@ -33169,6 +34583,15 @@ export interface components {
             win_pct: string;
             /** Wins */
             wins: number;
+        };
+        /** PublicTeamOut */
+        PublicTeamOut: {
+            /** Division Name */
+            division_name: string | null;
+            /** Name */
+            name: string;
+            /** Players */
+            players: string[] | null;
         };
         /** PurchaseCancel */
         PurchaseCancel: {
@@ -34716,6 +36139,16 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /** ReportRecipientOut */
+        ReportRecipientOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
         /** ReportRowsOut */
         ReportRowsOut: {
             /** Columns */
@@ -34790,6 +36223,130 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** ReportScheduleCreate */
+        ReportScheduleCreate: {
+            /**
+             * Format
+             * @default csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx" | "pdf";
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "monthly";
+            /**
+             * Includes Details
+             * @default false
+             */
+            includes_details: boolean;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             * @description The location whose time zone sets the send time and the day
+             */
+            location_id: string;
+            /**
+             * Month Day
+             * @description Monthly: day of the month
+             */
+            month_day?: number | null;
+            /** Recipient Staff User Ids */
+            recipient_staff_user_ids: string[];
+            /**
+             * Saved Report Id
+             * Format: uuid
+             */
+            saved_report_id: string;
+            /**
+             * Send Time
+             * @description Local wall time, HH:MM; delivered within the hour after it
+             */
+            send_time: string;
+            /**
+             * Weekday
+             * @description Weekly: 0 Monday to 6 Sunday
+             */
+            weekday?: number | null;
+        };
+        /** ReportScheduleOut */
+        ReportScheduleOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Format */
+            format: string;
+            /** Frequency */
+            frequency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Includes Details */
+            includes_details: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Run On */
+            last_run_on: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Month Day */
+            month_day: number | null;
+            /**
+             * Owner Staff User Id
+             * Format: uuid
+             */
+            owner_staff_user_id: string;
+            /** Recipient Staff User Ids */
+            recipient_staff_user_ids: string[];
+            /**
+             * Saved Report Id
+             * Format: uuid
+             */
+            saved_report_id: string;
+            /** Send Time */
+            send_time: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Weekday */
+            weekday: number | null;
+        };
+        /** ReportScheduleUpdate */
+        ReportScheduleUpdate: {
+            /** Format */
+            format?: ("csv" | "xlsx" | "pdf") | null;
+            /** Frequency */
+            frequency?: ("daily" | "weekly" | "monthly") | null;
+            /** Includes Details */
+            includes_details?: boolean | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Month Day */
+            month_day?: number | null;
+            /** Recipient Staff User Ids */
+            recipient_staff_user_ids?: string[] | null;
+            /** Send Time */
+            send_time?: string | null;
+            /** Weekday */
+            weekday?: number | null;
         };
         /** RepriceIn */
         RepriceIn: {
@@ -38316,8 +39873,6 @@ export interface components {
         };
         /** TenantUpdate */
         TenantUpdate: {
-            /** Currency */
-            currency?: string | null;
             /** Default Time Zone */
             default_time_zone?: string | null;
             /** Locale */
@@ -50122,6 +51677,40 @@ export interface operations {
             };
         };
     };
+    getManagementDashboard: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listDataSubjectRequests: {
         parameters: {
             query?: {
@@ -55483,6 +57072,819 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KioskConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLeagueLinks: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueLinkOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLeagueLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteLeagueLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLeagueLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueLinkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLeagueNews: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LeagueNewsOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLeagueNewsStory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueNewsCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueNewsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getLeagueNewsStory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueNewsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteLeagueNewsStory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLeagueNewsStory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueNewsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueNewsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLeaguePhotos: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaguePhotoOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uploadLeaguePhoto: {
+        parameters: {
+            query?: {
+                caption?: string | null;
+                album?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaguePhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteLeaguePhoto: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                photo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLeaguePhoto: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                photo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaguePhotoUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaguePhotoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLeaguePosts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LeaguePostOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approveLeaguePost: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaguePostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rejectLeaguePost: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaguePostReject"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaguePostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getLeagueSite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueSiteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putLeagueSite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueSiteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueSiteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLeagueSponsors: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueSponsorOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLeagueSponsor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueSponsorCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueSponsorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteLeagueSponsor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sponsor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLeagueSponsor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sponsor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueSponsorUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueSponsorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setLeagueSponsorLogo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sponsor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueSponsorOut"];
                 };
             };
             /** @description Validation Error */
@@ -62562,6 +64964,142 @@ export interface operations {
             };
         };
     };
+    listPortalLeaguePosts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalLeaguePostOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalLeaguePost: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaguePostCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalLeaguePostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    contactPortalLeaguePost: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaguePostContact"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdrawPortalLeaguePost: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     deletePortalRosterEntry: {
         parameters: {
             query?: never;
@@ -64140,6 +66678,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PortalVideo_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalVideo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalVideo"];
                 };
             };
             /** @description Validation Error */
@@ -67470,6 +70042,11 @@ export interface operations {
         parameters: {
             query?: {
                 location_id?: string | null;
+                sport_id?: string | null;
+                season_id?: string | null;
+                kind?: ("league" | "tournament") | null;
+                status?: ("active" | "completed") | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -67528,6 +70105,37 @@ export interface operations {
             };
         };
     };
+    listPublicBrackets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBracketOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPublicGames: {
         parameters: {
             query?: never;
@@ -67559,6 +70167,37 @@ export interface operations {
             };
         };
     };
+    listPublicPlayerStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPlayerStatOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPublicStandings: {
         parameters: {
             query?: never;
@@ -67577,6 +70216,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicStandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicTeams: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTeamOut"][];
                 };
             };
             /** @description Validation Error */
@@ -67920,6 +70590,264 @@ export interface operations {
             };
         };
     };
+    getPublicLeagueSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeagueSiteOut"];
+                };
+            };
+        };
+    };
+    listPublicLeagueClasses: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicClassOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicLeagueLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeagueLinkOut"][];
+                };
+            };
+        };
+    };
+    listPublicLeagueNews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeagueNewsOut"][];
+                };
+            };
+        };
+    };
+    getPublicLeagueNewsStory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                story_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeagueNewsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicLeaguePhotos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeaguePhotoOut"][];
+                };
+            };
+        };
+    };
+    getPublicLeaguePhotoImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicLeaguePosts: {
+        parameters: {
+            query: {
+                kind: "classified" | "pickup";
+                location_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeaguePostOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicLeagueSponsors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLeagueSponsorOut"][];
+                };
+            };
+        };
+    };
+    getPublicLeagueSponsorLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sponsor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The image. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPublicLocations: {
         parameters: {
             query?: {
@@ -67947,6 +70875,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PublicLocation_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicLeagueBoard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBoardOut"];
                 };
             };
             /** @description Validation Error */
@@ -70422,6 +73381,40 @@ export interface operations {
             };
         };
     };
+    listReportRecipients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportRecipientOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listReportRuns: {
         parameters: {
             query?: {
@@ -70561,6 +73554,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportRowsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listReportSchedules: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportScheduleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateReportSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleOut"];
                 };
             };
             /** @description Validation Error */
