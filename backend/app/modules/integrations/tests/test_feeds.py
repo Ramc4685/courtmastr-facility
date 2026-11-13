@@ -160,7 +160,8 @@ def test_team_feed_shows_that_teams_games(client, tenant, owner):
 
     f = facility(client, owner)
     f.sport = ok(client.post(f"{API}/sports", headers=owner, json={"name": "Futsal", "default_game_length_min": 60}))
-    mine, other = league(client, owner, f, teams=3), league(client, owner, f, name="Other league", teams=2)
+    mine = league(client, owner, f, teams=3, starts_on="2031-01-01", ends_on="2031-12-31")
+    other = league(client, owner, f, name="Other league", teams=2)
 
     def game(comp: dict, home: int, away: int, resource: str, start: str) -> str:
         body = {"competition_id": comp["id"], "home_team_id": comp["teams"][home]["id"],
@@ -170,12 +171,14 @@ def test_team_feed_shows_that_teams_games(client, tenant, owner):
     ours = game(mine, 0, 1, f.court, "2031-05-03T15:00:00Z")
     theirs = game(mine, 1, 2, f.court, "2031-05-03T18:00:00Z")  # same league, without the team
     game(other, 0, 1, f.court2, "2031-05-03T15:00:00Z")  # another league
+    game(mine, 0, 2, f.court, "2031-09-15T15:00:00Z")  # past WHEN + 90 days
+    game(mine, 0, 2, f.court, "2031-01-15T15:00:00Z")  # before WHEN - 90 days
     team = mine["teams"][0]["id"]
     text = _fetch(
         client, _feed(client, owner, kind="team_schedule", name="Team", competition_team_id=team)["url_token"]
     ).text
-    assert f"UID:game-{ours}@courtmastr" in text
-    assert theirs not in text and text.count("BEGIN:VEVENT") == 1
+    assert f"UID:game-{ours}@courtmastr" in text and "LAST-MODIFIED:" in text
+    assert theirs not in text and text.count("BEGIN:VEVENT") == 1  # the team's games outside ±90 days are left out
 
 
 def test_team_feed_needs_a_league_key(client, tenant, owner):
@@ -228,6 +231,7 @@ def test_member_feed_shows_enrolled_sessions_and_stops_with_the_identity(client,
     assert created["kind"] == "member_schedule"
     text = _fetch(client, created["url_token"]).text
     assert "SUMMARY:Kids clinic" in text and "SUMMARY:Session" in text and "Not mine" not in text
+    assert text.count("LAST-MODIFIED:") == 2
     assert "Coach note" not in text and "Staff only name" not in text  # internal titles never reach a member
     staff_only = client.post(f"{API}/calendar-feeds", headers=member, json={"kind": "staff_schedule", "name": "X"})
     assert staff_only.status_code == 403
@@ -248,6 +252,39 @@ def test_a_member_rotates_or_revokes_their_feed(client, tenant, owner):
     assert client.delete(f"{API}/portal/calendar-feeds", headers=member).status_code == 204
     assert _fetch(client, second["url_token"]).status_code == 404
     assert client.delete(f"{API}/portal/calendar-feeds", headers=owner).status_code == 403  # members only
+
+
+def test_staff_and_team_feeds_outlive_a_member_rotating_or_revoking_theirs(client, tenant, owner):
+    from app.modules.leagues.tests.test_leagues import league
+
+    f = facility(client, owner)
+    f.sport = ok(client.post(f"{API}/sports", headers=owner, json={"name": "Futsal", "default_game_length_min": 60}))
+    team = league(client, owner, f, teams=2)["teams"][0]["id"]
+    staff = _feed(client, owner)["url_token"]
+    squad = _feed(client, owner, kind="team_schedule", name="Team", competition_team_id=team)["url_token"]
+    _, member = _member(client, tenant, owner)
+    for step in ("create", "rotate", "revoke"):
+        if step == "revoke":
+            assert client.delete(f"{API}/portal/calendar-feeds", headers=member).status_code == 204
+        else:
+            ok(client.post(f"{API}/portal/calendar-feeds", headers=member, json={}))
+        assert (_fetch(client, staff).status_code, _fetch(client, squad).status_code) == (200, 200), step
+
+
+def test_the_per_ip_feed_bucket_refuses_once_spent(client, owner, monkeypatch):
+    from app.core.settings import get_settings
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(
+        cfg.buckets, "calendar-feed-ip", cfg.buckets["calendar-feed-ip"].model_copy(update={"limit": 2})
+    )
+    token = _feed(client, owner)["url_token"]
+    with clock.freeze(datetime(2031, 5, 2, 9, 30, 5, tzinfo=UTC)):  # one fixed window, no other test's
+        codes = [client.get(f"{API}/public/calendar-feeds/{token}").status_code for _ in range(3)]
+        unknown = client.get(f"{API}/public/calendar-feeds/fhcal_nothex_x")
+    assert codes == [200, 200, 429]
+    assert unknown.status_code == 429 and unknown.json()["code"] == "rate-limited"  # counted before the lookup
 
 
 def test_calendar_app_methods_never_log_the_token(client, owner, caplog):

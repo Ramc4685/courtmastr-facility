@@ -239,6 +239,57 @@ def test_a_zoom_meeting_follows_its_session_after_commit(client, tenant, owner, 
     assert client.get(_meeting(seat), headers=owner).status_code == 404
 
 
+def test_the_meeting_handlers_follow_the_real_events(client, tenant, owner, monkeypatch):
+    from app.modules.memberships.tests.support import deliver_events
+
+    calls: list = []
+    monkeypatch.setattr(FakeVideo, "update_meeting", lambda self, mid, **kw: calls.append(("update", mid, kw)))
+    monkeypatch.setattr(FakeVideo, "delete_meeting", lambda self, mid: calls.append(("delete", mid)))
+    f = facility(client, owner)
+    _connect_zoom(client, owner)
+    created = ok(book(client, owner, f, [f.court], WHEN.isoformat(), (WHEN + timedelta(hours=1)).isoformat(),
+                      kind="session", public_title="Online clinic"))  # fmt: skip
+    booking = created.get("booking", created)
+    seat = booking["session"]["id"]
+    made = ok(client.put(_meeting(seat), headers=owner, json={"provider": "zoom"}), 200)
+    with tenant_session(tenant.id) as session:
+        from app.modules.integrations.models import VideoMeeting
+
+        external = session.get(VideoMeeting, made["id"]).external_meeting_id
+    deliver_events()  # anything already queued, so only this test's events are counted below
+    calls.clear()
+
+    later = WHEN + timedelta(days=2)
+    moved = {"starts_at": later.isoformat(), "ends_at": (later + timedelta(minutes=45)).isoformat(),
+             "version": booking["version"]}  # fmt: skip
+    booking = ok(client.post(f"{API}/bookings/{booking['id']}/reschedule", headers=owner, json=moved), 200)
+    deliver_events()
+    assert calls == [("update", external, {"starts_at": later, "minutes": 45})]
+
+    ok(client.post(f"{API}/bookings/{booking['id']}/cancel", headers=owner, json={"version": booking["version"]}), 200)
+    deliver_events()
+    assert calls[1:] == [("delete", external)]
+    assert client.get(_meeting(seat), headers=owner).status_code == 404
+
+
+def test_disconnecting_zoom_audits_each_failed_meeting(client, tenant, owner):
+    from app.core.audit import AuditEvent
+
+    f = facility(client, owner)
+    connection = _connect_zoom(client, owner).json()
+    seats = [_session(client, owner, f, WHEN + timedelta(hours=h)) for h in (0, 2)]
+    ids = [ok(client.put(_meeting(seat), headers=owner, json={"provider": "zoom"}), 200)["id"] for seat in seats]
+    ok(client.post(f"{API}/external-connections/{connection['id']}/disconnect", headers=owner), 200)
+    with tenant_session(tenant.id) as session:
+        failed = session.scalars(
+            select(AuditEvent.entity_id).where(
+                AuditEvent.action == "integrations.video_meeting.put", AuditEvent.entity_id.in_(ids),
+                AuditEvent.changes["status"][1].astext == "failed",
+            )
+        ).all()  # fmt: skip
+    assert sorted(map(str, failed)) == sorted(ids)
+
+
 def test_portal_places_carry_session_times_and_which_have_a_meeting(client, tenant, owner):
     f = facility(client, owner)
     client_id, member = _member(client, tenant, owner)

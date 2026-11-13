@@ -289,13 +289,16 @@ def _member_events(session: Session, feed: CalendarFeed, start: datetime, end: d
         for place in _pages(lambda q: programs.selfservice.portal_list_enrollments(session, member, q), query)
         if place["status"] in ("enrolled", "pending")
     }
+    seats = scheduling.service.get_sessions(session, ids)  # one read, not one per place
+    # the session view has no updated_at; the booking holds the times, title and status the event shows
+    bookings = scheduling.service.booking_views(session, [seat["booking_id"] for seat in seats.values()])
     events = []
-    for session_id, seat in scheduling.service.get_sessions(session, ids).items():  # one read, not one per place
+    for session_id, seat in seats.items():
         starts, ends = seat.get("starts_at"), seat.get("ends_at")
         if starts and ends and start <= starts < end:
             events.append(ical.Event(
                 uid=f"session-{session_id}@courtmastr", starts_at=starts, ends_at=ends, summary=public_title(seat),
-                cancelled=seat.get("status") == "cancelled", updated_at=seat.get("updated_at"),
+                cancelled=seat.get("status") == "cancelled", updated_at=bookings[seat["booking_id"]]["updated_at"],
             ))  # fmt: skip
     return events
 
