@@ -55,6 +55,21 @@ PAY-16) wait for the review of these.
   (`due_on`, `is_autopay` request properties removed by the first pass). `make contract`: 3 failures outside billing
   (`POST /relationship-types`, `POST /products`, `POST /bookings/{id}/merge`: a 64-bit `booking_number` overflow), the
   billing operations pass. Playwright specs were written but not run (no local Playwright).
+- **Fable verification fixes (third pass).** A pending refund that fails always ends `failed`: it re-applies only the
+  allocations it actually released, only while the payment can take allocations, capped at what each item owes; the
+  rest stays credit (`not_reapplied_minor` on the audit row). Racing refunds on one payment are serialised by the
+  payment lock in the pre-provider transaction, so the loser is refused with no row (a caller already holding the
+  payment skips the lock instead of waiting 500 ms). Bulk add-item holds an API key to its bounded locations; a job a
+  key started re-authorises the key every chunk (`requested_by_api_key_id`, migration 1806, loader registered by
+  integrations in `core.auth.deps`). A preview is bound to its params, and an added item whose price changed after it
+  was priced fails (`bulk-price-changed`). An unreconcilable refund records a code in a fixed sentence, never the
+  error text. On main too: NUL in any request body string is a 422 (`core.schemas.In`), and the merge
+  `booking_number` is capped at int4.
+- **Checks run (third pass).** `app/modules/billing` 280 passed; `app/modules/pos` 47 passed; `tests/` 5,877
+  collected, 1,142 skipped (contract sample), 1 failed (the openapi snapshot, regenerated afterwards). `make lint
+  typecheck boundaries` clean; `make contract` 1,190 passed, 6 skipped (the three earlier failures pass); `make
+  web-check` clean, `make web-test` 299 passed. Left: a refund whose short transaction cannot lock the payment within
+  500 ms (another request holds it) still commits its row unchecked and is checked under the lock afterwards.
 
 ## Not done inside built features
 
