@@ -8,8 +8,11 @@ import pytest
 from sqlalchemy import select
 
 from app.core import clock
+from app.core.auth import system_principal
 from app.core.db.session import tenant_session
+from app.modules.engagement import service
 from app.modules.engagement.models import PortalSignup
+from app.modules.platform import retention
 from app.modules.scheduling.tests.helpers import API, facility, ok
 from conftest import link_token
 
@@ -96,6 +99,62 @@ def test_redirects_need_https_on_an_allowed_domain(client, owner, f):
     body = ok(settings(client, owner, f, redirect_url="https://www.club.example.org/thanks",
                        redirect_domains=["club.example.org"]), 200)  # fmt: skip
     assert body["redirect_url"] == "https://www.club.example.org/thanks"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example.net\\.club.example.org/",  # a browser reads the backslash as a slash: evil.example.net
+        "https://evil.example.net%5C.club.example.org/",
+        "https://club.example.org:8443/thanks",
+        "https://me@club.example.org/thanks",
+        "https:///thanks",
+        "https://club.example.org.evil.example.net/",
+        "http://club.example.org/",
+        "https://club_example.org/",
+        "",
+    ],
+)
+def test_redirect_allow_list_refuses_lookalike_hosts(tenant, url):
+    with tenant_session(tenant.id) as session:
+        assert service.redirect_allowed(session, url, ["club.example.org"]) is False
+        assert service.redirect_allowed(session, "https://club.example.org/thanks", ["club.example.org"]) is True
+
+
+def test_terms_live_only_in_the_documents_binding(client, owner, tenant, f):
+    """SSP-14: the bound portal terms (GET /public/portal-terms) are the one source; portal settings neither take
+    nor serve a terms text of their own."""
+    body = ok(settings(client, owner, f), 200)
+    assert "terms_text" not in body and "terms_version" not in body
+    assert settings(client, owner, f, terms_text="Our rules").status_code == 422
+    config = ok(client.get(f"{API}/public/portal-config", headers=public(tenant)), 200)
+    assert all("terms_text" not in loc and "terms_version" not in loc for loc in config["locations"])
+
+
+def test_online_rentals_switch_lives_in_rentals(client, owner, tenant, f):
+    """One switch: rentals' rental-portal-settings is_online_enabled. Portal settings no longer carry their own."""
+    body = ok(settings(client, owner, f), 200)
+    assert "allows_online_rentals" not in body
+    assert settings(client, owner, f, allows_online_rentals=False).status_code == 422
+    config = ok(client.get(f"{API}/public/portal-config", headers=public(tenant)), 200)
+    assert all("allows_online_rentals" not in loc for loc in config["locations"])
+
+
+def test_unconfirmed_signups_are_purged_a_week_after_their_link_expires(client, owner, tenant, f, mailbox):
+    ok(settings(client, owner, f, allows_self_signup=True), 200)
+    emails = [f"p-{uuid4().hex[:8]}@example.com" for _ in range(3)]
+    for email in emails:
+        signup(client, tenant, f, email)
+    with tenant_session(tenant.id) as session:
+        rows = {r.email: r for r in session.scalars(select(PortalSignup).where(PortalSignup.email.in_(emails)))}
+        rows[emails[0]].expires_at = clock.now() - timedelta(days=7, minutes=1)  # past the grace week: goes
+        rows[emails[1]].expires_at = clock.now() - timedelta(days=6)  # inside it: stays
+        rows[emails[2]].expires_at = clock.now() - timedelta(days=30)
+        rows[emails[2]].status = "confirmed"  # a confirmed one belongs to its client (erasure reaches it)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert retention._PURGERS["engagement_portal_signup"](session) == 1
+        left = set(session.scalars(select(PortalSignup.email).where(PortalSignup.email.in_(emails))))
+    assert left == {emails[1], emails[2]}
 
 
 def test_menu_and_social_links_reach_the_public_config(client, owner, tenant, f):

@@ -92,5 +92,7 @@ so an `every_purchase` binding asks again next time. `scope_id` is opaque here: 
   `secure_online_checkout` (memberships, packages, programs portal and guest, rentals). With no binding it records
   nothing; a missing or stale version is 409 `terms-changed` carrying the current `terms_version_id`; otherwise one
   `terms_acceptance` row (client, binding, version, sale kind, subject, identity, time, IP) and one audit entry.
+  An erasure keeps the rows (the legal record) and clears their IP. The binding is the only portal terms source:
+  engagement's old `portal_settings.terms_text` is no longer served.
 - It is registered into `clients.terms` at import, because packages and rentals may not import documents
   (import-linter); callers use `clients.terms.acknowledge`.

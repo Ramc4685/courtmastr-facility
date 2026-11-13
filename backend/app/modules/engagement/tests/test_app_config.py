@@ -70,19 +70,19 @@ def test_writes_need_the_key_at_every_location(client, tenant, owner):
     assert client.get(f"{API}/app-config", headers=desk).status_code == 403
 
 
-def test_public_bootstrap_keeps_bundled_theme_until_switched_on(client, tenant, owner):
+def test_public_bootstrap_answers_only_once_the_app_is_switched_on(client, tenant, owner):
+    """The slug is the capability (listing is not required), but a tenant whose app is off is 404."""
     public = {"X-Tenant-Slug": tenant.slug}
     ok(client.put(f"{API}/app-config", headers=owner, json={"home_screen": LAYOUT}))
-    off = ok(client.get(f"{API}/public/app-config", headers=public))
-    assert (off["home_screen"], off["app_name"]) == (None, off["portal"]["facility_name"])
-    assert not any(off["theme"].values())
+    off = client.get(f"{API}/public/app-config", headers=public)
+    assert off.status_code == 404
     body = {"is_enabled": True, "app_name": "Club App", "home_screen": LAYOUT}
     ok(client.put(f"{API}/app-config", headers=owner, json=body))
     on = ok(client.get(f"{API}/public/app-config", headers=public))
     # Colours come from the tenant branding (one source with the portal), not from the app config.
     assert set(on["theme"]) == {"primary", "accent"}
     assert (on["app_name"], on["home_screen"]["design"]["columns"]) == ("Club App", 1)
-    assert on["tenant_id"] == str(tenant.id) and "locations" in on["portal"]
+    assert "tenant_id" not in on and "locations" in on["portal"]
     assert client.get(f"{API}/public/app-config", headers={"X-Tenant-Slug": "no-such-club"}).status_code == 404
 
 
@@ -103,7 +103,7 @@ def test_directory_lists_only_listed_tenants_with_a_public_portal(client, tenant
     _listed(client, login(client, unlisted_tenant), f"{word} Unlisted", listed=False)
     found = ok(client.get(f"{API}/public/app-directory", params={"q": word.lower()}))["data"]
     assert [(e["name"], e["slug"]) for e in found] == [(f"{word} Racquet Club", tenant.slug)]
-    assert set(found[0]) == {"tenant_id", "slug", "name", "city", "icon_url", "host"}
+    assert set(found[0]) == {"slug", "name", "city", "icon_url"}  # never the tenant id
     by_word = ok(client.get(f"{API}/public/app-directory", params={"q": "racquet", "limit": 20}))["data"]
     assert by_word and all("racquet" in e["name"].lower() for e in by_word)
     # LIKE metacharacters are literal; one-letter queries are refused.
@@ -146,3 +146,17 @@ def test_present_listing_rules():
     with pytest.raises(rules.Invalid):
         rules.clean_home_screen({"tiles": [{"type": "book"}] * 13})
     assert rules.clean_features({"booking": False})["purchases"] is True
+
+
+def test_directory_fails_closed_when_the_limiter_is_down(client, monkeypatch):
+    """The one cross-tenant read: without Redis to count requests it refuses rather than serving unmetered."""
+    import redis
+
+    from app.core import ratelimit
+    from app.core.settings import get_settings
+
+    monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+    down = redis.Redis(host="127.0.0.1", port=1, socket_connect_timeout=0.2)
+    monkeypatch.setattr(ratelimit, "_redis", lambda: down)
+    refused = client.get(f"{API}/public/app-directory", params={"q": "racquet"})
+    assert (refused.status_code, refused.json()["code"]) == (503, "rate-limit-unavailable")

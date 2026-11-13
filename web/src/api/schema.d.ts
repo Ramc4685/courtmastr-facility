@@ -6790,7 +6790,8 @@ export interface paths {
         get: operations["getPortalSettings"];
         /**
          * Put Portal Settings
-         * @description Changing the terms text raises terms_version. Errors: portal-slug-taken.
+         * @description Portal terms are the documents portal_terms binding, not a field here. Errors: portal-slug-taken,
+         *     redirect-not-allowed.
          */
         put: operations["putPortalSettings"];
         post?: never;
@@ -9465,7 +9466,8 @@ export interface paths {
         put?: never;
         /**
          * Send Portal Feedback
-         * @description For the signed-in client or one it may act for (else 404). Default location: the client's home.
+         * @description For the signed-in client or one it may act for (else 404). Location: the client's home (the default) or one
+         *     whose portal is on and public. Errors: validation-failed, rate-limited (per signed-in identity).
          */
         post: operations["sendPortalFeedback"];
         delete?: never;
@@ -11678,6 +11680,7 @@ export interface paths {
         /**
          * Get Public App Config
          * @description App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.
+         *     404 unless the tenant's member app is on (listing in the directory is not needed: the slug is enough).
          */
         get: operations["getPublicAppConfig"];
         put?: never;
@@ -16975,19 +16978,12 @@ export interface components {
         AppDirectoryEntry: {
             /** City */
             city: string | null;
-            /** Host */
-            host: string;
             /** Icon Url */
             icon_url: string | null;
             /** Name */
             name: string;
             /** Slug */
             slug: string;
-            /**
-             * Tenant Id
-             * Format: uuid
-             */
-            tenant_id: string;
         };
         /** AppDirectoryPage */
         AppDirectoryPage: {
@@ -32834,8 +32830,6 @@ export interface components {
         PortalSettingsOut: {
             /** Allows Online Purchases */
             allows_online_purchases: boolean;
-            /** Allows Online Rentals */
-            allows_online_rentals: boolean;
             /** Allows Self Signup */
             allows_self_signup: boolean;
             /** Group Redirect Urls */
@@ -32863,10 +32857,6 @@ export interface components {
             social_links: {
                 [key: string]: string;
             };
-            /** Terms Text */
-            terms_text: string | null;
-            /** Terms Version */
-            terms_version: number | null;
             /** Welcome Text */
             welcome_text: string | null;
         };
@@ -32874,8 +32864,6 @@ export interface components {
         PortalSettingsUpdate: {
             /** Allows Online Purchases */
             allows_online_purchases?: boolean | null;
-            /** Allows Online Rentals */
-            allows_online_rentals?: boolean | null;
             /** Allows Self Signup */
             allows_self_signup?: boolean | null;
             /** Group Redirect Urls */
@@ -32898,8 +32886,6 @@ export interface components {
             social_links?: {
                 [key: string]: string;
             } | null;
-            /** Terms Text */
-            terms_text?: string | null;
             /** Welcome Text */
             welcome_text?: string | null;
         };
@@ -34852,11 +34838,6 @@ export interface components {
             icon_url: string | null;
             portal: components["schemas"]["PublicPortalConfig"];
             schedule: components["schemas"]["PublicAppSchedule"];
-            /**
-             * Tenant Id
-             * Format: uuid
-             */
-            tenant_id: string;
             theme: components["schemas"]["AppTheme"];
         };
         /** PublicAppDesign */
@@ -35544,8 +35525,6 @@ export interface components {
         PublicPortalLocation: {
             /** Allows Online Purchases */
             allows_online_purchases: boolean;
-            /** Allows Online Rentals */
-            allows_online_rentals: boolean;
             /** Allows Self Signup */
             allows_self_signup: boolean;
             /** Group Redirect Urls */
@@ -35569,10 +35548,6 @@ export interface components {
             social_links: {
                 [key: string]: string;
             };
-            /** Terms Text */
-            terms_text: string | null;
-            /** Terms Version */
-            terms_version: number;
             /** Time Zone */
             time_zone: string;
             /** Welcome Text */

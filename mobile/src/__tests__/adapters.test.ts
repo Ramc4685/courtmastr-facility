@@ -179,13 +179,13 @@ describe('api adapter', () => {
     let calls = mockFetch([]);
     expect(await apiAdapter.searchDirectory('c')).toEqual([]); // under two letters the server is not asked
     expect(calls).toHaveLength(0);
-    calls = mockFetch([() => json({ data: [{ tenant_id: 't1', slug: 'court', name: 'Court Club', host: 'court.example' }] })]);
+    calls = mockFetch([() => json({ data: [{ slug: 'court', name: 'Court Club' }] })]);
     expect(await apiAdapter.searchDirectory(' court ')).toEqual([
-      { tenant_id: 't1', slug: 'court', name: 'Court Club', host: 'court.example', city: null, icon_url: null },
+      { slug: 'court', name: 'Court Club', city: null, icon_url: null },
     ]);
     expect(calls[0]!.url).toContain('/api/v1/public/app-directory?q=court&limit=20');
     expect(calls[0]!.headers.authorization).toBeUndefined();
-    calls = mockFetch([() => json({ tenant_id: 't1', app_name: 'Court', theme: {}, features: {}, schedule: {}, portal: {} })]);
+    calls = mockFetch([() => json({ app_name: 'Court', theme: {}, features: {}, schedule: {}, portal: {} })]);
     expect(await apiAdapter.getAppConfig()).toMatchObject({ app_name: 'Court', icon_url: null, home_screen: null });
     expect(calls[0]!.url).toContain('/api/v1/public/app-config');
   });

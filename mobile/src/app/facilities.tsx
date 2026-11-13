@@ -52,7 +52,7 @@ export default function Facilities() {
         ) : directory.data?.length ? (
           directory.data.map((entry) => (
             <Row
-              key={entry.tenant_id}
+              key={entry.slug}
               title={entry.name}
               subtitle={[entry.city, busy === entry.slug ? 'Opening…' : null].filter(Boolean).join(' · ')}
               onPress={() => open(entry.slug)}

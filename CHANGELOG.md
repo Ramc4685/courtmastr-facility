@@ -9,6 +9,11 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ### Security
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
+- Portal redirect addresses with a backslash, a port, sign-in details or an unusual host name are refused.
+- Video meeting host links are shown only to staff who can run the session.
+- Member app: the facility search no longer works while its request limiter is unavailable, and neither the search nor the app start-up answer reveals internal account ids; the app start-up answer is given only once the member app is switched on.
+- Member app feedback is limited to 10 messages an hour per member and only goes to the member's home location or one whose portal is public.
+- Unconfirmed portal sign-ups are deleted a week after their link expires, trial requests 180 days after they arrive (or 90 days after they are closed), and erasing a client clears the IP address on their recorded terms acceptances.
 - Guest program checkout keeps a guest's details on the basket until payment and creates their client records only once the card is charged; abandoned or expired baskets leave nothing behind. Guests are limited to 5 baskets per 15 minutes per network and per email address, with at most 4 participants each, and welcome automations no longer email a guest's unverified address.
 
 ### Added
@@ -75,6 +80,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Registration defaults per location that new programs start with.
 
 ### Changed
+- Portal terms are now edited in one place, "Portal terms" on the portal page, and apply to every location; the old per-location terms text is no longer shown anywhere.
+- Online rentals are switched on in Rental setup only; the "Allow online rentals" box is gone from portal settings, and the rental online-booking tab shows whether the member portal is on.
 - A declined online rental payment now returns the shared `payment-failed` error code.
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
 - Staff can only sign in from the networks the owner lists, when a list is set; this now applies to owners and admins too.

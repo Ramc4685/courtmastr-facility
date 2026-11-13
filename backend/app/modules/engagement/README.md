@@ -131,9 +131,22 @@ The HTML builder and image library (MKT-04, MKT-06), CSV export of campaign hist
   policy requires more (address, birth date) refuses the sign-up with the policy's 422; staff relax the policy or
   invite instead. Recorded, not guessed.
 - **Menu, social links, redirects** live on `portal_settings` (programs may not import engagement, so the per-group
-  redirect map is here too, keyed by program group id). Redirects are https only, no userinfo or explicit port,
-  and the host must be one of the tenant's own hosts (`platform.service.tenant_hosts`) or an allow-listed domain or
-  its subdomain; they are re-checked on every public read, so removing a domain disables a stored URL at once.
+  redirect map is here too, keyed by program group id). Redirects are https only, no userinfo, explicit port or
+  backslash, the host must be a plain DNS name, and it must be one of the tenant's own hosts
+  (`platform.service.tenant_hosts`, exact) or an allow-listed domain or its subdomain (matched on a label boundary);
+  they are re-checked on every public read, so removing a domain disables a stored URL at once.
+- **Terms have one source: the documents `portal_terms` binding** (`GET /public/portal-terms`, recorded per sale by
+  `clients.terms`). `portal_settings.terms_text` and `terms_version` predate Phase 11; the columns stay but the
+  staff settings no longer take or return them and the public portal config no longer serves them, so a terms text
+  that is not the binding can never be shown without an acknowledgment being recorded. The staff portal page edits
+  the binding's plain text (tenant-wide, not per location). Web and mobile read terms only through `useTermsGate`.
+- **Online rentals have one switch: rentals' `rental_portal_setting.is_online_enabled`.**
+  `portal_settings.allows_online_rentals` predates Phase 11 but nothing enforced or read it; the column stays and the
+  API no longer takes or serves it. Members can book rentals online at a location when its portal is on and that
+  rentals switch is on; the rentals online-booking screen shows the portal state and links here.
+- **Sign-up retention.** An unconfirmed sign-up (pending or superseded) is purged a week after its link expires
+  (`engagement_portal_signup` in `platform.retention`); a confirmed one is linked to its client and goes with an
+  erasure.
 - **Slug.** `GET /public/portal-config` carries `tenant_slug`; the web `/f/:slug` pages send it as `X-Tenant-Slug`.
 
 ## Phase 11 C1: member app core (APP-01, 02, 04, 05, 16, 18, 19; CHK-13 partial)
@@ -144,8 +157,8 @@ Code in `domain/app_config.py` (pure rules: tile types, layout, schedule flags, 
 | Route | Gate | Notes |
 |---|---|---|
 | `GET /app-config`, `PUT /app-config` | staff; `PUT` needs the key at every location | the home layout, tile catalogue, schedule flags and feature switches; a bad value is `invalid-app-config` with the pointer |
-| `GET /public/app-config` | anonymous, `app-config` bucket | the live theme, home layout and switches the app reads (APP-02, APP-05) |
-| `GET /public/app-directory?q=&limit=` | anonymous, `app-directory` bucket | facility search by name for the app's facility screen (APP-01); only tenants whose portal is enabled and publicly listed; returns slug, name, logo and city |
+| `GET /public/app-config` | anonymous, `app-config` bucket | the live theme, home layout and switches the app reads (APP-02, APP-05); 404 unless the member app is on |
+| `GET /public/app-directory?q=&limit=` | anonymous, `app-directory` bucket (fails closed) | facility search by name for the app's facility screen (APP-01); only tenants whose portal is enabled and publicly listed; returns slug, name, logo and city, never the tenant id |
 
 Rules and assumptions:
 
@@ -156,6 +169,11 @@ Rules and assumptions:
 - **Feature switches.** `booking`, `purchases`, `membership_card` and `wallet_pass` are stored in the same document.
 - **Purchases.** In-app buying uses the existing portal sale routes, so every sale still ends in
   `secure_online_checkout` and records the terms version shown (SSP-14).
+- **The slug is the capability.** `GET /public/app-config` answers for any active tenant whose member app is on,
+  listed in the directory or not: someone given the facility code can open it. A tenant whose app is off is 404.
+  Neither public answer carries the tenant id; the app knows a facility by its slug.
+- **Directory limiter fails closed.** The `app-directory` bucket is `closed: true`: with Redis down the one
+  cross-tenant read answers 503 `rate-limit-unavailable` rather than serving unmetered.
 - **Location filter (APP-16).** `listPortalSessionListings` takes `location_id`; each session's times come in its own
   location's zone.
 - **Wallet passes (CHK-13, partial).** See the access module README. The adapter is fake, so the pass is unsigned.
@@ -172,7 +190,7 @@ Code in `content.py`; tables `app_content`, `location_contact`, `app_inquiry` (m
 | `GET/POST /location-contacts`, `GET/PATCH/DELETE /location-contacts/{id}` | `engagement.location_contact.manage` | kind department (APP-08) or service (APP-09) |
 | `GET /public/location-contacts?location_id=` | anonymous, `app-config` bucket | empty unless the location's portal is enabled and public |
 | `POST /public/trial-requests` | anonymous, `trial-request` bucket per IP and per address, login-CSRF | APP-12 "Try us" |
-| `POST /portal/feedback` | client (self or someone it may act for, else 404) | APP-10; 201 with the id only |
+| `POST /portal/feedback` | client (self or someone it may act for, else 404), `portal-feedback` bucket per identity | APP-10; 201 with the id only; the location must be the client's home or one whose portal is on and public, else 422 |
 | `GET /app-inquiries`, `PATCH /app-inquiries/{id}` | `engagement.app_inquiry.read` / `.manage` | the staff inbox; filters kind, status, location_id; status new, in_progress, closed, converted |
 
 Rules and assumptions:
@@ -192,6 +210,9 @@ Rules and assumptions:
   optional 1-5 rating. Every inquiry publishes `engagement.app_inquiry.received`.
 - **PII.** Contact fields and the message are audited as flags only. A client merge re-points feedback; an erasure
   keeps the row (counts and rating) and blanks the name, contact fields and message (`subject.py`).
+- **Trial request retention.** A trial request never links a client, so no erasure reaches it. It is purged 180
+  days after it arrived, or 90 days after staff closed or converted it, whichever comes first
+  (`engagement_trial_inquiry` in `platform.retention`, one batch a run).
 - **Staff screen:** built, `web/src/features/engagement/MemberContentPage.tsx` (content, location contacts, the inquiry
   inbox and usage counts). The parent `/engagement` route still requires `engagement.campaign.read`, so the page needs
   that key as well as the content keys. **Not built:** email alerts to staff when an inquiry arrives (a subscriber of the event can add
@@ -214,8 +235,10 @@ Rules and assumptions:
 
 - **Targets.** A favourite's `target_id` points into scheduling (reservation type) or programs (program group), so
   there is no foreign key: the write checks the target exists in the tenant (an active reservation type, a program
-  group that is not deleted). Scheduling is outside engagement's allowed imports, so the reservation type check is
-  a plain query under RLS. A favourite whose target is later deactivated stays and simply matches nothing.
+  group that is not deleted). Both checks and the session-to-group map go through programs' public functions
+  (`program_group_exists`, `reservation_type_exists`, `group_of_sessions`); engagement may call programs but not
+  scheduling, so programs passes the reservation type check on to `scheduling.service.reservation_type_exists`.
+  A favourite whose target is later deactivated stays and simply matches nothing.
 - **Personal schedule.** It is the portal session listing (`programs.selfservice.list_listings`, with its policy
   visibility, cutoffs and bookable verdicts) narrowed to sessions linked to a favourite program group (directly,
   not through child nodes) or of a favourite reservation type; each row carries `program_group_id` when it came

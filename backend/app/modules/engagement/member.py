@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -41,12 +41,8 @@ def _acting(session: Session, principal: Principal, client_id: UUID) -> UUID:
 
 def _target_exists(session: Session, kind: str, target_id: UUID) -> bool:
     if kind == "program_group":
-        group = programs.models.ProgramGroup
-        found = select(group.id).where(group.id == target_id, group.deleted_at.is_(None))
-        return session.scalar(found) is not None
-    # scheduling is outside engagement's allowed imports; RLS keeps this read inside the tenant
-    found_type = text("SELECT 1 FROM reservation_type WHERE id = :id AND is_active")
-    return session.scalar(found_type, {"id": target_id}) is not None
+        return programs.service.program_group_exists(session, target_id)
+    return programs.service.reservation_type_exists(session, target_id)
 
 
 def list_favorites(session: Session, principal: Principal, client_id: UUID) -> list[ClientFavorite]:
@@ -95,9 +91,7 @@ def favorite_schedule(session: Session, principal: Principal, client_id: UUID, s
     groups = {f.target_id for f in favorites if f.kind == "program_group"}
     if not favorites:
         return []
-    link = programs.models.ProgramSession
-    group_of = dict(session.execute(select(link.session_id, link.program_group_id).where(
-        link.program_group_id.in_(groups))).all())  # fmt: skip
+    group_of = programs.service.group_of_sessions(session, groups)
     listings = programs.selfservice.list_listings(session, principal, client_id,
                                                   {"starts_from": start, "starts_before": end})  # fmt: skip
     return [

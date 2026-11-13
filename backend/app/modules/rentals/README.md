@@ -137,6 +137,11 @@ public-schedule control, no tax picker on rates (no tax list endpoint), one reso
   rentals on or off for the location and sets a minimum lead time, a maximum length and a booking horizon. No row
   means the defaults: on, no extra limits. Assumption: the location values tighten each type's own limits (the
   stricter wins); the per-type `access = self_service` stays the switch for which types are offered.
+- **One online switch.** This is the only rentals online switch: engagement's old
+  `portal_settings.allows_online_rentals` is no longer served or accepted (the column predates Phase 11 and stays).
+  Members book rentals online at a location when its member portal is on (engagement portal settings) and this
+  switch is on. The staff online-booking tab shows the portal's state (when the user may read portal settings) and
+  links to it; the portal settings page links back here.
 - A disabled location hides its types from the public list and answers 404 on availability and checkout. Past the
   horizon a checkout is 422 `beyond-horizon`; availability stops listing slots there.
 - `confirmPortalRental` takes exactly one of `provider_payment_token` or a stored `payment_method_id` (the client's

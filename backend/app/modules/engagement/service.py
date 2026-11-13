@@ -1716,7 +1716,6 @@ def _settings_for(session: Session, location_id: UUID) -> PortalSettings:
             slug=_slug(platform.service.location_name(session, location_id)),
             is_enabled=False,
             is_public=False,
-            allows_online_rentals=True,
             allows_online_purchases=True,
             allows_self_signup=False,
             menu=[],
@@ -1738,14 +1737,17 @@ def get_portal_settings(session: Session, principal: Principal, location_id: UUI
     return _settings_for(session, location_id)
 
 
-_NOT_NULL = ("is_enabled", "is_public", "slug", "allows_online_rentals", "allows_online_purchases",
-             "allows_self_signup", "menu", "social_links", "group_redirect_urls", "redirect_domains")  # fmt: skip
+_NOT_NULL = ("is_enabled", "is_public", "slug", "allows_online_purchases", "allows_self_signup", "menu",
+             "social_links", "group_redirect_urls", "redirect_domains")  # fmt: skip
+
+
+_HOST = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 
 
 def redirect_allowed(session: Session, url: str | None, domains: list[str]) -> bool:
-    """SSP-07: https only, no credentials or port tricks, and the host is one of the tenant's own hosts or one
-    of the location's allow-listed domains (or a subdomain of one)."""
-    if not url:
+    """SSP-07: https only, no credentials, port or backslash tricks, and the host is one of the tenant's own hosts
+    or one of the location's allow-listed domains (or a subdomain of one, matched on a label boundary)."""
+    if not url or "\\" in url:  # browsers read a backslash as a slash, so the host they visit is not ours
         return False
     try:
         parts = urlsplit(url)
@@ -1753,7 +1755,7 @@ def redirect_allowed(session: Session, url: str | None, domains: list[str]) -> b
         explicit_port = parts.port is not None
     except ValueError:
         return False
-    if parts.scheme != "https" or not host or parts.username or parts.password or explicit_port:
+    if parts.scheme != "https" or not _HOST.fullmatch(host) or "@" in parts.netloc or explicit_port:
         return False
     if host in platform.service.tenant_hosts(session):
         return True
@@ -1781,8 +1783,6 @@ def put_portal_settings(session: Session, principal: Principal, location_id: UUI
     platform.service.get_location(session, principal, location_id)
     authorize(principal, _PORTAL, location_id=location_id)
     row = _settings_for(session, location_id)
-    if data.get("terms_text") is not None and data["terms_text"] != row.terms_text and row.id is not None:
-        row.terms_version = (row.terms_version or 1) + 1
     data = {k: v for k, v in data.items() if v is not None or k not in _NOT_NULL}
     if "menu" in data:
         _check_menu(data["menu"])
@@ -1814,8 +1814,7 @@ def public_portal_config(session: Session) -> dict:
             "locations": [
         {"location_id": r.location_id, "name": platform.service.location_name(session, r.location_id), "slug": r.slug,
          "time_zone": platform.service.location_time_zone(session, r.location_id),
-         "welcome_text": r.welcome_text, "terms_text": r.terms_text, "terms_version": r.terms_version or 1,
-         "allows_online_rentals": r.allows_online_rentals, "allows_online_purchases": r.allows_online_purchases,
+         "welcome_text": r.welcome_text, "allows_online_purchases": r.allows_online_purchases,
          "allows_self_signup": r.allows_self_signup, "menu": r.menu or [], "social_links": r.social_links or {},
          "redirect_url": r.redirect_url if allowed(r, r.redirect_url) else None,
          "group_redirect_urls": {k: v for k, v in (r.group_redirect_urls or {}).items() if allowed(r, v)}}
@@ -1946,20 +1945,20 @@ def put_app_config(session: Session, principal: Principal, data: dict) -> dict:
 
 def public_app_config(session: Session) -> dict:
     """Bootstrap payload for the app after it picks a facility: theme, features, home layout, portal config.
-    Anonymous (tenant from the host or X-Tenant-Slug). Colours are the tenant brand colours (one source for the
-    portal and the app); before the config is switched on, theme and layout stay empty so the app keeps its
-    bundled ones."""
+    Anonymous (tenant from the host or X-Tenant-Slug). The slug is the capability, so a tenant need not be listed
+    in the directory, but its member app must be on: otherwise 404. Colours are the tenant brand colours (one
+    source for the portal and the app)."""
     row = _app_config(session)
+    if not row.is_enabled:
+        raise NotFound()
     tenant = platform.service.get_tenant(session)
-    enabled = row.is_enabled
     brand = platform.branding.branding(session)
     return {
-        "tenant_id": tenant.id,
-        "app_name": (enabled and row.app_name) or tenant.name,
-        "theme": {"primary": brand.get("primary_color"), "accent": brand.get("accent_color")} if enabled else {},
+        "app_name": row.app_name or tenant.name,
+        "theme": {"primary": brand.get("primary_color"), "accent": brand.get("accent_color")},
         "icon_url": brand["tenant_logo_url"],
         "features": {**_APP_DEFAULTS["features"], **(row.features or {})},
-        "home_screen": row.home_screen if enabled else None,
+        "home_screen": row.home_screen,
         "schedule": {**app_rules.DEFAULT_SCHEDULE, **(row.schedule or {})},
         "portal": public_portal_config(session),
     }
@@ -1980,9 +1979,8 @@ def present_schedule(session: Session, listings: list[dict]) -> list[dict]:
 
 def search_app_directory(prefix: str, limit: int) -> list[dict]:
     """Anonymous, rate limited by the router. The cross-tenant read lives in core.db.platform (listing fields only)."""
-    domain = get_settings().app.base_domain
-    return [
-        {"tenant_id": r.tenant_id, "slug": r.slug, "name": r.name, "city": r.city, "host": f"{r.slug}.{domain}",
+    return [  # listing fields only: never the tenant id
+        {"slug": r.slug, "name": r.name, "city": r.city,
          "icon_url": platform.branding.public_url_for_key(r.logo_object_key) if r.logo_object_key else None}
         for r in platform_db.search_app_directory(prefix.strip(), limit)
     ]  # fmt: skip

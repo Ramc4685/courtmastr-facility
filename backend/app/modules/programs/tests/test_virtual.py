@@ -25,6 +25,13 @@ def test_meeting_and_join_window(client, owner, tenant, mailbox):
     assert client.get(path, headers=admin).status_code == 404
     meeting = ok(client.put(path, headers=owner), 200)
     assert meeting["is_virtual"] and meeting["join_url"] and meeting["host_url"]
+    # The host link starts the meeting: only staff who may run the session get it, not every schedule reader.
+    viewer = login(client, tenant, add_staff(tenant, "view_only", location_ids=[f.location])[0])
+    seen = ok(client.get(path, headers=viewer), 200)
+    assert seen["join_url"] == meeting["join_url"] and seen["host_url"] is None
+    coach = login(client, tenant, add_staff(tenant, "coach", location_ids=[f.location])[0])
+    assert ok(client.get(path, headers=coach), 200)["host_url"] is None  # not this session's instructor
+    assert ok(client.get(path, headers=owner), 200)["host_url"] == meeting["host_url"]
     assert ok(client.put(path, headers=owner), 200)["join_url"] == meeting["join_url"]  # idempotent
 
     person, portal = member(client, tenant, owner, f, mailbox)

@@ -15,7 +15,7 @@ from app.core.events import OutboxEvent
 from app.core.settings import get_settings
 from app.modules.clients.models import Client
 from app.modules.engagement.models import AppInquiry
-from app.modules.platform import privacy
+from app.modules.platform import privacy, retention
 from app.modules.programs.tests.test_checkout import member
 from app.modules.scheduling.tests.helpers import facility
 from conftest import add_staff, login, new_client, png_bytes, scalar
@@ -223,6 +223,49 @@ def test_feedback_is_for_own_clients_only(client, tenant, owner, f, mailbox):
     )
     listed = ok(client.get(f"{API}/app-inquiries", headers=owner, params={"kind": "feedback"}))["data"]
     assert listed[0]["message"] == "Love it" and listed[0]["client_id"] == person["id"]
+
+
+def test_feedback_goes_only_to_a_location_the_client_can_see(client, tenant, owner, f, mailbox):
+    """The client's home location, or a location whose portal is on and public; any other is 422."""
+    person, portal = member(client, tenant, owner, f, mailbox)
+    url = f"{API}/portal/feedback"
+    hidden = facility(client, owner, "America/New_York")
+    body = {"client_id": person["id"], "message": "Hello", "location_id": hidden.location}
+    assert code(client.post(url, headers=portal, json=body)) == (422, "validation-failed")
+    open_portal(client, owner, hidden.location)
+    ok(client.post(url, headers=portal, json=body), 201)
+    ok(client.post(url, headers=portal, json=body | {"location_id": f.location}), 201)  # home, portal not public
+    assert {str(r.location_id) for r in inquiries(tenant, kind="feedback")} == {hidden.location, f.location}
+
+
+def test_feedback_is_rate_limited(client, tenant, owner, f, mailbox, monkeypatch):
+    person, portal = member(client, tenant, owner, f, mailbox)
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(cfg.buckets, "portal-feedback", cfg.buckets["portal-feedback"].model_copy(update={"limit": 1}))
+    url, body = f"{API}/portal/feedback", {"client_id": person["id"], "message": "One"}
+    ok(client.post(url, headers=portal, json=body), 201)
+    assert code(client.post(url, headers=portal, json=body)) == (429, "rate-limited")
+
+
+def test_trial_requests_are_purged_after_180_days_or_90_after_closing(client, tenant, owner, f):
+    open_portal(client, owner, f.location)
+    names = {}
+    for label in ("old", "fresh", "closed_long_ago", "closed_lately"):
+        email = f"{label}-{uuid4().hex[:6]}@example.com"
+        trial(client, tenant, f.location, email)
+        names[label] = email
+    now = clock.now()
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        rows = {r.contact_email: r for r in session.scalars(select(AppInquiry).where(AppInquiry.kind == "trial"))}
+        rows[names["old"]].created_at = now - timedelta(days=181)
+        rows[names["fresh"]].created_at = now - timedelta(days=179)
+        for label, days in (("closed_long_ago", 91), ("closed_lately", 89)):
+            rows[names[label]].status, rows[names[label]].handled_at = "closed", now - timedelta(days=days)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert retention._PURGERS["engagement_trial_inquiry"](session) == 2
+    left = {r.contact_email for r in inquiries(tenant, kind="trial")}
+    assert left == {names["fresh"], names["closed_lately"]}
 
 
 def test_merge_moves_feedback_and_erasure_blanks_it(client, tenant, owner, f, mailbox):

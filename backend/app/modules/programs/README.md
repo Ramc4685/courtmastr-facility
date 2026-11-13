@@ -41,6 +41,10 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
   or a descendant on the coach's linked trainer calendar. A row at another location is 404. Portal routes
   load rows by identity (`can_act_for`), so any other row is 404.
 
+- Internal reads for engagement's favourites (APP-13), which may call programs but not scheduling:
+  `service.program_group_exists`, `service.reservation_type_exists` (passed on to scheduling) and
+  `service.group_of_sessions` (session id to program group id).
+
 ## Assumptions and limits
 
 - **Keys and engagement:** session booking policies use `engagement.portal_settings.manage` or

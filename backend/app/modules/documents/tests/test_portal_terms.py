@@ -1,16 +1,20 @@
 """Recorded portal terms acknowledgment (SSP-14): a sale needs the version the buyer was shown, a changed text is a
 409 terms-changed carrying the current version, and an accepted sale leaves one terms_acceptance row."""
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
 
+from app.core import clock
+from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.modules.documents.models import TermsAcceptance
+from app.modules.platform import privacy
 from app.modules.programs.tests.test_checkout import PORTAL, add, basket, keyed, member, online
 from app.modules.programs.tests.test_guest_checkout import allow_guests, start
 from app.modules.scheduling.tests.helpers import API, facility, ok
+from conftest import new_client
 
 
 @pytest.fixture
@@ -68,3 +72,20 @@ def test_guest_sale_needs_the_terms_too(client, owner, tenant, f):
     paid = client.post(confirm, headers=keyed(headers), json=body | {"terms_version_id": shown(client, tenant)})
     assert paid.status_code == 200, paid.text
     assert accepted(tenant, "program") == 1
+
+
+def test_erasure_keeps_the_acceptance_but_clears_the_ip(client, owner, tenant, f):
+    """The acceptance stays as the legal record (security-baseline 4.3); the address it came from does not."""
+    binding = bind_terms(client, owner, "Play fair.")
+    person = new_client(client, owner, f.location)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.add(TermsAcceptance(client_id=person["id"], binding_id=binding["id"], terms_version_id="v1",
+                                    sale_kind="program", subject_id=uuid4(), accepted_at=clock.now(),
+                                    ip="192.0.2.7"))  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert privacy.HANDLERS["documents_terms"].erase(session, UUID(person["id"])) == {
+            "retained_terms_acceptances": 1
+        }
+    with tenant_session(tenant.id) as session:
+        row = session.scalar(select(TermsAcceptance).where(TermsAcceptance.client_id == person["id"]))
+        assert row is not None and row.ip is None

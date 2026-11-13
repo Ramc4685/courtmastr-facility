@@ -13,8 +13,8 @@ const sessionStarted = vi.fn()
 vi.mock('../../lib/auth', () => ({ useAuth: () => ({ sessionStarted }) }))
 
 const location = (extra = {}) => ({
-  location_id: 'l1', name: 'Downtown', slug: 'downtown', time_zone: 'America/Chicago', welcome_text: 'Welcome in', terms_text: null, terms_version: 1,
-  allows_online_rentals: true, allows_online_purchases: true, allows_self_signup: true, menu: [],
+  location_id: 'l1', name: 'Downtown', slug: 'downtown', time_zone: 'America/Chicago', welcome_text: 'Welcome in',
+  allows_online_purchases: true, allows_self_signup: true, menu: [],
   social_links: { instagram: 'https://instagram.com/club' }, redirect_url: null, group_redirect_urls: {}, ...extra,
 })
 const config = (extra = {}) => ({ status: 200, body: { facility_name: 'Riverside Club', tenant_slug: 'riverside', currency: 'EUR', locations: [location(extra)] } })
@@ -151,7 +151,7 @@ describe('guest checkout', { timeout: 20_000 }, () => {
   it('retries after a decline with the same guest token and a new attempt key', async () => {
     let tries = 0
     const calls = open(GUEST, routes({
-      [CONFIRM]: () => (++tries === 1 ? { status: 402, body: { status: 402, code: 'payment-declined', detail: 'The card was declined.' } } : done),
+      [CONFIRM]: () => (++tries === 1 ? { status: 409, body: { status: 409, code: 'payment-failed', detail: 'The card was declined.' } } : done),
     }))
     const user = await fillAndContinue()
     await user.selectOptions(await screen.findByLabelText('Card'), 'tok_card_declined')

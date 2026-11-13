@@ -2314,10 +2314,6 @@
             ],
             "title": "City"
           },
-          "host": {
-            "title": "Host",
-            "type": "string"
-          },
           "icon_url": {
             "anyOf": [
               {
@@ -2336,20 +2332,13 @@
           "slug": {
             "title": "Slug",
             "type": "string"
-          },
-          "tenant_id": {
-            "format": "uuid",
-            "title": "Tenant Id",
-            "type": "string"
           }
         },
         "required": [
-          "tenant_id",
           "slug",
           "name",
           "city",
-          "icon_url",
-          "host"
+          "icon_url"
         ],
         "title": "AppDirectoryEntry",
         "type": "object"
@@ -51938,10 +51927,6 @@
             "title": "Allows Online Purchases",
             "type": "boolean"
           },
-          "allows_online_rentals": {
-            "title": "Allows Online Rentals",
-            "type": "boolean"
-          },
           "allows_self_signup": {
             "title": "Allows Self Signup",
             "type": "boolean"
@@ -52002,28 +51987,6 @@
             "title": "Social Links",
             "type": "object"
           },
-          "terms_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Text"
-          },
-          "terms_version": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Version"
-          },
           "welcome_text": {
             "anyOf": [
               {
@@ -52042,9 +52005,6 @@
           "is_public",
           "slug",
           "welcome_text",
-          "terms_text",
-          "terms_version",
-          "allows_online_rentals",
           "allows_online_purchases",
           "allows_self_signup",
           "menu",
@@ -52069,17 +52029,6 @@
               }
             ],
             "title": "Allows Online Purchases"
-          },
-          "allows_online_rentals": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Allows Online Rentals"
           },
           "allows_self_signup": {
             "anyOf": [
@@ -52216,18 +52165,6 @@
               }
             ],
             "title": "Social Links"
-          },
-          "terms_text": {
-            "anyOf": [
-              {
-                "maxLength": 20000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Text"
           },
           "welcome_text": {
             "anyOf": [
@@ -58428,17 +58365,11 @@
           "schedule": {
             "$ref": "#/components/schemas/PublicAppSchedule"
           },
-          "tenant_id": {
-            "format": "uuid",
-            "title": "Tenant Id",
-            "type": "string"
-          },
           "theme": {
             "$ref": "#/components/schemas/AppTheme"
           }
         },
         "required": [
-          "tenant_id",
           "app_name",
           "theme",
           "icon_url",
@@ -60638,10 +60569,6 @@
             "title": "Allows Online Purchases",
             "type": "boolean"
           },
-          "allows_online_rentals": {
-            "title": "Allows Online Rentals",
-            "type": "boolean"
-          },
           "allows_self_signup": {
             "title": "Allows Self Signup",
             "type": "boolean"
@@ -60691,21 +60618,6 @@
             "title": "Social Links",
             "type": "object"
           },
-          "terms_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Text"
-          },
-          "terms_version": {
-            "title": "Terms Version",
-            "type": "integer"
-          },
           "time_zone": {
             "title": "Time Zone",
             "type": "string"
@@ -60728,9 +60640,6 @@
           "slug",
           "time_zone",
           "welcome_text",
-          "terms_text",
-          "terms_version",
-          "allows_online_rentals",
           "allows_online_purchases",
           "allows_self_signup",
           "menu",
@@ -116209,7 +116118,7 @@
         ]
       },
       "put": {
-        "description": "Changing the terms text raises terms_version. Errors: portal-slug-taken.",
+        "description": "Portal terms are the documents portal_terms binding, not a field here. Errors: portal-slug-taken,\nredirect-not-allowed.",
         "operationId": "putPortalSettings",
         "parameters": [
           {
@@ -129821,7 +129730,7 @@
     },
     "/api/v1/portal/feedback": {
       "post": {
-        "description": "For the signed-in client or one it may act for (else 404). Default location: the client's home.",
+        "description": "For the signed-in client or one it may act for (else 404). Location: the client's home (the default) or one\nwhose portal is on and public. Errors: validation-failed, rate-limited (per signed-in identity).",
         "operationId": "sendPortalFeedback",
         "parameters": [
           {
@@ -140883,7 +140792,7 @@
     },
     "/api/v1/public/app-config": {
       "get": {
-        "description": "App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.",
+        "description": "App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.\n404 unless the tenant's member app is on (listing in the directory is not needed: the slug is enough).",
         "operationId": "getPublicAppConfig",
         "responses": {
           "200": {

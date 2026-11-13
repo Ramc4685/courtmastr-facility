@@ -14,7 +14,7 @@ export class NotAvailable extends Error {
 export type Page<T> = { data: T[]; page: { next_cursor: string | null; has_more: boolean } };
 
 /** openapi-programs searchAppDirectory -> AppDirectoryEntry */
-export type DirectoryEntry = { tenant_id: string; slug: string; name: string; city: string | null; icon_url: string | null; host: string };
+export type DirectoryEntry = { slug: string; name: string; city: string | null; icon_url: string | null };
 
 /** APP-04 home layout: ordered tiles from the catalogue (lib/tiles.tsx) and one global design. */
 export type HomeScreen = {
@@ -24,7 +24,6 @@ export type HomeScreen = {
 
 /** openapi-programs getPublicAppConfig -> PublicAppConfig. Colours are the tenant brand colours (null = bundled). */
 export type AppConfig = {
-  tenant_id: string;
   app_name: string;
   icon_url: string | null;
   theme: { primary?: string | null; accent?: string | null };

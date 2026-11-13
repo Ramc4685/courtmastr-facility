@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -21,8 +22,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const qc = useQueryClient()
   const toast = useToast()
   const [form, setForm] = useState({
-    is_enabled: settings.is_enabled, is_public: settings.is_public, slug: settings.slug, welcome_text: settings.welcome_text ?? '', terms_text: settings.terms_text ?? '',
-    allows_online_rentals: settings.allows_online_rentals, allows_online_purchases: settings.allows_online_purchases,
+    is_enabled: settings.is_enabled, is_public: settings.is_public, slug: settings.slug, welcome_text: settings.welcome_text ?? '',
+    allows_online_purchases: settings.allows_online_purchases,
     allows_self_signup: settings.allows_self_signup, redirect_url: settings.redirect_url ?? '', redirect_domains: settings.redirect_domains.join(', '),
     social_links: { ...settings.social_links } as Record<string, string>,
     menu: PORTAL_MENU_KEYS.map((k) => {
@@ -60,8 +61,9 @@ function SettingsForm({ settings }: { settings: Settings }) {
       <Checkbox label="Show this location on the public landing page" checked={form.is_public} onChange={(e) => set({ is_public: e.target.checked })} />
       <Input label="Portal address (slug)" hint="Lower-case letters, numbers and dashes." value={form.slug} error={errors.slug} onChange={(e) => set({ slug: e.target.value })} />
       <TextArea label="Welcome text" value={form.welcome_text} error={errors.welcome_text} onChange={(v) => set({ welcome_text: v })} />
-      <TextArea label="Terms and conditions" hint={`Changing this text raises the terms version (now ${settings.terms_version ?? 1}).`} value={form.terms_text} error={errors.terms_text} onChange={(v) => set({ terms_text: v })} />
-      <Checkbox label="Allow online rentals" checked={form.allows_online_rentals} onChange={(e) => set({ allows_online_rentals: e.target.checked })} />
+      <p className="text-sm text-muted">
+        Online rentals are switched on per location in <Link to="/rentals/setup" className="text-primary underline-offset-2 hover:underline">Rental setup</Link> (Online booking).
+      </p>
       <Checkbox label="Allow online purchases" checked={form.allows_online_purchases} onChange={(e) => set({ allows_online_purchases: e.target.checked })} />
       <Checkbox label="Let people create their own account online" hint="They confirm their email before the account exists. Off by default." checked={form.allows_self_signup} onChange={(e) => set({ allows_self_signup: e.target.checked })} />
       <fieldset className="space-y-2">
@@ -170,6 +172,38 @@ function Videos({ locationId }: { locationId: string }) {
   )
 }
 
+/** SSP-14: one set of terms for every portal sale and sign-up, kept as the documents portal_terms binding (plain
+ * text here; a bound template is edited under Documents). Changing it makes buyers accept again. */
+function PortalTerms() {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const key = ['document-bindings', 'portal_terms']
+  const binding = useQuery({ queryKey: key, queryFn: () => api.get('/api/v1/document-bindings', { query: { scope_type: 'portal_terms', is_active: true } }) })
+  const current = binding.data?.data[0]
+  const [text, setText] = useState<string | null>(null)
+  const shown = text ?? current?.custom_text ?? ''
+  const save = useMutation({
+    mutationFn: () => api.put('/api/v1/document-bindings', { body: { scope_type: 'portal_terms', scope_id: null, custom_text: shown.trim(), template_id: null, frequency: 'every_purchase', is_enforced_online: true, is_enforced_at_desk: false } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: key })
+      setText(null)
+      toast('success', 'Portal terms saved.')
+    },
+  })
+  if (binding.isPending) return <LoadingState />
+  if (binding.isError) return <ErrorState error={binding.error} onRetry={() => binding.refetch()} />
+  if (current?.template_id) {
+    return <p className="text-sm text-muted">The portal terms come from a document template. Change them in <Link to="/documents" className="text-primary underline-offset-2 hover:underline">Documents</Link>.</p>
+  }
+  return (
+    <form className="max-w-2xl space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate() }}>
+      <FormError error={save.error} />
+      <TextArea label="Terms and conditions" hint="Shown at sign-up and before every portal purchase, for all locations. Changing the text asks buyers to accept again." value={shown} error={fieldErrors(save.error).custom_text} onChange={setText} />
+      <Button type="submit" loading={save.isPending} disabled={!shown.trim() || text === null}>Save portal terms</Button>
+    </form>
+  )
+}
+
 export function PortalSettingsPage() {
   const me = useMe()
   const { can } = useAuth()
@@ -186,6 +220,11 @@ export function PortalSettingsPage() {
         {manageSettings && (
           <Card title="Portal settings">
             {settings.isPending ? <LoadingState /> : settings.isError ? <ErrorState error={settings.error} onRetry={() => settings.refetch()} /> : <SettingsForm key={locationId} settings={settings.data} />}
+          </Card>
+        )}
+        {can('documents.template.manage') && can('documents.document.generate') && (
+          <Card title="Portal terms">
+            <PortalTerms />
           </Card>
         )}
         {can('engagement.app_content.manage') && locationId && <Videos locationId={locationId} />}

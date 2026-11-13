@@ -1941,10 +1941,19 @@ def _meeting_view(seat: Session, booking: Booking) -> dict:
 
 
 def get_session_meeting(session: Db, principal: Principal, session_id: UUID) -> dict:
-    """Staff see the meeting links on the session; they never appear in listing or public responses."""
+    """Staff see the meeting links on the session; they never appear in listing or public responses. The host
+    link starts the meeting as its host, so only staff who may run the session get it: the session key with the
+    coach's own reach (the session's instructor) and the reservation type grants, as for making it virtual."""
     seat = _load(session, principal, Session, session_id)
     authorize(principal, READ, location_id=seat.location_id)
-    return _meeting_view(seat, session.get(Booking, seat.booking_id))
+    booking = session.get(Booking, seat.booking_id)
+    view = _meeting_view(seat, booking)
+    try:
+        _authorize(session, principal, SESSION, seat.location_id, _resource_ids(session, booking),
+                   booking.reservation_type_id)  # fmt: skip
+    except PermissionDenied:
+        view["host_url"] = None
+    return view
 
 
 def create_session_meeting(session: Db, principal: Principal, session_id: UUID) -> dict:
@@ -1986,6 +1995,12 @@ def delete_session_meeting(session: Db, principal: Principal, session_id: UUID) 
         _drop_meeting(seat)
         audit.record(session, SESSION, seat, location_id=seat.location_id, changes={"is_virtual": [True, False]})
         session.flush()
+
+
+def reservation_type_exists(session: Db, reservation_type_id: UUID) -> bool:
+    """Internal: an active reservation type of the tenant (programs passes it on to engagement's favourites)."""
+    found = select(ReservationType.id).where(ReservationType.id == reservation_type_id, ReservationType.is_active)
+    return session.scalar(found) is not None
 
 
 def meeting_for(session: Db, session_id: UUID) -> dict | None:

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -742,6 +743,21 @@ function SalesTab({ locationId, currency }: { locationId: string; currency: stri
 
 // ---------------------------------------------------------------- online booking defaults (SSP-04)
 
+/** Online rentals need two things on: the member portal at the location (engagement portal settings) and the
+ * switch below (the only rentals switch). Shows the portal's state when the user may read it, else just the link. */
+function PortalState({ locationId }: { locationId: string }) {
+  const { can } = useAuth()
+  const readable = can('engagement.portal_settings.manage')
+  const portal = useQuery({ queryKey: ['engagement', 'portal-settings', locationId], enabled: readable, queryFn: () => api.get('/api/v1/locations/{location_id}/portal-settings', { path: { location_id: locationId } }) })
+  const state = !readable || portal.isPending || portal.isError ? null : portal.data.is_enabled ? 'on' : 'off'
+  return (
+    <p className="text-sm text-muted sm:col-span-3">
+      {state ? <>The member portal at this location is <strong>{state}</strong>. </> : 'Members also need the member portal on at this location. '}
+      <Link to="/engagement/portal" className="text-primary underline-offset-2 hover:underline">Portal settings</Link>
+    </p>
+  )
+}
+
 function OnlineForm({ locationId, settings, canManage }: { locationId: string; settings: Schemas['RentalPortalSettingsOut']; canManage: boolean }) {
   const qc = useQueryClient()
   const toast = useToast()
@@ -771,6 +787,7 @@ function OnlineForm({ locationId, settings, canManage }: { locationId: string; s
         <Alert error={save.error} fields={e} />
         <fieldset disabled={!canManage} className="contents">
           <Checkbox className="sm:col-span-3" label="Members can book rentals online here" hint="Off hides every rental type at this location from the member portal." checked={f.is_online_enabled} onChange={(ev) => setF({ ...f, is_online_enabled: ev.target.checked })} />
+          <PortalState locationId={locationId} />
           <Input label="Book at least (minutes ahead)" type="number" min={0} value={f.min_lead_min} hint="Blank uses each type's own." error={e.min_lead_min} onChange={(ev) => setF({ ...f, min_lead_min: ev.target.value })} />
           <Input label="Longest booking (minutes)" type="number" min={1} value={f.max_length_min} hint="Blank uses each type's own." error={e.max_length_min} onChange={(ev) => setF({ ...f, max_length_min: ev.target.value })} />
           <Input label="Book up to (days ahead)" type="number" min={1} value={f.horizon_days} hint="Blank means no limit." error={e.horizon_days} onChange={(ev) => setF({ ...f, horizon_days: ev.target.value })} />

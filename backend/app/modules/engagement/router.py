@@ -376,7 +376,8 @@ def get_portal_settings(location_id: UUID, ctx: PortalAdmin):
 
 @router.put("/locations/{location_id}/portal-settings", response_model=s.PortalSettingsOut)
 def put_portal_settings(location_id: UUID, body: s.PortalSettingsUpdate, ctx: PortalAdmin):
-    """Changing the terms text raises terms_version. Errors: portal-slug-taken."""
+    """Portal terms are the documents portal_terms binding, not a field here. Errors: portal-slug-taken,
+    redirect-not-allowed."""
     return service.put_portal_settings(ctx.session, ctx.principal, location_id, body.model_dump(exclude_unset=True))
 
 
@@ -552,7 +553,8 @@ def confirm_portal_signup(body: s.PortalSignupConfirmIn, request: Request, respo
 
 @public.get("/public/app-config", response_model=s.PublicAppConfig, dependencies=[Depends(rate_limit("app-config"))])
 def get_public_app_config(session: Annotated[Session, Depends(public_session)]):
-    """App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config."""
+    """App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.
+    404 unless the tenant's member app is on (listing in the directory is not needed: the slug is enough)."""
     return service.public_app_config(session)
 
 
@@ -663,7 +665,9 @@ def update_app_inquiry(app_inquiry_id: UUID, body: s.AppInquiryUpdate, ctx: Inbo
 
 @router.post("/portal/feedback", response_model=s.PortalFeedbackOut, status_code=201)
 def send_portal_feedback(body: s.PortalFeedbackIn, ctx: Portal):
-    """For the signed-in client or one it may act for (else 404). Default location: the client's home."""
+    """For the signed-in client or one it may act for (else 404). Location: the client's home (the default) or one
+    whose portal is on and public. Errors: validation-failed, rate-limited (per signed-in identity)."""
+    hit("portal-feedback", f"identity:{ctx.principal.identity_id}", tenant=ctx.session.info["tenant_id"])
     return content.send_feedback(ctx.session, ctx.principal, body.model_dump())
 
 

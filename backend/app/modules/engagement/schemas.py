@@ -381,9 +381,6 @@ class PortalSettingsOut(Out):
     is_public: bool
     slug: str
     welcome_text: str | None
-    terms_text: str | None
-    terms_version: int | None
-    allows_online_rentals: bool
     allows_online_purchases: bool
     allows_self_signup: bool
     menu: list[PortalMenuItemOut]
@@ -398,8 +395,6 @@ class PortalSettingsUpdate(In):
     is_public: bool | None = None
     slug: Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")] | None = None
     welcome_text: Annotated[str, StringConstraints(max_length=4000)] | None = None
-    terms_text: Annotated[str, StringConstraints(max_length=20000)] | None = None
-    allows_online_rentals: bool | None = None
     allows_online_purchases: bool | None = None
     allows_self_signup: bool | None = None  # SSP-05: off by default
     menu: Annotated[list[PortalMenuItem], Field(max_length=30)] | None = None
@@ -415,9 +410,6 @@ class PublicPortalLocation(Out):
     slug: str
     time_zone: str  # IANA; wall times on public pages are shown in it
     welcome_text: str | None
-    terms_text: str | None
-    terms_version: int
-    allows_online_rentals: bool
     allows_online_purchases: bool
     allows_self_signup: bool
     menu: list[PublicMenuItem]
@@ -662,7 +654,6 @@ class PublicAppFeatures(Out):
 class PublicAppConfig(Out):
     """The public answer has its own models: it never reuses the staff config shapes."""
 
-    tenant_id: UUID
     app_name: str
     theme: AppTheme
     icon_url: str | None
@@ -673,12 +664,10 @@ class PublicAppConfig(Out):
 
 
 class AppDirectoryEntry(Out):
-    tenant_id: UUID
-    slug: str
+    slug: str  # the app opens the facility by its slug (X-Tenant-Slug)
     name: str
     city: str | None
     icon_url: str | None
-    host: str
 
 
 class AppDirectoryPage(Out):

@@ -283,7 +283,9 @@ def send_feedback(session: Session, principal: Principal, data: dict) -> AppInqu
         raise NotFound()
     client = clients.get(session, data["client_id"])
     location_id = data.get("location_id") or client.home_location_id
-    if not platform.service.location_exists(session, location_id):
+    # only a location the client can see: its home, or one whose portal is on and public (as public_contacts)
+    visible = location_id == client.home_location_id or _open_portal(session, location_id)
+    if location_id is None or not visible or not platform.service.location_exists(session, location_id):
         raise ValidationFailed("Unknown location.", pointer="/location_id")
     row = AppInquiry(kind="feedback", location_id=location_id, client_id=client.id,
                      contact_name=clients.display_name(client), message=data["message"],

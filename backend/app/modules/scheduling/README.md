@@ -120,7 +120,10 @@ views, `enrollment_action` on reschedule. (Merge and erasure are handled since i
 
 - `PUT /sessions/{id}/meeting` makes a session virtual through `app/ports/video_meeting.py` (the simulated adapter
   only in v1; bootstrap configures it), `DELETE` removes it, `GET` shows the links to staff. The session-edit gate
-  applies; reading needs the scheduling read key. Idempotent; a cancelled session is 409.
+  applies; reading needs the scheduling read key, and `host_url` (it starts the meeting as host) is filled only for
+  staff who pass the session-edit gate (session key, a coach's own reach, type grants); others get null.
+  `reservation_type_exists` is internal (programs passes it to engagement's favourites). Idempotent; a cancelled
+  session is 409.
 - The links (`meeting_join_url`, `meeting_host_url`, the provider's id) are credentials: audit never, never in
   listing or public responses (`SessionBrief.is_virtual` is the only trace). `meeting_for(session, session_id)` is
   the internal call programs uses for the portal join link.

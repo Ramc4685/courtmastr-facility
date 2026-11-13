@@ -2,11 +2,14 @@
 messaging tables. The delivery log keeps its rows (counts and campaign stats) but erasure clears the address,
 subject and body; inbox items and devices are deleted; queued sends are cancelled."""
 
+from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import delete, select, tuple_, update
+from sqlalchemy import and_, delete, or_, select, tuple_, update
 from sqlalchemy.orm import Session
 
+from app.core import clock
+from app.core.settings import get_settings
 from app.modules import clients, platform
 from app.modules.engagement import member
 from app.modules.engagement.models import (
@@ -69,6 +72,32 @@ def _erase_signups(session: Session, client_id: UUID) -> dict:
     return {"portal_signups_deleted": gone}
 
 
+# Retention for rows no erasure can reach because no client is linked. An unconfirmed sign-up goes a week after
+# its link expires (the grace week keeps a late "my link expired" support call answerable). A trial request goes
+# 180 days after it arrived, or 90 days after staff closed or converted it, whichever is first (a trial request
+# never links a client: ck_app_inquiry_client).
+SIGNUP_GRACE, TRIAL_MAX_AGE, TRIAL_AFTER_HANDLED = timedelta(days=7), timedelta(days=180), timedelta(days=90)
+
+
+def _purge(session: Session, model, *where) -> int:
+    ids = list(session.scalars(select(model.id).where(*where).limit(get_settings().retention.batch_rows)))
+    if ids:
+        session.execute(delete(model).where(model.id.in_(ids)))
+    return len(ids)
+
+
+def purge_signups(session: Session) -> int:
+    expired = clock.now() - SIGNUP_GRACE
+    return _purge(session, PortalSignup, PortalSignup.status != "confirmed", PortalSignup.expires_at < expired)
+
+
+def purge_trials(session: Session) -> int:
+    now = clock.now()
+    handled = and_(AppInquiry.status.in_(("closed", "converted")), AppInquiry.handled_at < now - TRIAL_AFTER_HANDLED)
+    return _purge(session, AppInquiry, AppInquiry.kind == "trial", or_(AppInquiry.created_at < now - TRIAL_MAX_AGE,
+                                                                        handled))  # fmt: skip
+
+
 # App feedback (APP-10): a merge moves it to the survivor; an erasure keeps the row (inbox counts, rating) and
 # blanks the contact fields and the message.
 def _repoint_inquiries(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
@@ -116,6 +145,8 @@ clients.merge.register_merge_handler("engagement_app_inquiry", tables=("app_inqu
 platform.privacy.register_subject_handler(
     "engagement_app_inquiry", tables=("app_inquiry",), export=_export_inquiries, erase=_erase_inquiries
 )
+platform.retention.register_purge("engagement_portal_signup", purge_signups)
+platform.retention.register_purge("engagement_trial_inquiry", purge_trials)
 clients.merge.register_merge_handler("engagement_signup", tables=("portal_signup",), repoint=_repoint_signups)
 platform.privacy.register_subject_handler(
     "engagement_signup", tables=("portal_signup",), export=_export_signups, erase=_erase_signups

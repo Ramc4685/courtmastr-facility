@@ -111,8 +111,8 @@ export const demoAdapter: PortalAdapter = {
   isDemo: true,
   searchDirectory: (q) => {
     const all = [
-      { tenant_id: 'courtside-demo', slug: 'courtside-demo', name: 'Courtside Demo Club', city: 'Chicago', icon_url: null, host: 'courtside-demo' },
-      { tenant_id: 'riverside-athletic', slug: 'riverside-athletic', name: 'Riverside Athletic Center', city: 'Boulder', icon_url: null, host: 'riverside-athletic' },
+      { slug: 'courtside-demo', name: 'Courtside Demo Club', city: 'Chicago', icon_url: null },
+      { slug: 'riverside-athletic', name: 'Riverside Athletic Center', city: 'Boulder', icon_url: null },
     ];
     const needle = q.trim().toLowerCase();
     return delay(all.filter((e) => !needle || `${e.name} ${e.city}`.toLowerCase().includes(needle)));
