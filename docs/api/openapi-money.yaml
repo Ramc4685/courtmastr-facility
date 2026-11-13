@@ -2651,40 +2651,6 @@ paths:
       x-features: [PAY-16]
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
-  /disputes:
-    get:
-      operationId: listDisputes
-      tags: [billing]
-      summary: Chargebacks and returned debits
-      x-priority: P1
-      x-permission: billing.dispute.manage
-      x-features: [PAY-17]
-      responses:
-        default: {$ref: '#/components/responses/NotSpecified'}
-  /disputes/{dispute_id}:
-    get:
-      operationId: getDispute
-      tags: [billing]
-      summary: Get a dispute
-      x-priority: P1
-      x-permission: billing.dispute.manage
-      x-features: [PAY-17]
-      parameters:
-      - {name: dispute_id, in: path, required: true, schema: {type: string, format: uuid}}
-      responses:
-        default: {$ref: '#/components/responses/NotSpecified'}
-  /disputes/{dispute_id}/evidence:
-    post:
-      operationId: submitDisputeEvidence
-      tags: [billing]
-      summary: Submit evidence through the provider port
-      x-priority: P1
-      x-permission: billing.dispute.manage
-      x-features: [PAY-17]
-      parameters:
-      - {name: dispute_id, in: path, required: true, schema: {type: string, format: uuid}}
-      responses:
-        default: {$ref: '#/components/responses/NotSpecified'}
   /public/invoice-links/lookup:
     post:
       operationId: getInvoiceByLink

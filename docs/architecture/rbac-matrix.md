@@ -414,7 +414,6 @@ combined key. The reference sets "customize contract" per user only and Billing 
 | `billing.collections.read` | C | | | Y | Y | - | - | - | - | - | BIL-20 (profile, collections report) |
 | `billing.collections.manage` | L | | | Y | Y | - | - | - | - | - | BIL-20, BIL-22 (at the client's home location) |
 | `billing.collections_tag.manage` | T | | | Y | Y | - | - | - | - | - | BIL-20 (tag list) |
-| `billing.dispute.manage` | L | | | Y | - | - | - | - | - | - | PAY-17 |
 | `billing.history.read` | L | | | Y | Y | - | - | - | - | - | BIL-09 |
 | `billing.ledger.read` | L | | | Y | - | - | - | - | - | - | our design (raw double-entry rows) |
 | `billing.ledger.export` | L | X | | Y | - | - | - | - | - | - | INT-07, PAY-16 |

@@ -24,7 +24,7 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `router.py` | staff, portal (receipts and receipt PDFs, payment confirm, coupon quotes, billing summary), public pay-link and webhook routes, and `POST /public/fake-processor/authentications`, a dev and test stand-in for 3-D Secure (404 unless the fake processor is registered) |
 | `events.py` | the events billing publishes |
 | `subject.py` | the merge repoint and the data-subject export and erasure handlers |
-| `permissions.py` | billing's permission keys; `billing.dispute.manage` is registered but nothing checks it |
+| `permissions.py` | billing's permission keys |
 | `schemas.py` | request and response schemas |
 
 Ports and adapters: `app/ports/payment_provider.py`; `app/adapters/fake_payments.py` (scripted by token: see
@@ -133,8 +133,9 @@ invoice, receipt and statement also stores its PDF through `platform.files.store
 length) or recurring (every N days, weeks, months or years, a number of times per term), with a discount
 (percent or amount, never both), an invoicing option, autopay and auto-renew flags, a renewal lead and an
 optional item to renew as. `catalog_item_sale` freezes the item's terms at sale (`terms` JSONB), so editing
-an item changes later sales only. Staff routes: `/catalog-items` (list, create, get, update) behind
-`billing.item.manage`, `POST /catalog-items/{id}/sales` behind `billing.charge.create` at the item's location
+an item changes later sales only. Staff routes: any signed-in staff member may list and get `/catalog-items`
+(limited to their locations; owner decision 2026-11-13, question 10); create and update need `billing.item.manage`;
+`POST /catalog-items/{id}/sales` behind `billing.charge.create` at the item's location
 (a different fee or discount also needs `billing.charge.override_price`), `GET /catalog-item-sales`
 (`billing.charge.read`, client-following like the charge list) and `POST /catalog-item-sales/{id}/cancel`
 behind `billing.charge.reverse` at the sale's location.
@@ -233,6 +234,8 @@ handlers re-read the object from the provider.
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 
+- **Not built, owner decisions (BIL-21 goodwill credit, PAY-14 surcharging):** the options, the recommendation and
+  what surcharging would need to configure are in `docs/status/phase9-orphans.md`.
 - **Revenue date and category edits (BIL-01)** are adjustments like a price edit: the original is negated at
   its own revenue date in its own category and the replacement posts at the new date (period lock applies to
   both) in the new category, which must be active and not a system category. Taxes keep the rates snapshotted
@@ -350,8 +353,8 @@ handlers re-read the object from the provider.
   and prevented disputes (no money withdrawn) are ignored. Shortcut: one dispute per payment for its disputed
   amount; a second one on a disputed payment moves no money. While open, the money stays in `client_credit` in
   the ledger and is parked in `disputed_funds` (the books check adds open disputes to credit). No staff screen
-  or route: evidence is submitted in the tenant's Stripe dashboard. `billing.dispute.manage` is registered but nothing
-  checks it. Events `billing.payment.disputed`,
+  or route: evidence is submitted in the tenant's Stripe dashboard. The reference only syncs chargebacks, so
+  the staff routes and `billing.dispute.manage` were struck (owner decision 2026-11-13, question 16c). Events `billing.payment.disputed`,
   `billing.payment.dispute_closed`.
 - **Stripe requests use dynamic payment methods** (`automatic_payment_methods`, redirects off), never
   `payment_method_types`; `create_setup`'s `kinds` is therefore advisory for Stripe.
