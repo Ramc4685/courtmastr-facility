@@ -79,7 +79,7 @@ class ClientUpdate(_Profile):
     last_name: Name | None = None
     home_location_id: UUID | None = None
     version: int | None = None  # optimistic concurrency: a stale version is 409 version-conflict
-    confirm_age: bool = False  # also confirm the age (ID seen): needs clients.client.confirm_age; nothing else confirms
+    confirm_age: bool | None = None  # also confirm the age (ID seen): needs clients.client.confirm_age; nothing else confirms
 
 
 class ClientListItem(Out):

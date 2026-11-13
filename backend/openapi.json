@@ -14616,9 +14616,15 @@
             "title": "Comments"
           },
           "confirm_age": {
-            "default": false,
-            "title": "Confirm Age",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Age"
           },
           "country_code": {
             "anyOf": [

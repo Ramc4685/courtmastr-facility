@@ -865,7 +865,7 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
     if data.get("home_location_id") and principal.location_ids is not None:
         if data["home_location_id"] not in principal.location_ids:
             raise ValidationFailed("Unknown location.", pointer="/home_location_id")
-    wants_confirm = data.pop("confirm_age", False)
+    wants_confirm = bool(data.pop("confirm_age", None))
     if wants_confirm:  # the confirm-age gate on the loaded client, before anything is written
         authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
     confirmed = _age_confirmed(client)

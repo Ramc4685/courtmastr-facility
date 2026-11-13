@@ -21784,11 +21784,8 @@ export interface components {
             client_category_id?: string | null;
             /** Comments */
             comments?: string | null;
-            /**
-             * Confirm Age
-             * @default false
-             */
-            confirm_age: boolean;
+            /** Confirm Age */
+            confirm_age?: boolean | null;
             /** Country Code */
             country_code?: string | null;
             /** Custom Values */
