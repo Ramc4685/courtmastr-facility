@@ -14,6 +14,8 @@ type Props<T> = {
   route: keyof paths
   path?: Record<string, string>
   hint?: string
+  /** The upload route's method; most replace a file (PUT), a gallery adds one (POST). */
+  method?: 'PUT' | 'POST'
   onUploaded: (result: T) => void
 }
 
@@ -21,7 +23,7 @@ const size = (bytes: number) => (bytes >= 2 ** 20 ? `${Math.round(bytes / 2 ** 2
 
 /** One accessible file picker: checks type and size before sending (a courtesy; the server re-checks), uploads
  * through the API client, and announces progress and errors to assistive technology. */
-export function FileUpload<T>({ label, purpose, accept, maxBytes, route, path = {}, hint, onUploaded }: Props<T>) {
+export function FileUpload<T>({ label, purpose, accept, maxBytes, route, path = {}, hint, method = 'PUT', onUploaded }: Props<T>) {
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
 
@@ -34,7 +36,7 @@ export function FileUpload<T>({ label, purpose, accept, maxBytes, route, path = 
     setError(undefined)
     setBusy(true)
     try {
-      onUploaded(await uploadFile<T>(route, path, file))
+      onUploaded(await uploadFile<T>(route, path, file, method))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'The upload failed. Try again.')
     } finally {

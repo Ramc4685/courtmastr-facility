@@ -1,1 +1,36 @@
 ## backend/app/modules/leagues/README.md
+
+State reported: the B2 report from `main`, re-checked after merging the EGM docs batch. Migration counts, discipline caps, published events, merge and erasure handlers and test paths are now in the README and dropped here. README line numbers are for the merged README.
+
+- [stale] README:127 says "Not routed (P1/P2): alert settings and portal games". The status table (`docs/status/11-leagues.md`, "LGE-25, 27, 29, 30, 32 not built") and the YAML name more unrouted work that README leaves out: tokenised public views (`/public-views`, `/public/views/{token}`, LGE-17/LGE-24), the public team page `/public/competition-teams/{id}` (`docs/api/openapi-programs.yaml:4046`), and embed origins (see the API section below).
+- [undocumented] The B2 posting limits `league-post` (10 an hour per IP), `league-post-contact` (20 per 15 minutes per IP) and `league-post-contact-sender` (10 an hour per identity) are in `config/app.yaml:76-78` and wired at `router.py:974` and `router.py:986-988`. README:147 says only "rate limited per IP and per sender" and README:160 names only `public-site`, with no numbers.
+- [undocumented] README does not say that public news lists are capped at 50 rows (`site.py:348`) and post lists at 100 (`site.py:542`, `site.py:592`), or that the staff `league-news` list is the only paginated one (`router.py:923`).
+- [wording] The security table (README:55-67) has no row for the B2 surface: tenant-wide site writes (`authorize_tenant_wide`, `site.py:70-76`), the moderation key (`site.py:548-559`), poster identity never shown, or the relay. These are described only in prose at README:129-163, with no test names (`test_site.py` has 8 tests, none cited in README).
+
+## docs/status/11-leagues.md
+
+- [stale] Definition of done, line 69: "`1101_leagues_core.py`: 16 tables ... `enable_rls` on each". The `1441` migration is not listed, and the table count is now 22. Line 70, "the generated isolation tests cover all 84 operations", predates B2: the OpenAPI file holds 786 paths and the leagues router has 158 routes (`router.py`), 41 of them new in B2 (`router.py:763-990`).
+- [stale] Line 71, "events: `leagues.game.*` and `leagues.schedule.generated`", omits `leagues.standings.updated` (`events.py:36-38`).
+- [stale] Line 72, "Merge and erasure: roster, captain and fee client are repointed" omits `league_post` (`subject.py:71`, `subject.py:59-68`).
+- [incomplete] The feature table gives LGE-20 "No in-place edit on the screen (API PATCH only)". It does not record that LGE-25, 27, 29, 30 and 32 are named in the YAML with routes (LGE-30 at `openapi-programs.yaml:3978-3985`, LGE-25 at 7064-7111) that the code lacks.
+- [wording] "Bugs found and fixed while testing" has no B2 entries. Those live only in `docs/status/phase14-b2-public-site.md`.
+- [mismatch] LGE-19 and LGE-24 rows describe `GET/PUT /league-site` and the location board at `/public/locations/{id}/league-board`, marked "done". The contract specifies different shapes (see below). The rows do not say the contract was departed from.
+
+## docs/api/openapi-programs.yaml and backend/openapi.json (leagues contract)
+
+`backend/openapi.json` matches the code for every B2 route (all 41 new operations present, `show_players` on `CompetitionOut` and `PublicCompetitionOut`). The drift is between the YAML contract and the code:
+
+- [missing in code] `/locations/{location_id}/league-site-settings` GET/PUT (`getLeagueSiteSettings`, `putLeagueSiteSettings`, `openapi-programs.yaml:3926-3943`). The code serves a tenant singleton at `GET/PUT /league-site` (`router.py:839-844`). README:138-139 documents the tenant-wide choice, but does not name the path change.
+- [missing in code] "Embed origins" in `putLeagueSiteSettings` (`openapi-programs.yaml:3939`). `league_site` has no origins column (`models.py:798-819`, `1441_leagues_public_site.py:42-66`); the embed is an unrestricted iframe of `/leagues/public?embed=1` (`router.py:516`).
+- [missing in code] Tokenised public views: `listPublicViews`, `createPublicView`, `deletePublicView`, `getPublicView` (`openapi-programs.yaml:3944-3975`, `4059-4070`). No `public_view` table or route exists. The code instead exposes a location-id TV board, `/public/locations/{location_id}/league-board` (`router.py:833`), which the YAML does not list. The shareable link is the plain filtered page URL.
+- [missing in code] `getPublicCompetitionTeam`, `GET /public/competition-teams/{competition_team_id}` (`openapi-programs.yaml:4046`). The code has `/public/competitions/{id}/teams` (`router.py:816`) instead.
+- [missing in code] `getLeagueAlertSettings` and `putLeagueAlertSettings` (`/league-alert-settings`, LGE-30) and `listPortalGames` (`/portal/games`, `openapi-programs.yaml:4081`). The router docstring (`router.py:8`) acknowledges both.
+- [missing in YAML] The YAML has no operations for these code routes: `/league-links`, `/league-photos`, `/league-sponsors` (and `/logo`), `/league-posts` (list, approve, reject), `/portal/league-posts` (create, list, withdraw, contact), `/public/league-site/{links,photos,sponsors,news,classes,posts}` and the photo and logo image routes, and the staff `/league-news` routes (the YAML has `/news-stories` under tag `engagement`, `openapi-programs.yaml:5725-5772`, with `/public/news-stories`). Most of the 41 B2 operations exist only in `openapi.json`. The permission `leagues.sponsor.manage` and the `x-features` LGE-20/21/22/23/33 and CLS-07 are not in the YAML either (`CLS-07` is attached only to `listPublicCompetitions`, `openapi-programs.yaml:3993`).
+- [mismatch] MKT-18 news: the YAML puts the operations under `engagement` and gates them with `leagues.public_site.manage` (`openapi-programs.yaml:5744-5779`). The code serves them from `leagues` at `/league-news` and `/public/league-site/news` (`router.py:923-945`, `router.py:794-799`).
+- [mismatch] `listPublicCompetitions` (YAML:3988) lists no filters. The code takes `sport_id`, `season_id`, `kind`, `status` and `q` (`router.py:506-515`).
+- [process] `docs/api/` has no diff in this tree and `docs/api/breaking-allow.txt` has no leagues entry, so the code-over-YAML departures are recorded only in README and `schemas.py:1-3` ("the data model wins").
+
+## backend/app/modules/leagues (code with no document coverage)
+
+- [undocumented] `LeagueSite.is_enabled` gates only the extra sections, not competitions (README:129-132 states this), but the model docstring says "Nothing public is served from the site's own pages until `is_enabled`" (`models.py:799-801`). The docstring and README disagree; `GET /public/league-site` returns 404 while off (`router.py:763-765`).
+- [undocumented] `site.py` is a 652-line module with no mention in README's module list or layout. Only `models.py`, `depth.py` and `schemas.py` are cited in docs. The README layout section lists no module file other than `roundrobin.py`, `domain/` and `handlers.py`.

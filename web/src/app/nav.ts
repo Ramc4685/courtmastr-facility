@@ -40,6 +40,8 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'League venues', to: '/leagues/venues', permission: 'leagues.competition.manage', icon: 'pin' },
   { label: 'Player stats', to: '/leagues/stats', permission: 'leagues.competition.manage', icon: 'list' },
   { label: 'Scores', to: '/leagues/scores', permission: 'leagues.result.enter', icon: 'trophy' },
+  { label: 'League site', to: '/leagues/site', permission: 'leagues.public_site.manage', icon: 'list' },
+  { label: 'League posts', to: '/leagues/posts', permission: 'leagues.classified.moderate', icon: 'list' },
   { label: 'Staff time & pay', to: '/staff-time', permission: 'staff.time_entry.punch', icon: 'clock' },
   { label: 'Assessment setup', to: '/assessments/setup', permission: 'assessments.definition.manage', icon: 'pulse' },
   { label: 'Reports', to: '/reports', permission: REPORT_KEYS, icon: 'chart' },
