@@ -66,7 +66,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ### Fixed
 - Reports: receivables and open invoices no longer fail as "too large" on a tenant with many settled invoices; expiring memberships at one location are no longer hidden by a renewal at another; package session value no longer loses a cent to rounding (100.00 over three sessions reports 100.00).
 - Reports: a dashboard tile with too much data shows as unavailable instead of disappearing; a failing report schedule no longer stops the others, a schedule whose owner lost access is switched off, and an admin can see and delete anyone's schedule.
-- Erasing a client's data also clears stored report results and export files.
+- Erasing a client's data also clears stored report results and export files, including any report being built at that moment; report schedules that already sent that day send again with working links.
+- Reports: expiring memberships count a renewal at any location you can see; a report schedule stops when its owner loses access to its location.
 - Reports with a relative period over locations in different time zones use each location's own days; a late-evening run no longer drops the start of the day at an eastern location.
 - Signing in no longer flashes the sign-in page again before opening the page you asked for.
 - Accessibility: form errors are announced to screen readers, date and time fields show a focus ring on every Tab stop, the member portal's skip link moves focus, checkboxes have larger targets, and the calendar and portal no longer scroll sideways on narrow screens.

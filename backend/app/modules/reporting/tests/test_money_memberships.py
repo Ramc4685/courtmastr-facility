@@ -337,15 +337,18 @@ def test_membership_revenue_is_before_tax_for_billed_and_scheduled_periods(clien
     assert deferred["totals"]["billed_minor"] == 3720  # the charge itself was taxed: 3100 + 20 %
 
 
-def test_expiring_memberships_judge_superseded_only_within_the_callers_locations(client, owner, world, members):
+def test_expiring_memberships_judge_superseded_within_the_callers_permitted_locations(
+    client, tenant, owner, world, members
+):
     body = {"client_id": world.person, "location_id": world.north, "membership_plan_id": members.main["membership_plan_id"],
             "start_on": day(401)}  # fmt: skip
     ok(client.post(f"{API}/membership-contracts", headers=owner, json=body), 201)  # the renewal, at North
     year_end = {"from_on": day(300), "to_on": day(400)}
-    main = ran(client, owner, "expiring_memberships", **year_end, location_ids=[world.main])
-    assert main["row_count"] == 1  # a North contract the caller cannot see neither hides nor reveals anything
-    everywhere = ran(client, owner, "expiring_memberships", **year_end)
-    assert everywhere["row_count"] == 1  # Main is superseded; North's referral contract still expires
+    # the owner may see North, so the renewal counts even when the run selects Main only
+    assert ran(client, owner, "expiring_memberships", **year_end, location_ids=[world.main])["row_count"] == 0
+    manager = login(client, tenant, add_staff(tenant, "manager", location_ids=[world.main])[0])
+    # a Main-only manager cannot see North: a renewal there neither hides nor reveals the Main contract
+    assert ran(client, manager, "expiring_memberships", **year_end)["row_count"] == 1
 
 
 def test_unused_session_value_rounds_once_so_an_untouched_pack_is_worth_its_price(client, tenant, owner, world):
