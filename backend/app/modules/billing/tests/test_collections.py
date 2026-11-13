@@ -31,6 +31,7 @@ OPEN_PORTAL_POSTS = {
     "/portal/rentals/{rental_id}/cancel",
     "/portal/wallet-passes", "/portal/progress-share-links",  # phase 11: a credential like app-cards; own data
     "/portal/progress-share-links/{progress_share_link_id}/revoke",
+    "/portal/feedback",  # phase 11 C2: in-app feedback to the staff inbox; no money
 }  # fmt: skip
 
 

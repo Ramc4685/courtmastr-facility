@@ -681,3 +681,160 @@ class AppDirectoryEntry(Out):
 
 class AppDirectoryPage(Out):
     data: list[AppDirectoryEntry]
+
+
+# --- Phase 11 C2: member app content (APP-07..APP-14) -------------------------------------------------------
+
+AppContentKindValue = Literal["news", "info_page", "announcement", "promotion", "gallery"]
+ContentTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+ContentBody = Annotated[str, StringConstraints(max_length=10000)]
+SortOrder = Annotated[int, Field(ge=0, le=10000)]
+ContactKindValue = Literal["department", "service"]
+ContactName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+ContactRole = Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)]
+Phone = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+InquiryStatusValue = Literal["new", "in_progress", "closed", "converted"]
+
+
+class AppContentOut(Out):
+    id: UUID
+    location_id: UUID | None
+    kind: str
+    title: str
+    body_text: str
+    link_url: str | None
+    has_image: bool
+    publish_at: datetime
+    expires_at: datetime | None
+    sort_order: int
+    version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class AppContentCreate(In):
+    """Plain text with links: HTML is refused. `location_id` null shows the item at every location."""
+
+    location_id: UUID | None = None
+    kind: AppContentKindValue
+    title: ContentTitle
+    body_text: ContentBody = ""
+    link_url: HttpsUrl | None = None
+    publish_at: datetime
+    expires_at: datetime | None = None
+    sort_order: SortOrder = 0
+
+
+class AppContentUpdate(In):
+    kind: AppContentKindValue | None = None
+    title: ContentTitle | None = None
+    body_text: ContentBody | None = None
+    link_url: HttpsUrl | None = None
+    publish_at: datetime | None = None
+    expires_at: datetime | None = None
+    sort_order: SortOrder | None = None
+    version: int | None = None
+
+
+class LocationContactOut(Out):
+    id: UUID
+    location_id: UUID
+    kind: str
+    name: str
+    role: str | None
+    phone: str | None
+    email: str | None
+    sort_order: int
+
+
+class LocationContactCreate(In):
+    location_id: UUID
+    kind: ContactKindValue
+    name: ContactName
+    role: ContactRole | None = None
+    phone: Phone | None = None
+    email: Email | None = None
+    sort_order: SortOrder = 0
+
+
+class LocationContactUpdate(In):
+    kind: ContactKindValue | None = None
+    name: ContactName | None = None
+    role: ContactRole | None = None
+    phone: Phone | None = None
+    email: Email | None = None
+    sort_order: SortOrder | None = None
+
+
+class AppInquiryOut(Out):
+    id: UUID
+    location_id: UUID
+    kind: str
+    client_id: UUID | None
+    contact_name: str
+    contact_email: str | None
+    contact_phone: str | None
+    interest: str | None
+    message: str
+    rating: int | None
+    status: str
+    handled_at: datetime | None
+    handled_by_staff_user_id: UUID | None
+    created_at: datetime
+
+
+class AppInquiryUpdate(In):
+    status: InquiryStatusValue
+
+
+# portal and public shapes for C2 (never the staff models above)
+
+
+class PortalAppContent(Out):
+    id: UUID
+    location_id: UUID | None
+    kind: str
+    title: str
+    body_text: str
+    link_url: str | None
+    has_image: bool
+    publish_at: datetime
+    expires_at: datetime | None
+    sort_order: int
+
+
+class PublicLocationContact(Out):
+    id: UUID
+    kind: str
+    name: str
+    role: str | None
+    phone: str | None
+    email: str | None
+
+
+class PublicLocationContacts(Out):
+    data: list[PublicLocationContact]
+
+
+class PublicTrialRequestIn(In):
+    """ "Try us" (APP-12). The answer is the same whether or not anything was stored."""
+
+    location_id: UUID
+    name: Name
+    email: Email
+    phone: Phone | None = None
+    interest: Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)] | None = None
+    message: Annotated[str, StringConstraints(max_length=2000)] | None = None
+
+
+class PortalFeedbackIn(In):
+    """In-app feedback (APP-10) for the signed-in client or one it may act for; goes to the staff inbox."""
+
+    client_id: UUID
+    location_id: UUID | None = None
+    message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+    rating: Annotated[int, Field(ge=1, le=5)] | None = None
+
+
+class PortalFeedbackOut(Out):
+    id: UUID

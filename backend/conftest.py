@@ -622,7 +622,7 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
 
     from sqlalchemy import select
 
-    from app.modules.engagement.models import DeviceRegistration, InboxItem, ScheduledNotification
+    from app.modules.engagement.models import AppInquiry, DeviceRegistration, InboxItem, ScheduledNotification
 
     template = post("/message-templates", {"name": "Welcome", "subject": "Hi $first_name", "body_text": "Welcome."})
     everyone = {"sources": [{"kind": "client_ids", "ids": [person_id]}]}
@@ -651,6 +651,13 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
     assert response.status_code == 202, response.text  # portal_signup (SSP-05)
     video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
                              "is_published": True})  # fmt: skip
+    app_content = post("/app-contents", {"location_id": location_id, "kind": "news", "title": "Open day",
+                                         "body_text": "Come along.", "publish_at": "2020-01-01T00:00:00Z"})  # fmt: skip
+    contact = post("/location-contacts", {"location_id": location_id, "kind": "department", "name": "Front desk",
+                                          "phone": "+15555550100"})  # fmt: skip
+    trial = {"location_id": location_id, "name": "Tess Trial", "email": f"try@{tenant.slug}.example.com"}
+    response = client.post("/api/v1/public/trial-requests", headers={"X-Tenant-Slug": tenant.slug}, json=trial)
+    assert response.status_code == 202, response.text  # app_inquiry, kind trial (APP-12)
     response = client.put("/api/v1/app-config", headers=login(client, tenant),
                           json={"is_enabled": True,
                                 "home_screen": {"tiles": [{"type": "book"}, {"type": "card"}]}})  # fmt: skip
@@ -667,12 +674,18 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
         ))  # fmt: skip
         session.flush()
         inbox_item_id = session.scalar(select(InboxItem.id).where(InboxItem.campaign_id == push["id"]))
+        feedback = AppInquiry(kind="feedback", location_id=location_id, client_id=person_id, contact_name="Casey",
+                              message="Great courts", rating=5)  # fmt: skip
+        session.add(feedback)
+        session.flush()
+        app_inquiry_id = feedback.id
         device_id = device.id
     return {
         "message_template_id": template["id"], "segment_id": segment["id"], "campaign_id": email_campaign["id"],
         "message_id": message["id"], "suppression_id": suppression["id"], "reminder_rule_id": reminder["id"],
         "notification_route_id": route["id"], "automation_rule_id": automation["id"], "video_id": video["id"],
         "inbox_item_id": str(inbox_item_id), "device_registration_id": str(device_id),
+        "app_content_id": app_content["id"], "location_contact_id": contact["id"], "app_inquiry_id": str(app_inquiry_id),
     }  # fmt: skip
 
 

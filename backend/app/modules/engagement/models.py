@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, Text, UniqueConstraint, func, text
+from sqlalchemy import CheckConstraint, Index, SmallInteger, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -637,3 +637,119 @@ class AppConfig(TenantOwned, Timestamps, Base):
     features: Mapped[dict] = mapped_column(server_default=text("'{}'"))
     home_screen: Mapped[dict | None]
     schedule: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+
+
+# --- Phase 11 C2: member app content (APP-07, APP-08, APP-09, APP-10, APP-12, APP-14) ---------------------------
+
+
+class AppContentKind(StrEnum):
+    NEWS = "news"
+    INFO_PAGE = "info_page"
+    ANNOUNCEMENT = "announcement"
+    PROMOTION = "promotion"
+    GALLERY = "gallery"
+
+
+class AppContent(TenantOwned, Timestamps, Base):
+    """A news story, info page, announcement, promotion or gallery image in the member app (APP-07, APP-14).
+    Plain text with links, never HTML. `location_id` null: shown at every location."""
+
+    __tablename__ = "app_content"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("image_file_id", "stored_file"),
+        enum_check("kind", AppContentKind),
+        CheckConstraint("char_length(title) BETWEEN 1 AND 120", name="title"),
+        CheckConstraint("char_length(body_text) <= 10000", name="body_text"),
+        CheckConstraint("link_url IS NULL OR link_url LIKE 'https://%'", name="link_url"),
+        CheckConstraint("expires_at IS NULL OR expires_at > publish_at", name="window"),
+        Index("ix_app_content_publish", "tenant_id", "publish_at", "id"),
+    )
+
+    location_id: Mapped[UUID | None]
+    kind: Mapped[str] = enum_column()
+    title: Mapped[str]
+    body_text: Mapped[str] = mapped_column(server_default=text("''"))
+    link_url: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    image_file_id: Mapped[UUID | None]
+    publish_at: Mapped[datetime] = mapped_column(info={"audit": "value"})
+    expires_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+    version: Mapped[int] = mapped_column(server_default=text("1"))
+
+    @property
+    def has_image(self) -> bool:
+        return self.image_file_id is not None
+
+
+class LocationContactKind(StrEnum):
+    DEPARTMENT = "department"
+    SERVICE = "service"
+
+
+class LocationContact(TenantOwned, Timestamps, Base):
+    """A department phone line (APP-08) or a service contact (APP-09) at one location. Business contacts staff
+    choose to publish: the public app shows them."""
+
+    __tablename__ = "location_contact"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        enum_check("kind", LocationContactKind),
+        CheckConstraint("char_length(name) BETWEEN 1 AND 80", name="name"),
+        CheckConstraint("role IS NULL OR char_length(role) <= 80", name="role"),
+        CheckConstraint("phone IS NULL OR char_length(phone) <= 40", name="phone"),
+        CheckConstraint("phone IS NOT NULL OR email IS NOT NULL", name="reachable"),
+    )
+
+    location_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    name: Mapped[str]
+    role: Mapped[str | None]
+    phone: Mapped[str | None]
+    email: Mapped[str | None] = mapped_column(CITEXT)
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class AppInquiryKind(StrEnum):
+    TRIAL = "trial"
+    FEEDBACK = "feedback"
+
+
+class AppInquiryStatus(StrEnum):
+    NEW = "new"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+    CONVERTED = "converted"
+
+
+class AppInquiry(TenantOwned, Timestamps, Base):
+    """The staff inbox for "Try us" trial pass requests (APP-12, anonymous, no client) and in-app feedback
+    (APP-10, from a signed-in client). Contact fields and the message are PII: audited as flags only."""
+
+    __tablename__ = "app_inquiry"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("client_id", "client"),
+        *tfk("handled_by_staff_user_id", "staff_user"),
+        enum_check("kind", AppInquiryKind),
+        enum_check("status", AppInquiryStatus),
+        CheckConstraint("char_length(message) <= 2000", name="message"),
+        CheckConstraint("interest IS NULL OR char_length(interest) <= 120", name="interest"),
+        CheckConstraint("rating IS NULL OR (kind = 'feedback' AND rating BETWEEN 1 AND 5)", name="rating"),
+        CheckConstraint("kind = 'feedback' OR contact_email IS NOT NULL", name="contact_email"),
+        CheckConstraint("kind = 'feedback' OR client_id IS NULL", name="client"),
+        Index("ix_app_inquiry_inbox", "tenant_id", "location_id", "status", "id"),
+    )
+
+    location_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    client_id: Mapped[UUID | None]
+    contact_name: Mapped[str] = mapped_column(info={"audit": "flag"})
+    contact_email: Mapped[str | None] = mapped_column(CITEXT, info={"audit": "flag"})
+    contact_phone: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    interest: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    message: Mapped[str] = mapped_column(server_default=text("''"), info={"audit": "flag"})
+    rating: Mapped[int | None] = mapped_column(SmallInteger, info={"audit": "value"})
+    status: Mapped[str] = enum_column(server_default=text("'new'"))
+    handled_at: Mapped[datetime | None]
+    handled_by_staff_user_id: Mapped[UUID | None]

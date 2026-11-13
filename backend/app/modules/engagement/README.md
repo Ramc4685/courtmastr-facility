@@ -136,3 +136,38 @@ and slug routing in the web app (SSP-01).
   and the host must be one of the tenant's own hosts (`platform.service.tenant_hosts`) or an allow-listed domain or
   its subdomain; they are re-checked on every public read, so removing a domain disables a stored URL at once.
 - **Slug.** `GET /public/portal-config` carries `tenant_slug`; the web `/f/:slug` pages send it as `X-Tenant-Slug`.
+
+## Phase 11 C2: member app content (APP-07 to APP-14)
+
+Code in `content.py`; tables `app_content`, `location_contact`, `app_inquiry` (migration 1561).
+
+| Route | Gate | Notes |
+|---|---|---|
+| `GET/POST /app-contents`, `PATCH/DELETE /app-contents/{id}` | `engagement.app_content.manage` | kinds news, info_page, announcement, promotion, gallery; filters kind, location_id; sort publish_at, sort_order |
+| `PUT/DELETE /app-contents/{id}/image` | same | JPEG or PNG up to 900 KB through `platform.files` (re-encoded, scanned) |
+| `GET /portal/app-contents`, `GET /portal/app-contents/{id}/image` | client | published and unexpired now; tenant-wide items plus `location_id`'s; filter kind |
+| `GET/POST /location-contacts`, `GET/PATCH/DELETE /location-contacts/{id}` | `engagement.location_contact.manage` | kind department (APP-08) or service (APP-09) |
+| `GET /public/location-contacts?location_id=` | anonymous, `app-config` bucket | empty unless the location's portal is enabled and public |
+| `POST /public/trial-requests` | anonymous, `trial-request` bucket per IP and per address, login-CSRF | APP-12 "Try us" |
+| `POST /portal/feedback` | client (self or someone it may act for, else 404) | APP-10; 201 with the id only |
+| `GET /app-inquiries`, `PATCH /app-inquiries/{id}` | `engagement.app_inquiry.read` / `.manage` | the staff inbox; filters kind, status, location_id; status new, in_progress, closed, converted |
+
+Rules and assumptions:
+
+- **Plain text only.** Title and body refuse anything that starts an HTML tag (`<` then a letter, `/` or `!`):
+  `html-not-allowed`. Links are https only. The app renders text and links, never markup.
+- **Tenant-wide items.** `location_id` null shows an item at every location. Like tenant-wide automation rules, a
+  limited admin sees them in the list but needs the key at every location to create or change one (403).
+- **Optimistic concurrency.** `PATCH /app-contents/{id}` takes an optional `version`; a stale one is
+  `version-conflict`.
+- **Contacts are public by design.** They are business contacts (a department line, a physio's booking address)
+  that staff choose to publish; each needs a phone or an email (`contact-unreachable`). They are not client data.
+- **Trial requests create no client.** The answer is 202 with an empty body whether or not anything was stored;
+  a row is stored only when the location's portal is enabled and public. Staff follow up from the inbox and create
+  the client themselves when the visitor comes in.
+- **Feedback goes to the staff inbox, not a client inbox.** It carries the client id and name, the message and an
+  optional 1-5 rating. Every inquiry publishes `engagement.app_inquiry.received`.
+- **PII.** Contact fields and the message are audited as flags only. A client merge re-points feedback; an erasure
+  keeps the row (counts and rating) and blanks the name, contact fields and message (`subject.py`).
+- **Not built:** staff screens, email alerts to staff when an inquiry arrives (a subscriber of the event can add
+  them), and copying content to other locations (APP-16).

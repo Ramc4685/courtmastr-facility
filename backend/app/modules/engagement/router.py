@@ -22,8 +22,8 @@ from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import hit, rate_limit
 from app.modules import platform
+from app.modules.engagement import content, service, signup
 from app.modules.engagement import schemas as s
-from app.modules.engagement import service, signup
 
 router = APIRouter(
     route_class=TxRoute, tags=["engagement"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -40,6 +40,9 @@ Automations = Annotated[Ctx, Depends(require("engagement.automation.manage"))]
 PortalAdmin = Annotated[Ctx, Depends(require("engagement.portal_settings.manage"))]
 Content = Annotated[Ctx, Depends(require("engagement.app_content.manage"))]
 SuppressionAdmin = Annotated[Ctx, Depends(require("engagement.suppression.manage"))]
+Contacts = Annotated[Ctx, Depends(require("engagement.location_contact.manage"))]
+InboxRead = Annotated[Ctx, Depends(require("engagement.app_inquiry.read"))]
+InboxManage = Annotated[Ctx, Depends(require("engagement.app_inquiry.manage"))]
 _link_limit = [Depends(rate_limit("consume"))]
 
 
@@ -553,3 +556,127 @@ def search_app_directory(
     """Shared app: facilities whose app is on and listed and whose portal is on and public, by name prefix.
     The only cross-tenant read; returns the listing fields and nothing else."""
     return {"data": service.search_app_directory(q, limit)}
+
+
+# --- Phase 11 C2: member app content (APP-07, APP-14), location contacts (APP-08, APP-09), inbox (APP-10, APP-12)
+
+
+@router.get("/app-contents", response_model=s.Page[s.AppContentOut])
+def list_app_contents(query: Lists, ctx: Content):
+    """Filters: kind, location_id. Sort: publish_at (default newest first), sort_order."""
+    return content.list_contents(ctx.session, ctx.principal, query)
+
+
+@router.post("/app-contents", response_model=s.AppContentOut, status_code=201)
+def create_app_content(body: s.AppContentCreate, ctx: Content):
+    """No location: shown everywhere, and needs the key at every location. Errors: html-not-allowed,
+    invalid-window."""
+    return content.create_content(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/app-contents/{app_content_id}", response_model=s.AppContentOut)
+def update_app_content(app_content_id: UUID, body: s.AppContentUpdate, ctx: Content):
+    """Errors: version-conflict, html-not-allowed, invalid-window."""
+    return content.update_content(ctx.session, ctx.principal, app_content_id, body.model_dump(exclude_unset=True))
+
+
+@router.put("/app-contents/{app_content_id}/image", response_model=s.AppContentOut)
+async def set_app_content_image(app_content_id: UUID, request: Request, ctx: Content):
+    """JPEG or PNG bytes up to 900 KB, re-encoded and scanned. Errors: file-type-mismatch, file-too-large."""
+    data = await request.body()
+    content_type = request.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+    return content.set_image(ctx.session, ctx.principal, app_content_id, data, content_type)
+
+
+@router.delete("/app-contents/{app_content_id}/image", status_code=204)
+def remove_app_content_image(app_content_id: UUID, ctx: Content):
+    content.remove_image(ctx.session, ctx.principal, app_content_id)
+
+
+@router.delete("/app-contents/{app_content_id}", status_code=204)
+def delete_app_content(app_content_id: UUID, ctx: Content):
+    content.delete_content(ctx.session, ctx.principal, app_content_id)
+
+
+@router.get("/portal/app-contents", response_model=s.Page[s.PortalAppContent])
+def list_portal_app_contents(query: Lists, ctx: Portal, location_id: UUID | None = None):
+    """Published, unexpired items: tenant-wide ones plus the given location's. Filter: kind."""
+    return content.list_portal_contents(ctx.session, ctx.principal, query, location_id)
+
+
+@router.get("/portal/app-contents/{app_content_id}/image", response_class=Response)
+def get_portal_app_content_image(app_content_id: UUID, ctx: Portal):
+    row, data = content.portal_image(ctx.session, ctx.principal, app_content_id)
+    return Response(data, media_type=row.content_type,
+                    headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=300"})  # fmt: skip
+
+
+@router.get("/location-contacts", response_model=s.Page[s.LocationContactOut])
+def list_location_contacts(query: Lists, ctx: Contacts):
+    """Filters: location_id, kind."""
+    return content.list_contacts(ctx.session, ctx.principal, query)
+
+
+@router.post("/location-contacts", response_model=s.LocationContactOut, status_code=201)
+def create_location_contact(body: s.LocationContactCreate, ctx: Contacts):
+    """Published to the app and the public page. Errors: contact-unreachable (neither phone nor email)."""
+    return content.create_contact(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/location-contacts/{location_contact_id}", response_model=s.LocationContactOut)
+def get_location_contact(location_contact_id: UUID, ctx: Contacts):
+    return content.get_contact(ctx.session, ctx.principal, location_contact_id)
+
+
+@router.patch("/location-contacts/{location_contact_id}", response_model=s.LocationContactOut)
+def update_location_contact(location_contact_id: UUID, body: s.LocationContactUpdate, ctx: Contacts):
+    """Errors: contact-unreachable."""
+    data = body.model_dump(exclude_unset=True)
+    return content.update_contact(ctx.session, ctx.principal, location_contact_id, data)
+
+
+@router.delete("/location-contacts/{location_contact_id}", status_code=204)
+def delete_location_contact(location_contact_id: UUID, ctx: Contacts):
+    content.delete_contact(ctx.session, ctx.principal, location_contact_id)
+
+
+@router.get("/app-inquiries", response_model=s.Page[s.AppInquiryOut])
+def list_app_inquiries(query: Lists, ctx: InboxRead):
+    """Trial requests and app feedback. Filters: kind, status, location_id. Newest first."""
+    return content.list_inquiries(ctx.session, ctx.principal, query)
+
+
+@router.patch("/app-inquiries/{app_inquiry_id}", response_model=s.AppInquiryOut)
+def update_app_inquiry(app_inquiry_id: UUID, body: s.AppInquiryUpdate, ctx: InboxManage):
+    """Move it through new, in_progress, closed or converted; records who handled it and when."""
+    return content.update_inquiry(ctx.session, ctx.principal, app_inquiry_id, body.model_dump())
+
+
+@router.post("/portal/feedback", response_model=s.PortalFeedbackOut, status_code=201)
+def send_portal_feedback(body: s.PortalFeedbackIn, ctx: Portal):
+    """For the signed-in client or one it may act for (else 404). Default location: the client's home."""
+    return content.send_feedback(ctx.session, ctx.principal, body.model_dump())
+
+
+@public.get(
+    "/public/location-contacts", response_model=s.PublicLocationContacts,
+    dependencies=[Depends(rate_limit("app-config"))],
+)  # fmt: skip
+def list_public_location_contacts(location_id: UUID, session: Annotated[Session, Depends(public_session)]):
+    """The location's published contacts while its portal is on and public; otherwise an empty list."""
+    return {"data": content.public_contacts(session, location_id)}
+
+
+@public.post(
+    "/public/trial-requests", status_code=202, response_class=Response,
+    dependencies=[Depends(rate_limit("trial-request")), Depends(pre_session_csrf)],
+)  # fmt: skip
+def create_public_trial_request(
+    body: s.PublicTrialRequestIn, response: Response, session: Annotated[Session, Depends(public_session)]
+):
+    """ "Try us": 202 with no body, the same answer whether or not it was stored. Stored only for a location whose
+    portal is on and public; no client is created. Errors: rate-limited."""
+    hit("trial-request", f"email:{body.email}", response, tenant=session.info["tenant_id"])
+    session.info["actor"] = system_principal("trial request")
+    content.request_trial(session, body.model_dump())
+    return Response(status_code=202, headers=dict(response.headers))

@@ -5907,35 +5907,154 @@ paths:
       x-priority: P1
       x-permission: public
       x-features: [APP-08]
-  /trial-requests:
+  /app-inquiries:
     get:
-      operationId: listTrialRequests
+      operationId: listAppInquiries
       tags: [engagement]
-      summary: List trial pass requests
+      summary: List trial pass requests and app feedback (Phase 11 C2)
       x-priority: P1
-      x-permission: engagement.app_content.manage
-      x-features: [APP-12]
-  /trial-requests/{trial_request_id}:
+      x-permission: engagement.app_inquiry.read
+      x-features: [APP-10, APP-12]
+  /app-inquiries/{app_inquiry_id}:
     parameters:
-    - name: trial_request_id
-      in: path
-      required: true
-      schema: {type: string, format: uuid}
+    - {name: app_inquiry_id, in: path, required: true, schema: {type: string, format: uuid}}
     patch:
-      operationId: updateTrialRequest
+      operationId: updateAppInquiry
       tags: [engagement]
-      summary: Mark contacted, converted or dismissed
+      summary: Mark in progress, closed or converted
       x-priority: P1
-      x-permission: engagement.app_content.manage
-      x-features: [APP-12]
+      x-permission: engagement.app_inquiry.manage
+      x-features: [APP-10, APP-12]
   /public/trial-requests:
     post:
       operationId: createPublicTrialRequest
       tags: [engagement]
-      summary: Submit a trial pass request
+      summary: Submit a trial pass request (202, same answer whether or not stored)
       x-priority: P1
       x-permission: public
       x-features: [APP-12]
+  /portal/feedback:
+    post:
+      operationId: sendPortalFeedback
+      tags: [engagement]
+      summary: Send in-app feedback to the staff inbox
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-10]
+  /app-contents:
+    get:
+      operationId: listAppContents
+      tags: [engagement]
+      summary: List news, info pages, announcements, promotions and gallery items
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+    post:
+      operationId: createAppContent
+      tags: [engagement]
+      summary: Create an app content item (plain text, https links)
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+  /app-contents/{app_content_id}:
+    parameters:
+    - {name: app_content_id, in: path, required: true, schema: {type: string, format: uuid}}
+    patch:
+      operationId: updateAppContent
+      tags: [engagement]
+      summary: Update an item (optional version check)
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+    delete:
+      operationId: deleteAppContent
+      tags: [engagement]
+      summary: Delete an item
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+  /app-contents/{app_content_id}/image:
+    parameters:
+    - {name: app_content_id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: setAppContentImage
+      tags: [engagement]
+      summary: Set the image (JPEG or PNG bytes)
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+    delete:
+      operationId: removeAppContentImage
+      tags: [engagement]
+      summary: Remove the image
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+  /portal/app-contents:
+    get:
+      operationId: listPortalAppContents
+      tags: [engagement]
+      summary: Published content, tenant-wide plus one location
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-07, APP-14]
+  /portal/app-contents/{app_content_id}/image:
+    parameters:
+    - {name: app_content_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getPortalAppContentImage
+      tags: [engagement]
+      summary: The item's image
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-07, APP-14]
+  /location-contacts:
+    get:
+      operationId: listLocationContacts
+      tags: [engagement]
+      summary: List department and service contacts
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+    post:
+      operationId: createLocationContact
+      tags: [engagement]
+      summary: Add a contact (phone or email required)
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+  /location-contacts/{location_contact_id}:
+    parameters:
+    - {name: location_contact_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getLocationContact
+      tags: [engagement]
+      summary: Get a contact
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+    patch:
+      operationId: updateLocationContact
+      tags: [engagement]
+      summary: Update a contact
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+    delete:
+      operationId: deleteLocationContact
+      tags: [engagement]
+      summary: Delete a contact
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+  /public/location-contacts:
+    get:
+      operationId: listPublicLocationContacts
+      tags: [engagement]
+      summary: A location's contacts while its portal is open
+      x-priority: P1
+      x-permission: public
+      x-features: [APP-08, APP-09]
   /portal/favorites:
     get:
       operationId: listPortalFavorites

@@ -8,7 +8,14 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
-from app.modules.engagement.models import DeviceRegistration, InboxItem, Message, PortalSignup, ScheduledNotification
+from app.modules.engagement.models import (
+    AppInquiry,
+    DeviceRegistration,
+    InboxItem,
+    Message,
+    PortalSignup,
+    ScheduledNotification,
+)
 
 _TABLES = ("message", "device_registration", "inbox_item", "scheduled_notification")
 
@@ -60,6 +67,28 @@ def _erase_signups(session: Session, client_id: UUID) -> dict:
     return {"portal_signups_deleted": gone}
 
 
+# App feedback (APP-10): a merge moves it to the survivor; an erasure keeps the row (inbox counts, rating) and
+# blanks the contact fields and the message.
+def _repoint_inquiries(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
+    session.execute(update(AppInquiry).where(AppInquiry.client_id == loser_id).values(client_id=survivor_id))
+
+
+def _export_inquiries(session: Session, client_id: UUID) -> dict:
+    rows = session.scalars(select(AppInquiry).where(AppInquiry.client_id == client_id).order_by(AppInquiry.created_at))
+    return {"app_feedback": [{"kind": r.kind, "message": r.message, "rating": r.rating, "status": r.status,
+                              "created_at": r.created_at.isoformat()} for r in rows]}  # fmt: skip
+
+
+def _erase_inquiries(session: Session, client_id: UUID) -> dict:
+    cleared = session.execute(update(AppInquiry).where(AppInquiry.client_id == client_id).values(
+        contact_name="", contact_email=None, contact_phone=None, interest=None, message=""))  # fmt: skip
+    return {"app_feedback_cleared": cleared.rowcount}
+
+
+clients.merge.register_merge_handler("engagement_app_inquiry", tables=("app_inquiry",), repoint=_repoint_inquiries)
+platform.privacy.register_subject_handler(
+    "engagement_app_inquiry", tables=("app_inquiry",), export=_export_inquiries, erase=_erase_inquiries
+)
 clients.merge.register_merge_handler("engagement_signup", tables=("portal_signup",), repoint=_repoint_signups)
 platform.privacy.register_subject_handler(
     "engagement_signup", tables=("portal_signup",), export=_export_signups, erase=_erase_signups

@@ -350,6 +350,9 @@ _BODIES = {
     "updateAutomationRule": {"is_enabled": True},
     "putPortalSettings": {"welcome_text": "Hi"},
     "updateVideo": {"title": "Renamed"},
+    "updateAppContent": {"title": "Renamed"},
+    "updateLocationContact": {"name": "Renamed"},
+    "updateAppInquiry": {"status": "in_progress"},
     "assignCredential": {"kind": "barcode", "generate": True},
     "revokeClientAppCards": {"kind": "app_card"},
     # leagues (build module 11)

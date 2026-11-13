@@ -257,6 +257,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app-contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Contents
+         * @description Filters: kind, location_id. Sort: publish_at (default newest first), sort_order.
+         */
+        get: operations["listAppContents"];
+        put?: never;
+        /**
+         * Create App Content
+         * @description No location: shown everywhere, and needs the key at every location. Errors: html-not-allowed,
+         *     invalid-window.
+         */
+        post: operations["createAppContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app-contents/{app_content_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete App Content */
+        delete: operations["deleteAppContent"];
+        options?: never;
+        head?: never;
+        /**
+         * Update App Content
+         * @description Errors: version-conflict, html-not-allowed, invalid-window.
+         */
+        patch: operations["updateAppContent"];
+        trace?: never;
+    };
+    "/api/v1/app-contents/{app_content_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set App Content Image
+         * @description JPEG or PNG bytes up to 900 KB, re-encoded and scanned. Errors: file-type-mismatch, file-too-large.
+         */
+        put: operations["setAppContentImage"];
+        post?: never;
+        /** Remove App Content Image */
+        delete: operations["removeAppContentImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app-inquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Inquiries
+         * @description Trial requests and app feedback. Filters: kind, status, location_id. Newest first.
+         */
+        get: operations["listAppInquiries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app-inquiries/{app_inquiry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update App Inquiry
+         * @description Move it through new, in_progress, closed or converted; records who handled it and when.
+         */
+        patch: operations["updateAppInquiry"];
+        trace?: never;
+    };
     "/api/v1/assessment-fields/{assessment_field_id}": {
         parameters: {
             query?: never;
@@ -6246,6 +6353,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/location-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Location Contacts
+         * @description Filters: location_id, kind.
+         */
+        get: operations["listLocationContacts"];
+        put?: never;
+        /**
+         * Create Location Contact
+         * @description Published to the app and the public page. Errors: contact-unreachable (neither phone nor email).
+         */
+        post: operations["createLocationContact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/location-contacts/{location_contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Location Contact */
+        get: operations["getLocationContact"];
+        put?: never;
+        post?: never;
+        /** Delete Location Contact */
+        delete: operations["deleteLocationContact"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Location Contact
+         * @description Errors: contact-unreachable.
+         */
+        patch: operations["updateLocationContact"];
+        trace?: never;
+    };
     "/api/v1/locations": {
         parameters: {
             query?: never;
@@ -8459,6 +8612,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/app-contents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal App Contents
+         * @description Published, unexpired items: tenant-wide ones plus the given location's. Filter: kind.
+         */
+        get: operations["listPortalAppContents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/app-contents/{app_content_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal App Content Image */
+        get: operations["getPortalAppContentImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/assessment-bests": {
         parameters: {
             query?: never;
@@ -8900,6 +9090,26 @@ export interface paths {
          * @description Early or late per the policy notice period. Errors: policy-violation.
          */
         post: operations["cancelPortalEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Portal Feedback
+         * @description For the signed-in client or one it may act for (else 404). Default location: the client's home.
+         */
+        post: operations["sendPortalFeedback"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11448,6 +11658,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/location-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public Location Contacts
+         * @description The location's published contacts while its portal is on and public; otherwise an empty list.
+         */
+        get: operations["listPublicLocationContacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/locations": {
         parameters: {
             query?: never;
@@ -11716,6 +11946,27 @@ export interface paths {
         get: operations["listPublicRentalTypes"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/trial-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Public Trial Request
+         * @description "Try us": 202 with no body, the same answer whether or not it was stored. Stored only for a location whose
+         *     portal is on and public; no client is created. Errors: rate-limited.
+         */
+        post: operations["createPublicTrialRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -15911,6 +16162,100 @@ export interface components {
              */
             schedule: components["schemas"]["AppSchedule"];
         };
+        /**
+         * AppContentCreate
+         * @description Plain text with links: HTML is refused. `location_id` null shows the item at every location.
+         */
+        AppContentCreate: {
+            /**
+             * Body Text
+             * @default
+             */
+            body_text: string;
+            /** Expires At */
+            expires_at?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "news" | "info_page" | "announcement" | "promotion" | "gallery";
+            /** Link Url */
+            link_url?: string | null;
+            /** Location Id */
+            location_id?: string | null;
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Title */
+            title: string;
+        };
+        /** AppContentOut */
+        AppContentOut: {
+            /** Body Text */
+            body_text: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Has Image */
+            has_image: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Link Url */
+            link_url: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /** AppContentUpdate */
+        AppContentUpdate: {
+            /** Body Text */
+            body_text?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Kind */
+            kind?: ("news" | "info_page" | "announcement" | "promotion" | "gallery") | null;
+            /** Link Url */
+            link_url?: string | null;
+            /** Publish At */
+            publish_at?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Version */
+            version?: number | null;
+        };
         /** AppDesign */
         AppDesign: {
             /**
@@ -15989,6 +16334,54 @@ export interface components {
              * @default []
              */
             tiles: components["schemas"]["AppTile"][];
+        };
+        /** AppInquiryOut */
+        AppInquiryOut: {
+            /** Client Id */
+            client_id: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Name */
+            contact_name: string;
+            /** Contact Phone */
+            contact_phone: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Handled At */
+            handled_at: string | null;
+            /** Handled By Staff User Id */
+            handled_by_staff_user_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Interest */
+            interest: string | null;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Message */
+            message: string;
+            /** Rating */
+            rating: number | null;
+            /** Status */
+            status: string;
+        };
+        /** AppInquiryUpdate */
+        AppInquiryUpdate: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "in_progress" | "closed" | "converted";
         };
         /**
          * AppSchedule
@@ -24888,6 +25281,72 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** LocationContactCreate */
+        LocationContactCreate: {
+            /** Email */
+            email?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "department" | "service";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Role */
+            role?: string | null;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** LocationContactOut */
+        LocationContactOut: {
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Role */
+            role: string | null;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** LocationContactUpdate */
+        LocationContactUpdate: {
+            /** Email */
+            email?: string | null;
+            /** Kind */
+            kind?: ("department" | "service") | null;
+            /** Name */
+            name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Role */
+            role?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
         /** LocationCreate */
         LocationCreate: {
             /** Accepted Card Brands */
@@ -27540,6 +27999,18 @@ export interface components {
             data: components["schemas"]["ApiKeyOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[AppContentOut] */
+        Page_AppContentOut_: {
+            /** Data */
+            data: components["schemas"]["AppContentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[AppInquiryOut] */
+        Page_AppInquiryOut_: {
+            /** Data */
+            data: components["schemas"]["AppInquiryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[AssessmentResultOut] */
         Page_AssessmentResultOut_: {
             /** Data */
@@ -27858,6 +28329,12 @@ export interface components {
             data: components["schemas"]["LedgerEntryOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[LocationContactOut] */
+        Page_LocationContactOut_: {
+            /** Data */
+            data: components["schemas"]["LocationContactOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[LocationOut] */
         Page_LocationOut_: {
             /** Data */
@@ -28012,6 +28489,12 @@ export interface components {
         Page_PortalAppCardOut_: {
             /** Data */
             data: components["schemas"]["PortalAppCardOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalAppContent] */
+        Page_PortalAppContent_: {
+            /** Data */
+            data: components["schemas"]["PortalAppContent"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalAssessmentResultOut] */
@@ -29281,6 +29764,35 @@ export interface components {
              */
             issued_at: string;
         };
+        /** PortalAppContent */
+        PortalAppContent: {
+            /** Body Text */
+            body_text: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Has Image */
+            has_image: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Link Url */
+            link_url: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Publish At
+             * Format: date-time
+             */
+            publish_at: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Title */
+            title: string;
+        };
         /** PortalAssessmentBestOut */
         PortalAssessmentBestOut: {
             /**
@@ -29959,6 +30471,31 @@ export interface components {
             status: string;
             /** Target Kind */
             target_kind: string;
+        };
+        /**
+         * PortalFeedbackIn
+         * @description In-app feedback (APP-10) for the signed-in client or one it may act for; goes to the staff inbox.
+         */
+        PortalFeedbackIn: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Location Id */
+            location_id?: string | null;
+            /** Message */
+            message: string;
+            /** Rating */
+            rating?: number | null;
+        };
+        /** PortalFeedbackOut */
+        PortalFeedbackOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
         /**
          * PortalFormSubmissionCreate
@@ -33366,6 +33903,29 @@ export interface components {
             /** Time Zone */
             time_zone: string;
         };
+        /** PublicLocationContact */
+        PublicLocationContact: {
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Role */
+            role: string | null;
+        };
+        /** PublicLocationContacts */
+        PublicLocationContacts: {
+            /** Data */
+            data: components["schemas"]["PublicLocationContact"][];
+        };
         /** PublicLocationLogo */
         PublicLocationLogo: {
             /**
@@ -33624,6 +34184,27 @@ export interface components {
             win_pct: string;
             /** Wins */
             wins: number;
+        };
+        /**
+         * PublicTrialRequestIn
+         * @description "Try us" (APP-12). The answer is the same whether or not anything was stored.
+         */
+        PublicTrialRequestIn: {
+            /** Email */
+            email: string;
+            /** Interest */
+            interest?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Message */
+            message?: string | null;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone?: string | null;
         };
         /** PurchaseCancel */
         PurchaseCancel: {
@@ -40642,6 +41223,302 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAppContents: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AppContentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAppContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppContentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppContentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteAppContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                app_content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAppContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                app_content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppContentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppContentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setAppContentImage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                app_content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppContentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeAppContentImage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                app_content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAppInquiries: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AppInquiryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAppInquiry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                app_inquiry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppInquiryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppInquiryOut"];
                 };
             };
             /** @description Validation Error */
@@ -55800,6 +56677,189 @@ export interface operations {
             };
         };
     };
+    listLocationContacts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LocationContactOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLocationContact: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationContactCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationContactOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getLocationContact: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationContactOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteLocationContact: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLocationContact: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationContactUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationContactOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listLocations: {
         parameters: {
             query?: {
@@ -61389,6 +62449,82 @@ export interface operations {
             };
         };
     };
+    listPortalAppContents: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalAppContent_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalAppContentImage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                app_content_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalAssessmentBests: {
         parameters: {
             query?: {
@@ -62408,6 +63544,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalEnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendPortalFeedback: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalFeedbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalFeedbackOut"];
                 };
             };
             /** @description Validation Error */
@@ -68313,6 +69485,37 @@ export interface operations {
             };
         };
     };
+    listPublicLocationContacts: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLocationContacts"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPublicLocations: {
         parameters: {
             query?: {
@@ -68756,6 +69959,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicRentalType"][];
+                };
+            };
+        };
+    };
+    createPublicTrialRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicTrialRequestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

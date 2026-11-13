@@ -537,6 +537,9 @@ allow-list (STF-06, PLT-07).
 | `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
 | `engagement.inbox.reply` | L | | | Y | Y | Y | - | - | - | - | MKT-23 |
 | `engagement.app_content.manage` | L | | | Y | Y | - | - | - | - | - | PLT-13 ("manage location in app"), APP-04..APP-14, SSP-13..SSP-16 |
+| `engagement.location_contact.manage` | L | | | Y | Y | - | - | - | - | - | APP-08, APP-09 (Phase 11 C2: published department and service contacts) |
+| `engagement.app_inquiry.read` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (Phase 11 C2: the trial request and feedback inbox) |
+| `engagement.app_inquiry.manage` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (status changes in that inbox) |
 | `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10 |
 | `engagement.notification_rule.manage` | L | | | Y | Y | - | - | - | - | - | MKT-13, MKT-14, STF-12, PAY-07, PAY-08 |
 | `engagement.automation.manage` | L | B | | Y | Y | - | - | - | - | - | MKT-20 |
