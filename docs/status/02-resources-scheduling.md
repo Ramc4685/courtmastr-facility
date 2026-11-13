@@ -58,7 +58,7 @@ Feature IDs and priorities are from `docs/discovery/parity-matrix.md`. Tests are
 | CLS-05 Free booking (register without a package) | P0 | partial | `allows_free_booking` on type and session; `scheduling.enrollment.free_book` override | `test_free_booking_needs_the_flag_or_the_override` | Meaningful only once packages exist; today every enrolment is free. |
 | CLS-06 Session waitlist with auto-promotion | P0 | partial | `GET/POST /waitlist-entries`, `/promote`, `DELETE` | `test_waitlist_is_fifo_*`, `test_no_auto_promotion_inside_the_cutoff_*` | FIFO auto-promotion on a freed seat (same transaction) and on a capacity raise (event handler), manual mode, 60-minute cut-off, promotion email. No open-offer mode, no client-side join, no package re-check. The capacity-raise path needs the outbox relay running. |
 | CLS-07 Public class/clinic listing on the league website | P2 | not built | | | |
-| CLS-08 Virtual sessions (Zoom link on a session) | P1 | not built | | | The `virtual_room` resource kind exists, so a host cannot be double-booked. |
+| CLS-08 Virtual sessions (Zoom link on a session) | P1 | done | `PUT/GET/DELETE /sessions/{id}/meeting`; `meeting_for` for the portal join link | `programs/tests/test_virtual.py` | Through `app/ports/video_meeting.py`, simulated adapter only (no real provider). Links are audit-never and never in listings; cancel drops the meeting. Phase 11 B. |
 | CLS-09 Client self-booking and cancellation of sessions | P0 | not built | | | No portal routes. |
 | CLS-10 Camp / clinic / program registration | P0 | not built | | | Module 6. |
 

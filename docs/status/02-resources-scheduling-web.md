@@ -53,7 +53,7 @@ Tests:
 | CLS-05 Free booking | P0 | partial | type and session flags | `SetupPage.test.tsx` | The flag is editable. The entitlement check it bypasses arrives with packages (module 5). |
 | CLS-06 Waitlist | P0 | partial | session panel waitlist | `SessionPanel.test.tsx` | Add (auto-promote), promote, remove. A full session points staff to the waitlist. The offer and accept flow has no screen (API partial). |
 | CLS-07 Public class listing | P2 | not built | | | |
-| CLS-08 Virtual sessions | P1 | not built | | | The `virtual_room` kind can be created and booked. |
+| CLS-08 Virtual sessions | P1 | done | Session panel: Make virtual, copy links, remove | `SessionPanel.test.tsx`; `e2e/portal-booking.spec.ts` | Simulated video adapter only. Phase 11 B. |
 | CLS-09 Client self-booking | P0 | not built | | | Portal/mobile. |
 | CLS-10 Program registration | P0 | not built | | | Module 6. |
 
@@ -62,7 +62,7 @@ Counts:
 | Priority | Done | Partial | Not built |
 |---|---|---|---|
 | P0 (24) | 9 | 12 | 3 |
-| P1 (13) | 4 | 0 | 9 |
+| P1 (13) | 5 | 0 | 8 |
 | P2 (3) | 0 | 0 | 3 |
 
 ## Defects found while building the screens

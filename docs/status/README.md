@@ -115,7 +115,7 @@ Lane detail: `03-rentals.md`.
 | RNT-03 Staff-booked rental, single or recurring, one or many resources | P0 | done |  |
 | RNT-04 Extend a rental and bill selected occurrences | P1 | done |  |
 | RNT-05 Online rental policy per rental type | P0 | done |  |
-| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel. Confirm takes a new card token only, not a stored method. |
+| RNT-06 Client online rental search and booking | P0 | done | Portal Bookings screen: search by type, date and length, hold, pay the deposit with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel; confirm goes through `secure_online_checkout`. Per-location online defaults (SSP-04): on or off, lead time, longest booking, horizon (phase 11 B). |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
 | RNT-09 Rental plans | P1 | done | Append-only ledger, full-coverage debit under lock, credit back on cancel; auto-renew and autopay through billing (hourly day-roll), members-only sales and member price (reads `memberships.is_member`), portal purchase through `secure_online_checkout`. |
@@ -188,7 +188,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
-| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (fake processor, or Stripe Elements in Stripe test mode). No stored-method option: the buy endpoint takes a token only. |
+| MEM-09 Online membership sales | P1 | done | Portal Memberships screen quotes and buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode) (phase 11 B). |
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
@@ -211,7 +211,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-06 Package sharing | P1 | done |  |
 | PKG-07 Staff sale of a package | P0 | partial | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
-| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out. |
+| PKG-09 Online package sales | P1 | done | Portal Packages screen buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out; the Sessions screen buys a covering package and books in one flow (SSP-08, phase 11 B). |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | not built | No tables, rate table or batch close. Not built here either. |
 | PKG-12 Session registration, roster and attendance | P0 | done | Staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Phase 10 chip E: "Book across sessions" pays with a package, a speed-register mode registers on pick with the first usable package, and "Sell a package" sells inline then preselects it. |
@@ -239,7 +239,7 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | CLS-05 Free booking | P0 | done | Integration: with the flag off a package of the session's type is required, or the free-book override permission. |
 | CLS-06 Waitlist | P0 | partial | Add (auto-promote), promote, remove. A full session points staff to the waitlist. The offer and accept flow has no screen (API partial). |
 | CLS-07 Public class listing | P2 | not built |  |
-| CLS-08 Virtual sessions | P1 | not built | The `virtual_room` kind can be created and booked. |
+| CLS-08 Virtual sessions | P1 | done | Staff session panel makes a session virtual through the video port (simulated adapter only); enrolled clients get the join link in the portal from 15 minutes before the start (SSP-18). No real Zoom or Meet adapter (phase 11 B). |
 | CLS-09 Client self-booking | P0 | not built | Portal/mobile. |
 | CLS-10 Program registration | P0 | not built | Module 6. |
 
