@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from app.core.schemas import In, Out, Page
 
@@ -1172,7 +1172,7 @@ class LeaguePostCreate(In):
     sport_id: UUID | None = None
     title: Annotated[str, Field(min_length=3, max_length=120)]
     body: Annotated[str, Field(min_length=10, max_length=2000)]
-    starts_at: datetime | None = None
+    starts_at: AwareDatetime | None = None
     skill_level: Annotated[str, Field(max_length=60)] | None = None
     players_needed: Annotated[int, Field(ge=1, le=50)] | None = None
 

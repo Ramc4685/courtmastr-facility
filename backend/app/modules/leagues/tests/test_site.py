@@ -1,7 +1,8 @@
 """Phase 14 chip B2, the public league site: options and facility info, links, gallery, sponsors, news, classes,
 public teams, players and brackets, the TV board, and moderated classifieds and pickup games."""
 
-from datetime import timedelta
+import threading
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -11,7 +12,7 @@ from app.core.audit import AuditEvent
 from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.modules import clients
-from app.modules.leagues import subject
+from app.modules.leagues import site, subject
 from app.modules.leagues.models import LeaguePost
 from app.modules.leagues.tests.test_leagues import get, league, post, score, staff
 from app.modules.platform.models import Identity
@@ -129,7 +130,18 @@ def test_public_teams_players_stats_and_brackets(client, owner, tenant, f):
     ok(client.patch(f"{API}/competitions/{comp['id']}", headers=owner, json={"show_players": True}), 200)
     named = get(client, public, f"/public/competitions/{comp['id']}/teams")
     assert any(t["players"] for t in named)
-    assert isinstance(get(client, public, f"/public/competitions/{comp['id']}/player-stats"), list)
+    table = post(client, owner, f"/sports/{f.sport['id']}/stat-tables", {"name": "Scoring"})
+    goals = post(client, owner, f"/stat-tables/{table['id']}/stats", {"code": "G", "name": "Goals"})
+    ana = post(client, owner, f"/competition-teams/{comp['teams'][0]['id']}/roster",
+               {"first_name": "Ana", "last_name": "Goal"})  # fmt: skip
+    game = post(client, owner, "/games", {"competition_id": comp["id"], "home_team_id": comp["teams"][0]["id"],
+                                          "away_team_id": comp["teams"][1]["id"], "resource_id": f.court,
+                                          "starts_at": at(18)})  # fmt: skip
+    ok(client.put(f"{API}/games/{game['id']}/player-stats", headers=owner, json={"stats": [
+        {"roster_entry_id": ana["id"], "stat_definition_id": goals["id"], "value": "2"}]}), 200)  # fmt: skip
+    (row,) = get(client, public, f"/public/competitions/{comp['id']}/player-stats")
+    assert row["player_name"] == "Ana Goal" and row["team_name"] == comp["teams"][0]["name"]
+    assert float(row["stats"]["G"]) == 2
 
     seeds = [t["id"] for t in comp["teams"]]
     ok(client.put(f"{API}/competitions/{comp['id']}/seeding", headers=owner, json={"competition_team_ids": seeds}), 200)
@@ -164,7 +176,7 @@ def test_tv_board_shows_todays_public_games_at_one_location(client, owner, tenan
     today = post(client, owner, "/games", body | {"resource_id": f.court, "starts_at": at(18)})  # 13:00 in Chicago
     post(client, owner, "/games", body | {"resource_id": f.court, "starts_at": at(30)})  # tomorrow, local
     ok(client.put(f"{API}/games/{today['id']}/result", headers=owner, json=score(3, 1)), 200)
-    with clock.freeze(DAY + timedelta(hours=20)):  # 15:00 on 5 May in Chicago
+    with clock.freeze(DAY + timedelta(hours=27)):  # 03:00 UTC on 6 May, still 22:00 on 5 May in Chicago
         board = get(client, _public(tenant), f"/public/locations/{f.location}/league-board")
     assert board["on_date"] == "2031-05-05" and board["refresh_sec"] == 60
     assert [(g["competition_name"], g["home_score"]) for g in board["games"]] == [("Wednesday Futsal", 3)]
@@ -208,7 +220,7 @@ def test_posts_are_moderated_expire_and_relay_contact(client, owner, tenant, f, 
     own = client.post(
         f"{API}/portal/league-posts/{classified['id']}/contact", headers=portal, json={"message": "Me, myself."}
     )
-    assert own.status_code in (404, 409)
+    assert own.status_code == 404
     assert {p["status"] for p in get(client, portal, "/portal/league-posts")} == {"approved", "rejected"}
 
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
@@ -241,14 +253,73 @@ def test_post_limit_scope_and_erasure(client, owner, tenant, f):
 def test_classes_come_from_portal_published_programs(client, owner, tenant, f):
     public = _public(tenant)
     _enable(client, owner)
-    clinic = post(
-        client, owner, "/program-groups", {"location_id": f.location, "name": "Junior clinic", "kind": "clinic"}
-    )
+    clinic = post(client, owner, "/program-groups", {"location_id": f.location, "name": "Junior clinic",
+                                                    "kind": "clinic", "ends_on": "2031-05-05"})  # fmt: skip
     post(client, owner, "/program-groups", {"location_id": f.location, "name": "Unpublished camp", "kind": "camp"})
     ok(client.put(f"{API}/program-groups/{clinic['id']}/registration-config", headers=owner,
                   json={"is_enabled": True, "payment_requirement": "pay_later_allowed"}), 200)  # fmt: skip
     ok(client.post(f"{API}/program-groups/{clinic['id']}/publish", headers=owner), 200)
     listed = get(client, public, "/public/league-site/classes")
     assert [(c["name"], c["kind"], c["is_open"]) for c in listed] == [("Junior clinic", "clinic", True)]
+    with clock.freeze(DAY + timedelta(hours=27)):  # 6 May in UTC, still the last day in Chicago
+        assert [c["name"] for c in get(client, public, "/public/league-site/classes")] == ["Junior clinic"]
+    with clock.freeze(DAY + timedelta(hours=30)):  # 01:00 on 6 May in Chicago: over
+        assert get(client, public, "/public/league-site/classes") == []
     _enable(client, owner, shows_classes=False)
     assert client.get(f"{API}/public/league-site/classes", headers=public).status_code == 404
+
+
+def test_post_rules_expiry_time_zone_and_switches(client, owner, tenant, f):
+    _enable(client, owner)
+    _, portal = _portal(client, tenant, owner, f.location)
+    starts = clock.now().replace(microsecond=0) + timedelta(days=2)
+    pickup = {"kind": "pickup", "location_id": f.location, "title": "Pickup futsal", "body": "Need four more."}
+    naive = client.post(f"{API}/portal/league-posts", headers=portal,
+                        json=pickup | {"starts_at": starts.replace(tzinfo=None).isoformat()})  # fmt: skip
+    assert naive.status_code == 422
+    game = post(client, portal, "/portal/league-posts", pickup | {"starts_at": starts.isoformat()})
+    assert datetime.fromisoformat(game["expires_at"]) == starts  # a game comes down once it starts
+
+    classified = {
+        "kind": "classified",
+        "location_id": f.location,
+        "title": "Team wanted",
+        "body": "Looking for a team.",
+    }
+    stale = post(client, portal, "/portal/league-posts", classified)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.get(LeaguePost, UUID(stale["id"])).expires_at = clock.now() - timedelta(minutes=1)
+    late = client.post(f"{API}/league-posts/{stale['id']}/approve", headers=owner, json={})
+    assert late.status_code == 409 and late.json()["code"] == "post-expired"
+
+    live = post(client, portal, "/portal/league-posts", classified)
+    post(client, owner, f"/league-posts/{live['id']}/approve", {}, 200)
+    _, other = _portal(client, tenant, owner, f.location)
+    _enable(client, owner, shows_classifieds=False)
+    assert client.post(f"{API}/portal/league-posts", headers=portal, json=classified).status_code == 404
+    contact = client.post(
+        f"{API}/portal/league-posts/{live['id']}/contact", headers=other, json={"message": "Is the spot still open?"}
+    )
+    assert contact.status_code == 404
+    post(client, portal, "/portal/league-posts", pickup | {"starts_at": starts.isoformat()})  # its own switch is on
+
+
+def test_post_limit_holds_under_parallel_submissions(client, owner, tenant, f):
+    _enable(client, owner)
+    poster, portal = _portal(client, tenant, owner, f.location)
+    body = {"kind": "classified", "location_id": f.location, "title": "Team wanted", "body": "Looking for a team."}
+    ids = [post(client, portal, "/portal/league-posts", body)["id"] for _ in range(5)]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.get(LeaguePost, UUID(ids[0])).status = "withdrawn"  # four live
+    result: dict = {}
+    racer = threading.Thread(target=lambda: result.update(r=client.post(f"{API}/portal/league-posts", headers=portal,
+                                                                        json=body)))  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        site._lock_poster(session, UUID(poster["id"]))  # a parallel submission, mid-way through adding the fifth
+        session.get(LeaguePost, UUID(ids[0])).status = "pending"
+        session.flush()
+        racer.start()
+        racer.join(timeout=1.5)
+        assert racer.is_alive()  # waits for the lock instead of counting four
+    racer.join(timeout=15)
+    assert result["r"].status_code == 409 and result["r"].json()["code"] == "post-limit"

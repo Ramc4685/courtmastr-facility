@@ -9,6 +9,7 @@ at that location. The public functions take no principal and serve published row
 
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as Db
@@ -366,24 +367,28 @@ def public_classes(session: Db, location_id: UUID | None = None) -> list[dict]:
     Openings only where the group shows them; registration happens in the portal."""
     _live(session, "classes")
     pg, rc = programs.models.ProgramGroup, programs.models.RegistrationConfig
-    today = clock.now().date()
+    earliest = clock.now().date() - timedelta(days=1)  # no zone is more than a day behind UTC; exact per group below
     stmt = (
         select(pg, rc).join(rc, rc.program_group_id == pg.id)
         .where(rc.is_portal_visible.is_(True), pg.deleted_at.is_(None), pg.status == "active", pg.depth == 0,
-               pg.kind.in_(_CLASS_KINDS), or_(pg.ends_on.is_(None), pg.ends_on >= today))
+               pg.kind.in_(_CLASS_KINDS), or_(pg.ends_on.is_(None), pg.ends_on >= earliest))
         .order_by(pg.starts_on.nulls_last(), pg.name)
     )  # fmt: skip
     if location_id is not None:
         stmt = stmt.where(pg.location_id == location_id)
-    names = {i: loc["public_name"] for i, loc in _locations(session).items()}
+    places = _locations(session)
     out = []
     for group, config in session.execute(stmt).all():
-        if group.location_id not in names:
+        place = places.get(group.location_id)
+        if place is None:
+            continue
+        today = clock.now().astimezone(ZoneInfo(place["time_zone"])).date()
+        if group.ends_on is not None and group.ends_on < today:
             continue
         open_now = config.is_enabled and (config.opens_on is None or config.opens_on <= today) and (
             config.closes_on is None or config.closes_on >= today)  # fmt: skip
         out.append({
-            "id": group.id, "location_name": names[group.location_id], "kind": group.kind,
+            "id": group.id, "location_name": place["public_name"], "kind": group.kind,
             "name": config.portal_publish_name or group.name,
             "description": config.online_description or group.description, "starts_on": group.starts_on,
             "ends_on": group.ends_on, "price_minor": group.price_minor, "is_open": open_now,
@@ -561,6 +566,8 @@ def _moderate(session: Db, principal: Principal, post_id: UUID, to: str, allowed
     row = core._scoped(session, principal, LeaguePost, post_id, MODERATE, lock=True)
     if row.status not in allowed:
         raise Conflict(f"The post is {row.status}.", code="post-not-pending")
+    if to == "approved" and row.expires_at <= clock.now():
+        raise Conflict("The post has expired.", code="post-expired")
     before = row.status
     row.status, row.moderated_at, row.moderated_by_staff_user_id = to, clock.now(), principal.staff_user_id
     row.reject_reason = reason
@@ -599,9 +606,15 @@ def portal_list_posts(session: Db, principal: Principal) -> list[dict]:
     return views
 
 
+def _lock_poster(session: Db, client_id: UUID) -> None:
+    """Serialise one client's submissions until commit, so two parallel posts cannot both pass the live-post cap."""
+    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(f"league-post:{client_id}", 0))))
+
+
 def portal_create_post(session: Db, principal: Principal, data: dict) -> dict:
     """Waits for staff approval; shown for 30 days from posting. Errors: post-limit (5 live posts)."""
     me = _me(session, principal)
+    _live(session, data["kind"])
     if data["location_id"] not in _locations(session):
         raise ValidationFailed("Unknown location.", pointer="/location_id")
     if data.get("sport_id") and session.get(Sport, data["sport_id"]) is None:
@@ -611,13 +624,17 @@ def portal_create_post(session: Db, principal: Principal, data: dict) -> dict:
         if data.get("starts_at") is None or data["starts_at"] <= now:
             raise ValidationFailed("A pickup game needs a start time in the future.", pointer="/starts_at")
         data["category"] = "other"
+    _lock_poster(session, me)
     live = session.scalar(
         select(func.count()).select_from(LeaguePost)
         .where(LeaguePost.client_id == me, LeaguePost.status.in_(("pending", "approved")), LeaguePost.expires_at > now)
     )  # fmt: skip
     if (live or 0) >= POST_LIMIT:
         raise Conflict(f"You already have {POST_LIMIT} posts up; withdraw one first.", code="post-limit")
-    row = LeaguePost(**data, client_id=me, status="pending", expires_at=now + timedelta(days=POST_DAYS))
+    expires_at = now + timedelta(days=POST_DAYS)
+    if data["kind"] == "pickup":
+        expires_at = min(expires_at, data["starts_at"])  # a game comes down once it starts
+    row = LeaguePost(**data, client_id=me, status="pending", expires_at=expires_at)
     session.add(row)
     session.flush()
     audit.record(
@@ -645,6 +662,7 @@ def portal_contact_post(session: Db, principal: Principal, post_id: UUID, messag
     row = session.scalar(_live_posts().where(LeaguePost.id == post_id))
     if row is None or row.client_id == me:
         raise NotFound()
+    _live(session, row.kind)
     poster, sender = clients.service.get(session, row.client_id), clients.service.get(session, me)
     if not poster.primary_email or not sender.primary_email:
         raise Conflict("Contact needs an email address on both sides.", code="contact-unavailable")
