@@ -33,7 +33,10 @@ ineligible client is never handed one.
   instead of refusing, the purchase expires as usual, the renewal waits on an issued pending document
   (`rental_plan_purchase.renewal_waits_since`), the client is notified once, and the day-roll (hourly) retries until
   the document is signed (the successor then starts that day), auto-renew is turned off, or the purchase can no
-  longer renew (plan archived, client no longer eligible).
+  longer renew (plan archived, client no longer eligible). Verification 2026-11-13 bounded it: the wait is cancelled
+  when the client already holds a live or upcoming purchase of the plan overlapping the renewal's term (no second
+  term), staff may turn auto-renew off on the expired waiting purchase, and it lapses with a notice after the plan's
+  `renewal_wait_days` (default 14).
 - **Purchases that predate the binding** are asked at their next renewal by the same rule; nothing is asked of them
   mid-term.
 

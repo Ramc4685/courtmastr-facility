@@ -83,8 +83,12 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
     purchase expires as usual, the renewal waits on an issued pending document (`renewal_waits_since`, migration
     1964), the client is emailed once (`rentals.plan_renewal_waiting`), and each day-roll (hourly) tries again; once
     signed, the successor starts that day and the acceptance is consumed against it. The wait ends, and retries stop,
-    when auto-renew is turned off or the purchase can no longer renew (plan archived, client no longer eligible).
-    The purchase API does not expose the wait yet. The document is issued at the plan's location.
+    when auto-renew is turned off (staff: `PATCH` `is_auto_renew: false`, accepted on the expired waiting purchase;
+    the portal's click-to-cancel), the purchase can no longer renew (plan archived, client no longer eligible), the
+    client already holds a live or upcoming purchase of the plan overlapping the renewal's term (they re-bought it:
+    the renewal is cancelled, never a second term and invoice), or the wait reaches the plan's `renewal_wait_days`
+    (default 14, migration 1965): it then lapses, auto-renew turns off, the client is emailed
+    (`rentals.plan_renewal_lapsed`) and the audit row records it. The purchase API does not expose the wait yet. The document is issued at the plan's location.
   - **Purchases sold before the binding existed** are asked at their next renewal, by the same rule.
 - "Capacity" for rentals is resource availability enforced by the hold exclusion constraint; rentals have no
   seat count.

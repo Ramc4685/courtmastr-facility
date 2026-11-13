@@ -74,6 +74,12 @@ notifications.register_template(
     body="Hello $name,\n\nYour $plan rental plan is ready to renew, but it needs the plan's document accepted "
     "first. Please accept it online or at the front desk; the plan renews as soon as you do.",
 )
+notifications.register_template(
+    "rentals.plan_renewal_lapsed",
+    subject="$app: your $plan did not renew",
+    body="Hello $name,\n\nYour $plan rental plan waited for its document to be accepted and has now lapsed "
+    "without renewing. Nothing was charged. You can buy the plan again online or at the front desk.",
+)
 
 
 # --- shared helpers ----------------------------------------------------------------------------------------
@@ -1501,7 +1507,7 @@ _PLAN_FIELDS = (
     "name", "rental_type_id", "model", "quantity", "is_unlimited", "price_minor", "member_price_minor", "is_flat_rate",
     "revenue_category_id", "internal_description", "client_description", "is_members_only", "is_sold_online",
     "start_mode", "fixed_starts_on", "validity_days", "fixed_expires_on", "default_invoice_routing", "is_shareable",
-    "status", "is_auto_renew", "is_autopay_default",
+    "status", "is_auto_renew", "is_autopay_default", "renewal_wait_days",
 )  # fmt: skip
 
 
@@ -1787,13 +1793,18 @@ def cancel_purchase(session: Db, principal: Principal, purchase_id: UUID, data: 
 
 
 def update_purchase(session: Db, principal: Principal, purchase_id: UUID, data: dict) -> dict:
-    """Turn auto-renew or autopay on or off for one purchase (RNT-09). Auto-renew needs a plan with a validity."""
+    """Turn auto-renew or autopay on or off for one purchase (RNT-09). Auto-renew needs a plan with a validity.
+    An expired purchase whose renewal waits on the waiver (ADR 0013) accepts only `is_auto_renew: false`, which
+    cancels the wait."""
     row = _scoped(session, principal, RentalPlanPurchase, purchase_id, SELL, lock=True)
-    if row.status not in ("pending", "active"):
+    stops_wait = row.renewal_waits_since is not None and data == {"is_auto_renew": False}
+    if row.status not in ("pending", "active") and not stops_wait:
         raise Conflict("Only a live plan can change.", code="plan-not-valid")
     if data.get("is_auto_renew") and session.get(RentalPlan, row.rental_plan_id).validity_days is None:
         raise ValidationFailed("Only a plan with a validity can renew.", pointer="/is_auto_renew")
     changes = _apply(row, data, ("is_auto_renew", "is_autopay"))
+    if not row.is_auto_renew and row.renewal_waits_since is not None:
+        row.renewal_waits_since, changes["renewal_waits_since"] = None, [True, None]
     session.flush()
     if changes:
         audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
@@ -1865,9 +1876,13 @@ def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> Rental
     purchase renews and also when it can no longer renew (plan archived, client no longer eligible), so the
     day-roll stops retrying."""
     waited, row.renewal_waits_since = row.renewal_waits_since, None
+    auto = row.is_auto_renew
     successor = _renew(session, row, today, waited)
     if waited is not None and row.renewal_waits_since is None:
-        audit.record(session, SELL, row, location_id=row.location_id, changes={"renewal_waits_since": [True, None]})
+        changes = {"renewal_waits_since": [True, None]}
+        if row.is_auto_renew != auto:
+            changes["is_auto_renew"] = [auto, row.is_auto_renew]
+        audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
     session.flush()
     return successor
 
@@ -1886,6 +1901,13 @@ def _renew(session: Db, row: RentalPlanPurchase, today: date, waited) -> RentalP
     if session.scalar(select(RentalPlanPurchase.id).where(RentalPlanPurchase.renewed_from_purchase_id == row.id)):
         return None
     starts = max(row.expires_on + timedelta(days=1), today)
+    if waited is not None:  # a waiting renewal ends when the client re-bought the plan, or at the plan's bound
+        lapsed = clock.now() - waited >= timedelta(days=plan.renewal_wait_days)
+        if lapsed or _holds_term(session, row, starts, starts + timedelta(days=plan.validity_days - 1)):
+            row.is_auto_renew = False
+            if lapsed:
+                _tell(session, row, plan, "rentals.plan_renewal_lapsed")
+            return None
     try:
         _eligible(session, plan, row.client_id)  # before a waiver is issued
     except (ValidationFailed, NotFound):
@@ -1920,9 +1942,22 @@ def _renewal_waits(session: Db, row: RentalPlanPurchase, plan: RentalPlan, waite
         return
     row.renewal_waits_since = clock.now()
     audit.record(session, SELL, row, location_id=row.location_id, changes={"renewal_waits_since": [None, True]})
+    _tell(session, row, plan, "rentals.plan_renewal_waiting")
+
+
+def _holds_term(session: Db, row: RentalPlanPurchase, starts: date, ends: date) -> bool:
+    """Whether the client already holds another live or upcoming purchase of the plan overlapping [starts, ends]."""
+    p = RentalPlanPurchase
+    return session.scalar(select(p.id).where(
+        p.client_id == row.client_id, p.rental_plan_id == row.rental_plan_id, p.id != row.id,
+        p.status.in_(("pending", "active")), p.starts_on <= ends, or_(p.expires_on.is_(None), p.expires_on >= starts),
+    ).limit(1)) is not None  # fmt: skip
+
+
+def _tell(session: Db, row: RentalPlanPurchase, plan: RentalPlan, key: str) -> None:
     owner = clients.service.get(session, row.client_id)
     if owner.primary_email:
-        notifications.send(session, "rentals.plan_renewal_waiting", owner.primary_email, {
+        notifications.send(session, key, owner.primary_email, {
             "app": platform.service.get_tenant(session).name, "name": owner.first_name, "plan": plan.name,
         })  # fmt: skip
 
@@ -2050,8 +2085,11 @@ def portal_disable_auto_renew(session: Db, principal: Principal, purchase_id: UU
         raise NotFound()
     _portal_subject(session, principal, row.client_id, "edit_profile")
     if row.is_auto_renew:
+        changes = {"is_auto_renew": [True, False]}
+        if row.renewal_waits_since is not None:  # also cancels a renewal waiting on the waiver
+            row.renewal_waits_since, changes["renewal_waits_since"] = None, [True, None]
         row.is_auto_renew = False
-        audit.record(session, SELL, row, location_id=row.location_id, changes={"is_auto_renew": [True, False]})
+        audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
         session.flush()
     name = session.get(RentalPlan, row.rental_plan_id).name
     return _columns(row) | {"rental_plan_name": name, "is_owner": True}
