@@ -20,7 +20,7 @@ from app.core.pan import contains_card_number
 NOT_FREE_TEXT = frozenset({
     # identifiers, references and codes (member, jersey and product numbers, barcodes, provider and external refs)
     "account_id", "account_reference", "asset_code", "client_id", "code", "coupon_code", "external_id", "external_ref",
-    "external_reference", "host_external_user_id", "jersey_number", "member_number", "member_number_prefix",
+    "host_external_user_id", "jersey_number", "member_number", "member_number_prefix",
     "number", "plan_code", "product_code", "realm_id", "sku", "terms_version_id", "pairing_code",
     # access credentials and card scans: a fob or member-card number is a long digit run by design
     "value", "card_payload", "combination", "exit_pin", "staff_pin",
@@ -30,12 +30,12 @@ NOT_FREE_TEXT = frozenset({
     "provider_payment_token", "push_token", "refresh_token", "token", "content_sha256", "signature_png",
     # machine keys and enumerations kept as plain strings
     "choice_key", "choice_keys", "field_key", "item_key", "key", "local_key", "permission_key", "question_key",
-    "report_key", "event_types", "exit_event_types", "trigger_event_type", "type", "role", "scopes", "sort",
+    "report_key", "event_types", "exit_event_types", "trigger_event_type", "type", "scopes", "sort",
     "accepted_card_brands", "app_version", "locale", "currency", "country_code", "time_zone", "default_time_zone",
     "slug", "public_slug", "accent_color", "brand_accent_color", "brand_primary_color", "color",
     # contact details, addresses on the wire and networks: phone numbers are digit runs
     "email", "emails", "contact_email", "allowed_email_domains", "phone", "phone_alt", "phone_home", "phone_mobile",
-    "phone_work", "mobile_phone", "contact_phone", "postal_code", "allowed_networks", "staff_ip_allowlist",
+    "phone_work", "mobile_phone", "contact_phone", "allowed_networks", "staff_ip_allowlist",
     "time_clock_networks", "redirect_domains",
     # URLs and paths
     "group_redirect_urls", "issuer_url", "join_url", "link_url", "redirect_path", "redirect_url", "registration_url",
@@ -48,8 +48,9 @@ NOT_FREE_TEXT = frozenset({
     "late_cancel_fee_pct", "min_sportsmanship", "points_default_loss", "points_forfeit_loss", "points_forfeit_win",
     "points_loss", "points_overtime_loss", "points_tie", "points_win", "quantity", "quantity_total", "rate",
     "renewal_discount_pct", "session_commission_pct", "sportsmanship",
-    # structured configuration (ids and filters, not prose)
-    "column_mapping", "columns", "conditions", "filters", "formula", "params", "settings",
+    # structured configuration (ids and filters, not prose). `settings` is not here: tenant and connection settings
+    # carry staff-typed values.
+    "column_mapping", "columns", "conditions", "filters", "formula", "params",
     # client custom values: clients.service scans the text-type fields only, as a fob number is a valid number field
     "custom_values",
 })  # fmt: skip
@@ -59,7 +60,7 @@ NOT_FREE_TEXT = frozenset({
 FREE_TEXT_FIELDS = frozenset({
     "about_text", "acceptance_text", "additional_description", "additional_income_note", "address", "address_line1",
     "address_line2", "album", "app_name", "away_label", "blurb", "body", "body_html", "body_text", "caption",
-    "category", "change_note", "child_label", "choices", "city", "client_description", "closed_message", "comment",
+    "category", "change_note", "external_reference", "postal_code", "role", "settings", "child_label", "choices", "city", "client_description", "closed_message", "comment",
     "comments", "confirmation", "confirmation_message", "contact_name", "custom_text", "description", "detail",
     "device_label", "directory_name", "display_name", "division_label", "edit_reason", "error", "event_name",
     "event_text", "external_name", "fees_text", "first_name", "heading", "hint", "home_label", "interest",

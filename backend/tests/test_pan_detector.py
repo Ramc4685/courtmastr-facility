@@ -102,6 +102,26 @@ def test_every_string_field_is_scanned_unless_allow_listed(field):
     assert _refused(model, **{field: "4111 1111 1111 1111"}) == [("card-data-not-allowed", (field,))]
 
 
+def test_staff_typed_text_under_reference_like_names_is_scanned():
+    from app.modules.billing.schemas import MarkPaidRequest
+    from app.modules.clients.schemas import ClientCreate
+    from app.modules.engagement.schemas import LocationContactUpdate
+    from app.modules.integrations.schemas import ExternalConnectionUpdate
+    from app.modules.platform.schemas import TenantUpdate
+
+    card = "4111 1111 1111 1111"
+    cases = [
+        (MarkPaidRequest, {"external_reference": f"cheque, card {card}"}, ("external_reference",)),
+        (LocationContactUpdate, {"role": card}, ("role",)),
+        (ClientCreate, {"first_name": "Pat", "last_name": "Lee", "postal_code": card}, ("postal_code",)),
+        (TenantUpdate, {"settings": {"receipt_note": card}}, ("settings",)),
+        (ExternalConnectionUpdate, {"settings": {"default_income_account": card}}, ("settings",)),
+    ]
+    for model, body, loc in cases:
+        assert ("card-data-not-allowed", loc) in _refused(model, **body), model.__name__
+    assert MarkPaidRequest(external_reference="Cheque 004512, bank ref 20261113-88").external_reference
+
+
 @pytest.mark.parametrize("field", ["value", "card_payload", "member_number", "phone", "external_ref", "token"])
 def test_allow_listed_fields_keep_long_digit_runs(field):
     model = type("_Code", (In,), {"__annotations__": {field: str}})
