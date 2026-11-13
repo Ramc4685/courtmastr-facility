@@ -7,11 +7,13 @@ Internal functions (no principal): `resolve`, `kiosk_*`, `device_for_token`. Sta
 both gates."""
 
 import hashlib
+import logging
 import secrets
 from datetime import timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import redis
 from sqlalchemy import column, delete, select, table
 from sqlalchemy.orm import Session
 
@@ -20,6 +22,7 @@ from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_que
 from app.core.auth.passwords import hash_password, verify_password
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.ratelimit import _redis
 from app.modules import billing, clients, documents, memberships, platform, programs, scheduling
 from app.modules.access import desk
 from app.modules.access import events as ev
@@ -47,14 +50,18 @@ ASSIGN, LAUNCH, MANAGE, SETTINGS = (
     "access.credential.assign", "access.kiosk.launch", "access.kiosk.manage", "access.settings.manage",
 )  # fmt: skip
 RULES, MODE, FULL = "access.rule.manage", "access.client.set_access_mode", "access.checkin.read_full_details"
+log = logging.getLogger(__name__)
 PAIRING_TTL = timedelta(minutes=10)
 MATCH_TTL = timedelta(seconds=120)
 # A second entry by the same client at the same location this soon is a repeat (double scan, kiosk then window):
 # it admits without counting another visit.
 REPEAT_WINDOW = timedelta(minutes=10)
 KIOSK_EXIT_ATTEMPTS = 5  # wrong exit PINs in a row before the device is revoked
-KIOSK_UNKNOWN_VALUES = 5  # unknown card values in a row before the kiosk stops reading values for a while
-KIOSK_UNKNOWN_LOCKOUT = timedelta(minutes=5)
+KIOSK_UNKNOWN_VALUES = 5  # unknown card values within the window before the kiosk stops reading values
+KIOSK_UNKNOWN_WINDOW = timedelta(minutes=5)  # the counting window, and how long the lock lasts
+# The only credentials that prove possession at a kiosk: a value that changes (a verified app-card QR) or a secret
+# token (an active wallet pass). A barcode, fob or member number is static and can be copied or typed.
+POSSESSION_KINDS = ("app_card", "wallet_pass")
 NAME_MATCHES = 5
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
 
@@ -746,26 +753,52 @@ def _match_token(session: Session, device: KioskDevice, client_id: UUID) -> str:
     return raw
 
 
+def _unknown_keys(device_id: UUID) -> tuple[str, str]:
+    return f"kiosk-unknown:{device_id}", f"kiosk-locked:{device_id}"
+
+
+def unknown_value_count(device_id: UUID) -> int:
+    """Unknown values this device read inside the current window (for tests and support)."""
+    key, _ = _unknown_keys(device_id)
+    now = clock.now().timestamp()
+    return _redis().zcount(key, now - KIOSK_UNKNOWN_WINDOW.total_seconds(), "+inf")
+
+
+def _count_unknown(device_id: UUID) -> None:
+    """One unknown value, in a sliding window kept atomically in Redis (one MULTI per request, so concurrent reads
+    never lose a count). KIOSK_UNKNOWN_VALUES inside KIOSK_UNKNOWN_WINDOW lock value reads for one window."""
+    key, lock = _unknown_keys(device_id)
+    now, window = clock.now().timestamp(), KIOSK_UNKNOWN_WINDOW.total_seconds()
+    pipe = _redis().pipeline()  # transactional: MULTI ... EXEC
+    pipe.zremrangebyscore(key, "-inf", now - window)
+    pipe.zadd(key, {secrets.token_hex(8): now})
+    pipe.zcard(key)
+    pipe.expire(key, int(window) + 60)
+    if pipe.execute()[2] >= KIOSK_UNKNOWN_VALUES:
+        _redis().set(lock, str(now + window), ex=int(window) + 60)
+        log.warning("kiosk locked after unknown values", extra={"kiosk_device_id": str(device_id)})
+
+
 def _kiosk_value(session: Session, device: KioskDevice, value: str):
-    """`resolve` for a value read at a kiosk, behind the device's lockout: KIOSK_UNKNOWN_VALUES unknown values in a
-    row stop value reads on this device for KIOSK_UNKNOWN_LOCKOUT (name search still works). Unknown re-raises
-    NotFound marked persist, so the count survives a refused check-in."""
-    now = clock.now()
-    if device.unknown_value_locked_until is not None and device.unknown_value_locked_until > now:
+    """`resolve` for a value read at a kiosk, behind the device's lockout, checked first: KIOSK_UNKNOWN_VALUES unknown
+    values within KIOSK_UNKNOWN_WINDOW stop value reads on this device for a window, whatever resolved in between
+    (name search still works). Redis, outside the request transaction, so a refused check-in still counts; it fails
+    open like the rate limits."""
+    try:
+        until = _redis().get(_unknown_keys(device.id)[1])
+    except redis.RedisError:
+        until = None
+        log.warning("kiosk lockout unavailable")
+    if until is not None and float(until) > clock.now().timestamp():
         raise DomainError("Please see the front desk.", status=429, code="kiosk-locked-out")
     try:
-        found = resolve(session, value)
-    except NotFound as exc:
-        device.unknown_value_count += 1
-        if device.unknown_value_count >= KIOSK_UNKNOWN_VALUES:
-            device.unknown_value_count, device.unknown_value_locked_until = 0, now + KIOSK_UNKNOWN_LOCKOUT
-            audit.record(session, LAUNCH, device, location_id=device.location_id, reason="unknown-values",
-                         changes={"unknown_value_locked_until": [None, device.unknown_value_locked_until.isoformat()]})  # fmt: skip
-        session.flush()
-        exc.persist = True
+        return resolve(session, value)
+    except NotFound:
+        try:
+            _count_unknown(device.id)
+        except redis.RedisError:
+            log.warning("kiosk lockout unavailable")
         raise
-    device.unknown_value_count = 0
-    return found
 
 
 def _from_match(session: Session, device: KioskDevice, token: str):
@@ -821,8 +854,8 @@ def kiosk_lookup(session: Session, device: KioskDevice, data: dict) -> dict:
 def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     """Self check-in (CHK-05). Never returns amounts, reasons or plan names: admitted with the alert codes the
     location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk).
-    `card_payload` is a scan (the app's code, a wallet pass, a card or fob): a credential scanned is possession. A
-    `match_token` comes from a typed lookup, name or value, and never is."""
+    `card_payload` is a value the tablet read; only a verified app-card QR or an active wallet pass is possession
+    (POSSESSION_KINDS). A static card, fob or member number checks in like a name, and so does a `match_token`."""
     if data.get("card_payload"):
         try:
             client, credential = _kiosk_value(session, device, data["card_payload"])
@@ -834,7 +867,8 @@ def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
             ) from None
         if credential is None and settings_view(session, device.location_id)["lookup_method"] == "name":
             raise ValidationFailed("Look up by name here.", code="lookup-method-disabled", pointer="/card_payload")
-        identified = "credential" if credential else "name_search"  # a member-number barcode is no credential
+        # Decided from the value alone, never from how it arrived: the tablet is the client and can claim a scan.
+        identified = "credential" if credential and credential.kind in POSSESSION_KINDS else "name_search"
     elif data.get("match_token"):
         client, credential, identified = _from_match(session, device, data["match_token"]), None, "name_search"
     else:

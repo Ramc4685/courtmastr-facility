@@ -13,7 +13,7 @@ nothing writes it yet.
 | `check_in` | client, location, channel, how the client was identified (`credential`, `name_search`, `client_record`), credential used, result (`granted` / `denied` / `granted_override`), deny reasons, alert codes, override and its reason, staff user or kiosk device |
 | `check_in_attendance` | each programme session place marked attended by a check-in (the link back for history) |
 | `credential` | membership number, barcode, app card, wallet pass, RFID and biometric reference; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
-| `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022); unknown card values in a row and the lockout end (`unknown_value_count`, `unknown_value_locked_until`, migration 1962) |
+| `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022) |
 | `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961); name-search booking switch (migration 1962) |
 
 Migration `1021_access_rules` (phase 10 chip B) adds:
@@ -104,18 +104,23 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   Idempotency-Key is 409 `response-not-stored`. Booking attempts have their own per-device limit (10 a minute).
 - **What a name-search check-in may do (owner decisions 2026-11-13).** Spending anything at the kiosk (a package
   credit, and in future a membership visit, an account charge or a payment) needs identification by possession:
-  `check_in.identified_by = credential`, which is a scan sent as `card_payload` that matches a card, fob, wallet
-  pass or the app's code. The tablet sends every scanner burst as `card_payload`; a lookup (`credential_value` or a
-  name) is typed, so its match token is always `name_search`, even when the typed value is a card's. A member
-  number, scanned or typed, is `name_search` too. Such a visit may book only sessions that allow free booking, so
+  `check_in.identified_by = credential`, decided on the server from the value alone: only a verified app-card QR
+  (it rotates every 30 seconds) or an active wallet-pass token (`service.POSSESSION_KINDS`). A barcode, fob number or
+  member number is static, so however it arrives (typed into a lookup, or sent as `card_payload` as the tablet does
+  with scanner bursts) it is `name_search`; nothing relies on scanner timing or any flag the tablet sends, because
+  the tablet is the client. Every lookup match token is `name_search` too. Such a visit may book only sessions that
+  allow free booking, so
   nothing is spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal
   is 409 `see-staff`, `is_booked` is always false on its page, and it never learns the client's packages, balance or
   eligibility. Possession lets the person pick, on screen, a session the portal rules allow, including one a
   package credit pays for; auto-book never spends a credit for anyone.
-- **Unknown-value lockout (migration 1962).** Five unknown values in a row on one device, scanned or typed, stop
-  value reads there for five minutes (429 `kiosk-locked-out`, audited as `reason: unknown-values`); name search
-  still works. Any value that resolves resets the count (`kiosk_device.unknown_value_count`,
-  `unknown_value_locked_until`). A refused scan keeps the count (the error persists).
+- **Unknown-value lockout.** Five values within five minutes on one device that resolve to no live credential or
+  member (unknown, or an expired or revoked card or pass), scanned or typed, lock value reads there for five minutes
+  (429 `kiosk-locked-out` on lookups and check-ins alike, lock end in `kiosk-locked:<device>`, logged); a known value in between does not reset the count,
+  and name search still works. The lock is checked before the value is resolved. The count is a sliding window in
+  Redis (`kiosk-unknown:<device>`, one MULTI per unknown value, so concurrent requests never lose a count) and sits
+  outside the request transaction, so a refused scan still counts. Like the rate limits, it fails open when Redis
+  is down. The staff window has no such lock (staff are signed in).
 - **Kiosk package purchase: not built (review 2026-11-13).** A first version was dropped before merge: a routine
   check-in scan authorised a one-tap charge that could repeat (each purchase handed back a fresh visit token), a
   wallet pass is a static bearer barcode, and an app QR could be replayed at a second kiosk inside its step. A future

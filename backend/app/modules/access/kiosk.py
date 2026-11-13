@@ -6,9 +6,9 @@ Internal functions for the kiosk router (device cookie, no principal). An admitt
 timeouts, and it ends when the kiosk goes back to its start screen or takes the next check-in. Booking goes through
 programs' kiosk functions, which apply the portal's rules unchanged, and the past-due lockout applies to the
 visitor's household (the visitor and every client one acting relationship away), as the portal guard does online.
-Spending anything (a package credit) needs identification by possession, a card or the app's code; a visit found by
-name books only free sessions, when the location allows even that. Refusals that would reveal the
-client's standing answer only "see staff"."""
+Spending anything (a package credit) needs identification by possession (a verified app-card QR or an active wallet
+pass); a static card, fob or member number, or a visit found by name, books only free sessions, when the location
+allows even that. Refusals that would reveal the client's standing answer only "see staff"."""
 
 import secrets
 from datetime import timedelta

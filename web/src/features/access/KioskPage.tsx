@@ -130,7 +130,7 @@ function Kiosk({ config }: { config: Config }) {
     onSuccess: () => qc.resetQueries({ queryKey: ['kiosk', 'config'] }),
   })
 
-  // Every scan goes as a card payload: a scanned card is possession, a typed lookup never is.
+  // Every scan checks in directly; the server decides possession from the value itself, never from how it arrived.
   useScanBurst((value) => {
     reset()
     enter.mutate({ card_payload: value })

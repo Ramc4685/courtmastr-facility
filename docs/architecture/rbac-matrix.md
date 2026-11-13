@@ -719,7 +719,7 @@ set is fixed in code and not editable per tenant; behaviour is tuned by kiosk se
 | Client lookup | Y | by the configured method (name, membership number, both); returns display name, photo if enabled, and at most 10 matches; disabled clients excluded (CHK-05 2024-01-17) |
 | Create check-in | Y | access rules applied; result is a status (admitted, see staff), never an amount or reason detail beyond the configured alerts (CHK-06, CHK-21) |
 | List bookable sessions, auto-book | Y | within the configured visible range and check-in windows; against the client's existing entitlements only |
-| Purchase a package | set | only in a session identified by a possession factor (scanned card, barcode, wallet pass), never by typed name; charges the client's default stored method |
+| Purchase a package | set | only in a session identified by a possession factor (a verified app-card QR or an active wallet pass; a static barcode, fob or member number never counts, typed or scanned), never by typed name; not built (review 2026-11-13); charges the client's default stored method |
 | Read profile, contact data, invoices, balances, documents | - | |
 | Edit anything on the client | - | |
 | Any staff catalogue key | - | |

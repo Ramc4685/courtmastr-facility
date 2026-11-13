@@ -259,9 +259,6 @@ class KioskDevice(TenantOwned, Timestamps, Base):
     revoked_at: Mapped[datetime | None]
     # Wrong kiosk exit PINs since the last right one; the fifth revokes the device (KIOSK_EXIT_ATTEMPTS).
     exit_pin_failure_count: Mapped[int] = mapped_column(server_default=text("0"))
-    # Unknown card values in a row (KIOSK_UNKNOWN_VALUES); the last one stops value reads until then (migration 1962).
-    unknown_value_count: Mapped[int] = mapped_column(server_default=text("0"))
-    unknown_value_locked_until: Mapped[datetime | None]
 
 
 class KioskMatch(TenantOwned, Timestamps, Base):

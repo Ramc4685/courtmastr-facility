@@ -2,6 +2,7 @@
 15). Booking runs the portal's rules for the client the kiosk identified: the kiosk adds no bypass. A visit found by
 name books only what consumes nothing; spending a package needs a card or the app's code (possession)."""
 
+import secrets
 import threading
 from datetime import timedelta
 from types import SimpleNamespace
@@ -12,8 +13,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core import clock
+from app.core.auth import system_principal
+from app.core.db import tenant_session
 from app.main import app as fastapi_app
-from app.modules.access.models import CheckIn
+from app.modules.access.domain import cards
+from app.modules.access.models import CheckIn, Credential, KioskDevice
 from app.modules.access.tests.test_checkin import _pair, ok
 from app.modules.memberships.tests.support import API, package_plan, world
 from app.modules.programs.models import Enrollment
@@ -54,6 +58,18 @@ def enter(client, person, card: str | None = None, *, typed: bool = False) -> di
     return ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]}), 201)
 
 
+def app_qr(tenant, person) -> str:
+    """The rotating QR of an app card issued to `person`: the one value that proves possession at the kiosk."""
+    secret = secrets.token_bytes(32)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        row = Credential(client_id=person["id"], kind="app_card", value=f"APP{secrets.token_hex(8).upper()}",
+                         source="app_issued", secret_ciphertext=secret, issued_at=clock.now())  # fmt: skip
+        session.add(row)
+        session.flush()
+        seed = cards.seed(row.id, secret)
+    return cards.qr_text(seed, clock.now())
+
+
 def card_of(client, owner, person) -> str:
     value = f"KC-{uuid4().hex[:8]}"
     ok(
@@ -86,7 +102,7 @@ def test_the_reservation_page_lists_and_books_by_the_portal_rules(client, tenant
     now_free = soon(client, owner, k.loc, 30)
     paid = soon(client, owner, k.loc, 90, free=False)
     later = soon(client, owner, k.loc, 300)  # beyond the default visible range of four hours
-    entered = enter(client, k.person, card_of(client, owner, k.person))
+    entered = enter(client, k.person, app_qr(tenant, k.person))
     listed = {s["target_id"]: s for s in entered["sessions"]}
     assert set(listed) == {now_free.id, paid.id}
     assert listed[now_free.id]["is_bookable"] and not listed[paid.id]["is_bookable"]  # needs a package
@@ -137,7 +153,7 @@ def test_a_name_search_visit_books_only_what_consumes_nothing(client, tenant, ow
     assert not any(s["is_booked"] for s in done["sessions"])  # a name alone does not show the client's places
 
     # The same client scanning their card may spend the package.
-    carded = enter(client, k.person, card_of(client, owner, k.person))
+    carded = enter(client, k.person, app_qr(tenant, k.person))
     assert next(s for s in carded["sessions"] if s["target_id"] == paid.id)["is_bookable"]
     ok(book(client, carded, paid.id))
     assert pricing(tenant, paid.id) == "entitlement"
@@ -214,7 +230,7 @@ def test_auto_book_takes_the_earliest_bookable_session_once(client, tenant, owne
     soon(client, owner, k.loc, 10, free=False)  # earlier, but needs a package: skipped
     ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner,
                   json={"is_auto_book": True, "visible_range_minutes": 120, "reservation_timeout_seconds": 20}))  # fmt: skip
-    card = card_of(client, owner, k.person)
+    card = app_qr(tenant, k.person)
     entered = enter(client, k.person, card)
     assert [a["session_id"] for a in entered["attended"]] == [first.id]
     assert [s["target_id"] for s in entered["sessions"] if s["is_booked"]] == [first.id]
@@ -236,13 +252,13 @@ def test_auto_book_on_a_name_search_skips_a_session_that_would_spend_a_package(c
     assert pricing(tenant, paid.id) is None
 
 
-def test_auto_book_on_a_card_scan_never_spends_a_package(client, tenant, owner, k):
+def test_auto_book_on_an_app_card_never_spends_a_package(client, tenant, owner, k):
     """Auto-book books only what consumes nothing: a credit is spent only when the person picks the session."""
     paid = soon(client, owner, k.loc, 10, free=False)  # earliest, and the package would cover it
     free = soon(client, owner, k.loc, 25)
     give_package(client, owner, tenant, k, paid.type_id)
     ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner, json={"is_auto_book": True}))
-    entered = enter(client, k.person, card_of(client, owner, k.person))  # a plain fob scan
+    entered = enter(client, k.person, app_qr(tenant, k.person))  # possession, and still nothing spent
     assert [a["session_id"] for a in entered["attended"]] == [free.id]
     assert pricing(tenant, paid.id) is None  # nothing booked against the package
     assert {s["target_id"]: s["is_bookable"] for s in entered["sessions"]}[paid.id]  # still the person's choice
@@ -270,34 +286,70 @@ def test_a_visit_token_cannot_be_spent_twice_concurrently(client, tenant, owner,
     assert booked == 1
 
 
-def test_a_typed_card_value_is_not_possession(client, tenant, owner, k):
-    """A value typed into a lookup checks in like a name: it never spends a package. Scanning the same card does."""
+def test_a_static_card_value_is_never_possession(client, tenant, owner, k):
+    """A barcode or fob number is a static value anyone can copy: typed, or sent as a scan (the tablet is the
+    client, so how a value arrived proves nothing), it checks in like a name and never spends a package. Only a
+    verified app-card QR (or an active wallet pass) does."""
     paid = soon(client, owner, k.loc, 30, free=False)
     give_package(client, owner, tenant, k, paid.type_id)
     card = card_of(client, owner, k.person)
-    typed = enter(client, k.person, card, typed=True)
-    assert not next(s for s in typed["sessions"] if s["target_id"] == paid.id)["is_bookable"]
-    refused = book(client, typed, paid.id)
-    assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
-    assert pricing(tenant, paid.id) is None
-    ok(book(client, enter(client, k.person, card), paid.id))
+    for typed in (True, False):  # typed into a lookup; sent as a scan
+        visit = enter(client, k.person, card, typed=typed)
+        assert not next(s for s in visit["sessions"] if s["target_id"] == paid.id)["is_bookable"]
+        refused = book(client, visit, paid.id)
+        assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
+        assert pricing(tenant, paid.id) is None
+    ok(book(client, enter(client, k.person, app_qr(tenant, k.person)), paid.id))
     assert pricing(tenant, paid.id) == "entitlement"
 
 
-def test_repeated_unknown_values_lock_the_kiosk_for_a_while(client, tenant, owner, k, monkeypatch):
+def _device_id(tenant) -> UUID:
+    return scalar(tenant, select(KioskDevice.id).order_by(KioskDevice.created_at.desc()).limit(1))
+
+
+def test_unknown_values_lock_the_kiosk_even_between_known_ones(client, tenant, owner, k, monkeypatch):
+    """N unknown values within the window lock value reads, whatever resolved in between: a known card between
+    guesses does not reset the count."""
     from app.modules.access import service
 
     card = card_of(client, owner, k.person)
     for n in range(service.KIOSK_UNKNOWN_VALUES):
+        assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": card}))["matches"]  # known
         if n % 2:
             assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": f"NOPE{n}"}))["matches"] == []
-        else:  # a refused scan still counts: the counter survives the error
+        else:  # a refused scan counts too
             assert client.post(f"{API}/kiosk/check-ins", json={"card_payload": f"NOPE{n}"}).status_code == 422
     locked = client.post(f"{API}/kiosk/check-ins", json={"card_payload": card})  # even a real card waits
     assert locked.status_code == 429 and locked.json()["code"] == "kiosk-locked-out"
     assert client.post(f"{API}/kiosk/lookups", json={"credential_value": card}).status_code == 429
     assert ok(client.post(f"{API}/kiosk/lookups", json={"last_name_prefix": k.person["last_name"]}))["matches"]
 
-    later = clock.now() + service.KIOSK_UNKNOWN_LOCKOUT + timedelta(seconds=1)
+    later = clock.now() + service.KIOSK_UNKNOWN_WINDOW + timedelta(seconds=1)
     monkeypatch.setattr(service, "clock", SimpleNamespace(now=lambda: later))
     assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": card}))["matches"]
+    assert (
+        ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": "NOPE"}))["matches"] == []
+    )  # old ones aged out
+    assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": card}))["matches"]
+
+
+def test_concurrent_unknown_values_are_all_counted(client, tenant, owner, k):
+    """20 unknown values at once: every one the kiosk evaluated is counted (no lost updates) and the device locks."""
+    from app.modules.access import service
+
+    barrier, codes = threading.Barrier(20), []
+
+    def guess(n):
+        with TestClient(fastapi_app, cookies=client.cookies) as own:
+            barrier.wait()
+            codes.append(own.post(f"{API}/kiosk/lookups", json={"credential_value": f"NOPE{n}"}).status_code)
+
+    threads = [threading.Thread(target=guess, args=(n,)) for n in range(20)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert set(codes) <= {200, 429}
+    assert service.unknown_value_count(_device_id(tenant)) == codes.count(200) >= service.KIOSK_UNKNOWN_VALUES
+    locked = client.post(f"{API}/kiosk/lookups", json={"credential_value": "NOPE"})
+    assert locked.status_code == 429 and locked.json()["code"] == "kiosk-locked-out"
