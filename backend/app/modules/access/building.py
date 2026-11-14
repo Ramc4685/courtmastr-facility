@@ -559,14 +559,25 @@ def _revoke(session: Session, row: EntryCode, reason: str) -> None:
     session.flush()
 
 
+def _lock_booking_codes(session: Session, booking_id: UUID) -> None:
+    """One sync of a booking's codes at a time: a transaction-scoped advisory lock, waited for. Without it two
+    connections (handlers, the tick) locking the same codes through different plans (index order, heap order)
+    deadlocked. Lock order everywhere: bookings ascending, then a booking's codes by id (`ORDER BY booking_id, id`)."""
+    key = f"access.booking-codes:{session.info['tenant_id']}:{booking_id}"
+    session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"), {"k": key})
+
+
 def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None = None) -> list[EntryCode]:
     """Internal, idempotent (event handlers and the tick): the booking's active codes match its state and party.
     Someone no longer entitled (a cancelled booking, an ended enrolment) loses their code; a moved booking (its window
     changed) gets new codes, sent again; each entitled person at a location with a door gets one up to CODE_HORIZON
     ahead, if they pass the known-adult rule."""
+    _lock_booking_codes(session, booking_id)
     booking = booking or _booking(session, booking_id)
-    active = {row.client_id: row for row in session.scalars(
-        select(EntryCode).where(EntryCode.booking_id == booking_id, EntryCode.status == "active").with_for_update())}  # fmt: skip
+    active = {row.client_id: row for row in session.scalars(select(EntryCode).where(
+        EntryCode.booking_id == booking_id, EntryCode.status == "active").order_by(EntryCode.id).with_for_update())}  # fmt: skip
+    if not active and (booking is None or not _doors(session, booking["location_id"])):
+        return []  # no door at the location and nothing to revoke: a booking that never needs a code
     entitled = _entitled(session, booking)
     for client_id, held in active.items():
         if client_id not in entitled:
@@ -603,9 +614,8 @@ def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None =
 def recheck_client_codes(session: Session, client_id: UUID) -> None:
     """Internal (enrolment ended or moved, a payment failed or was refunded): each of the client's active codes is
     revoked when they are no longer entitled to it or the check-in evaluation now refuses them."""
-    rows = session.scalars(
-        select(EntryCode).where(EntryCode.client_id == client_id, EntryCode.status == "active").with_for_update()
-    ).all()
+    rows = session.scalars(select(EntryCode).where(EntryCode.client_id == client_id, EntryCode.status == "active")
+                           .order_by(EntryCode.booking_id, EntryCode.id).with_for_update()).all()  # fmt: skip
     for row in rows:
         if client_id not in _entitled(session, _booking(session, row.booking_id)):
             _revoke(session, row, "not_entitled")
@@ -616,8 +626,8 @@ def recheck_client_codes(session: Session, client_id: UUID) -> None:
 def resync_client_codes(session: Session, client_id: UUID) -> None:
     """Internal (a client edited or merged): a confirmation reset publishes no event, so every booking the person
     holds an active code on is synced again now; an adult no longer confirmed loses the code and is held again."""
-    for booking_id in session.scalars(select(EntryCode.booking_id).where(
-            EntryCode.client_id == client_id, EntryCode.status == "active").distinct()).all():  # fmt: skip
+    for booking_id in sorted(session.scalars(select(EntryCode.booking_id).where(
+            EntryCode.client_id == client_id, EntryCode.status == "active").distinct()).all()):  # fmt: skip
         sync_booking_code(session, booking_id)
 
 
@@ -692,7 +702,7 @@ def _held(session: Session, client_ids: set[UUID] | None = None) -> list[tuple[d
 def issue_held_codes(session: Session, client_id: UUID) -> None:
     """Internal (`clients.age_confirmed`): every code held for an age check that this confirmation unblocks (the
     person's own, or a child's they are guardian of) is issued and sent now, not at the next tick."""
-    for booking_id in dict.fromkeys(booking["id"] for booking, _ in _held(session)):
+    for booking_id in sorted({booking["id"] for booking, _ in _held(session)}):
         sync_booking_code(session, booking_id)
 
 
@@ -1384,7 +1394,8 @@ def erase_client_codes(session: Session, client_id: UUID) -> int:
     """Data subject erasure: live codes are revoked (and taken off controllers); every code is unlinked from the
     person (audited flag-only) and their id is scrubbed from building event details, so the building log no longer
     leads to them. Returns the codes revoked."""
-    rows = session.scalars(select(EntryCode).where(EntryCode.client_id == client_id).with_for_update()).all()
+    rows = session.scalars(select(EntryCode).where(EntryCode.client_id == client_id)
+                           .order_by(EntryCode.booking_id, EntryCode.id).with_for_update()).all()  # fmt: skip
     live = 0
     for row in rows:
         row.client_id = None
