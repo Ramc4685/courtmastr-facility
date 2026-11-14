@@ -2,13 +2,13 @@
 
 CIRQT is an unmanned facility with four convertible courts. Badminton and pickleball can be played on all four. Courts 2 and 3 each also become one volleyball court; the owner settled this as reading (ii). Rentals are the main revenue, the membership fee is small, and there are badminton and volleyball leagues and paid coaching.
 
-This check builds CIRQT in the product and drives it the way the owner would. No product code was changed.
+This check builds CIRQT in the product and drives it the way the owner would. The first run changed no product code; two gaps have since been closed in the product.
 
 - Seed: `backend/seeds/cirqt.py`. It is idempotent and refused outside dev and test.
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 23 pass, 0 fail, 7 gaps** (re-run on 2026-11-13 with the owner's real prices and 24-hour opening). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot` (head 1981), which re-ran the scenarios; the minors follow-up (head 1982) added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
+**Result: 25 pass, 0 fail, 5 gaps** (re-run on 2026-11-13 after merging `main`: league set scoring and league nights closed two gaps). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot`, which re-ran the scenarios with the owner's real prices and 24-hour opening; the minors follow-up added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
 
 ## Owner's numbers and assumptions
 
@@ -37,9 +37,9 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 | a | A member books and pays for Court 1 online. Overlaps are refused, and the database exclusion constraint is the final arbiter. The open times cover the whole day by court (an 8 pm prime slot is picked and paid). | pass |
 | b | Volleyball on Court 2 or 3 blocks badminton and pickleball on that court, including the 10-minute changeover. The neighbouring court stays free. | pass |
 | c | A committed league night refuses public rentals on its courts. | pass |
-| c | A night blocked first by staff is used by the league scheduler. | **gap**: the block counts as a clash, so those games go unscheduled |
+| c | A night blocked first by staff is used by the league scheduler. | pass for scheduling. Staff hold the courts as that league's night (Schedule tab, "Hold a league night"); its games take their slots out of the hold. A plain calendar block still counts as a clash. Known limits below. |
 | d | Badminton and volleyball leagues record scores and standings. | pass |
-| d | Set-by-set or game scores. | **gap**: one integer per side |
+| d | Set-by-set or game scores. | pass. Badminton is best of 3 to 21, win by 2, cap 30; volleyball best of 5 to 25, deciding set to 15. Every set is checked, the score is the sets won, and standings break ties on set ratio, then points ratio. |
 | e | A parent buys a junior membership for a child. The child gets no marketing and does not appear on public pages. | pass |
 | e | A minor cannot be opted into marketing. | **gap**: no minor rule |
 | e | A minor cannot get a buying login. | **gap**: the invitation works like an adult's |
@@ -78,7 +78,10 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 5. **No-shows and overstays for rentals.** There is no mark, no fee and no rule.
 6. **Paying independent coaches.** Payroll computes the commission line, but nothing pays out and there is no revenue split at checkout.
 7. **Utilisation from opening hours.** The report needs per-court availability windows.
-8. **League details.** A staff-blocked league night is not usable by the scheduler, and there is no set scoring.
+8. ~~**League details.**~~ Closed: league nights the scheduler fills, and set-by-set scoring with set and points ratio in the standings. League nights work for scheduling, with three known limits until a follow-up redesign (leagues README, "League nights: known limits"):
+   - a game that is rescheduled, postponed or cancelled does not give its slot back to the night, so a public booking can take it; staff re-block the old slot;
+   - with a night on a parent court and a game on one half, the sibling half opens for that hour;
+   - two games carved at the same moment can report a false clash; the loser is left unschedulable with the reason, never double-booked.
 
 ## Setting CIRQT up: screens versus API
 

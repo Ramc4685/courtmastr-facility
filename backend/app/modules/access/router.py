@@ -373,7 +373,9 @@ def kiosk_booking_rate_limit(device: Device) -> None:
 
 
 def _device_limit(device: KioskDevice, bucket: str, per_minute: int) -> None:
-    """Per device, not per IP: kiosks behind one NAT share an address. Fails open like rate_limit."""
+    """Per device, not per IP: kiosks behind one NAT share an address. Fails closed, unlike rate_limit: a check-in
+    found by name checks a person in to their places, and booking attempts can probe standing, so neither may run
+    unmetered while Redis is down."""
     if not get_settings().rate_limit.enabled:
         return
     key = f"rl:{bucket}:{device.id}:{int(clock.now().timestamp() // 60)}"
@@ -382,8 +384,8 @@ def _device_limit(device: KioskDevice, bucket: str, per_minute: int) -> None:
         pipe.incr(key)
         pipe.expire(key, 60)
         count = pipe.execute()[0]
-    except Exception:  # noqa: BLE001 - a Redis outage must not stop check-in
-        return
+    except Exception:  # noqa: BLE001 - any Redis failure: refuse, the limit cannot be checked
+        count = per_minute + 1
     if count > per_minute:
         raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
 

@@ -1,62 +1,37 @@
 ## backend/app/modules/scheduling/README.md
 
-Checked against `backend/app/modules/scheduling/*.py`, `domain/`, and `docs/api/openapi-{core,people,money,programs}.yaml`. Date: 2026-11-13. This report replaces the earlier one, which described a virtual-session (`/meeting`) feature that is no longer in the README or the code.
-
-### [contract]
-
-- README line 15 ("40 operations of `openapi-core.yaml` tag `scheduling` ... the contract has eight more, listed under Not built"). `router.py` declares 49 routes (`router.py:44-396`, including `public` at 355). 42 match a contract operation. 7 have no operation in any `docs/api/*.yaml`, so the "40 of the contract" figure is stale. The 7 are:
-  - `GET /bookings/{booking_id}/participants` (`router.py:368`)
-  - `POST /bookings/{booking_id}/participants` (373)
-  - `PATCH /bookings/{booking_id}/participants/{participant_id}` (379)
-  - `DELETE /bookings/{booking_id}/participants/{participant_id}` (387)
-  - `POST /sessions/{schedule_session_id}/direct-link/regenerate` (341)
-  - `POST /public/direct-links/resolve` (355)
-  - `POST /bookings/{booking_id}/merge` (396)
-- README lines 127-159 describe all seven as built and never say the contract lacks them. The `booking_participant` table and the `attendance` values are also absent from `openapi-people.yaml` and the rest of `docs/api/`.
-- README line 152 (series merge). The contract operation `mergeBookingSeries` is `POST /booking-series/{booking_series_id}/merge` with no request body (`openapi-core.yaml:3504-3518`). The code serves `POST /bookings/{booking_id}/merge` with body `{booking_number}` (`router.py:396-400`, `schemas.py` `SeriesMerge`). The path, parameter and body all differ.
-- README lines 134-138 (direct links). The contract has `resolveDirectLink` as `GET /public/direct-links/{token}` (`openapi-core.yaml:3458-3475`, token in the URL). The code is `POST /public/direct-links/resolve` with the token in the body (`router.py:355-363`). The README states the code's behaviour but not that it departs from the contract.
-- README line 113 (item 16). The contract names the session path parameter `session_id` (`openapi-core.yaml:3130,3153,3417`). The code uses `schedule_session_id` (`router.py:288-295,333-349`). The README gives a reason but does not say the contract differs.
-- README line 121 and lines 119-125 ("Not built") name only `createSlotOfferDirectLink` and the three public-schedule operations, which is correct. The count "eight more" at line 15 is wrong. The contract operations with no route are four: `createSlotOfferDirectLink` (`openapi-core.yaml:3446`), `getPublicSchedule` (3478), `getPublicScheduleSettings` (3488) and `updatePublicScheduleSettings` (3497). `resolveDirectLink` and `mergeBookingSeries` have routes at different paths, as above.
+Checked 2026-11-13 against the working tree on `claude/league-set-scoring` (README line numbers include the uncommitted `gives_way` paragraph at 60-63) and the scheduling operations of `docs/api/openapi-core.yaml`. Code paths are under `backend/app/modules/` unless they start with `docs/`.
 
 ### [stale-not-built]
 
-- README line 15, "the contract has eight more, listed under Not built". Direct links (SCH-16), series merge (SCH-21) and shared bookings (SCH-17) have since been built in `sharing.py` and `service.py:2191`. Lines 119-125 now list only four unbuilt contract operations, plus non-operation items. The line 15 sentence should be dropped or updated.
+- README:127-129 lists the public schedule (`getPublicSchedule`, `getPublicScheduleSettings`, `updatePublicScheduleSettings`) under "Not built". All three are served: `integrations/router.py:431` (GET settings), `:437` (PATCH settings, gated by `scheduling.public_schedule.manage`) and `:446` (`GET /public/schedule`), with the logic in `integrations/feeds.py`. The README half-admits this by saying the key "gates the settings routes in integrations", but still files them as not built.
+- README:129 lists calendar feeds (SCH-19) under "Not built". `integrations/feeds.py:1-9` implements them (iCalendar subscription feeds with SCH-19 named in the module docstring).
 
 ### [missing]
 
-None. Every item the README says is built exists; `scheduling.public_schedule.manage` having no route is stated in the README (lines 122-123).
+- README:32 and README:104-105 say the portal flow (programs) calls `materialise_slot` and then `reserve_seat`. Nothing outside scheduling calls `offers.materialise_slot` or `offers.book_slot`; grep over `programs/`, `rentals/` and `integrations/` finds no caller. The only entry points are the staff route `POST /slot-offers/{id}/slots` (`router.py:324`) and scheduling's own `offers.py:275,326`. README:126 says the portal slot booking is not built, so lines 32 and 104 describe a call that does not exist.
+
+### [contract]
+
+- README:15 says the contract has "eight more" operations "listed under Not built". Only one scheduling-tagged operation has no route anywhere: `createSlotOfferDirectLink` (`docs/api/openapi-core.yaml:3443-3445`). The three public-schedule operations are served by integrations (see above). Two more are served at a different path or method (next two items). The count of eight is wrong.
+- `resolveDirectLink` is `GET /public/direct-links/{token}` in the contract (`openapi-core.yaml:3458-3460`, token in the path, "accepted exception to no secrets in URLs"). The code is `POST /public/direct-links/resolve` with the token in the body (`router.py:355-361`; `schemas.py:642`). It resolves a session only, while the contract says "its session or slot offer". README:138-140 describes the code's behaviour and never says it departs from the contract.
+- `mergeBookingSeries` is `POST /booking-series/{booking_series_id}/merge` in the contract (`openapi-core.yaml:3504-3506`). The code is `POST /bookings/{booking_id}/merge` (`router.py:396`; README:157 matches the code). The contract path takes a series id, the code takes a booking id, and the README does not flag the difference.
+- Five routes have no contract operation in any `docs/api/*.yaml`: `POST /sessions/{id}/direct-link/regenerate` (`router.py:341`) and the four booking-participant routes `GET`, `POST`, `PATCH` and `DELETE` under `/bookings/{id}/participants` (`router.py:368,373,379,387`; README:134-156). The generated spec carries them as `regenerateSessionDirectLink`, `listBookingParticipants`, `addBookingParticipant`, `updateBookingParticipant` and `removeBookingParticipant`, so `make api-diff` sees operations that the yaml lacks.
+- README:118-119 says the `/sessions/{...}` path parameter is `schedule_session_id`. That is true of the code (`router.py:288,333`), but the contract still names it `session_id` (`openapi-core.yaml:3414`), so the contract and the generated spec differ on a parameter name. The README does not mention this.
+- README:17 says packages subscribes to the booking events. `packages/handlers.py:32` subscribes to `scheduling.booking.completed` (payload `booking_id`, `outcome`, documented at `packages/handlers.py:9`), but scheduling never publishes it: `events.py` defines no such event and no code publishes `BookingCompleted`. That handler is dead. The README does not list the event as planned or missing.
 
 ### [undocumented]
 
-- README line 17 lists ten events. `events.py` defines five more that the service publishes and the README never names:
-  - `scheduling.session.direct_link_changed` (`events.py:90`)
-  - `scheduling.participant.added` (108)
-  - `scheduling.participant.removed` (112)
-  - `scheduling.participant.attendance_marked` (116)
-  - `scheduling.series.merged` (123)
-- README line 17 says packages subscribes to the booking events. `packages/handlers.py:32` subscribes to `scheduling.booking.completed`, which nothing in scheduling defines or emits (`events.py` has no such class). That consumer never fires.
-- README line 9 (the models table) omits `booking_participant` (`models.py:380`). It is introduced only in the sharing section at line 142.
-- README line 7-18 (the file table) has no row for `sharing.py` (direct links, participants, merge-series helpers) or `domain/__init__.py`. `sharing.py` appears only as a section heading (line 127).
-- README lines 22-39 ("Interface for other contexts") omit internal functions that exist:
-  - `get_sessions` (`service.py:861`)
-  - `get_type` (250)
-  - `hold_plan` (397)
-  - `hours_warnings` (1244)
-  - `reservation_type_location` (990)
-  - `reservation_type_exists` (1962)
-  - `has_live_link` (843), which is mentioned in prose at line 139
-  - `offers.book_slot` (`offers.py:326`)
-- Several of these are marked internal in their docstrings. Their callers are not documented either.
+- README:17 lists ten emitted events. `events.py` defines five more, all `scheduling.`-prefixed: `session.direct_link_changed` (`events.py:90`), `participant.added` (`:108`), `participant.removed` (`:112`), `participant.attendance_marked` (`:116`) and `series.merged` (`:123`).
+- README:17 names rentals, leagues, engagement, programs and packages as subscribers. `integrations/handlers.py:24,30` also subscribes to `scheduling.booking.rescheduled` and `scheduling.session.cancelled` (virtual-session meetings follow the session).
+- README:9 lists the tables in `models.py` but omits `booking_participant` (`models.py:380`). It appears only in the shared-bookings section (README:147).
+- README:7-18 has no row for `sharing.py` (direct links, participants and series merge, `router.py:333-400`). The section at README:132 names it but the file table does not.
+- The "Interface for other contexts" block (README:20-40) omits internal functions that other contexts call or that are public in `service.py`: `get_sessions` (`service.py:898`; used by `integrations/feeds.py:300` and `integrations/meetings.py:284`), `get_type` (`service.py:250`), `hold_plan` (`:397`), `reservation_type_exists` (`:1997`; used through `programs/service.py:698`), `reservation_type_location` (`:1027`) and `hours_warnings` (`:1281`). `has_live_link` (`:880`; used by `programs/selfservice.py:259`) is described only inside the direct-link bullet (README:142).
+- README:23-26 gives the `create_booking` and `reschedule_booking` signatures without the `gives_way` argument (`service.py:652,719`) and omits `local` and `slot` (`service.py:651-652,718`). `gives_way` is explained only at README:60-63.
 
 ### [wording]
 
-- README line 15 sums to "40 operations" but the router now holds 49 (sharing routes included). Same root as the first [contract] bullet, counted once there; the line-15 sentence "the contract has eight more" is counted under [stale-not-built].
-- README line 94-103 (item 13) gives no range for `slot_min`; the schema limits it to 5-480 in steps of 5 (`schemas.py:565`).
-
-### Notes for the README owner
-
-- Update line 15: 49 routes (42 in the contract, 7 not).
-- Name the seven routes that have no contract operation, or add them to `openapi-core.yaml` and `openapi-people.yaml`.
-- Record the three path and shape differences from the contract (merge, resolve, session parameter name).
-- Extend the events line, the models row, the file table and the interface block as listed above.
-- Decide who emits `scheduling.booking.completed`, or remove the packages handler.
+- README:60-63 says each block in the way is "cancelled and rebooked as the pieces left around the newcomer's padded range". The code splits only the block's resources that the newcomer's hold plan touches. Resources the newcomer does not touch are rebooked as one piece over the whole padded span (`service.py:480-482`). The rebooked pieces carry zero buffers, `include_linked=False` and the cancel reason `other` (`service.py:485-492`).
+- README:51-52 says "closure blocks never count" toward `location-has-future-bookings`. The code excludes every `kind == "block"` booking, not only closures: time blocks and league-night holds too (`service.py:1038-1039`).
+- README:129 says the `rpt_booking` and `rpt_session_fill` views are not built. Neither name exists, but reporting does have `rpt_booking_start` (`reporting/views.py:212`; `migrations/versions/1661_reporting_staff_fitness_operations.py:135`), a booking-side reporting view that the README does not mention.
+- README:15 says "40 operations of `openapi-core.yaml` tag `scheduling`". The tag has 46 operations, of which `router.py` serves 40 at the contract's path. The rest are the integrations routes, the unrouted slot-offer link, and the two path-mismatched operations above. The sentence reads as if scheduling's router served the whole tag.

@@ -4162,6 +4162,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/competitions/{competition_id}/league-nights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block League Night
+         * @description Hold courts for this competition ahead of its schedule. Rentals clash with the block; the competition's own
+         *     games take their slots out of it when they are booked. A game moved or cancelled later does not give its slot back.
+         */
+        post: operations["blockLeagueNight"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/competitions/{competition_id}/player-stats": {
         parameters: {
             query?: never;
@@ -19122,6 +19143,8 @@ export interface components {
             home_name: string | null;
             /** Home Score */
             home_score: number | null;
+            /** Set Scores */
+            set_scores?: string | null;
             /** Starts At */
             starts_at: string | null;
             /** Status */
@@ -22075,6 +22098,8 @@ export interface components {
             age_group_id?: string | null;
             /** Color */
             color?: string | null;
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /** Division Label */
             division_label?: string | null;
             /** Ends On */
@@ -22133,8 +22158,18 @@ export interface components {
             revenue_category_id?: string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
             /** Season Id */
             season_id?: string | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Show Players */
             show_players?: boolean | null;
             /**
@@ -22169,6 +22204,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Deciding Set Points To */
+            deciding_set_points_to: number | null;
             /** Division Label */
             division_label: string | null;
             /** Ends On */
@@ -22227,8 +22264,18 @@ export interface components {
             revenue_category_id: string | null;
             /** Rules Text */
             rules_text: string | null;
+            /** Scoring Mode */
+            scoring_mode: string;
             /** Season Id */
             season_id: string | null;
+            /** Set Cap */
+            set_cap: number | null;
+            /** Set Points To */
+            set_points_to: number | null;
+            /** Set Win By */
+            set_win_by: number;
+            /** Sets Best Of */
+            sets_best_of: number | null;
             /** Show Players */
             show_players: boolean;
             /** Shows Roster Publicly */
@@ -22357,6 +22404,8 @@ export interface components {
             age_group_id?: string | null;
             /** Color */
             color?: string | null;
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /** Division Label */
             division_label?: string | null;
             /** Ends On */
@@ -22401,8 +22450,18 @@ export interface components {
             revenue_category_id?: string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
             /** Season Id */
             season_id?: string | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Show Players */
             show_players?: boolean | null;
             /** Standings Columns */
@@ -25761,6 +25820,10 @@ export interface components {
             round_no: number | null;
             /** Schedule Run Id */
             schedule_run_id: string | null;
+            /** Set Scores */
+            set_scores?: string | null;
+            /** Sets Best Of */
+            sets_best_of?: number | null;
             /** Sport Id */
             sport_id?: string | null;
             /** Starts At */
@@ -25829,6 +25892,8 @@ export interface components {
             participation: "full" | "default" | "forfeit";
             /** Score */
             score?: number | null;
+            /** Sets */
+            sets?: number[] | null;
             /** Sportsmanship */
             sportsmanship?: number | string | null;
             /**
@@ -25852,6 +25917,11 @@ export interface components {
             participation: string;
             /** Score */
             score: number | null;
+            /**
+             * Sets
+             * @default []
+             */
+            sets: number[];
             /** Sportsmanship */
             sportsmanship: string | null;
             /** Went To Overtime */
@@ -26788,6 +26858,8 @@ export interface components {
         KioskCheckInResult: {
             /** Attended */
             attended: components["schemas"]["KioskAttendedOut"][];
+            /** Attended Count */
+            attended_count: number;
             /**
              * Check In Id
              * Format: uuid
@@ -26914,7 +26986,9 @@ export interface components {
         };
         /**
          * KioskSession
-         * @description A session on the kiosk reservation page: title and times only, never prices or plan names.
+         * @description A session on the kiosk reservation page: title and times only, never prices or plan names. Unless the visit
+         *     was identified by possession, the page is the same for every visitor: `is_booked` is false and `is_bookable`
+         *     reflects public facts only; the visitor's standing is judged when a booking is attempted (409 see-staff).
          */
         KioskSession: {
             /**
@@ -27137,6 +27211,50 @@ export interface components {
             summary?: string | null;
             /** Title */
             title?: string | null;
+        };
+        /** LeagueNightIn */
+        LeagueNightIn: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Notes */
+            notes?: string | null;
+            /** Resource Ids */
+            resource_ids: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** LeagueNightOut */
+        LeagueNightOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string;
         };
         /** LeaguePhotoOut */
         LeaguePhotoOut: {
@@ -27489,6 +27607,16 @@ export interface components {
             points: string;
             /** Rank */
             rank: number;
+            /**
+             * Set Points Against
+             * @default 0
+             */
+            set_points_against: number;
+            /**
+             * Set Points For
+             * @default 0
+             */
+            set_points_for: number;
             /** Sportsmanship Avg */
             sportsmanship_avg: string | null;
             /** Team Name */
@@ -36702,6 +36830,8 @@ export interface components {
             round_name: string;
             /** Round No */
             round_no: number;
+            /** Set Scores */
+            set_scores?: string | null;
             /** Side */
             side: string;
             /** Starts At */
@@ -36790,6 +36920,11 @@ export interface components {
             registration_url: string | null;
             /** Rules Text */
             rules_text: string | null;
+            /**
+             * Scoring Mode
+             * @default points
+             */
+            scoring_mode: string;
             /** Season Id */
             season_id: string | null;
             /** Show Players */
@@ -37067,6 +37202,8 @@ export interface components {
             id: string;
             /** Round Label */
             round_label: string | null;
+            /** Set Scores */
+            set_scores?: string | null;
             /** Starts At */
             starts_at: string | null;
             /** Status */
@@ -41262,6 +41399,8 @@ export interface components {
         };
         /** SportCreate */
         SportCreate: {
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /**
              * Default Game Length Min
              * @default 60
@@ -41296,6 +41435,16 @@ export interface components {
             points_win?: number | string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Standings Columns */
             standings_columns?: components["schemas"]["StandingsColumn"][] | null;
             /** Standings Sort */
@@ -41305,6 +41454,8 @@ export interface components {
         };
         /** SportOut */
         SportOut: {
+            /** Deciding Set Points To */
+            deciding_set_points_to: number | null;
             /** Default Game Length Min */
             default_game_length_min: number;
             /** Default Team Fee Minor */
@@ -41338,6 +41489,16 @@ export interface components {
             points_win: string;
             /** Rules Text */
             rules_text: string | null;
+            /** Scoring Mode */
+            scoring_mode: string;
+            /** Set Cap */
+            set_cap: number | null;
+            /** Set Points To */
+            set_points_to: number | null;
+            /** Set Win By */
+            set_win_by: number;
+            /** Sets Best Of */
+            sets_best_of: number | null;
             /** Standings Columns */
             standings_columns: {
                 [key: string]: unknown;
@@ -41351,6 +41512,8 @@ export interface components {
         };
         /** SportUpdate */
         SportUpdate: {
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /** Default Game Length Min */
             default_game_length_min?: number | null;
             /** Default Team Fee Minor */
@@ -41379,6 +41542,16 @@ export interface components {
             points_win?: number | string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Standings Columns */
             standings_columns?: components["schemas"]["StandingsColumn"][] | null;
             /** Standings Sort */
@@ -41803,7 +41976,7 @@ export interface components {
              * Metric
              * @enum {string}
              */
-            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H" | "SW" | "SL" | "SR" | "PR";
         };
         /** StandingsSort */
         StandingsSort: {
@@ -41817,7 +41990,7 @@ export interface components {
              * Metric
              * @enum {string}
              */
-            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H" | "SW" | "SL" | "SR" | "PR";
         };
         /** StatDefinitionCreate */
         StatDefinitionCreate: {
@@ -54721,6 +54894,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    blockLeagueNight: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueNightIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueNightOut"];
                 };
             };
             /** @description Validation Error */

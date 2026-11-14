@@ -49,6 +49,25 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] Migration 1022 also adds `kiosk_device.exit_pin_failure_count`; README credits it with `kiosk_match` only. Docs batch.
 - [x] [undocumented] The data subject handler also exports check-ins, credentials and access mode (`access/subject.py:39-50`); README covers merge and erasure only. Docs batch.
 
+Found 2026-11-13 (report refreshed on `claude/fix-kiosk-name-oracle`; file:line in [drift/access.md](drift/access.md)):
+
+- [ ] [stale-not-built] README 151-152: alert codes `payment_method_expired`, `birthday`, `photo_missing` are catalogued but `evaluate()` never raises them.
+- [ ] [contract] `checkOut`, `createCheckInAttendance`, `setClientAccessMode` name the wrong permission keys in the contract; `getClientIdCard` says PDF, the route returns JSON.
+- [ ] [contract] Wallet-pass routes differ from the contract's single deferred `getWalletPass`.
+- [ ] [contract] Kiosk schemas (`KioskSettings`, `KioskMatch`, `KioskSession`, `KioskConfig`, `KioskCheckInResult`) declare fields the code lacks or omit ones it returns (`has_exit_pin`, `exit_pin`, `welcome_message`).
+- [ ] [contract] `createKioskCheckIn` and `createKioskAttendance` are `x-idempotent: required`, but the code accepts a missing `Idempotency-Key`.
+- [ ] [contract] The Redis-outage 429 `kiosk-locked-out` behaviour is not in the contract.
+- [ ] [undocumented] Lookup rules (`lookup_method`, `lookup-method-disabled`, name-search minimums, `card-invalid`).
+- [ ] [undocumented] Event `access.check_in.session_booked`; the `clients.client.disabled` handler that revokes wallet passes.
+- [ ] [undocumented] `POST /check-ins/evaluate`, `GET /clients/{client_id}/access-mode`; per-IP limits on `/kiosk/pair` and `/kiosk/lookups`.
+- [ ] [undocumented] A repeat entry ends when the first visit is checked out; a new app card revokes the previous one with the same device label.
+- [ ] [wording] "Minors are not listed" holds for name search only; auto-book skips when any place is held on the page, not only in the window; hidden details follow `hidden_detail_fields`; `check_in_attendance` also holds booking rows.
+- [ ] [contract] `KioskCheckInResult.attended` refers to `CheckInAttendance` (needs `target_id`, `was_auto_booked`); the code sends `KioskAttendedOut` (`target_type`, `session_id`).
+- [ ] [undocumented] The reservation page is capped at 50 sessions and drops hidden, unlisted and beyond-`visible_range_days` sessions.
+- [ ] [wording] README 104-105 says `visits/end` ends every token the device holds; it ends only the named visit's.
+- [ ] [wording] README 212-213 says booking a held place is always a check-in; the rules run first, so a full or refused session is refused even when held.
+- [ ] [wording] A stale app-card QR is 404 `card-code-expired` at check-in only; a lookup returns no matches.
+
 ### assessments (7) — [evidence](drift/assessments.md)
 
 - [x] **"Not built: mobile screens" is stale (README line 52).** The mobile app has a Progress screen built on the portal bests route: `mobile/src/app/progress.tsx:21-32` uses `listProgress` → `GET /portal/assessment-bests` (`mobile/src/adapters/api.ts:177`), and `mobile/README.md:46` lists it. Docs batch.
@@ -333,6 +352,14 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 - [x] [undocumented] Portal self-service routes for turning off auto-renew on a package and on a series exist (`backend/app/modules/packages/service.py:1236`, `:1248`). The README mentions portal routes only generically (line 11). Docs batch.
 - [ ] [contract] `portalQuoteClientPackage` (POST `/portal/client-packages/quote`, "Preview an online package purchase", `docs/api/openapi-people.yaml` around line 5208) is not served. The generated `backend/openapi.json` has no such path, and `backend/app/modules/packages/router.py` has only the staff `/client-packages/quote` (`:95`). The "Not built" list (lines 42-49) names only `setClientPackageRenewal` as a missing route.
 - [x] [wording] Line 74 says GET operation ids start with get/list. The actual renames go beyond that prefix rule: the spec's `portalListClientPackages`, `portalListClientPackageLedger`, `portalListPackagePlans` and `publicListPackagePlans` are served as `listPortalClientPackages`, `listPortalClientPackageLedger`, `listPortalPackagePlans` and `listPublicPackagePlans` (`backend/openapi.json`). The README doesn't list these renames, unlike the documents README. Fixed in 96dbe58.
+- [ ] [stale-not-built] README 55-56 lists `portalQuoteClientPackage` as not built, but it is served (`backend/app/modules/packages/router.py:224`, `service.py:688`). Docs batch.
+- [ ] [stale-not-built] README 53 lists "coupons" as not built, but the portal buy accepts `coupon_code` (`service.py:1245,1255`). Docs batch.
+- [ ] [contract] `setClientPackageRenewal` is still declared in `docs/api/openapi-people.yaml:5267` but not served; README 54 does not say the contract is ahead. Docs batch.
+- [ ] [contract] The whole post-billed surface (`router.py:118,269-311`) is missing from `docs/api/*.yaml`; the README does not say so.
+- [ ] [undocumented] `packages.post_billed.period_closed` (`events.py:57`) is missing from README 12, and `postbilled.py` from the file table. Docs batch.
+- [ ] [undocumented] Portal buy's terms acknowledgement (`service.py:1240`) and the portal quote's online document rules (`service.py:688-720`) are not in the README. Docs batch.
+- [ ] [undocumented] `reserve_credit(..., defer_renewal)` (`service.py:328`; used at `programs/service.py:97`) is missing from README 26 and the threshold rule at 110-111. Docs batch.
+- [ ] [wording] README 8 says "six tables"; `models.py` has eleven. README 105-106 ("matrix has no override key") contradicts 137 and `service.py:1032`. README 37 ("built in another lane") contradicts 132-133. Docs batch.
 
 ### platform (17 open, 1 closed) — [evidence](drift/platform.md)
 
@@ -535,6 +562,13 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [contract] (2026-11-13) recipients and five /report-schedules* routes not in the contract; about a dozen more shape mismatches (see report)
 - [ ] [stale] (2026-11-13) module docstrings and docs/status/15-reporting.md, docs/status/README.md counts out of date (see report)
 
+### reporting (+4, recheck 2026-11-13 on claude/fix-ci-midnight) — [evidence](drift/reporting.md)
+
+- [ ] [contract] Every reporting operation in the contract declares `apiKey` security (e.g. `openapi-programs.yaml:6217`, `:6362`, `:6425`) while README:36 and `service.py:48-52` refuse keys.
+- [ ] [wording] README:14 names `test_view_columns_match_the_contract`; the test is `test_views_match_their_column_contract_and_run_as_the_invoker` (`tests/test_reporting.py:115`).
+- [ ] [wording] README:89, :122 use "chip A/B/C" with no meaning in the code.
+- [ ] [wording] ADR 0010 line 52 puts specs in `reporting/catalog/<context>.py`; code uses `reporting/reports/<family>.py`.
+
 ## Added on claude/owner-decisions-1 (drift refresh 2026-11-13)
 Re-run for access, billing and programs after the kiosk reservation page. Items already listed above are not repeated.
 
@@ -567,6 +601,7 @@ Re-run for access, billing and programs after the kiosk reservation page. Items 
 - [ ] [contract] listRecentProgramGroups, applyPortalCheckoutCoupon and five REG-26 roster-invite operations have no route; guest-checkout, saved views, page settings, form image, public form submit, submission promote and classifier delete routes are missing from openapi-programs.yaml; path parameter session_id vs schedule_session_id.
 - [ ] [undocumented] file and models tables omit files and nine tables; onboarding step in __init__.py not described.
 - [ ] [wording] README line 6 names only migration 0611; 1401, 1501 and 1521 also carry programs tables.
+- [ ] [contract] Registration config: the yaml has `payment_policy` (`pay_in_full`, `deposit`, `instalments`, `pay_later`, openapi-programs.yaml:7691); the code has `payment_plan` with three values and no `pay_later` (schemas.py:326).
 
 ### Refresh after the kiosk possession rule and visit token (2026-11-13)
 Access, billing and programs re-run; programs found nothing new. New items only:
@@ -608,3 +643,32 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:11,20 "one send path"; duplicate-skip row and inbox writes bypass `_deliver` (`service.py:943-966,1451-1458`)
 - [ ] [wording] `router.py:422-423` docstring says a token moves to the new login; code revokes and re-adds (`service.py:1296-1303`)
 - [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says
+
+## Added on claude/league-set-scoring (drift refresh 2026-11-13)
+Leagues re-run after set scoring (migration 2001) and league nights. Items already listed above (alert.send, rate limits, file map, competition_of, YAML departures, single-elimination wording) still hold and are not repeated. An earlier [missing] item (presets, dialogs and seed values) is fixed in the tree and removed.
+
+### leagues — [evidence](drift/leagues.md)
+
+- [ ] [wording] README:8 names migrations 1101 and 1441 (16 + 6 tables) but not 1421 (8 more, 30 in all).
+- [ ] [undocumented] Set scoring: problem code `invalid-set-score` (`service.py:1403`), game view `sets_best_of` (`schemas.py:533`), public competition `scoring_mode` (`schemas.py:916`), sets game card boxes (`depth.py:686`).
+- [ ] [undocumented] League nights: nothing carved while another booking is in the way, block is `unavailable`, carved original cancelled with reason `other` (`scheduling/service.py:463-485`, `leagues/service.py:1061`).
+- [ ] [wording] README security table (55-68) has no row for league nights or the B2 surface; `tests/test_site.py` and `tests/test_set_scoring.py` are not cited.
+
+## scheduling (refresh 2026-11-13, README with the `gives_way` paragraph; evidence in `drift/scheduling.md`)
+
+- [ ] [stale-not-built] README:127-129 files the public schedule routes under "Not built"; they are served (`backend/app/modules/integrations/router.py:431,437,446`)
+- [ ] [stale-not-built] README:129 files calendar feeds (SCH-19) under "Not built"; `integrations/feeds.py:1-9` implements them
+- [ ] [missing] README:32,104-105 say programs' portal flow calls `materialise_slot` then `reserve_seat`; nothing outside scheduling calls `offers.materialise_slot` or `book_slot` (`scheduling/offers.py:275,326`)
+- [ ] [contract] README:15 "eight more" unrouted contract operations; only `createSlotOfferDirectLink` is unrouted (`docs/api/openapi-core.yaml:3443-3445`), two more sit at other paths
+- [ ] [contract] `resolveDirectLink` is `GET /public/direct-links/{token}` in the contract (`openapi-core.yaml:3458`), `POST /public/direct-links/resolve` with the token in the body in code, session only (`scheduling/router.py:355-361`)
+- [ ] [contract] `mergeBookingSeries` is `/booking-series/{id}/merge` in the contract (`openapi-core.yaml:3504`), `/bookings/{id}/merge` in code (`scheduling/router.py:396`)
+- [ ] [contract] `direct-link/regenerate` and the four booking-participant routes have no yaml operation (`scheduling/router.py:341,368-387`)
+- [ ] [contract] path parameter is `session_id` in the yaml (`openapi-core.yaml:3414`) but `schedule_session_id` in code (`scheduling/router.py:288,333`)
+- [ ] [contract] `packages/handlers.py:32` subscribes to `scheduling.booking.completed`, which scheduling never publishes (`scheduling/events.py`)
+- [ ] [undocumented] five emitted events missing from README:17 (`events.py:90,108,112,116,123`); integrations also subscribes (`integrations/handlers.py:24,30`)
+- [ ] [undocumented] `booking_participant` missing from the README:9 table (`models.py:380`); `sharing.py` missing from the file table (README:7-18)
+- [ ] [undocumented] interface block omits `get_sessions`, `get_type`, `hold_plan`, `reservation_type_exists`, `reservation_type_location`, `hours_warnings` (`scheduling/service.py:898,250,397,1997,1027,1281`); signatures omit `gives_way`, `local`, `slot` (`service.py:652,719`)
+- [ ] [wording] README:60-63 `gives_way`: only resources the newcomer touches are split, the rest keep the whole span; pieces have zero buffers and cancel reason `other` (`service.py:480-492`)
+- [ ] [wording] README:51-52 "closure blocks never count"; every block is excluded (`service.py:1038`)
+- [ ] [wording] README:129 `rpt_booking`; reporting has `rpt_booking_start` (`reporting/views.py:212`)
+- [ ] [wording] README:15 "40 operations of tag `scheduling`"; the tag has 46, the router serves 40 at the contract path

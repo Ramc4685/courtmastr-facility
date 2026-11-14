@@ -149,10 +149,11 @@ def acting_client(session: Db, principal: Principal, client_id: UUID | None, cap
 
 
 def _verdict(
-    session: Db, seat: dict, policy: dict, client_id: UUID, member: bool | None, *, linked: bool = False
+    session: Db, seat: dict, policy: dict, client_id: UUID | None, member: bool | None, *, linked: bool = False
 ) -> str | None:
     """Why the client may not book this session now, or None. A live direct link (SCH-16) waives only the
-    listing and self-booking checks; cutoff, membership and capacity still apply."""
+    listing and self-booking checks; cutoff, membership and capacity still apply. `member` None reads it for
+    `client_id`."""
     if policy["listing_mode"] == "list_only" and not linked:
         return "list-only"
     if not seat["is_self_bookable"] and not linked:
@@ -160,7 +161,7 @@ def _verdict(
     if seat["starts_at"] - clock.now() < timedelta(minutes=policy["booking_cutoff_minutes"]):
         return "cutoff-passed"
     if policy["requires_active_membership"] and not (
-        member if member is not None else memberships.service.is_member(session, client_id)
+        member if member is not None else client_id is not None and memberships.service.is_member(session, client_id)
     ):
         return "members-only"
     if seat["booked_count"] >= seat["capacity"]:
@@ -281,18 +282,23 @@ def _paying_package(session: Db, seat: dict, client_id: UUID) -> UUID | None:
     return found[0].id if found else None
 
 
-def kiosk_sessions(session: Db, client_id: UUID, location_id: UUID, until, *, free_only: bool = False) -> list[dict]:
+def kiosk_sessions(
+    session: Db, client_id: UUID | None, location_id: UUID, until, *, free_only: bool = False
+) -> list[dict]:
     """Internal (access, the kiosk reservation page): the location's sessions starting from now until `until`,
     listed and judged by the portal's rules (listing mode, cutoff, members-only, capacity), each with whether the
     client holds a place and may book it here: free booking or a package that pays, as the portal requires.
-    `free_only` (a client the kiosk found by name): only free booking counts, so nothing would be spent."""
+    `free_only`: only free booking counts, so nothing would be spent. `client_id` None (a visit the kiosk did not
+    identify by possession): the same page for everyone, on public facts only; no places held, no membership, no
+    packages, so a name typed at the tablet learns nothing about that person."""
     now = clock.now()
     seats = scheduling.service.session_window(session, now, until, location_id=location_id, limit=50)
     booked = set(session.scalars(select(Enrollment.session_id).where(
         Enrollment.client_id == client_id, Enrollment.status == "enrolled",
         Enrollment.session_id.in_([seat["id"] for seat in seats]),
-    ))) if seats else set()  # fmt: skip
-    member = memberships.service.is_member(session, client_id)
+    ))) if seats and client_id else set()  # fmt: skip
+    # Anonymous: members-only is judged at the attempt, never on the page.
+    member = True if client_id is None else memberships.service.is_member(session, client_id)
     out, cache = [], {}
     for seat in seats:
         key = (seat["location_id"], seat["reservation_type_id"])
@@ -306,7 +312,7 @@ def kiosk_sessions(session: Db, client_id: UUID, location_id: UUID, until, *, fr
         if reason == "full" and policy["hides_full_sessions"] and not is_booked:
             continue
         payable = seat["allows_free_booking"] or (
-            not free_only and _paying_package(session, seat, client_id) is not None
+            not free_only and client_id is not None and _paying_package(session, seat, client_id) is not None
         )
         out.append({
             "target_type": "session", "target_id": seat["id"], "title": seat["public_title"] or seat["title"],
@@ -322,7 +328,9 @@ def kiosk_enroll(
     """Internal (access): book a session from the kiosk reservation page under the portal's rules. The kiosk adds
     no bypass: no direct link, no override, no free booking where the session needs a package. It pays with free
     booking where the session allows it, else (unless `free_only`) the client's soonest-to-expire package that
-    covers it. Errors: outside-check-in-window, capacity-full, policy-violation, already-enrolled, no-entitlement."""
+    covers it. Errors: outside-check-in-window, capacity-full, policy-violation, already-enrolled, no-entitlement.
+    The rules run before already-enrolled, so a full session answers capacity-full whether or not the client
+    holds a place in it (by name, a booking must not probe someone's places); the check-in marks a held place."""
     clients.service.require_active(session, client_id)
     seat, policy = _bookable_seat(session, session_id, client_id)
     if policy["listing_mode"] == "unlisted" or seat["location_id"] != location_id:
