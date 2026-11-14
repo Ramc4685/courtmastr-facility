@@ -41,7 +41,8 @@ test('coach revenue share: terms, share rule and payout dialogs pass axe and say
 test("a coach's own earnings page passes axe and shows no share rule", async ({ page }) => {
   await signIn(page, 'coach@courtside-demo.example.com', '/staff-time/my-earnings')
   await expect(page.getByRole('heading', { level: 1, name: 'My earnings' })).toBeVisible()
-  await expect(page.getByRole('table', { name: 'My payout statements' })).toBeVisible()
+  // The seed has no statements, so the list shows its empty state; a lane where statements were made shows the table.
+  await expect(page.getByRole('table', { name: 'My payout statements' }).or(page.getByText('No statements yet'))).toBeVisible()
   await expect(page.getByText('Share rules')).toHaveCount(0)
   await scan(page, 'my earnings')
 })
