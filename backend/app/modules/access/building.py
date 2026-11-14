@@ -12,7 +12,8 @@ end. Only changes are sent, so back-to-back bookings never flicker, a missed tic
 cancelled or moved booking is corrected within a minute. A failed command is retried every tick; the third failure
 in a row emails the location's alert address.
 
-Internal (no principal): `sync_booking_code`, `control_steps`, `run_control_step`, `verify_code`, `deliver_code_to`. Staff and
+Internal (no principal): `sync_booking_code`, `control_steps`, `run_control_step`, `verify_code`, `deliver_code_to`,
+`controller_call`. Staff and
 portal commands carry both gates."""
 
 import asyncio
@@ -413,14 +414,49 @@ def mark_notified(session: Session, entry_code_id) -> None:
     audit.record(session, "access.entry_code.notify", row, location_id=row.location_id, changes={"notified": True})
 
 
-def _push(session: Session, row: EntryCode, code: str, *, quiet: bool = False) -> None:
-    """Hand the code to every door's controller that stores codes (offline keypads), door by door: a refusal at one
-    does not stop the others. `pushed_at` only once every door has it; until then the tick pushes again (quietly:
-    one failure row, not one a minute). A revoke goes to every door whatever was pushed."""
+def _pushes_codes() -> bool:
     controller = building_control.current()
-    if controller is None or not controller.supports_code_push:
+    return controller is not None and controller.supports_code_push
+
+
+def _after_commit(session: Session, row: EntryCode, op: Literal["push", "revoke"], quiet: bool) -> None:
+    """Controller calls run after the caller's transaction commits (a rolled-back code never reaches a keypad, and
+    no transaction waits on a controller), each in a short one of its own (`jobs.controller_call`, run at once)
+    holding that code's row lock, so a push and a revoke of one code reach the controller in commit order."""
+    tenant_id, code_id = str(session.info["tenant_id"]), str(row.id)
+
+    def call() -> None:
+        from app.modules.access import jobs  # jobs imports this module
+
+        try:
+            jobs.controller_call.fn(tenant_id, code_id, op, quiet)
+        except Exception as exc:  # a failed call must not stop the other after-commit hooks; the tick retries
+            log.error("controller %s for entry code %s failed (%s)", op, code_id, type(exc).__name__)
+
+    session.info.setdefault("after_commit", []).append(call)
+
+
+def controller_call(session: Session, entry_code_id: str, op: str, quiet: bool) -> None:
+    """Internal (after commit, `_after_commit`): push or revoke one code under its row lock."""
+    row = session.scalar(select(EntryCode).where(EntryCode.id == UUID(entry_code_id)).with_for_update())
+    if row is not None:
+        (_push_now if op == "push" else _revoke_now)(session, row, quiet)
+
+
+def _push(session: Session, row: EntryCode, *, quiet: bool = False) -> None:
+    """Hand the code, after commit, to every door's controller that stores codes (offline keypads)."""
+    if _pushes_codes():
+        _after_commit(session, row, "push", quiet)
+
+
+def _push_now(session: Session, row: EntryCode, quiet: bool) -> None:
+    """Door by door: a refusal at one does not stop the others. `pushed_at` only once every door has it; until then
+    the tick pushes again (quietly: one failure row, not one a minute). A revoke goes to every door whatever was
+    pushed. A code revoked, expired or already pushed by the time this runs is skipped."""
+    controller = building_control.current()
+    if controller is None or row.status != "active" or row.pushed_at is not None or row.valid_until_at <= clock.now():
         return
-    failed = False
+    code, failed = _plain(row, session.info["tenant_id"]), False
     for door in _doors(session, row.location_id):
         try:
             controller.push_code(*_site(door), door.device_ref,
@@ -432,6 +468,16 @@ def _push(session: Session, row: EntryCode, code: str, *, quiet: bool = False) -
             _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="push_code")
         return
     row.pushed_at = clock.now()
+
+
+def _revoke_now(session: Session, row: EntryCode, quiet: bool) -> None:
+    """`revoke_due` is cleared once every door confirmed; the first failure writes one row, retries none."""
+    if not row.revoke_due:
+        return
+    if _send_revoke(session, row):
+        row.revoke_due = False
+    elif not quiet:
+        _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="revoke_code")
 
 
 def _send_revoke(session: Session, row: EntryCode) -> bool:
@@ -482,7 +528,7 @@ def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datet
     _event(session, location_id, "code_issued", entry_code_id=row.id)
     session.execute(delete(EntryCodeHold).where(EntryCodeHold.booking_id == booking["id"],
                                                 EntryCodeHold.client_id == client_id))  # fmt: skip
-    _push(session, row, code)
+    _push(session, row)
     deliver_code_to(session, row, client_id)  # notified_at is set once the email adapter accepts it
     return row
 
@@ -501,9 +547,9 @@ def _revoke(session: Session, row: EntryCode, reason: str) -> None:
     events.publish(session, ev.EntryCodeRevoked(entry_code_id=row.id, booking_id=row.booking_id,
                                                 location_id=row.location_id, reason=reason), row.id)  # fmt: skip
     _event(session, row.location_id, "code_revoked", entry_code_id=row.id, detail=reason)
-    if not _send_revoke(session, row):  # sent even after a partial push; retried by the tick until confirmed
+    if _pushes_codes():  # sent after commit even after a partial push; retried by the tick until confirmed
         row.revoke_due = True
-        _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="revoke_code")
+        _after_commit(session, row, "revoke", False)
     session.flush()
 
 
@@ -1180,25 +1226,22 @@ def override_zone(session: Session, principal: Principal, zone_id: UUID, data: d
 
 
 def _retry_pushes(session: Session, location_id: UUID) -> None:
-    controller = building_control.current()
-    if controller is None or not controller.supports_code_push:
+    if not _pushes_codes():
         return
     for row in session.scalars(select(EntryCode).where(
         EntryCode.location_id == location_id, EntryCode.status == "active", EntryCode.pushed_at.is_(None),
         EntryCode.valid_until_at > clock.now(),
     )):  # fmt: skip
-        _push(session, row, _plain(row, session.info["tenant_id"]), quiet=True)
+        _after_commit(session, row, "push", True)
 
 
 def _retry_revokes(session: Session, location_id: UUID) -> None:
-    """Revokes the controller has not confirmed, again every tick until it does (no new failure rows)."""
+    """Revokes the controller has not confirmed, again every tick (after commit) until it does (no new failure
+    rows)."""
     if building_control.current() is None:
         return
-    rows = session.scalars(select(EntryCode).where(EntryCode.location_id == location_id, EntryCode.revoke_due)
-                           .with_for_update(skip_locked=True)).all()  # fmt: skip
-    for row in rows:
-        if _send_revoke(session, row):
-            row.revoke_due = False
+    for row in session.scalars(select(EntryCode).where(EntryCode.location_id == location_id, EntryCode.revoke_due)):
+        _after_commit(session, row, "revoke", True)
 
 
 def expire_codes(session: Session, location_id: UUID) -> int:
@@ -1224,8 +1267,15 @@ def sync_location_codes(session: Session, location_id: UUID) -> None:
     ids = set(session.scalars(stmt)) | set(session.scalars(select(EntryCode.booking_id).where(
         EntryCode.location_id == location_id, EntryCode.status == "active", EntryCode.valid_until_at > now)))  # fmt: skip
     views = scheduling.service.booking_views(session, ids)
-    for booking_id in sorted(ids):
-        sync_booking_code(session, booking_id, views.get(booking_id))
+    hooks = session.info.setdefault("after_commit", [])
+    for booking_id in sorted(ids):  # one bad booking is skipped (and retried next tick), never the whole location
+        queued = len(hooks)
+        try:
+            with session.begin_nested():
+                sync_booking_code(session, booking_id, views.get(booking_id))
+        except Exception as exc:
+            del hooks[queued:]  # its emails and controller calls belong to rows that were rolled back
+            log.error("entry code sync failed for booking %s (%s)", booking_id, type(exc).__name__)
     _retry_pushes(session, location_id)
     _retry_revokes(session, location_id)
 

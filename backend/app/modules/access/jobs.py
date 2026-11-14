@@ -33,3 +33,9 @@ def run_building_control(tenant_id: str) -> None:
 def mark_code_notified(session, entry_code_id: str) -> None:
     """Called right after the email adapter accepted a code email (not queued: the hand-off has happened)."""
     building.mark_notified(session, entry_code_id)
+
+
+@tenant_actor
+def controller_call(session, entry_code_id: str, op: str, quiet: bool) -> None:
+    """Called right after a commit that issued or revoked a code (not queued): one push or revoke of that code."""
+    building.controller_call(session, entry_code_id, op, quiet)

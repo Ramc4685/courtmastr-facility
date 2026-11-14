@@ -1396,3 +1396,29 @@ def test_simulated_adapter_is_refused_outside_dev_and_test(monkeypatch, tmp_path
         get_settings.__wrapped__()
     (tmp_path / "app.prod.yaml").write_text(base)
     assert get_settings.__wrapped__().building_control.adapter == "none"
+
+
+def test_one_failing_booking_never_rolls_back_the_ticks_other_codes_or_reaches_a_keypad(b, sim, mailbox, monkeypatch):
+    """Each booking syncs under its own savepoint; controller calls and code emails run only after commit, so the
+    failing booking's rolled-back code is never pushed nor sent, and the others still are."""
+    with clock.freeze(at(9)):
+        good, bad = book(b, 10, 11), book(b, 12, 13)
+        real = building.deliver_code_to
+
+        def flaky(session, row, client_id):
+            if str(row.booking_id) == bad:
+                raise RuntimeError("boom")
+            return real(session, row, client_id)
+
+        monkeypatch.setattr(building, "deliver_code_to", flaky)
+        tick(b)
+        [kept] = codes(b, good)
+        assert codes(b, bad) == [] and kept.pushed_at is not None
+        assert [c for c in sim.calls if c[0] == "push_code"] == [("push_code", "door-front", str(kept.id))]
+        assert len(mailbox) == 1
+        monkeypatch.setattr(building, "deliver_code_to", real)
+        sim.calls.clear()
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            building.sync_booking_code(session, UUID(bad))
+            assert sim.calls == []  # nothing reaches the controller before the commit
+        assert [c[0] for c in sim.calls] == ["push_code"]

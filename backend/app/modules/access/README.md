@@ -279,8 +279,14 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   booking's code is revoked and a new one issued and sent; a cancelled booking's code is revoked; codes are pushed
   to and revoked from controllers that store codes, door by door. `pushed_at` is set only once every door holds the
   code; until then the tick pushes again. A revoke goes to every door whatever was pushed (a partial push still gets
-  revoked); one the controller does not confirm sets `revoke_due` (migration 1978) and the tick retries it until it
-  is confirmed. Each of these writes one `command_failed` row, not one per retry. Issue and revoke publish
+  revoked); a revoke sets `revoke_due` (migration 1978) until every door confirms, and the tick retries it until
+  then. Each of these writes one `command_failed` row, not one per retry. Pushes and revokes run only after the
+  transaction that issued or revoked the code commits (`jobs.controller_call`, called at once from the after-commit
+  hook), each in its own short transaction holding that code's row lock: a rolled-back code never reaches a keypad,
+  no transaction waits on a controller, and a push and a revoke of one code reach it in commit order (a push that
+  finds its code revoked or already pushed does nothing). The tick syncs each booking under its own savepoint: one
+  that fails is logged with its booking id, its queued emails and controller calls are dropped, and the rest of the
+  location's issues and revokes still commit; it is retried next minute. Issue and revoke publish
   `access.entry_code.issued` and `access.entry_code.revoked`.
 - **Codes retire (migration 1976).** At its window's end a code becomes `expired` (audited, no event) and, like a
   revoked one, loses its sealed copy, so only an open or upcoming code can ever be shown again. The tick reads only
