@@ -41,6 +41,10 @@ def shop(w, client, owner):
     return type("Shop", (), {"buy": staticmethod(buy), "today": today, "member": member})
 
 
+def _portal(shop, key: str) -> str:
+    return f"portal:{shop.member.identity_id}:{key}"  # a client's key is bound to its identity (billing.checkout)
+
+
 def _contracts(w) -> int:
     return scalar(w.tenant, select(func.count()).select_from(MembershipContract))
 
@@ -77,7 +81,7 @@ def test_a_processor_timeout_sells_nothing_and_the_retry_sells_once(w, shop):
     assert (timeout.value.status, timeout.value.code, _contracts(w)) == (503, "provider-unavailable", 0)
     sold = shop.buy(key, method_token="tok_card_unknown")
     assert sold["payment_status"] == "succeeded" and _contracts(w) == 1
-    assert len(charges(w.tenant, w.person["id"])) == 1 and provider_payments(w, key) == 1  # charged once
+    assert len(charges(w.tenant, w.person["id"])) == 1 and provider_payments(w, _portal(shop, key)) == 1  # charged once
 
 
 def test_sale_cannot_carry_what_the_seller_may_not_do(w, client, owner):
@@ -108,4 +112,5 @@ def test_a_key_spent_on_a_package_buys_no_membership(w, shop, client, owner):
         assert packages.service.portal_buy(session, shop.member, body, key)["payment_status"] == "succeeded"
     with pytest.raises(ValidationFailed) as reused:
         shop.buy(key, method_token="tok_card_ok")
-    assert (reused.value.code, _contracts(w), provider_payments(w, key)) == ("idempotency-key-reused", 0, 1)
+    paid = provider_payments(w, _portal(shop, key))
+    assert (reused.value.code, _contracts(w), paid) == ("idempotency-key-reused", 0, 1)
