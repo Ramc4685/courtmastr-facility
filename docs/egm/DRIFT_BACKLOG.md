@@ -49,6 +49,25 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] Migration 1022 also adds `kiosk_device.exit_pin_failure_count`; README credits it with `kiosk_match` only. Docs batch.
 - [x] [undocumented] The data subject handler also exports check-ins, credentials and access mode (`access/subject.py:39-50`); README covers merge and erasure only. Docs batch.
 
+Found 2026-11-13 (report refreshed on `claude/fix-kiosk-name-oracle`; file:line in [drift/access.md](drift/access.md)):
+
+- [ ] [stale-not-built] README 151-152: alert codes `payment_method_expired`, `birthday`, `photo_missing` are catalogued but `evaluate()` never raises them.
+- [ ] [contract] `checkOut`, `createCheckInAttendance`, `setClientAccessMode` name the wrong permission keys in the contract; `getClientIdCard` says PDF, the route returns JSON.
+- [ ] [contract] Wallet-pass routes differ from the contract's single deferred `getWalletPass`.
+- [ ] [contract] Kiosk schemas (`KioskSettings`, `KioskMatch`, `KioskSession`, `KioskConfig`, `KioskCheckInResult`) declare fields the code lacks or omit ones it returns (`has_exit_pin`, `exit_pin`, `welcome_message`).
+- [ ] [contract] `createKioskCheckIn` and `createKioskAttendance` are `x-idempotent: required`, but the code accepts a missing `Idempotency-Key`.
+- [ ] [contract] The Redis-outage 429 `kiosk-locked-out` behaviour is not in the contract.
+- [ ] [undocumented] Lookup rules (`lookup_method`, `lookup-method-disabled`, name-search minimums, `card-invalid`).
+- [ ] [undocumented] Event `access.check_in.session_booked`; the `clients.client.disabled` handler that revokes wallet passes.
+- [ ] [undocumented] `POST /check-ins/evaluate`, `GET /clients/{client_id}/access-mode`; per-IP limits on `/kiosk/pair` and `/kiosk/lookups`.
+- [ ] [undocumented] A repeat entry ends when the first visit is checked out; a new app card revokes the previous one with the same device label.
+- [ ] [wording] "Minors are not listed" holds for name search only; auto-book skips when any place is held on the page, not only in the window; hidden details follow `hidden_detail_fields`; `check_in_attendance` also holds booking rows.
+- [ ] [contract] `KioskCheckInResult.attended` refers to `CheckInAttendance` (needs `target_id`, `was_auto_booked`); the code sends `KioskAttendedOut` (`target_type`, `session_id`).
+- [ ] [undocumented] The reservation page is capped at 50 sessions and drops hidden, unlisted and beyond-`visible_range_days` sessions.
+- [ ] [wording] README 104-105 says `visits/end` ends every token the device holds; it ends only the named visit's.
+- [ ] [wording] README 212-213 says booking a held place is always a check-in; the rules run first, so a full or refused session is refused even when held.
+- [ ] [wording] A stale app-card QR is 404 `card-code-expired` at check-in only; a lookup returns no matches.
+
 ### assessments (7) — [evidence](drift/assessments.md)
 
 - [x] **"Not built: mobile screens" is stale (README line 52).** The mobile app has a Progress screen built on the portal bests route: `mobile/src/app/progress.tsx:21-32` uses `listProgress` → `GET /portal/assessment-bests` (`mobile/src/adapters/api.ts:177`), and `mobile/README.md:46` lists it. Docs batch.
@@ -116,7 +135,7 @@ Re-check 2026-11-13 (claude/hardening-pass, new items only):
 
 ### documents (8) — [evidence](drift/documents.md)
 
-- [ ] [missing] Lines 25-26 say selling contexts "(memberships, packages, programs, rentals)" call `requirements_for` / `ensure_pending` / `consume`. Rentals calls none of them; the only callers are `backend/app/modules/memberships/service.py:467,594,600,602,729,768`, `backend/app/modules/packages/service.py:573,575,655,699` and `backend/app/modules/programs/checkout.py:54,135,139,164`. A rental type has no document gate.
+- [x] (fixed 2026-11-13, owner decision Q8, ADR 0013: rentals' plan sale now calls all three; README says so) [missing] Lines 25-26 say selling contexts "(memberships, packages, programs, rentals)" call `requirements_for` / `ensure_pending` / `consume`. Rentals calls none of them; the only callers are `backend/app/modules/memberships/service.py:467,594,600,602,729,768`, `backend/app/modules/packages/service.py:573,575,655,699` and `backend/app/modules/programs/checkout.py:54,135,139,164`. A rental type has no document gate.
 - [x] [wording] Lines 52-53 say the paper-scan route is the only one "the body-limit middleware exempts". `BodyLimitMiddleware.UPLOAD_PATHS` also exempts `/clients/{id}/photo`, `/client-notes/{id}/attachments` and `/import-jobs/{id}/source` (`backend/app/core/api.py:237-242`). Docs batch.
 - [x] [wording] Lines 16 and 45-46 describe storage as the local-disk adapter only and say downloads stream "because the local-disk adapter cannot sign URLs". An S3 adapter with presigned GETs now exists (`backend/app/adapters/s3_storage.py:1`, `:36-39`). Streaming is still what documents does, but the stated reason applies only to local disk. Docs batch.
 - [x] [undocumented] Files go through `platform/files.py`, which also runs the malware scanner (`backend/app/modules/platform/files.py:27`, `:96-97`). Line 17 lists sniffing, re-encoding and mismatch refusal, but not scanning. Docs batch.
@@ -167,7 +186,7 @@ Re-check 2026-11-13 (claude/hardening-pass, new items only):
 - [ ] [undocumented] Error report is absent (404 "This import has no error report.", service.py:255-258) when no row has a problem or warning; README implies it always exists.
 - [ ] [undocumented] Routes carry the `idempotency` dependency, CSV downloads set `nosniff` and `no-store` (router.py:17, 35-40), dry-run and commit answer 202 (router.py:75, 85), and create refuses non-staff principals and unknown locations (service.py:148-155).
 
-### integrations (63 open, 25 closed) — [evidence](drift/integrations.md)
+### integrations (67 open, 35 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -288,11 +307,12 @@ Re-check 2026-11-13 pass 2 (`claude/hardening-pass`, new items only):
 
 - [ ] [undocumented] Audit actions still not named in the README: `integrations.connection.authorize`, `.update`, `integrations.sync.reset`, `integrations.sync_mapping.replace`, `integrations.video_meeting.put`, `.delete` (`backend/app/modules/integrations/quickbooks.py:386`, `meetings.py`).
 - [ ] [wording] README:12 says `domain/webhooks.py` holds the SSRF address classes; they are in `backend/app/core/networks.py:64` (`blocked_reason`, used at `transport.py:49`).
-- [ ] [stale-not-built] `docs/status/README.md:98` says cross-site embedding is not enabled at the proxy (`infra/proxy/Caddyfile:56` now allows `/schedule/public/*`); `docs/status/02-resources-scheduling.md:47` says the settings screen is not built (`web/src/features/integrations/PublicSchedulePanel.tsx`); `backend/app/modules/scheduling/README.md:122-124` says `scheduling.public_schedule.manage` has no route (`router.py:432, 438`).
+- [x] [stale-not-built] `docs/status/README.md:98` says cross-site embedding is not enabled at the proxy (`infra/proxy/Caddyfile:56` now allows `/schedule/public/*`); `docs/status/02-resources-scheduling.md:47` says the settings screen is not built (`web/src/features/integrations/PublicSchedulePanel.tsx`); `backend/app/modules/scheduling/README.md:122-124` says `scheduling.public_schedule.manage` has no route (`router.py:432, 438`). Closed: the row now says done (`docs/status/README.md:98`).
 
 Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 
-- [ ] [wording] README:98-100 says no method may reach the framework's 405 because it logs the raw path ("handover: redact in `core.api`"); `core.api` now redacts the calendar-feed token prefix for every method, trailing slash and deeper path (`backend/app/core/api.py:29-38, 196`, uncommitted), so the method list is no longer the guard and the router's `_redact` (`backend/app/modules/integrations/router.py:373-375, 423`) is a redundant second layer.
+- [x] [wording] README:98-100 said no method may reach the framework's 405 (handover: redact in `core.api`). Closed: the README now describes `core.api._loggable_path` and the route rewrite (README lines 99-103; `backend/app/core/api.py:32-38, 215`).
+- [ ] [contract] `getSyncStatus` and `resetSync` answer `200` with no schema and no `security` line (openapi-programs.yaml:7084, 7102); `SyncStatusOut` (`idle|running|completed|failed`, `counts`, `next_on`, `last_on`, `retries_failed`, `beat_at`, `is_stale`) is not in the contract, and the README names neither the `idle` status nor the `integrations.sync.run` gate on `GET .../sync` (`backend/app/modules/integrations/router.py:210-221`, `schemas.py:201-211`).
 
 ### leagues (10: 5 closed, 5 open) — [evidence](drift/leagues.md)
 
@@ -388,7 +408,7 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 - [ ] [wording] `AttendanceSource` has `video_join` (`backend/app/modules/programs/models.py:146`), and it now has a producer: the integrations join (`backend/app/modules/integrations/meetings.py:234`). README line 141 still lists virtual meeting links (CLS-08) as "Not built", though the link, the join window and the attendance mark exist in integrations (see `integrations/README.md`).
 - [ ] [undocumented] `selfservice.public_seats(..., limit)` (`backend/app/modules/programs/selfservice.py:195-217`, called at `backend/app/modules/integrations/feeds.py:359` with `limit=MAX_EVENTS`) passes the limit to `scheduling.service.session_window` (`backend/app/modules/scheduling/service.py:988-1003`) before the hidden, unlisted, visible-range and hides-full filters run. A page full of filtered-out sessions can crowd listed ones out of the result. README line 14 says only "the same listing rule" and does not mention this. The programs tests do not call `public_seats` directly; the rule is tested through integrations (`backend/app/modules/integrations/tests/test_feeds.py:234-256`).
 
-### rentals (9) — [evidence](drift/rentals.md)
+### rentals (26) — [evidence](drift/rentals.md)
 
 - [x] [wording] Line 13 says `router.py` serves "32 operations"; it registers 33 (`backend/app/modules/rentals/router.py:39-234`: 8 type/rate, 8 staff rental, 2 public, 5 portal, 5 plan, 5 purchase). The contract tag has 42 (`docs/api/openapi-core.yaml`); the 9 unserved are exactly `updateRental`, `replaceRentalPlanShares`, the 3 portal plan ops and the 4 locker ops. Docs batch.
 - [x] [stale-not-built] Line 82 says "Web: no portal booking screen". A portal rental booking flow exists: `web/src/features/portal/BookingsPage.tsx:97` (POST `/portal/rentals`), `:33` (confirm with card token), `:106` (abandon), `:192` (portal cancel), `:202` ("Book a rental" action). The file table (line 14) also omits this screen, listing only staff screens. Docs batch.
@@ -399,6 +419,23 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 - [x] [undocumented] `subject.py` (the client-merge repoint and the data-subject export/erase handlers, `backend/app/modules/rentals/subject.py:14-51`) is not in the file table. Erase also turns off `is_auto_renew` on plan purchases (`:45`), a field the README says has no behaviour ("auto-renew ... not built", line 79). Docs batch.
 - [ ] [undocumented] `permissions.py` registers `rentals.rental_plan.share`, `rentals.rental_plan.remove`, `rentals.locker_rental.manage` and `rentals.public_listing.publish` (`backend/app/modules/rentals/permissions.py:22-25`). The README names only `rentals.booking.override_rate` and `rentals.booking.update`, and doesn't say that the share and locker keys are registered but unused, since those features aren't built.
 - [x] [wording] Line 56 says module 5 "is merged, but rentals does not call it yet". The code agrees, but its user-facing errors still say memberships "arrive with build module 5" (`backend/app/modules/rentals/service.py:1287`, `:1483`). This is doc-to-code consistent but misleading. Fixed in c3a42e9.
+- [ ] [missing] (2026-11-13) README lines 69-74 (waiver gate): `docs/status/03-rentals.md` has no row for the rental plan waiver gate (no "document" or "waiver" entry), though code implements it (service.py:1645 `_require_documents`, called from `sell_plan` service.py:1668 and `portal_buy_plan` service.py:1925).
+- [ ] [contract] (2026-11-13) README 148-150 (rental portal settings): `GET/PUT /locations/{location_id}/rental-portal-settings` exist (router.py:160-168, service.py:1178, 1184) but have no operation in `openapi-core.yaml`.
+- [ ] [contract] (2026-11-13) README 115 (portal opt-out): `POST /portal/rental-plan-purchases/{id}/auto-renew-opt-out` (router.py:291) is not in the contract.
+- [ ] [contract] (2026-11-13) README 110-114 (auto-renew, autopay): `PATCH /rental-plan-purchases/{id}` (router.py:250, service.py:1743) is not in the contract (C:4289 has only `get` on that path).
+- [ ] [contract] (2026-11-13) README 98 (locker renewal): `POST /locker-leases/{id}/renew` (router.py:322, service.py:2147) is not in the contract (locker lease operations at C:4384-4418 end at `clearExpiredLockerLeases`).
+- [ ] [contract] (2026-11-13) README 159-162: `confirmPortalRental` (C:4095-4130) still says `payment_method_id` is required ("must be one of its stored methods, else 403") and lists `payment-declined`; code takes a provider token or a stored method (schemas.py:438-439, service.py:1442), documents `payment-failed` and 422 `payment-method-not-usable` (router.py:184), and the README says decline is now `payment-failed`.
+- [ ] [contract] (2026-11-13) README 69-74: `buyPortalRentalPlan` (C:4370-4380) still reads "P1 stub ... Body will be portal-only"; the route is built with `PortalRentalPlanBuy` and a required key (router.py:285-288). Its `x-problem-codes` and `sellRentalPlan`'s (C:4284) list only `document-required` and `membership-required`; code also raises `plan-not-valid` (service.py:1602) and `payment-failed` (router.py:287).
+- [ ] [contract] (2026-11-13) README 105-109 and 94-104: `replaceRentalPlanShares` and the locker lease operations list no `x-problem-codes`; `plan-not-shareable`, `client-not-related`, `locker-already-rented`, `locker-unavailable` (service.py:2069), `lease-overlaps` (service.py:2072), `lease-cleared` appear only in docstrings (service.py:2104, 2150).
+- [ ] [contract] (2026-11-13) README 131: contract declares `updateRental` (C:3893, P1) with no route. Contract is ahead of code.
+- [ ] [undocumented] (2026-11-13) `PATCH /rental-plan-purchases/{id}` (router.py:250-254, `update_purchase` service.py:1743) is not described anywhere in the README; the README covers only the portal opt-out.
+- [ ] [undocumented] (2026-11-13) Desk plan sale accepts per-sale `quantity_total`, `invoice_routing`, `is_auto_renew` and `is_autopay` overrides (`sell_plan`, service.py:1668 onward); README line 40-43 and 110-115 do not mention them.
+- [ ] [undocumented] (2026-11-13) Waiver gate ordering is not in the README: `_require_documents` (service.py:1645) issues the pending document with the refusal, and `portal_buy_plan` (service.py:1925) checks it before any charge; the README does not say which location owns the issued document (the plan's).
+- [ ] [wording] (2026-11-13) README line 9 says models.py has "13 tables". It has 16 (models.py:161-597, `__tablename__` entries); the summary omits `rental_portal_setting` (221), `rental_plan_share` (578) and `locker_lease` (597).
+- [ ] [contract] (2026-11-13) `billSelectedRentals` (openapi-core C:4154) lists no `x-problem-codes`, but `bill_selected` can raise 409 `document-required` (rentals/service.py:886) and `payer-mismatch`.
+- [ ] [undocumented] (2026-11-13) README says turning auto-renew off ends a waiting renewal, but staff `update_purchase` rejects expired purchases with `plan-not-valid` (service.py:1792-1793); only the portal opt-out (service.py:2044) can stop a waiting one.
+- [ ] [undocumented] (2026-11-13) A renewal whose successor sale fails (validation, conflict or not-found, service.py:1907) ends silently and clears the wait (service.py:1867-1870); README 86-87 lists only plan archived or client no longer eligible.
+- [ ] [wording] (2026-11-13) README 97 says portal confirm takes no stored method; README 173-174 and the code accept `payment_method_id`.
 
 ### reporting (5) — [evidence](drift/reporting.md)
 
@@ -459,11 +496,20 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 ## Added on this branch (drift refresh 2026-11-12)
 Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
 
-### access (+3) — [evidence](drift/access.md)
+### access (+12) — [evidence](drift/access.md)
 
 - [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
 - [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
 - [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
+- [ ] [contract] (2026-11-13) Redis-outage 429 kiosk-locked-out not in KioskCheckInCreate/KioskLookupRequest; lookup does not say unknown values count
+- [ ] [undocumented] (2026-11-13) README cites none of the kiosk security tests (test_kiosk_reservations.py, test_isolation.py visit-token case); they need Redis
+- [ ] [undocumented] (2026-11-13) POSSESSION_KINDS also drives the plain-lookup exclusion (service.py:128); README names only the possession test
+- [ ] [wording] (2026-11-13) README calls a wallet pass a possession secret (107-108) and a static bearer barcode (purchase bullet); say which rule holds
+- [ ] [undocumented] (2026-11-13) household lockout is symmetric (clients/households.py:353); README names only child-billed-to-parent; no access test for the reverse
+- [ ] [undocumented] (2026-11-13) kiosk name-search limits (3 letters, 5 results, disabled hidden, lookup-method-disabled, card-invalid) and 400-day kiosk cookie not in README
+- [ ] [undocumented] (2026-11-13) access.check_in.session_booked event absent from the current README although the earlier item is ticked
+- [ ] [undocumented] (2026-11-13) POST /credentials/resolve not listed as a route in the README
+- [ ] [undocumented] (2026-11-13) kiosk.ENROLL repeats desk.ENROLL's `scheduling.enrollment.create`; nothing keeps them equal
 
 ### platform (+3) — [evidence](drift/platform.md)
 
@@ -478,7 +524,16 @@ Found by re-running the drift reports against this branch's code. Merge these in
 ### platform (+2) — [evidence](drift/platform.md)
 
 - [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)
-- [ ] [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
+- [x] (already fixed: README:50 says "still missing", 2026-11-13 recheck) [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
+
+### platform (+6, 2026-11-13 recheck on claude/owner-decisions-1) — [evidence](drift/platform.md)
+
+- [ ] [undocumented] service.tenant_hosts (service.py:572; engagement/service.py:1760) not named in README:9
+- [ ] [wording] README:16 says register_purge is also called by imports; engagement/subject.py:143,148,149 and programs/subject.py:119 call it too
+- [ ] [wording] README:70 says only the tenant export and imports register on_dead_letter; leagues/jobs.py:15 and integrations/jobs.py:34 do too
+- [ ] [wording] README:428 says cookie_flags "moved here from the router"; router.py:115 keeps the alias _cookie_flags
+- [ ] [contract] brand_primary_color / brand_accent_color missing from the yaml (TenantUpdate yaml:4699; no /public/branding path)
+- [ ] [contract] yaml lists entitlement-limit-reached (yaml:620, 1876, 1982); code raises plan-limit-reached (entitlements.py:146)
 
 ### platform (+3, refresh 2026-11-13) — [evidence](drift/platform.md)
 
@@ -486,11 +541,67 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [contract] README:17,347 `plan-limit-reached` (entitlements.py:146) vs `entitlement-limit-reached` in openapi-core.yaml:620,1876,1982
 - [ ] [contract] README:183-187 says writable `ip_policy` / `default_ip_policy` are gone (schemas.py:394, staff.py:225); openapi-core.yaml:4872,4903,4975,4988,4994 still declare them
 
-### reporting (+3) — [evidence](drift/reporting.md)
+### reporting (+10) — [evidence](drift/reporting.md)
 
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
 - [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
 - [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
+- [ ] [stale] (2026-11-13) README says registry.py holds every ReportSpec; it holds 14 of 62, the rest are in reports/*.py
+- [ ] [undocumented] (2026-11-13) schedule and recipients routes use the export key (router.py:113-141); dashboard rejects API keys (dashboard.py:78)
+- [ ] [undocumented] (2026-11-13) the 13 reporting permission keys (permissions.py:15-39) are not listed in the README
+- [ ] [wording] (2026-11-13) 7-day result retention (service.py:32) conflicts with the contract's 24 h (openapi-programs.yaml:6131)
+- [ ] [undocumented] (2026-11-13) export_job.notify_on_complete cannot be set through ExportJobCreate; report_schedule missing from data-model-programs.md
+- [ ] [contract] (2026-11-13) recipients and five /report-schedules* routes not in the contract; about a dozen more shape mismatches (see report)
+- [ ] [stale] (2026-11-13) module docstrings and docs/status/15-reporting.md, docs/status/README.md counts out of date (see report)
+
+## Added on claude/owner-decisions-1 (drift refresh 2026-11-13)
+Re-run for access, billing and programs after the kiosk reservation page. Items already listed above are not repeated.
+
+### access — [evidence](drift/access.md)
+
+- [x] [missing] README kiosk_settings row omitted migration 1961 columns. Fixed in the same commit.
+- [x] [contract] createKioskAttendance problem codes lacked already-enrolled, policy-violation, see-staff. Fixed in the same commit.
+- [ ] [contract] getClientIdCard declared as a PDF; the route returns JSON.
+- [ ] [contract] setClientAccessMode declared with access.rule.manage; code uses access.client.set_access_mode.
+- [ ] [contract] listKioskDevices declared with access.kiosk.manage; code uses access.kiosk.launch.
+- [ ] [contract] createCheckInAttendance declared with a different key and left unspecified.
+- [ ] [contract] listEligibleSessions and createKioskPackagePurchase declared with no route (README marks both unbuilt).
+- [ ] [undocumented] POST /check-ins/evaluate, POST /credentials/resolve, GET /clients/{id}/access-mode not in README.
+- [ ] [undocumented] wallet-pass issue requires an active client; not in README.
+- [ ] [wording] README mixes kiosk statuses (admitted, see staff) with stored results (granted, denied, granted_override) without saying which is which.
+
+### billing — [evidence](drift/billing.md)
+
+- [ ] [contract] contract operations with no route and no "not built" note: disputes (list, get, evidence), account-credit/issue, portal bank-account verify, collections-status, payouts and ledger-exports, two billing-bulk-actions reads.
+- [ ] [wording] README L134 says all four /catalog-items routes need billing.item.manage; only create and update do (owner question 10 settles this: reads open).
+- [ ] [wording] README L274-278 says PDF paths replace content negotiation; the contract already has /pdf paths.
+- [ ] [wording] README L108-112 says payment_method_id is used only with no invoice.
+- [ ] [undocumented] GET /portal/payment-methods/processor and documents.browser_processor.
+- [ ] [undocumented] bulk invoicing is_dry_run, only_mine, one invoice per client.
+- [ ] [undocumented] secure_online_checkout must_pay_now, on_account_ok, coupon_code, save_as_autopay, the amount_minor cap and replay rule.
+
+### programs — [evidence](drift/programs.md)
+
+- [ ] [stale-not-built] REG-10 deposits and instalments (README 74-76), guest checkout and basket coupons (77-79), CLS-08 meeting links (159-161), stray "Not built" paragraph (182-184), video_join producer (165-166) are built.
+- [ ] [contract] listRecentProgramGroups, applyPortalCheckoutCoupon and five REG-26 roster-invite operations have no route; guest-checkout, saved views, page settings, form image, public form submit, submission promote and classifier delete routes are missing from openapi-programs.yaml; path parameter session_id vs schedule_session_id.
+- [ ] [undocumented] file and models tables omit files and nine tables; onboarding step in __init__.py not described.
+- [ ] [wording] README line 6 names only migration 0611; 1401, 1501 and 1521 also carry programs tables.
+- [ ] [contract] Registration config: the yaml has `payment_policy` (`pay_in_full`, `deposit`, `instalments`, `pay_later`, openapi-programs.yaml:7691); the code has `payment_plan` with three values and no `pay_later` (schemas.py:326).
+
+### Refresh after the kiosk possession rule and visit token (2026-11-13)
+Access, billing and programs re-run; programs found nothing new. New items only:
+
+- [x] [wording] access: README said a typed credential value is name_search; any value matching a credential row is possession. Fixed in the same commit.
+- [ ] [contract] access: kiosk settings in the contract carry fields not built (photo, default view, theme) and omit the exit PIN fields.
+- [x] [contract] access: createKioskAttendance target_type allows enrollment and booking; code takes session only.
+- [ ] [contract] access: createKioskCheckIn declares second_factor and scanned_at; code has neither.
+- [ ] [contract] access: wallet-pass routes are not in the contract; the old getWalletPass operation is not built.
+- [ ] [contract] access: listCheckIns declares an is_open filter the code lacks.
+- [ ] [undocumented] access: access.check_in.session_booked event, the clients.client.disabled handler, kiosk name-search limits and the kiosk cookie lifetime are not in the README.
+- [ ] [wording] access: the check-in booking sentence sits under the wrong README bullet.
+- [ ] [missing] billing: three README items the refresh found missing from code or contract (drift/billing.md).
+- [ ] [contract] billing: about 20 served routes are not in the contract; several staff reads need a manage key where the contract says authenticated staff.
+- [ ] [wording] billing: two further README prose items (drift/billing.md).
 
 ### engagement re-check 2026-11-13 (+19) — [evidence](drift/engagement.md)
 

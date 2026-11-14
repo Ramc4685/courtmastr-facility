@@ -226,8 +226,15 @@ def update_plan(session: Session, principal: Principal, plan_id: UUID, data: dic
 # --- the credit ledger (PKG-12, PKG-14) --------------------------------------------------------------------------
 
 
-def _refresh(session: Session, package: ClientPackage) -> None:
-    """Derive status and the renewal flag from the balance after any movement."""
+def _renews_on_threshold(package: ClientPackage) -> bool:
+    """A flagged package that renews early at its threshold (never on the grant itself)."""
+    used = package.sessions_reserved_count + package.sessions_consumed_count
+    return bool(used and package.is_auto_renew and package.is_auto_renew_on_threshold)
+
+
+def _refresh(session: Session, package: ClientPackage, *, defer_renewal: bool = False) -> None:
+    """Derive status and the renewal flag from the balance after any movement. `defer_renewal` (a kiosk spend:
+    nothing at the kiosk charges) leaves a threshold renewal to the daily run."""
     ref = {"client_package_id": package.id, "client_id": package.owner_client_id}
     left = available(package)
     if not package.is_unlimited and package.status in ("active", "exhausted"):
@@ -242,20 +249,14 @@ def _refresh(session: Session, package: ClientPackage) -> None:
             package.renewal_flagged_at = None
         elif package.renewal_flagged_at is None and package.status in ("active", "exhausted"):
             package.renewal_flagged_at = clock.now()
-            used = package.sessions_reserved_count + package.sessions_consumed_count  # never on the grant itself
-            if (
-                used
-                and package.is_auto_renew
-                and package.is_auto_renew_on_threshold
-                and _successor(session, package.id) is None
-            ):
+            if not defer_renewal and _renews_on_threshold(package) and _successor(session, package.id) is None:
                 _renew(session, package, _today(session, package.location_id), early=True)
 
 
 def _entry(
     session: Session, package: ClientPackage, *, client_id: UUID, entry_type: str, reason: str, key: str,
     granted: int = 0, reserved: int = 0, consumed: int = 0, forfeited: int = 0,
-    source: tuple[str, UUID] | None = None, note: str | None = None,
+    source: tuple[str, UUID] | None = None, note: str | None = None, defer_renewal: bool = False,
 ) -> CreditLedgerEntry:  # fmt: skip
     """Append one ledger entry and move the cached counters with it. The caller holds the package row lock."""
     actor = session.info["actor"]
@@ -271,7 +272,7 @@ def _entry(
     package.sessions_reserved_count += reserved
     package.sessions_consumed_count += consumed
     package.sessions_forfeited_count += forfeited
-    _refresh(session, package)
+    _refresh(session, package, defer_renewal=defer_renewal)
     session.flush()
     return row
 
@@ -324,10 +325,10 @@ def _check_spendable(
 
 def reserve_credit(
     session: Session, *, client_package_id: UUID, client_id: UUID, source_type: str, source_id: UUID,
-    session_on: date | None = None, reservation_type_id: UUID | None = None,
+    session_on: date | None = None, reservation_type_id: UUID | None = None, defer_renewal: bool = False,
 ) -> CreditLedgerEntry | None:  # fmt: skip
     """Hold one credit for a booking or enrolment (PKG-12). Internal. Idempotent per source: a repeat returns
-    None and changes nothing. Raises 409 package-exhausted, package-not-usable, package-wrong-type,
+    None and changes nothing. `defer_renewal`: a threshold renewal waits for the daily run (a kiosk spend). Raises 409 package-exhausted, package-not-usable, package-wrong-type,
     package-out-of-range, package-not-shared, membership-not-active or credit-already-reserved (the source
     already draws on another package)."""
     package = _get(session, ClientPackage, client_package_id, lock=True)
@@ -352,6 +353,7 @@ def reserve_credit(
         key=key,
         reserved=1,
         source=source,
+        defer_renewal=defer_renewal,
     )
 
 
@@ -1351,6 +1353,12 @@ def run_daily(session: Session) -> dict:
             _renew(session, package, today)
             result["renewed"] += 1
 
+    def renew_flagged(package: ClientPackage) -> None:  # a threshold renewal deferred by a kiosk spend
+        flagged = package.renewal_flagged_at is not None and package.status in ("active", "exhausted")
+        if flagged and _renews_on_threshold(package) and _successor(session, package.id) is None:
+            _renew(session, package, today_at(package.location_id), early=True)
+            result["renewed"] += 1
+
     def expire(package: ClientPackage) -> None:
         upper = package.valid_during.upper
         if package.status in ("active", "exhausted") and upper is not None and upper <= today_at(package.location_id):
@@ -1366,6 +1374,11 @@ def run_daily(session: Session) -> dict:
         p,
         list(session.scalars(select(p.id).where(live, p.is_auto_renew, p.renew_on.is_not(None)).order_by(p.id))),
         renew,
+    )
+    each(
+        p,
+        list(session.scalars(select(p.id).where(live, p.renewal_flagged_at.is_not(None)).order_by(p.id))),
+        renew_flagged,
     )
     each(s, list(session.scalars(select(s.id).where(s.status == "active").order_by(s.id))), period)
     each(  # last, so a period generated late by this run is also expired by it

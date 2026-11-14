@@ -7,19 +7,22 @@ Internal functions (no principal): `resolve`, `kiosk_*`, `device_for_token`. Sta
 both gates."""
 
 import hashlib
+import logging
 import secrets
 from datetime import timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import redis
 from sqlalchemy import column, delete, select, table
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
 from app.core.auth.passwords import hash_password, verify_password
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.ratelimit import _redis
 from app.modules import billing, clients, documents, memberships, platform, programs, scheduling
 from app.modules.access import desk
 from app.modules.access import events as ev
@@ -47,12 +50,18 @@ ASSIGN, LAUNCH, MANAGE, SETTINGS = (
     "access.credential.assign", "access.kiosk.launch", "access.kiosk.manage", "access.settings.manage",
 )  # fmt: skip
 RULES, MODE, FULL = "access.rule.manage", "access.client.set_access_mode", "access.checkin.read_full_details"
+log = logging.getLogger(__name__)
 PAIRING_TTL = timedelta(minutes=10)
 MATCH_TTL = timedelta(seconds=120)
 # A second entry by the same client at the same location this soon is a repeat (double scan, kiosk then window):
 # it admits without counting another visit.
 REPEAT_WINDOW = timedelta(minutes=10)
 KIOSK_EXIT_ATTEMPTS = 5  # wrong exit PINs in a row before the device is revoked
+KIOSK_UNKNOWN_VALUES = 5  # unknown card values within the window before the kiosk stops reading values
+KIOSK_UNKNOWN_WINDOW = timedelta(minutes=5)  # the counting window, and how long the lock lasts
+# The only credentials that prove possession at a kiosk: a value that changes (a verified app-card QR) or a secret
+# token (an active wallet pass). A barcode, fob or member number is static and can be copied or typed.
+POSSESSION_KINDS = ("app_card", "wallet_pass")
 NAME_MATCHES = 5
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
 
@@ -84,7 +93,9 @@ def _app_card(session: Session, text: str) -> Credential | None:
     if row is None or row.kind != "app_card" or row.status != "active":
         raise NotFound("This card is not valid.", code="card-invalid")
     if not cards.verify(row.secret_ciphertext, row.id, step, mac, clock.now()):
-        raise NotFound("This card code has expired; refresh it in the app.", code="card-invalid")
+        if step < cards.step_of(clock.now()) and cards.is_authentic(row.secret_ciphertext, row.id, step, mac):
+            raise NotFound("This card code has expired; refresh it in the app.", code="card-code-expired")
+        raise NotFound("This card is not valid.", code="card-invalid")
     return row
 
 
@@ -106,13 +117,18 @@ def _wallet_pass(session: Session, text: str) -> Credential | None:
 
 
 def resolve(session: Session, value: str) -> tuple[clients.models.Client, Credential | None]:
-    """Internal: a scanned or typed value to its client. An app-card QR, then an active credential, then the
-    member number on the client record (the number's owner, MEM-19). Unknown is 404 credential-not-found."""
+    """Internal: a scanned or typed value to its client. A verified app-card QR or live wallet-pass token, then an
+    active physical credential (never an app card or pass by its stored value), then the member number on the
+    client record (the number's owner, MEM-19). Unknown is 404 credential-not-found."""
     card = _app_card(session, value) or _wallet_pass(session, value)
     if card is not None:
         return clients.service.get(session, card.client_id), card
     normal = _normalize(value)
-    row = session.scalar(select(Credential).where(Credential.value == normal, Credential.status == "active"))
+    # Digital credentials resolve only through their verified paths above: an app card's static number or a wallet
+    # pass's stored hash sent as a plain value must not stand in for the rotating QR or the live token.
+    row = session.scalar(select(Credential).where(
+        Credential.value == normal, Credential.status == "active", Credential.kind.notin_(POSSESSION_KINDS)
+    ))  # fmt: skip
     if row is not None:
         return clients.service.get(session, row.client_id), row
     client = clients.service.find_by_member_number(session, normal) if normal else None
@@ -601,6 +617,8 @@ def revoke_wallet_passes_of(session: Session, client_id: UUID) -> int:
 _SETTING_DEFAULTS = {
     "lookup_method": "both", "early_window_minutes": 60, "late_window_minutes": 30, "welcome_message": None,
     "displayed_alert_codes": ["balance_due", "membership_expired", "visits_depleted"], "confirmation_timeout_seconds": 10,
+    "visible_range_minutes": 240, "is_auto_book": False, "reservation_timeout_seconds": 30,
+    "is_name_search_booking_allowed": True,
 }  # fmt: skip
 
 
@@ -742,6 +760,70 @@ def _match_token(session: Session, device: KioskDevice, client_id: UUID) -> str:
     return raw
 
 
+def _unknown_keys(device_id: UUID) -> tuple[str, str]:
+    return f"kiosk-unknown:{device_id}", f"kiosk-locked:{device_id}"
+
+
+def unknown_value_count(device_id: UUID) -> int:
+    """Unknown values this device read inside the current window (for tests and support)."""
+    key, _ = _unknown_keys(device_id)
+    now = clock.now().timestamp()
+    return _redis().zcount(key, now - KIOSK_UNKNOWN_WINDOW.total_seconds(), "+inf")
+
+
+def _count_unknown(device_id: UUID) -> None:
+    """One unknown value, in a sliding window kept atomically in Redis (one MULTI per request, so concurrent reads
+    never lose a count). KIOSK_UNKNOWN_VALUES inside KIOSK_UNKNOWN_WINDOW lock value reads for one window."""
+    key, lock = _unknown_keys(device_id)
+    now, window = clock.now().timestamp(), KIOSK_UNKNOWN_WINDOW.total_seconds()
+    pipe = _redis().pipeline()  # transactional: MULTI ... EXEC
+    pipe.zremrangebyscore(key, "-inf", now - window)
+    pipe.zadd(key, {secrets.token_hex(8): now})
+    pipe.zcard(key)
+    pipe.expire(key, int(window) + 60)
+    if pipe.execute()[2] >= KIOSK_UNKNOWN_VALUES:
+        _redis().set(lock, str(now + window), ex=int(window) + 60)
+        log.warning("kiosk locked after unknown values", extra={"kiosk_device_id": str(device_id)})
+
+
+def _kiosk_value(session: Session, device: KioskDevice, value: str):
+    """`resolve` for a value read at a kiosk, behind the device's lockout, checked first: KIOSK_UNKNOWN_VALUES unknown
+    values within KIOSK_UNKNOWN_WINDOW stop value reads on this device for a window, whatever resolved in between
+    (name search still works). Redis, outside the request transaction, so a refused check-in still counts. It fails
+    closed: without Redis there is no count, so value reads are refused as locked."""
+    locked = DomainError("Please see the front desk.", status=429, code="kiosk-locked-out")
+    try:
+        until = _redis().get(_unknown_keys(device.id)[1])
+    except redis.RedisError:
+        _redis_down()
+        raise locked from None
+    if until is not None and float(until) > clock.now().timestamp():
+        raise locked
+    try:
+        return resolve(session, value)
+    except NotFound as exc:
+        if exc.code == "card-code-expired":
+            raise  # a known member's stale code (a screenshot): try again with a fresh one, not a guess
+        try:
+            _count_unknown(device.id)
+        except redis.RedisError:
+            _redis_down()
+            raise locked from None
+        raise
+
+
+_redis_warned_at = 0.0
+
+
+def _redis_down() -> None:
+    """Log the outage once per window, not per request."""
+    global _redis_warned_at
+    now = clock.now().timestamp()
+    if now - _redis_warned_at >= KIOSK_UNKNOWN_WINDOW.total_seconds():
+        _redis_warned_at = now
+        log.warning("kiosk lockout store unavailable: kiosk value reads refused")
+
+
 def _from_match(session: Session, device: KioskDevice, token: str):
     row = session.scalar(
         select(KioskMatch).where(KioskMatch.token_hash == tokens.digest(token), KioskMatch.kiosk_device_id == device.id)
@@ -762,7 +844,7 @@ def kiosk_lookup(session: Session, device: KioskDevice, data: dict) -> dict:
     method = settings_view(session, device.location_id)["lookup_method"]
     if data.get("credential_value"):
         try:
-            client, _ = resolve(session, data["credential_value"])
+            client, _ = _kiosk_value(session, device, data["credential_value"])
         except NotFound:
             return {"matches": []}
         if (
@@ -794,12 +876,22 @@ def kiosk_lookup(session: Session, device: KioskDevice, data: dict) -> dict:
 
 def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     """Self check-in (CHK-05). Never returns amounts, reasons or plan names: admitted with the alert codes the
-    location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk)."""
+    location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk).
+    `card_payload` is a value the tablet read; only a verified app-card QR or an active wallet pass is possession
+    (POSSESSION_KINDS). A static card, fob or member number checks in like a name, and so does a `match_token`."""
     if data.get("card_payload"):
-        card = _app_card(session, data["card_payload"]) or _wallet_pass(session, data["card_payload"])
-        if card is None:
-            raise ValidationFailed("This is not a member card.", code="card-invalid", pointer="/card_payload")
-        client, credential, identified = clients.service.get(session, card.client_id), card, "credential"
+        try:
+            client, credential = _kiosk_value(session, device, data["card_payload"])
+        except NotFound as exc:
+            if exc.code != "credential-not-found":
+                raise  # a known card that is stale or revoked
+            raise ValidationFailed(
+                "This is not a member card.", code="card-invalid", pointer="/card_payload", persist=True
+            ) from None
+        if credential is None and settings_view(session, device.location_id)["lookup_method"] == "name":
+            raise ValidationFailed("Look up by name here.", code="lookup-method-disabled", pointer="/card_payload")
+        # Decided from the value alone, never from how it arrived: the tablet is the client and can claim a scan.
+        identified = "credential" if credential and credential.kind in POSSESSION_KINDS else "name_search"
     elif data.get("match_token"):
         client, credential, identified = _from_match(session, device, data["match_token"]), None, "name_search"
     else:

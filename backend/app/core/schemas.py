@@ -28,7 +28,7 @@ NOT_FREE_TEXT = frozenset({
     # secrets and tokens (never prose; never logged either)
     "client_secret", "credential_value", "current_password", "new_password", "owner_password", "password", "passcode",
     "direct_link_token", "guest_token", "match_token", "mfa_token", "method_token", "provider_confirmation_token",
-    "provider_payment_token", "push_token", "refresh_token", "token", "content_sha256", "signature_png",
+    "provider_payment_token", "push_token", "refresh_token", "token", "visit_token", "content_sha256", "signature_png",
     # machine keys and enumerations kept as plain strings
     "choice_key", "choice_keys", "field_key", "item_key", "key", "local_key", "permission_key", "question_key",
     "report_key", "page_key", "provider", "event_types", "exit_event_types", "trigger_event_type", "type", "scopes", "sort",

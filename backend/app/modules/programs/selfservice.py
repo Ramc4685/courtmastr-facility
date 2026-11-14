@@ -9,6 +9,7 @@ identity's own record or someone it may book for (`can_act_for(..., "book")`); a
 from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as Db
@@ -17,7 +18,7 @@ from app.core import audit, clock
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.modules import clients, memberships, platform, scheduling
+from app.modules import clients, memberships, packages, platform, scheduling
 from app.modules.programs import groups, service
 from app.modules.programs.models import Enrollment, ProgramGroup, SessionBookingPolicy, WaitlistEntry
 
@@ -148,10 +149,11 @@ def acting_client(session: Db, principal: Principal, client_id: UUID | None, cap
 
 
 def _verdict(
-    session: Db, seat: dict, policy: dict, client_id: UUID, member: bool | None, *, linked: bool = False
+    session: Db, seat: dict, policy: dict, client_id: UUID | None, member: bool | None, *, linked: bool = False
 ) -> str | None:
     """Why the client may not book this session now, or None. A live direct link (SCH-16) waives only the
-    listing and self-booking checks; cutoff, membership and capacity still apply."""
+    listing and self-booking checks; cutoff, membership and capacity still apply. `member` None reads it for
+    `client_id`."""
     if policy["listing_mode"] == "list_only" and not linked:
         return "list-only"
     if not seat["is_self_bookable"] and not linked:
@@ -159,7 +161,7 @@ def _verdict(
     if seat["starts_at"] - clock.now() < timedelta(minutes=policy["booking_cutoff_minutes"]):
         return "cutoff-passed"
     if policy["requires_active_membership"] and not (
-        member if member is not None else memberships.service.is_member(session, client_id)
+        member if member is not None else client_id is not None and memberships.service.is_member(session, client_id)
     ):
         return "members-only"
     if seat["booked_count"] >= seat["capacity"]:
@@ -242,6 +244,13 @@ def _bookable_seat(session: Db, session_id: UUID, client_id: UUID, *, linked: bo
     return seat, policy
 
 
+def _refuse(reason: str | None) -> None:
+    if reason == "full":
+        raise Conflict("The session is full.", code="capacity-full")
+    if reason is not None:
+        raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
+
+
 def portal_enroll(session: Db, principal: Principal, data: dict) -> Enrollment:
     """Book a session with a package or, where the session allows it, free (CLS-09). Errors: policy-violation
     with the reason, capacity-full, already-enrolled, entitlement-not-eligible, package refusals."""
@@ -249,15 +258,88 @@ def portal_enroll(session: Db, principal: Principal, data: dict) -> Enrollment:
     clients.service.require_active(session, subject)
     linked = scheduling.service.has_live_link(session, data["session_id"], data.get("direct_link_token"))
     seat, policy = _bookable_seat(session, data["session_id"], subject, linked=linked)
-    reason = _verdict(session, seat, policy, subject, None, linked=linked)
-    if reason == "full":
-        raise Conflict("The session is full.", code="capacity-full")
-    if reason is not None:
-        raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
+    _refuse(_verdict(session, seat, policy, subject, None, linked=linked))
     package_id = data.get("client_package_id")
     if package_id is None and not seat["allows_free_booking"]:
         raise Conflict("Choose a package to book this session with.", code="entitlement-not-eligible")
     row = service._enroll(session, seat, subject, "portal", package_id)
+    audit.record(
+        session, service.ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(seat["id"])]}
+    )
+    return row
+
+
+# --- kiosk (access, CHK-05): the portal's rules for a client the kiosk identified --------------------------------
+
+
+def _paying_package(session: Db, seat: dict, client_id: UUID) -> UUID | None:
+    """The package that pays for this seat when it needs one: the soonest to expire that covers it."""
+    zone = ZoneInfo(platform.service.location_time_zone(session, seat["location_id"]))
+    on = seat["starts_at"].astimezone(zone).date()
+    found = packages.service.spendable_packages(session, client_id, seat["reservation_type_id"], on)
+    return found[0].id if found else None
+
+
+def kiosk_sessions(
+    session: Db, client_id: UUID | None, location_id: UUID, until, *, free_only: bool = False
+) -> list[dict]:
+    """Internal (access, the kiosk reservation page): the location's sessions starting from now until `until`,
+    listed and judged by the portal's rules (listing mode, cutoff, members-only, capacity), each with whether the
+    client holds a place and may book it here: free booking or a package that pays, as the portal requires.
+    `free_only`: only free booking counts, so nothing would be spent. `client_id` None (a visit the kiosk did not
+    identify by possession): the same page for everyone, on public facts only; no places held, no membership, no
+    packages, so a name typed at the tablet learns nothing about that person."""
+    now = clock.now()
+    seats = scheduling.service.session_window(session, now, until, location_id=location_id, limit=50)
+    booked = set(session.scalars(select(Enrollment.session_id).where(
+        Enrollment.client_id == client_id, Enrollment.status == "enrolled",
+        Enrollment.session_id.in_([seat["id"] for seat in seats]),
+    ))) if seats and client_id else set()  # fmt: skip
+    # Anonymous: members-only is judged at the attempt, never on the page.
+    member = True if client_id is None else memberships.service.is_member(session, client_id)
+    out, cache = [], {}
+    for seat in seats:
+        key = (seat["location_id"], seat["reservation_type_id"])
+        policy = cache.get(key) or cache.setdefault(key, effective(session, *key))
+        if policy["listing_mode"] in ("hidden", "unlisted"):
+            continue
+        if seat["starts_at"] >= now + timedelta(days=policy["visible_range_days"]):
+            continue
+        is_booked = seat["id"] in booked
+        reason = _verdict(session, seat, policy, client_id, member)
+        if reason == "full" and policy["hides_full_sessions"] and not is_booked:
+            continue
+        payable = seat["allows_free_booking"] or (
+            not free_only and client_id is not None and _paying_package(session, seat, client_id) is not None
+        )
+        out.append({
+            "target_type": "session", "target_id": seat["id"], "title": seat["public_title"] or seat["title"],
+            "starts_at": seat["starts_at"], "ends_at": seat["ends_at"], "is_booked": is_booked,
+            "is_bookable": not is_booked and reason is None and payable,
+        })  # fmt: skip
+    return out
+
+
+def kiosk_enroll(
+    session: Db, client_id: UUID, location_id: UUID, session_id: UUID, until, *, free_only: bool = False
+) -> Enrollment:
+    """Internal (access): book a session from the kiosk reservation page under the portal's rules. The kiosk adds
+    no bypass: no direct link, no override, no free booking where the session needs a package. It pays with free
+    booking where the session allows it, else (unless `free_only`) the client's soonest-to-expire package that
+    covers it. Errors: outside-check-in-window, capacity-full, policy-violation, already-enrolled, no-entitlement.
+    The rules run before already-enrolled, so a full session answers capacity-full whether or not the client
+    holds a place in it (by name, a booking must not probe someone's places); the check-in marks a held place."""
+    clients.service.require_active(session, client_id)
+    seat, policy = _bookable_seat(session, session_id, client_id)
+    if policy["listing_mode"] == "unlisted" or seat["location_id"] != location_id:
+        raise ValidationFailed("Unknown session.", pointer="/target_id")
+    if not clock.now() <= seat["starts_at"] < until:
+        raise ValidationFailed("Choose a session starting soon.", code="outside-check-in-window", pointer="/target_id")
+    _refuse(_verdict(session, seat, policy, client_id, None))
+    package_id = None if seat["allows_free_booking"] or free_only else _paying_package(session, seat, client_id)
+    if package_id is None and not seat["allows_free_booking"]:
+        raise Conflict("No package covers this session.", code="no-entitlement")
+    row = service._enroll(session, seat, client_id, "kiosk", package_id)
     audit.record(
         session, service.ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(seat["id"])]}
     )

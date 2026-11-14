@@ -3841,7 +3841,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, blackout, series-too-large, rate-not-applicable, insufficient-plan-balance, idempotency-key-reused,
-        request-in-progress]
+        request-in-progress, document-required]
   /rentals/preview:
     post:
       operationId: previewRental
@@ -4089,7 +4089,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, not-eligible, outside-booking-window, too-many-open-holds, insufficient-plan-balance,
-        idempotency-key-reused, request-in-progress]
+        idempotency-key-reused, request-in-progress, document-required]
   /portal/rentals/{rental_id}/confirm:
     post:
       operationId: confirmPortalRental
@@ -4280,6 +4280,7 @@ paths:
       operationId: sellRentalPlan
       tags: [rentals]
       summary: Sell a plan to a client, with per-sale price or quantity changes
+      x-problem-codes: [document-required, membership-required]
       x-priority: P1
       x-permission: rentals.rental_plan.sell
       x-features: [RNT-09]
@@ -4371,6 +4372,8 @@ paths:
       summary: Buy a plan online for self or a related client
       description: P1 stub. Beneficiary checked by can_act_for(identity, client_id, buy); payer is the identity's own client
         and any stored payment method must be its own. Body will be portal-only with additionalProperties false.
+        A waiver bound to the plan refuses with 409 document-required before any charge (ADR 0013).
+      x-problem-codes: [document-required, membership-required]
       x-priority: P1
       x-permission: client:can_act_for
       x-features: [RNT-09]

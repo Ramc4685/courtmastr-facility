@@ -27,7 +27,7 @@ where being wrong costs nothing.
 |---|---|---|---|---|
 | platform-4a | high | `platform/service.py:60-70`, `platform/schemas.py:175` | `PATCH /tenant` accepts `currency` and writes it with no check. The comment says the guard "arrives with the billing context"; billing shipped. Changing it re-labels every `_minor` amount in the ledger. | Drop `currency` from `TenantUpdate` (set at provisioning only). Platform may not import billing, so a "has charges" check would need a registered hook; removing the field is smaller and safe. One test: PATCH with `currency` is 422. |
 | platform-4b | medium | `platform/service.py:265-283` | `archive_location` has no `location-has-future-bookings` guard (comment: "once the scheduling context exists"; it exists). A location with live bookings can be archived. | Platform keeps a `register_location_archive_check` hook (same shape as `register_client_ids_resolver`, `service.py:486`); scheduling registers a "future bookings at this location" read; raise `Conflict(code="location-has-future-bookings")`. One test. |
-| documents-1 | medium | `rentals/service.py:1576` (`sell_plan`), `portal_buy_plan`; `documents/schemas.py:23` | Documents accepts a `rental_plan` binding, and staff can bind a waiver to a rental plan, but rentals never calls `requirements_for` / `ensure_pending` / `consume` (no `documents` reference in `rentals/*.py`). The waiver is silently not enforced. | Call the three functions in the plan sale path the way `packages/service.py:573-575,655,699` does. If the owner wants no gate on rentals, remove `rental_plan` from the binding kinds instead (see new question Q2). |
+| documents-1 (fixed 2026-11-13, ADR 0013) | medium | `rentals/service.py:1576` (`sell_plan`), `portal_buy_plan`; `documents/schemas.py:23` | Documents accepts a `rental_plan` binding, and staff can bind a waiver to a rental plan, but rentals never calls `requirements_for` / `ensure_pending` / `consume` (no `documents` reference in `rentals/*.py`). The waiver is silently not enforced. | Call the three functions in the plan sale path the way `packages/service.py:573-575,655,699` does. If the owner wants no gate on rentals, remove `rental_plan` from the binding kinds instead (see new question Q2). |
 | rentals-9 | medium | `rentals/service.py:1299-1303` | `create_portal_rental` refuses every portal booking of a rental type whose eligibility is not `everyone`, members included, and tells the client "memberships arrive with build module 5". `_is_member` already exists (`:1498-1501`) and plans use it (`:1523`). | `if rtype.eligibility != "everyone" and not _is_member(session, client_id, today)`, message "Online booking of this rental is for members." One test each way. |
 | programs-1 | low | `programs/selfservice.py:23,59,80,87`; `programs/router.py:101-107` | Stand-in keys outlived their exit condition. Booking policies are gated by `programs.registration_config.manage` (admin, manager, league_admin) though `engagement.portal_settings.manage` (admin, manager) exists, so league admins can edit portal booking policy. The roster message uses `scheduling.enrollment.create`; `engagement.message.send_direct` exists with the same roles plus league_admin. Suppressions still apply (the port goes through `engagement.install_notifier`, `bootstrap.py:55`). | Swap both constants to the engagement keys; update `rbac-matrix.md` rows and the two README lines (47-48). Programs may not import engagement, but a key is a string. |
 | billing-11 | low | `billing/documents.py:694-702` | Bulk invoicing by `location_id` loads every uninvoiced charge at the location in the request; only `charge_ids` is capped (`schemas.py:587`, 1000). Unbounded synchronous work. | Apply the same 1000 cap to the location mode (fetch 1001, refuse with 422 and a hint to narrow), or document it; cap is the smaller safe change. |
@@ -44,21 +44,23 @@ where being wrong costs nothing.
 | programs-1, engagement-4 | 7168997 | engagement keys swapped in; `getPortalVideo` served |
 | billing-11, integrations-7 | 5664dd3 | location mode capped at 1000; `billing.service.ledger_day_totals` |
 | imports-1, imports-2, integrations-2, scheduling-2, packages-9, access-3, access-4 | 96dbe58 | yaml synced; `access.checkin.delete` and `deleteCheckIn` deleted. integrations-2 and access-4 keep their README halves for the docs batch |
-| documents-1 | not fixed, handed back | the import contract forbids `rentals` -> `documents` (`backend/pyproject.toml`); needs an `ignore_imports` line or dropping `rental_plan` from the binding kinds (Q2) |
+| documents-1 | fixed 2026-11-13 | owner answered Q2 yes (owner decisions question 8): `ignore_imports` line for `rentals.service -> documents` (top-level package only), gate wired into `sell_plan` and `portal_buy_plan`, ADR 0013, tests in `rentals/tests/test_lockers_and_plans.py` |
 | Docs batch (package 6) | one `docs(<module>)` commit per module on `claude/egm-drift-docs-8810b9` | DOCS rows and README halves of CONTRACT and DEAD rows, plus the stale comments in `documents/service.py`, `integrations/jobs.py`, `memberships/models.py`, `rentals/schemas.py` and `rentals/__init__.py`; backlog lines end in "Docs batch." |
 
 ## New owner questions
 
 - **Q1 (pos-3).** `/pos-reports/*` is gated by `pos.sale.read` (`pos/router.py:502-525`) while the report centre's
   `pos_sales` report needs `reporting.pos.run` (admin, manager). Front desk can read POS sales totals by one
-  road and not the other. Pick the key for `/pos-reports`.
+  road and not the other. Pick the key for `/pos-reports`. **Decided 2026-11-13 (question 14): `reporting.pos.run`
+  at both gates; built. Front desk loses `/pos-reports/*`.**
 - **Q2 (documents-1).** Should a waiver bound to a rental plan block the sale? Yes means the fix above; no means
-  drop the binding kind.
+  drop the binding kind. **Decided 2026-11-13: yes; built (ADR 0013).**
 - **Q3 (access-4).** Kiosk session attendance, eligible sessions and kiosk package purchase are in the contract
   but in no README "not built" list and no phase. Build (Phase 11) or drop from the contract?
 - **Q4 (dead keys with no phase).** `platform.client_session.impersonate`, `platform.tenant.transfer_ownership`,
   `platform.tenant.close`, `leagues.discipline.manage`, `billing.dispute.manage`: in `rbac-matrix.md`, in no
-  phase list. Kept for now; schedule or strike from the matrix.
+  phase list. Kept for now; schedule or strike from the matrix. **2026-11-13 (question 16b): `leagues.discipline.manage`
+  removed from the catalogue and the matrix; the others unchanged here.**
 
 Already known and unchanged: catalog-item read permission (billing-1), "only platform reads platform models"
 (platform-1), location scoping in billing collections (not a backlog item).
@@ -138,7 +140,7 @@ Buckets: CODE, CONTRACT, DOCS, DEAD, RESOLVED, OWNER.
 
 | # | Bucket | Evidence | Fix |
 |---|---|---|---|
-| 1 | CODE | no `documents` reference in `rentals/*.py`; `documents/schemas.py:23` accepts `rental_plan`; README:25 claims rentals calls it | Medium. Wire the gate in rentals' plan sale (or drop the binding kind, Q2) |
+| 1 | RESOLVED | 2026-11-13: rentals' plan sale calls `requirements_for` / `ensure_pending` / `consume` (ADR 0013) | None |
 | 2 | DOCS | `backend/app/core/api.py:237-242`; README:53 | List the four exempt upload paths |
 | 3 | DOCS | README:46 | "Streams by choice; the S3 adapter can sign" |
 | 4 | DOCS | `platform/files.py` scanner (nc) | Add malware scanning |
@@ -255,7 +257,7 @@ README was rewritten in Phase 14; it still has no events, data-subject or discip
 |---|---|---|---|
 | 1 | DOCS | `backend/app/scheduler.py:26` | Drop the low-stock digest from not built |
 | 2 | DOCS | README:91; `pos/router.py:370` | Drop quick-create from not built |
-| 3 | OWNER | `pos/router.py:502-525` use `pos.sale.read`; `reporting/registry.py:596` uses `reporting.pos.run` | New, Q1 |
+| 3 | RESOLVED | 2026-11-13: `/pos-reports/*` use `reporting.pos.run` at the router and in `pos/reports.py` (Q1, owner question 14) | None |
 | 4 | DOCS | README:74; no `client.discount_pct` use in `pos/` | "Field exists; the register does not apply it" |
 | 5 | DOCS | README:45; `imports/kinds.py:363` | Remove "nothing outside pos calls it" |
 | 6 | DOCS | (nc) | Add file rows |

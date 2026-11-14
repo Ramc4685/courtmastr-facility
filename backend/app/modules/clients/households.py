@@ -350,6 +350,20 @@ def guardian_ids(session: Session, client_id: UUID) -> list[UUID]:
     return found
 
 
+def household_ids(session: Session, client_id: UUID) -> list[UUID]:
+    """The client and every client one live relationship away whose type grants acting rights either way: the set
+    the portal's past-due guard would check for an identity acting for this client. Internal (the kiosk lockout)."""
+    types = _types(session)
+    found = [client_id]
+    for rel in relationships_of(session, client_id, live_only=True):
+        other = rel.to_client_id if rel.from_client_id == client_id else rel.from_client_id
+        if other not in found and (
+            _side_type(rel, other, types).grants_acting_rights or _side_type(rel, client_id, types).grants_acting_rights
+        ):
+            found.append(other)
+    return found
+
+
 def actable_client_ids(session: Session, identity_id: UUID) -> list[UUID]:
     """Every client the identity may act for: direct access rows first, then one-hop relationships."""
     rows = _access_rows(session, identity_id)

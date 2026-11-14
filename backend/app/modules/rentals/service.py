@@ -25,7 +25,7 @@ from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFail
 from app.core.ids import new_id
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
-from app.modules import billing, clients, memberships, platform, resources, scheduling
+from app.modules import billing, clients, documents, memberships, platform, resources, scheduling
 from app.modules.rentals import events as ev
 from app.modules.rentals.domain import pricing
 from app.modules.rentals.models import (
@@ -46,6 +46,7 @@ from app.modules.rentals.models import (
     RentalTypeRentalPlan,
     RentalTypeResource,
 )
+from app.ports import notifications
 
 READ = "scheduling.booking.read"
 CREATE, UPDATE, CANCEL, OVERRIDE_RATE = (
@@ -67,6 +68,18 @@ CONSTRAINT_CODES["uq_rental_plan_name"] = "already-exists"
 CONSTRAINT_CODES["uq_locker_lease_open"] = "locker-already-rented"
 CONSTRAINT_CODES["uq_rental_plan_purchase_successor"] = "plan-already-renewed"
 CONSTRAINT_CODES["uq_locker_lease_successor"] = "lease-already-renewed"
+notifications.register_template(
+    "rentals.plan_renewal_waiting",
+    subject="$app: your $plan renewal is waiting for you",
+    body="Hello $name,\n\nYour $plan rental plan is ready to renew, but it needs the plan's document accepted "
+    "first. Please accept it online or at the front desk; the plan renews as soon as you do.",
+)
+notifications.register_template(
+    "rentals.plan_renewal_lapsed",
+    subject="$app: your $plan did not renew",
+    body="Hello $name,\n\nYour $plan rental plan waited for its document to be accepted and has now lapsed "
+    "without renewing. Nothing was charged. You can buy the plan again online or at the front desk.",
+)
 
 
 # --- shared helpers ----------------------------------------------------------------------------------------
@@ -821,8 +834,9 @@ def create_rental(session: Db, principal: Principal, data: dict) -> dict:
     """Book a rental (RNT-03, single or recurring) and apply its charge decision (RNT-04). Above 50
     occurrences the worker generates them unbilled; only `unbilled` and `no_charge` are accepted then."""
     rtype, template = _rental_template(session, principal, data)
-    result = scheduling.service.book(session, template, data, principal.staff_user_id)
     decision = data["charge"]
+    _share_holder_documents(session, _plan_of(decision), data["client_id"], online=False)
+    result = scheduling.service.book(session, template, data, principal.staff_user_id)
     if result["status_url"]:
         if decision["decision"] not in ("unbilled", "no_charge"):
             raise ValidationFailed(
@@ -875,6 +889,7 @@ def bill_selected(session: Db, principal: Principal, data: dict) -> dict:
             _currency(session), rtype.deposit_pct
         )
         return {"quote": quote, "rentals": _views(session, rows), "invoice_ids": []}
+    _share_holder_documents(session, _plan_of(decision), client_id, online=False)
     quote, invoice_ids = _decide(session, rtype, client_id, rows, decision)
     for row in rows:
         audit.record(
@@ -1371,6 +1386,7 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     _check_online_slot(session, rtype, data["starts_at"], data["ends_at"])
     clients.service.require_active(session, client_id)
     plan = data.get("rental_plan_purchase_id")
+    _share_holder_documents(session, plan, client_id, online=True)
     hold = None
     if rtype.online_payment_mode == "pay_in_full" and not plan:
         hold = scheduling.service.settings_for(session, rtype.location_id).checkout_hold_min
@@ -1491,7 +1507,7 @@ _PLAN_FIELDS = (
     "name", "rental_type_id", "model", "quantity", "is_unlimited", "price_minor", "member_price_minor", "is_flat_rate",
     "revenue_category_id", "internal_description", "client_description", "is_members_only", "is_sold_online",
     "start_mode", "fixed_starts_on", "validity_days", "fixed_expires_on", "default_invoice_routing", "is_shareable",
-    "status", "is_auto_renew", "is_autopay_default",
+    "status", "is_auto_renew", "is_autopay_default", "renewal_wait_days",
 )  # fmt: skip
 
 
@@ -1570,6 +1586,16 @@ def _is_member(session: Db, client_id: UUID, on: date) -> bool:
     return memberships.service.is_member(session, client_id, on)
 
 
+def _eligible(session: Db, plan: RentalPlan, client_id: UUID) -> bool:
+    """The client is active and, for a members-only plan, a member (RNT-09); whether they are a member. Every sale
+    path runs it before the plan's waiver is issued, so an ineligible client is never handed a document."""
+    clients.service.require_active(session, client_id)
+    member = _is_member(session, client_id, platform.service.location_today(session, plan.location_id))
+    if plan.is_members_only and not member:
+        raise ValidationFailed("This plan is for members only.", pointer="/rental_plan_id", code="membership-required")
+    return member
+
+
 def _sell(
     session: Db,
     plan: RentalPlan,
@@ -1586,11 +1612,8 @@ def _sell(
 ) -> tuple[RentalPlanPurchase, object]:
     """The purchase, its charge (invoiced unless routed to the cart) and its grant. Internal: staff sale, portal
     purchase and auto-renewal share it, so the members-only rule and the price are decided in one place."""
-    clients.service.require_active(session, client_id)
+    member = _eligible(session, plan, client_id)
     today = platform.service.location_today(session, plan.location_id)
-    member = _is_member(session, client_id, today)
-    if plan.is_members_only and not member:
-        raise ValidationFailed("This plan is for members only.", pointer="/rental_plan_id", code="membership-required")
     quantity = None if plan.is_unlimited else (quantity_total or plan.quantity)
     unit = plan.member_price_minor if member and plan.member_price_minor is not None else plan.price_minor
     price = unit if plan.is_flat_rate else pricing.half_up(Decimal(unit) * quantity)
@@ -1642,17 +1665,72 @@ def _sell(
     return row, invoice
 
 
+def _require_documents(
+    session: Db, plan: RentalPlan, client_id: UUID, *, online: bool, used_by: tuple[str, str, UUID] | None = None
+) -> UUID | None:
+    """The accepted document that satisfies the plan's waiver binding, or 409 document-required with the pending
+    document's id (ADR 0013, as packages do). The refusal commits so the document it issued survives; callers
+    run it before writing anything else. `used_by`: an acceptance already consumed by that source still counts
+    (a share-holder's one signature per share)."""
+    source = None
+    for need in documents.service.requirements_for(
+        session, "rental_plan", plan.id, client_id, online=online, source=used_by
+    ):
+        if need["is_blocking"] and not need["is_satisfied"]:
+            pending = documents.service.ensure_pending(session, need["binding_id"], client_id, plan.location_id)
+            raise Conflict(  # persist: the pending document just issued must survive the refusal
+                "The client must accept the plan's document first.",
+                code="document-required",
+                persist=True,
+                document_id=str(pending.id),
+            )
+        source = need["satisfied_by_document_id"] or source
+    return source
+
+
+def _consume(session: Db, source: UUID | None, row: RentalPlanPurchase) -> None:
+    if source:
+        documents.service.consume(session, [source], ("rentals", "rental_plan_purchase", row.id))
+
+
+def _share_holder_documents(session: Db, purchase_id: UUID | None, client_id: UUID, *, online: bool) -> None:
+    """A share-holder books on someone else's plan only once they accepted its waiver themselves (ADR 0013): one
+    acceptance per shared purchase, consumed against it. Callers run it before the booking is written, so the
+    refusal can keep the document it issues. The owner, or a client the plan is not shared with, passes here and
+    is decided by the coverage check. The acceptance is consumed against the share row (one per source)."""
+    purchase = session.get(RentalPlanPurchase, purchase_id) if purchase_id else None
+    share = purchase and session.scalar(select(RentalPlanShare).where(
+        RentalPlanShare.rental_plan_purchase_id == purchase.id, RentalPlanShare.client_id == client_id,
+        RentalPlanShare.revoked_at.is_(None),
+    ))  # fmt: skip
+    if share is None or purchase.client_id == client_id:
+        return
+    plan = session.get(RentalPlan, purchase.rental_plan_id)
+    if plan.is_shareable:
+        used = ("rentals", "rental_plan_share", share.id)
+        if source := _require_documents(session, plan, client_id, online=online, used_by=used):
+            documents.service.consume(session, [source], used)
+
+
+def _plan_of(decision: dict) -> UUID | None:
+    return decision.get("rental_plan_purchase_id") if decision.get("decision") == "plan" else None
+
+
 def sell_plan(session: Db, principal: Principal, data: dict) -> dict:
-    """Sell a plan at the desk (RNT-09). Members-only plans need a member; a member pays the member price."""
+    """Sell a plan at the desk (RNT-09). Members-only plans need a member; a member pays the member price. A
+    waiver bound to the plan must be accepted first (409 document-required)."""
     plan = session.get(RentalPlan, data["rental_plan_id"])
     if plan is None or plan.status != "active":
         raise ValidationFailed("Unknown or archived plan.", pointer="/rental_plan_id")
     authorize(principal, SELL, location_id=plan.location_id)
+    _eligible(session, plan, data["client_id"])
+    source = _require_documents(session, plan, data["client_id"], online=False)
     row, _ = _sell(
         session, plan, data["client_id"], via="staff", staff_user_id=principal.staff_user_id,
         quantity_total=data.get("quantity_total"), invoice_routing=data.get("invoice_routing"),
         is_auto_renew=data.get("is_auto_renew"), is_autopay=data.get("is_autopay"),
     )  # fmt: skip
+    _consume(session, source, row)
     return _purchase_view(session, row)
 
 
@@ -1715,13 +1793,18 @@ def cancel_purchase(session: Db, principal: Principal, purchase_id: UUID, data: 
 
 
 def update_purchase(session: Db, principal: Principal, purchase_id: UUID, data: dict) -> dict:
-    """Turn auto-renew or autopay on or off for one purchase (RNT-09). Auto-renew needs a plan with a validity."""
+    """Turn auto-renew or autopay on or off for one purchase (RNT-09). Auto-renew needs a plan with a validity.
+    An expired purchase whose renewal waits on the waiver (ADR 0013) accepts only `is_auto_renew: false`, which
+    cancels the wait."""
     row = _scoped(session, principal, RentalPlanPurchase, purchase_id, SELL, lock=True)
-    if row.status not in ("pending", "active"):
+    stops_wait = row.renewal_waits_since is not None and data == {"is_auto_renew": False}
+    if row.status not in ("pending", "active") and not stops_wait:
         raise Conflict("Only a live plan can change.", code="plan-not-valid")
     if data.get("is_auto_renew") and session.get(RentalPlan, row.rental_plan_id).validity_days is None:
         raise ValidationFailed("Only a plan with a validity can renew.", pointer="/is_auto_renew")
     changes = _apply(row, data, ("is_auto_renew", "is_autopay"))
+    if not row.is_auto_renew and row.renewal_waits_since is not None:
+        row.renewal_waits_since, changes["renewal_waits_since"] = None, [True, None]
     session.flush()
     if changes:
         audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
@@ -1789,16 +1872,53 @@ def _expire_purchase(session: Db, row: RentalPlanPurchase) -> None:
 
 
 def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> RentalPlanPurchase | None:
+    """`_renew`, keeping `renewal_waits_since` only while the renewal still waits on the waiver: it clears when the
+    purchase renews and also when it can no longer renew (plan archived, client no longer eligible), so the
+    day-roll stops retrying."""
+    waited, row.renewal_waits_since = row.renewal_waits_since, None
+    auto = row.is_auto_renew
+    successor = _renew(session, row, today, waited)
+    if waited is not None and row.renewal_waits_since is None:
+        changes = {"renewal_waits_since": [True, None]}
+        if row.is_auto_renew != auto:
+            changes["is_auto_renew"] = [auto, row.is_auto_renew]
+        audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
+    session.flush()
+    return successor
+
+
+def _renew(session: Db, row: RentalPlanPurchase, today: date, waited) -> RentalPlanPurchase | None:
     """The successor of an expiring auto-renew purchase: a new term and a new charge, invoiced with the
     purchase's autopay flag so billing's autopay run collects it. Shares carry over while the plan is
     shareable. None when the plan was
-    archived or the client no longer qualifies (members-only); the purchase then simply expires."""
+    archived or the client no longer qualifies (members-only); the purchase then simply expires. A waiver bound
+    to the plan must be valid now (ADR 0013): when it is not (every_purchase, a lapsed signature, or a purchase that
+    predates the binding) the renewal waits, as a first purchase does, on a pending document; the client is told
+    once and each day-roll (hourly) tries again (`renewal_waits_since`)."""
     plan = session.get(RentalPlan, row.rental_plan_id)
     if plan.status != "active" or plan.validity_days is None:
         return None
     if session.scalar(select(RentalPlanPurchase.id).where(RentalPlanPurchase.renewed_from_purchase_id == row.id)):
         return None
     starts = max(row.expires_on + timedelta(days=1), today)
+    if waited is not None:  # a waiting renewal ends when the client re-bought the plan, or at the plan's bound
+        lapsed = clock.now() - waited >= timedelta(days=plan.renewal_wait_days)
+        if lapsed or _holds_term(session, row, starts, starts + timedelta(days=plan.validity_days - 1)):
+            row.is_auto_renew = False
+            if lapsed:
+                _tell(session, row, plan, "rentals.plan_renewal_lapsed")
+            return None
+    try:
+        _eligible(session, plan, row.client_id)  # before a waiver is issued
+    except (ValidationFailed, NotFound):
+        return None
+    try:
+        source = _require_documents(session, plan, row.client_id, online=row.sold_via == "portal")
+    except Conflict as exc:
+        if exc.code != "document-required":
+            raise
+        _renewal_waits(session, row, plan, waited)
+        return None
     try:
         with session.begin_nested():
             successor, _ = _sell(
@@ -1808,6 +1928,7 @@ def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> Rental
             )  # fmt: skip
     except (ValidationFailed, Conflict, NotFound):
         return None
+    _consume(session, source, successor)
     if plan.is_shareable:
         session.add_all(RentalPlanShare(rental_plan_purchase_id=successor.id, client_id=cid)
                         for cid in _shared_with(session, row.id))  # fmt: skip
@@ -1815,17 +1936,56 @@ def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> Rental
     return successor
 
 
+def _renewal_waits(session: Db, row: RentalPlanPurchase, plan: RentalPlan, waited) -> None:
+    if waited is not None:  # still waiting: told once already
+        row.renewal_waits_since = waited
+        return
+    row.renewal_waits_since = clock.now()
+    audit.record(session, SELL, row, location_id=row.location_id, changes={"renewal_waits_since": [None, True]})
+    _tell(session, row, plan, "rentals.plan_renewal_waiting")
+
+
+def _holds_term(session: Db, row: RentalPlanPurchase, starts: date, ends: date) -> bool:
+    """Whether the client already holds another live or upcoming purchase of the plan overlapping [starts, ends]."""
+    p = RentalPlanPurchase
+    return session.scalar(select(p.id).where(
+        p.client_id == row.client_id, p.rental_plan_id == row.rental_plan_id, p.id != row.id,
+        p.status.in_(("pending", "active")), p.starts_on <= ends, or_(p.expires_on.is_(None), p.expires_on >= starts),
+    ).limit(1)) is not None  # fmt: skip
+
+
+def _tell(session: Db, row: RentalPlanPurchase, plan: RentalPlan, key: str) -> None:
+    owner = clients.service.get(session, row.client_id)
+    if owner.primary_email:
+        notifications.send(session, key, owner.primary_email, {
+            "app": platform.service.get_tenant(session).name, "name": owner.first_name, "plan": plan.name,
+        })  # fmt: skip
+
+
 def run_plan_day(session: Db) -> dict:
     """Idempotent day-roll per location's today: a pending purchase whose start arrived becomes active; an
     active one past its expiry expires (the remaining balance with it) and, when it auto-renews, gets its
-    successor. Spending never waits for this run: every debit checks the dates itself."""
+    successor; an expired one whose renewal waits on a waiver tries again. Spending never waits for this run: every
+    debit checks the dates itself."""
     p = RentalPlanPurchase
     result, todays = {"activated": 0, "expired": 0, "renewed": 0}, {}
-    for purchase_id in session.scalars(select(p.id).where(p.status.in_(("pending", "active"))).order_by(p.id)).all():
+
+    def locked(purchase_id):
         row = session.execute(select(p).where(p.id == purchase_id).with_for_update()).scalar_one()
         today = todays.get(row.location_id) or todays.setdefault(
             row.location_id, platform.service.location_today(session, row.location_id)
         )
+        return row, today
+
+    waiting = session.scalars(select(p.id).where(
+        p.status == "expired", p.is_auto_renew, p.renewal_waits_since.is_not(None)).order_by(p.id)).all()  # fmt: skip
+    for purchase_id in waiting:
+        row, today = locked(purchase_id)
+        if _renew_purchase(session, row, today):
+            result["renewed"] += 1
+        session.flush()
+    for purchase_id in session.scalars(select(p.id).where(p.status.in_(("pending", "active"))).order_by(p.id)).all():
+        row, today = locked(purchase_id)
         if row.status == "pending" and row.starts_on <= today:
             row.status = "active"
             audit.record(session, SELL, row, location_id=row.location_id, changes={"status": ["pending", "active"]})
@@ -1903,7 +2063,10 @@ def portal_buy_plan(session: Db, principal: Principal, data: dict, idempotency_k
     plan = session.get(RentalPlan, data["rental_plan_id"])
     if plan is None or plan.status != "active" or not plan.is_sold_online:
         raise ValidationFailed("This plan is not sold online.", pointer="/rental_plan_id")
+    _eligible(session, plan, subject)
+    source = _require_documents(session, plan, subject, online=True)
     row, invoice = _sell(session, plan, subject, via="portal", invoice_routing="new_single")
+    _consume(session, source, row)
     payment = billing.checkout.secure_online_checkout(
         session, client_id=subject, location_id=row.location_id, total_minor=row.price_minor, invoice=invoice,
         idempotency_key=f"rental-plan:{idempotency_key}", method_token=data.get("method_token"),
@@ -1922,8 +2085,11 @@ def portal_disable_auto_renew(session: Db, principal: Principal, purchase_id: UU
         raise NotFound()
     _portal_subject(session, principal, row.client_id, "edit_profile")
     if row.is_auto_renew:
+        changes = {"is_auto_renew": [True, False]}
+        if row.renewal_waits_since is not None:  # also cancels a renewal waiting on the waiver
+            row.renewal_waits_since, changes["renewal_waits_since"] = None, [True, None]
         row.is_auto_renew = False
-        audit.record(session, SELL, row, location_id=row.location_id, changes={"is_auto_renew": [True, False]})
+        audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
         session.flush()
     name = session.get(RentalPlan, row.rental_plan_id).name
     return _columns(row) | {"rental_plan_name": name, "is_owner": True}

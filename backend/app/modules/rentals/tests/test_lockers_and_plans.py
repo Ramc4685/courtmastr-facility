@@ -12,10 +12,13 @@ from app.core import clock
 from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing, clients, platform
+from app.modules.documents.models import ClientDocument
+from app.modules.documents.tests.support import sign, template
 from app.modules.platform.models import Identity
 from app.modules.rentals import service
 from app.modules.rentals.models import RentalPlanPurchase, RentalPlanShare
 from app.modules.scheduling.tests.helpers import API, facility, ok
+from app.ports import notifications
 from conftest import PASSWORD, add_staff, login, new_client
 
 
@@ -309,3 +312,251 @@ def test_portal_purchase_members_only_and_opt_out(client, owner, f, tenant, monk
     assert ok(buy({"rental_plan_id": members["id"], "method_token": "tok_card_ok"}, f"k-{uuid4().hex}"))["is_owner"]
     discounted = ok(sell(client, owner, open_plan["id"], f.person))
     assert discounted["price_minor"] == 600 and Decimal(discounted["balance"]) == 5  # members pay the member price
+
+
+# --- waivers bound to a rental plan (owner decisions 2026-11-13, question 8; ADR 0013) ----------------------------
+
+
+def bind_waiver(client, owner, rental_plan, frequency="every_purchase") -> None:
+    waiver = template(client, owner)
+    ok(client.put(f"{API}/document-bindings", headers=owner, json={
+        "scope_type": "rental_plan", "scope_id": rental_plan["id"], "template_id": waiver["id"],
+        "frequency": frequency,
+    }), 200)  # fmt: skip
+
+
+def stopped_by_waiver(client, owner, response) -> dict:
+    assert response.status_code == 409 and response.json()["code"] == "document-required", response.text
+    document = ok(client.get(f"{API}/client-documents/{response.json()['document_id']}", headers=owner), 200)
+    assert document["status"] == "pending"  # issued and kept despite the refusal
+    return document
+
+
+def test_an_unsigned_bound_waiver_blocks_a_desk_sale_until_signed(client, owner, f, tenant):
+    bound, unbound = plan(client, owner, f), plan(client, owner, f)
+    bind_waiver(client, owner, bound)
+    assert sell(client, owner, unbound["id"], f.person).status_code == 201  # a plan with no binding is unaffected
+    document = stopped_by_waiver(client, owner, sell(client, owner, bound["id"], f.person))
+    assert sign(client, owner, document).status_code == 200
+    sold = ok(sell(client, owner, bound["id"], f.person), 201)
+    assert ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)["source_id"] == sold["id"]
+    stopped_by_waiver(client, owner, sell(client, owner, bound["id"], f.person))  # every purchase asks again
+
+
+def test_an_unsigned_bound_waiver_blocks_a_portal_purchase_until_signed(client, owner, f, tenant):
+    person, portal = portal_client(client, owner, tenant, f)
+    bound = plan(client, owner, f, is_sold_online=True)
+    bind_waiver(client, owner, bound)
+
+    def buy():
+        return client.post(f"{API}/portal/rental-plan-purchases", headers=portal | {"Idempotency-Key": uuid4().hex},
+                           json={"rental_plan_id": bound["id"], "method_token": "tok_card_ok"})  # fmt: skip
+
+    document = stopped_by_waiver(client, owner, buy())
+    with tenant_session(tenant.id) as session:  # nothing sold, nothing charged
+        assert (
+            session.scalars(select(RentalPlanPurchase).where(RentalPlanPurchase.client_id == UUID(person))).all() == []
+        )
+    assert sign(client, owner, document).status_code == 200
+    bought = ok(buy())
+    assert ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)["source_id"] == bought["id"]
+
+
+def _waivers_of(tenant, client_id: str) -> list[ClientDocument]:
+    with tenant_session(tenant.id) as session:
+        return list(session.scalars(select(ClientDocument).where(
+            ClientDocument.client_id == UUID(client_id), ClientDocument.binding_id.is_not(None))))  # fmt: skip
+
+
+def test_a_sale_refused_for_eligibility_issues_no_waiver(client, owner, f, tenant):
+    """The client-active and members-only checks run before the waiver is issued, as packages do."""
+    members = plan(client, owner, f, is_members_only=True)
+    bind_waiver(client, owner, members)
+    refused = sell(client, owner, members["id"], f.person)
+    assert refused.status_code == 422 and refused.json()["code"] == "membership-required"
+    assert _waivers_of(tenant, f.person) == []
+
+
+def test_a_share_holder_books_on_a_waivered_plan_only_after_signing(client, owner, f, tenant):
+    kid = relate(client, owner, f)
+    shared = plan(client, owner, f, is_shareable=True)
+    ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={"rental_plan_ids": [shared["id"]]}), 200)
+    bind_waiver(client, owner, shared)
+    assert (
+        sign(client, owner, stopped_by_waiver(client, owner, sell(client, owner, shared["id"], f.person))).status_code
+        == 200
+    )
+    bought = ok(sell(client, owner, shared["id"], f.person))
+    ok(client.put(f"{API}/rental-plan-purchases/{bought['id']}/shares", headers=owner, json={"client_ids": [kid]}), 200)
+
+    def book(hour):
+        return client.post(f"{API}/rentals", headers=owner | {"Idempotency-Key": f"r-{uuid4().hex}"}, json={
+            "location_id": f.location, "rental_type_id": f.rtype, "client_id": kid,
+            "resources": [{"resource_id": f.court}], "starts_at": f"2031-05-05T{hour}:00:00Z",
+            "ends_at": f"2031-05-05T{hour + 1}:00:00Z",
+            "charge": {"decision": "plan", "rental_plan_purchase_id": bought["id"]},
+        })  # fmt: skip
+
+    document = stopped_by_waiver(client, owner, book(15))  # the owner's signature does not cover the kid
+    assert document["client_id"] == kid
+    assert Decimal(ok(client.get(f"{API}/rental-plan-purchases/{bought['id']}", headers=owner), 200)["balance"]) == 5
+    assert sign(client, owner, document).status_code == 200
+    first = book(15)
+    assert first.status_code == 201, first.text
+    signed = ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)
+    assert signed["source_type"] == "rental_plan_share"
+    assert book(17).status_code == 201  # one acceptance per share, not per booking
+
+
+def test_a_renewal_waits_for_a_valid_waiver_and_tells_the_client(client, owner, f, tenant, monkeypatch):
+    """Renewal needs a valid waiver when the binding is every_purchase or the signature lapsed; a purchase sold
+    before the binding existed is asked at its next renewal. It waits (as a first purchase does) and notifies."""
+    sent = []
+    monkeypatch.setattr(notifications, "send", lambda session, key, to, data: sent.append((key, to)))
+    person = new_client(client, owner, f.location, primary_email=f"r-{uuid4().hex[:6]}@example.com")
+    monthly = plan(client, owner, f, validity_days=30, is_auto_renew=True)
+    old = ok(sell(client, owner, monthly["id"], person["id"]))  # sold before the binding
+    bind_waiver(client, owner, monthly)
+    with (
+        clock.freeze(clock.now() + timedelta(days=31)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session) == {"activated": 0, "expired": 1, "renewed": 0}
+        assert service.run_plan_day(session) == {"activated": 0, "expired": 0, "renewed": 0}  # still waiting
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is not None
+    assert [m for m in sent if m[0].startswith("rentals.")] == [
+        ("rentals.plan_renewal_waiting", person["primary_email"])
+    ]  # told once
+    [pending] = _waivers_of(tenant, person["id"])
+    assert pending.status == "pending"
+    document = ok(client.get(f"{API}/client-documents/{pending.id}", headers=owner), 200)
+    assert sign(client, owner, document).status_code == 200
+    with (
+        clock.freeze(clock.now() + timedelta(days=32)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session) == {"activated": 0, "expired": 0, "renewed": 1}
+        successor = session.scalars(
+            select(RentalPlanPurchase).where(RentalPlanPurchase.renewed_from_purchase_id == UUID(old["id"]))
+        ).one()
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is None
+        assert session.get(ClientDocument, pending.id).source_id == successor.id  # every_purchase: used up
+
+
+def test_a_waiting_renewal_stops_when_it_can_no_longer_renew(client, owner, f, tenant):
+    monthly = plan(client, owner, f, validity_days=30, is_auto_renew=True)
+    old = ok(sell(client, owner, monthly["id"], f.person))
+    bind_waiver(client, owner, monthly)
+    with (
+        clock.freeze(clock.now() + timedelta(days=31)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        service.run_plan_day(session)
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is not None
+    assert client.delete(f"{API}/rental-plans/{monthly['id']}", headers=owner).status_code == 204  # archived
+    with (
+        clock.freeze(clock.now() + timedelta(days=32)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session)["renewed"] == 0
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is None  # no more retries
+
+
+def _waiting_renewal(client, owner, f, tenant, person: str, frequency="every_purchase", **extra):
+    """A monthly auto-renew plan sold 31 days ago, before a waiver was bound: expired today, its renewal waiting."""
+    monthly = plan(client, owner, f, validity_days=30, is_auto_renew=True, **extra)
+    old = ok(sell(client, owner, monthly["id"], person))
+    bind_waiver(client, owner, monthly, frequency)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        row = session.get(RentalPlanPurchase, UUID(old["id"]))
+        row.starts_on, row.expires_on = row.starts_on - timedelta(days=31), row.expires_on - timedelta(days=31)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        service.run_plan_day(session)
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is not None
+    [pending] = [d for d in _waivers_of(tenant, person) if d.status == "pending"]
+    return monthly, old, ok(client.get(f"{API}/client-documents/{pending.id}", headers=owner), 200)
+
+
+def _terms_and_invoices(tenant, person: str) -> tuple[int, int]:
+    with tenant_session(tenant.id) as session:
+        terms = session.scalars(select(RentalPlanPurchase).where(
+            RentalPlanPurchase.client_id == UUID(person), RentalPlanPurchase.status.in_(("pending", "active")))).all()  # fmt: skip
+        invoices = session.scalars(select(billing.models.Invoice).where(
+            billing.models.Invoice.bill_to_client_id == UUID(person))).all()  # fmt: skip
+        return len(terms), len(invoices)
+
+
+def _run_day(tenant, days: int) -> dict:
+    with (
+        clock.freeze(clock.now() + timedelta(days=days)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        return service.run_plan_day(session)
+
+
+@pytest.mark.parametrize("frequency", ["first_purchase", "every_purchase"])
+def test_signing_then_rebuying_cancels_the_waiting_renewal(client, owner, f, tenant, frequency):
+    """Blocker: a client who signs and buys the plan again themselves must not also get the waiting renewal (two
+    terms, the second invoiced on autopay)."""
+    monthly, old, document = _waiting_renewal(client, owner, f, tenant, f.person, frequency)
+    assert sign(client, owner, document).status_code == 200
+    ok(sell(client, owner, monthly["id"], f.person), 201)
+    assert _terms_and_invoices(tenant, f.person) == (1, 2)  # the original sale and the re-buy
+    for days in (1, 2):  # and again on the next run, after any new pending waiver is signed
+        assert _run_day(tenant, days)["renewed"] == 0
+        for pending in (d for d in _waivers_of(tenant, f.person) if d.status == "pending"):
+            sign(client, owner, ok(client.get(f"{API}/client-documents/{pending.id}", headers=owner), 200))
+    assert _terms_and_invoices(tenant, f.person) == (1, 2)
+    with tenant_session(tenant.id) as session:
+        row = session.get(RentalPlanPurchase, UUID(old["id"]))
+        assert (row.renewal_waits_since, row.is_auto_renew) == (None, False)
+
+
+def test_a_waiting_renewal_lapses_at_its_bound_with_a_notice(client, owner, f, tenant, monkeypatch):
+    sent = []
+    monkeypatch.setattr(notifications, "send", lambda session, key, to, data: sent.append((key, to)))
+    person = new_client(client, owner, f.location, primary_email=f"l-{uuid4().hex[:6]}@example.com")
+    monthly, old, document = _waiting_renewal(client, owner, f, tenant, person["id"], renewal_wait_days=3)
+    assert monthly["renewal_wait_days"] == 3
+    assert plan(client, owner, f)["renewal_wait_days"] == 14  # the default
+    assert _run_day(tenant, 2)["renewed"] == 0  # two days in: still waiting
+    with tenant_session(tenant.id) as session:
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is not None
+    assert _run_day(tenant, 4)["renewed"] == 0  # past the bound: lapses
+    with tenant_session(tenant.id) as session:
+        row = session.get(RentalPlanPurchase, UUID(old["id"]))
+        assert (row.renewal_waits_since, row.is_auto_renew) == (None, False)
+    assert ("rentals.plan_renewal_lapsed", person["primary_email"]) in sent
+    trail = ok(client.get(f"{API}/audit-events", headers=owner, params={"entity_id": old["id"]}), 200)["data"]
+    assert any(e["changes"].get("is_auto_renew") == [True, False] for e in trail)
+    assert sign(client, owner, document).status_code == 200
+    assert _run_day(tenant, 5)["renewed"] == 0  # signing after the lapse renews nothing
+
+
+def test_staff_cancel_a_waiting_renewal(client, owner, f, tenant):
+    _, old, document = _waiting_renewal(client, owner, f, tenant, f.person)
+    url = f"{API}/rental-plan-purchases/{old['id']}"
+    refused = client.patch(url, headers=owner, json={"is_autopay": True})
+    assert refused.status_code == 409  # an expired purchase changes nothing else
+    stopped = ok(client.patch(url, headers=owner, json={"is_auto_renew": False}), 200)
+    assert stopped["is_auto_renew"] is False
+    assert sign(client, owner, document).status_code == 200
+    assert _run_day(tenant, 1)["renewed"] == 0
+    with tenant_session(tenant.id) as session:
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is None
+
+
+@pytest.mark.parametrize("lapse", ["expired", "voided"])
+def test_a_first_purchase_waiver_needs_a_currently_valid_signature(client, owner, f, tenant, lapse):
+    bound = plan(client, owner, f)
+    bind_waiver(client, owner, bound, "first_purchase")
+    document = stopped_by_waiver(client, owner, sell(client, owner, bound["id"], f.person))
+    assert sign(client, owner, document).status_code == 200
+    ok(sell(client, owner, bound["id"], f.person), 201)
+    with tenant_session(tenant.id) as session:
+        signed = session.get(ClientDocument, UUID(document["id"]))
+        if lapse == "expired":
+            signed.expires_on = clock.now().date() - timedelta(days=2)
+        else:
+            signed.status = "voided"
+    stopped_by_waiver(client, owner, sell(client, owner, bound["id"], f.person))

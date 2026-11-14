@@ -125,7 +125,8 @@ games to score.
 - **Game cards (LGE-16, RPT-36)** are PDFs through `core/pdf.py`: one game per card section, no page break per
   game (`core/pdf.py` has no `new_page()`); a run is capped at 31 days and 200 games.
 - **Not routed (P1/P2):** alert settings and portal games (chip C2 and later). Discipline suspensions have no
-  model or route either; the key `leagues.discipline.manage` is registered for them and unused (no phase yet).
+  model, route or permission key (`leagues.discipline.manage` was removed, owner decisions 2026-11-13, question
+  16b; a custom role's stored grant of it is ignored).
 - **Public league site (chip B2, migration `1441`).** Teams, schedules, standings, brackets (once published) and
   results are public as soon as a competition is public; the site switch (`league_site.is_enabled`) governs
   only the extra sections (facility info, news, classes, gallery, sponsors, links, classifieds, pickup games),

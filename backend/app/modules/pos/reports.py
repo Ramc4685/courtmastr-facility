@@ -1,8 +1,8 @@
 """POS report data (POS-16 history, the POS rows of the reporting catalogue): sales grouped by employee,
 category, coupon, supplier, brand, product or register; the daily register; reorder; returns.
 
-Gate: pos.sale.read, with location scope (the reporting context's own `reporting.pos.run` belongs to module
-15 and is not registered here). Date ranges are local dates at the location (or the tenant's default zone
+Gate: `reporting.pos.run` (registered by reporting), with location scope, the same key as the report centre's POS
+reports (owner decisions 2026-11-13, question 14). Date ranges are local dates at the location (or the tenant's default zone
 when no location is given), turned into UTC bounds: completed_at is stored in UTC.
 """
 
@@ -33,7 +33,7 @@ from app.modules.pos.models import (
 )
 from app.modules.pos.service import check_location
 
-_READ = "pos.sale.read"
+_READ = "reporting.pos.run"  # owner decisions 2026-11-13, question 14
 GROUPS = ("employee", "category", "coupon", "supplier", "brand", "product", "register")
 _MAX_DAYS = 366
 

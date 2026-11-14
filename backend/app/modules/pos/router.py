@@ -499,7 +499,7 @@ def get_pos_sales_report(
     from_on: date,
     to_on: date,
     location_id: UUID | None = None,
-    ctx: Ctx = Depends(require("pos.sale.read")),
+    ctx: Ctx = Depends(require("reporting.pos.run")),
 ):
     return reports.sales_report(
         ctx.session, ctx.principal, group_by=group_by, from_on=from_on, to_on=to_on, location_id=location_id
@@ -508,13 +508,13 @@ def get_pos_sales_report(
 
 @router.get("/pos-reports/daily-register", response_model=s.DailyRegisterReport)
 def get_pos_daily_register_report(
-    location_id: UUID, on: date = Query(...), ctx: Ctx = Depends(require("pos.sale.read"))
+    location_id: UUID, on: date = Query(...), ctx: Ctx = Depends(require("reporting.pos.run"))
 ):
     return reports.daily_register(ctx.session, ctx.principal, location_id=location_id, on=on)
 
 
 @router.get("/pos-reports/reorder", response_model=s.ReorderReport)
-def get_pos_reorder_report(location_id: UUID, ctx: Ctx = Depends(require("pos.sale.read"))):
+def get_pos_reorder_report(location_id: UUID, ctx: Ctx = Depends(require("reporting.pos.run"))):
     report = reports.reorder_report(ctx.session, ctx.principal, location_id=location_id)
     report["data"] = [_cost(ctx, row) for row in report["data"]]
     return report
@@ -522,6 +522,6 @@ def get_pos_reorder_report(location_id: UUID, ctx: Ctx = Depends(require("pos.sa
 
 @router.get("/pos-reports/returns", response_model=s.ReturnsReport)
 def get_pos_returns_report(
-    from_on: date, to_on: date, location_id: UUID | None = None, ctx: Ctx = Depends(require("pos.sale.read"))
+    from_on: date, to_on: date, location_id: UUID | None = None, ctx: Ctx = Depends(require("reporting.pos.run"))
 ):
     return reports.returns_report(ctx.session, ctx.principal, from_on=from_on, to_on=to_on, location_id=location_id)

@@ -26,8 +26,8 @@ binding_id, client_id, location_id)`, `consume(session, document_ids, (context, 
 client_ids)`, `has_valid_waiver(session, client_id)`, `settings_row(session)` (memberships reads the waiver rules
 from it), `refresh_status`, `issue(...)`, `run_sweeps(session)` and the queued `sweep_documents` actor. Selling
 contexts (memberships, packages, programs) call `requirements_for` before checkout, `ensure_pending` to present the
-document, and `consume` when the sale completes so an `every_purchase` binding asks again next time. Rentals does not
-call them yet, so a waiver bound to a rental plan is not enforced. `scope_id` is opaque here: the owning context
+document, and `consume` when the sale completes so an `every_purchase` binding asks again next time. Rentals calls
+them when it sells a rental plan, at the desk and in the portal (ADR 0013); a rental type has no binding. `scope_id` is opaque here: the owning context
 validates it.
 
 ## Decisions and assumptions
