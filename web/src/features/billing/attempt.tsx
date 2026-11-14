@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
-import { dropHeld, getHeld, setHeld } from '../../lib/heldAttempts'
+import { dropHeld, getHeld, heldOwner, setHeld } from '../../lib/heldAttempts'
 
 /** Whether a failed money request's outcome is unknown (network loss, 5xx, another request still at work, or the
  * key already used for other values), so the retry must carry the same Idempotency-Key: the server then replays the
@@ -44,6 +44,7 @@ const said: Record<string, string> ={ succeeded: 'went through', processing: 'is
  * (`restart`, refused while locked). `scope` names the form so the lock survives a remount; pass the form's values
  * to `settle` and start the form from `saved`, so a reopened form sends what the held key was used for. */
 export function useAttemptKey<V = unknown>(scope?: string, check?: AttemptCheck) {
+  const [owner] = useState(heldOwner) // who this form belongs to; a late answer never writes into another's slot
   const [saved] = useState(() => (scope ? (getHeld(scope)?.values as V | undefined) : undefined))
   const [key, setKey] = useState(() => (scope && getHeld(scope)?.key) || crypto.randomUUID())
   const [locked, setLocked] = useState(() => Boolean(scope && getHeld(scope)))
@@ -52,22 +53,22 @@ export function useAttemptKey<V = unknown>(scope?: string, check?: AttemptCheck)
   const state = useRef({ key, locked })
   state.current = { key, locked }
   const fresh = useCallback(() => {
-    if (scope) dropHeld(scope) // settled: the held request (and any processor token in it) goes
+    if (scope) dropHeld(scope, owner) // settled: the held request (and any processor token in it) goes
     setLocked(false)
     setKey(crypto.randomUUID())
-  }, [scope])
+  }, [scope, owner])
   /** Call with the request's error, or null after an answer that is final for the attempt (the server's 2xx), and
    * the values the request was sent with. */
   const settle = useCallback(
     (error: Error | null, values?: V) => {
       if (keepsAttemptKey(error)) {
-        if (scope) setHeld(scope, { key: state.current.key, values: values ?? getHeld(scope)?.values })
+        if (scope) setHeld(scope, { key: state.current.key, values: values ?? getHeld(scope)?.values }, owner)
         setLocked(true)
       } else if (error === null || !state.current.locked || isDecline(error)) {
         fresh() // a success or a decline is final; a refusal while locked is not an answer about the first attempt
       }
     },
-    [scope, fresh],
+    [scope, owner, fresh],
   )
   const restart = useCallback(() => {
     if (!state.current.locked) setKey(crypto.randomUUID())

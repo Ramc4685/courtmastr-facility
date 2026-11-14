@@ -86,6 +86,17 @@ describe('useAttemptKey', () => {
     clearHeldAttempts()
   })
 
+  it('drops a late answer from a form that belonged to whoever was signed in before', () => {
+    const scope = `late-${Math.random()}`
+    clearHeldAttempts('staff-a')
+    const mine = renderHook(() => useAttemptKey<{ amount: string }>(scope))
+    clearHeldAttempts('staff-b') // B signs in while A's request is still out
+    act(() => mine.result.current.settle(problem(503), { amount: '9.00' }))
+    mine.unmount()
+    expect(renderHook(() => useAttemptKey(scope)).result.current.locked).toBe(false) // nothing written into B's slot
+    clearHeldAttempts()
+  })
+
   it('frees the form only when the server says no money moved', async () => {
     const answers = [() => outcome(false, 'initiated'), () => { throw problem(404, 'not-found') }, () => outcome(true, 'succeeded'), () => outcome(true, 'failed')]
     const check: AttemptCheck = vi.fn(async () => {

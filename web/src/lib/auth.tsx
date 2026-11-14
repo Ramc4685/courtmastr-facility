@@ -55,8 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthenticatedHandler(() => {
-      setCsrfToken(null)
-      clearHeldAttempts()
+      setCsrfToken(null) // held attempts stay with their owner: the same person signing back in may still need them
       qc.setQueryData(SESSION_KEY, null)
       // Back to the value already rendered (null) in the same tick: no re-render comes, so release by hand.
       release()
@@ -68,7 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCsrfToken(csrf)
       qc.removeQueries(notSession)
       const next = await api.get('/api/v1/me')
-      clearHeldAttempts(next.principal.identity_id) // a new session never resumes someone's held payment form
+      // a different person never resumes someone else's held payment form; the same person keeps theirs
+      if (heldOwner() !== next.principal.identity_id) clearHeldAttempts(next.principal.identity_id)
       await new Promise<void>((resolve) => {
         qc.setQueryData(SESSION_KEY, next)
         // Structural sharing keeps the old object when nothing changed, and then no re-render is coming.
@@ -104,9 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc, release])
 
   const me = session.data
-  // A restored or changed session (another tab signed someone else in): held attempts belong to their identity.
+  // A restored or changed session (another tab signed someone else in): held attempts belong to their identity. No
+  // session (a lapsed one, or still loading) leaves them bound to their owner.
   const identity = me?.principal.identity_id ?? null
-  if (heldOwner() !== identity) clearHeldAttempts(identity)
+  if (identity !== null && heldOwner() !== identity) clearHeldAttempts(identity)
   const keys = useMemo(() => new Set((me?.permissions ?? []).map((p) => p.key)), [me])
   const can = useCallback((key: string) => keys.has(key), [keys])
 
