@@ -395,6 +395,8 @@ def put_coach_share_rule(body: s.CoachShareRuleWrite, ctx: Ctx = PayManage):
 
 @router.delete("/coach-share-rules/{coach_share_rule_id}", status_code=204)
 def delete_coach_share_rule(coach_share_rule_id: UUID, ctx: Ctx = PayManage):
+    """Errors: effective-date-has-sessions (the rule starts before today and an affected coach already has sessions
+    from its date: removing it would re-price those lessons)."""
     coach.delete_share_rule(ctx.session, ctx.principal, coach_share_rule_id)
     return Response(status_code=204)
 

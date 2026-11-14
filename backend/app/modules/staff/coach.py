@@ -136,22 +136,25 @@ def list_share_rules(session: Session, principal: Principal, query: ListQuery) -
     )  # fmt: skip
 
 
+def _rule_coaches(session: Session, principal: Principal, payee_id: UUID | None) -> list[StaffPayee]:
+    """The coaches a share rule reaches: its own coach, or (a default or lesson-type rule) every coach who is, or
+    was, independent."""
+    if payee_id:
+        return [_trainer(session, principal, payee_id, PAY_MANAGE)]
+    return list(session.scalars(select(StaffPayee).where(StaffPayee.id.in_(
+        select(CoachEngagement.staff_payee_id).where(CoachEngagement.engagement == "independent")
+    )).order_by(StaffPayee.id)))  # fmt: skip
+
+
 def put_share_rule(session: Session, principal: Principal, data: dict) -> CoachShareRule:
     """A default, per lesson type, per coach, or per coach and type share from a date; the same key and date is
     replaced. Earning lines keep the share they were made with."""
     authorize(principal, PAY_MANAGE)
-    location_id = None
-    if data.get("staff_payee_id"):
-        try:
-            payee = _trainer(session, principal, data["staff_payee_id"], PAY_MANAGE)
-        except NotFound:
-            raise ValidationFailed("Unknown coach.", pointer="/staff_payee_id") from None
-        location_id = payee.location_id
-        affected = [payee]
-    else:  # a default or lesson-type rule reaches every coach who is, or was, independent
-        affected = list(session.scalars(select(StaffPayee).where(StaffPayee.id.in_(
-            select(CoachEngagement.staff_payee_id).where(CoachEngagement.engagement == "independent")
-        )).order_by(StaffPayee.id)))  # fmt: skip
+    try:
+        affected = _rule_coaches(session, principal, data.get("staff_payee_id"))
+    except NotFound:
+        raise ValidationFailed("Unknown coach.", pointer="/staff_payee_id") from None
+    location_id = affected[0].location_id if data.get("staff_payee_id") else None
     _refuse_backdated(session, affected, data["effective_from_on"])
     if data.get("reservation_type_id"):
         try:
@@ -178,13 +181,14 @@ def put_share_rule(session: Session, principal: Principal, data: dict) -> CoachS
 
 
 def delete_share_rule(session: Session, principal: Principal, rule_id: UUID) -> None:
+    """Removing a rule re-prices lessons from its date on, so it is refused like a back-dated change."""
     authorize(principal, PAY_MANAGE)
     row = session.get(CoachShareRule, rule_id)
     if row is None:
         raise NotFound()
-    location_id = None
-    if row.staff_payee_id is not None:
-        location_id = _trainer(session, principal, row.staff_payee_id, PAY_MANAGE).location_id
+    affected = _rule_coaches(session, principal, row.staff_payee_id)
+    location_id = affected[0].location_id if row.staff_payee_id is not None else None
+    _refuse_backdated(session, affected, row.effective_from_on)
     audit.record(session, PAY_MANAGE, row, location_id=location_id, changes={"deleted": True})
     session.delete(row)
     session.flush()

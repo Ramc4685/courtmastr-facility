@@ -215,6 +215,29 @@ def test_terms_dated_before_today_are_refused_once_the_coach_has_sessions(client
         ok(client.put(f"{API}/coach-share-rules", headers=owner, json=rule | {"effective_from_on": "2031-05-07"}), 200)
 
 
+def test_deleting_a_rule_dated_before_today_is_refused_like_a_back_dated_change(client, tenant, owner, coached):
+    """$500 for ten lessons, three taught at 70% ($105). Deleting the 1 January rule would let a later $500 to $450
+    price edit rewrite all three as "no share rule" at $0; refused, the edit leaves $94.50 owed."""
+    c = coached
+    plan = package_plan(client, owner, tenant, reservation_type_id=c.f.type, fee_minor=50000)
+    pack = ok(client.post(f"{API}/client-packages", headers=owner, json={
+        "client_id": c.person["id"], "location_id": c.f.location, "package_plan_id": plan["id"],
+        "invoice_mode": "deferred"}))  # fmt: skip
+    for seat, place in _lessons(client, owner, c, pack["id"], (17, 19, 21)):
+        _attend(client, tenant, seat, place, "attended")
+    assert sum(x[3] for x in _lines(tenant, c.payee["id"])) == 10500
+    [rule] = ok(client.get(f"{API}/coach-share-rules", headers=owner), 200)["data"]
+    with clock.freeze(DAY + timedelta(days=1)):
+        owner = login(client, tenant)
+        refused = client.delete(f"{API}/coach-share-rules/{rule['id']}", headers=owner)
+        assert (refused.status_code, refused.json()["code"]) == (422, "effective-date-has-sessions")
+        ok(client.patch(f"{API}/charges/{pack['charge_id']}", headers=owner,
+                        json={"unit_price_minor": 45000, "reason": "Price corrected"}), 200)  # fmt: skip
+    deliver_events()
+    lines = _lines(tenant, c.payee["id"])
+    assert sum(x[3] for x in lines) == 9450 and [x for x in lines if x[0] == "lesson"][-1] == ("lesson", 4500, 1350, 3150)
+
+
 def test_a_lesson_with_no_share_rule_is_recorded_wholly_the_facilitys(client, tenant, owner, coached):
     c = coached
     [rule] = ok(client.get(f"{API}/coach-share-rules", headers=owner), 200)["data"]
