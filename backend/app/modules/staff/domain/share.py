@@ -15,11 +15,13 @@ def half_up(value: Decimal) -> int:
     return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
-def lesson_value(net_minor: int, credits: int) -> int:
-    """One lesson's gross: the package's net price (after discounts and refunds, before tax) per credit."""
-    if credits <= 0 or net_minor <= 0:
+def lesson_value(net_minor: int, sold: int, number: int = 1) -> int:
+    """The gross of a package's `number`th lesson: the package's net price (after discounts and refunds, before tax)
+    per credit granted at sale, rounded down so the lessons never add up to more than the net (the remainder, under
+    a cent a lesson, stays the facility's). Lessons past the sold count (credits added later) are worth 0."""
+    if sold <= 0 or net_minor <= 0 or not 1 <= number <= sold:
         return 0
-    return half_up(Decimal(net_minor) / credits)
+    return net_minor // sold
 
 
 def court_fee(fee_minor: int, basis: str, minutes: int) -> int:

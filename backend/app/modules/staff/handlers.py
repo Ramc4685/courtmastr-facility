@@ -9,16 +9,16 @@ from app.modules.staff import coach
 
 @handles("packages.credit.consumed")
 def earn_on_credit_consumed(session, payload: dict) -> None:
-    """A lesson credit was spent (attended, or a no-show the package charges): the lesson is recognised."""
-    if payload.get("source_id"):
-        coach.reconcile_source(session, payload["source_type"], UUID(payload["source_id"]))
+    """A lesson credit was spent (attended, or a no-show the package charges): the lesson is recognised. The whole
+    package is reconciled, since a lesson's value depends on its place among the package's spent credits."""
+    coach.reconcile_package(session, UUID(payload["client_package_id"]))
 
 
 @handles("packages.credit.restored")
 def reverse_on_credit_restored(session, payload: dict) -> None:
-    """The credit came back (excused, cancelled in time, session cancelled): the lesson's earning is reversed."""
-    if payload.get("source_id"):
-        coach.reconcile_source(session, payload["source_type"], UUID(payload["source_id"]))
+    """The credit came back (excused, cancelled in time, session cancelled): the lesson's earning is reversed, and a
+    lesson past the sold count may move up into a paid place."""
+    coach.reconcile_package(session, UUID(payload["client_package_id"]))
 
 
 def _package_charge(session, payload: dict) -> None:

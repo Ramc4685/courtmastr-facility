@@ -169,7 +169,11 @@ routes need the pay-rate keys, which coaches do not hold.
 
 **Valuation** (written down, owner to confirm):
 - A lesson paid from a package is worth the package's net revenue (after discounts and any refunds, before tax:
-  `billing.source_totals` `net_minor`, reversals included) divided by its session count, rounded half-up once.
+  `billing.source_totals` `net_minor`, reversals included) divided by the credits granted when it was sold
+  (`packages.package_lessons`), rounded down, so a package's lessons never add up to more than its net (the
+  remainder, under a cent a lesson, stays the facility's). Credits added by hand later are complimentary: the
+  lessons past the sold count, in the order their credits were first spent, are worth 0. A credit event
+  reconciles the whole package, so a lesson moves into a paid place when an earlier credit comes back.
 - Complimentary packages, unlimited packages and lessons included in a membership (no package credit spent)
   are worth 0 and make no line. Group program fees are not shared in this slice.
 - A lesson is recognised when its credit is spent (attended, or a no-show the package charges), on the

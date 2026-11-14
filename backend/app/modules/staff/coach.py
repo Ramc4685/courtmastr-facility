@@ -196,7 +196,9 @@ def _target(session: Session, source_type: str, source_id: UUID) -> dict | None:
         return None
     package_id = credit["client_package_id"]
     net = billing.service.source_totals(session, "packages", "client_package", [package_id])
-    gross = share.lesson_value(net.get(package_id, {}).get("net_minor", 0), credit["sessions_granted_count"] or 0)
+    lessons = packages.service.package_lessons(session, package_id)
+    number = lessons["lessons"].index((source_type, source_id)) + 1
+    gross = share.lesson_value(net.get(package_id, {}).get("net_minor", 0), lessons["sold"], number)
     minutes = int((view["ends_at"] - view["starts_at"]).total_seconds() // 60)
     fee = share.court_fee(rule.court_fee_minor, rule.court_fee_basis, minutes)
     facility, coach = share.split(gross, rule.coach_share_pct, fee, rule.court_fee_applies)

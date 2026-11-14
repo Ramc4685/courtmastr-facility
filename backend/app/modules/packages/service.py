@@ -1482,18 +1482,15 @@ def session_credit_facts(session: Session, source_type: str, source_ids) -> dict
         return {}
     e = CreditLedgerEntry
     rows = session.execute(
-        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor, ClientPackage.id,
-               ClientPackage.sessions_granted_count)
+        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor, ClientPackage.id)
         .join(ClientPackage, ClientPackage.id == e.client_package_id)
         .where(e.source_type == source_type, e.source_id.in_(ids))
         .group_by(e.source_id, ClientPackage.id)
         .having(func.sum(e.consumed_delta) > 0)
     ).all()  # fmt: skip
     return {
-        row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2], "client_package_id": row[3],
-                 "sessions_granted_count": row[4]}
-        for row in rows
-    }  # fmt: skip
+        row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2], "client_package_id": row[3]} for row in rows
+    }
 
 
 def consumed_sources(session: Session, client_package_id: UUID) -> list[tuple[str, UUID]]:
@@ -1504,3 +1501,18 @@ def consumed_sources(session: Session, client_package_id: UUID) -> list[tuple[st
         select(e.source_type, e.source_id).distinct()
         .where(e.client_package_id == client_package_id, e.source_id.is_not(None), e.consumed_delta != 0)
     )]  # fmt: skip
+
+
+def package_lessons(session: Session, client_package_id: UUID) -> dict:
+    """Internal read for coach revenue share: the credits granted when the package was sold (credits added by hand
+    later are not counted), and the sources holding a spent credit now, in the order they first spent one."""
+    e = CreditLedgerEntry
+    sold = session.scalar(select(func.coalesce(func.sum(e.granted_delta), 0)).where(
+        e.client_package_id == client_package_id, e.entry_type == "grant"
+    ))  # fmt: skip
+    spent = session.execute(
+        select(e.source_type, e.source_id).where(e.client_package_id == client_package_id, e.source_id.is_not(None))
+        .group_by(e.source_type, e.source_id).having(func.sum(e.consumed_delta) > 0)
+        .order_by(func.min(e.occurred_at).filter(e.consumed_delta > 0), e.source_id)
+    ).all()  # fmt: skip
+    return {"sold": int(sold), "lessons": [(row[0], row[1]) for row in spent]}

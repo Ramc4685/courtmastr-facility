@@ -38,10 +38,18 @@ def test_split_rounds_once_and_always_sums_to_the_gross(gross, pct, fee, applies
 def test_lesson_value_court_fee_and_labels():
     assert share.lesson_value(22500, 5) == 4500 and share.lesson_value(10000, 3) == 3333
     assert share.lesson_value(0, 5) == 0 and share.lesson_value(5000, 0) == 0  # refunded, or unlimited
+    assert share.lesson_value(10000, 10, 11) == 0  # a credit added after the sale is worth nothing to the split
     assert share.court_fee(1200, "session", 90) == 1200 and share.court_fee(1200, "hour", 90) == 1800
     assert share.client_label("Ana", "Ruiz", False) == "Lesson with Ana R."
     assert share.client_label("Tom", "Ruiz", True) == "Junior lesson"  # a minor is never named
     assert share.client_label(None, None, False) == "Lesson"
+
+
+@pytest.mark.parametrize("sold", range(1, 13))
+def test_a_packages_recognised_lessons_never_add_up_to_more_than_its_net(sold):
+    """However many credits are spent (added credits included), the lessons' gross never exceeds the net."""
+    for net in (*range(0, 400, 7), 9999, 10000, 20000, 22500, 50000):
+        assert sum(share.lesson_value(net, sold, n) for n in range(1, 3 * sold + 1)) <= net
 
 
 def test_rule_precedence_and_effective_dates():
@@ -152,6 +160,17 @@ def test_the_ledger_follows_the_lesson_money_and_replays_change_nothing(client, 
     deliver_events()
     lines = _lines(tenant, c.payee["id"])
     assert lines[-1] == ("reversal", -1000, -300, -700) and sum(x[3] for x in lines) == 0
+
+
+def test_credits_added_by_hand_do_not_lower_the_value_of_a_lesson(client, tenant, owner, coached):
+    """$100 for ten lessons: a lesson is $10. Adding ten credits later must not re-recognise it at $5."""
+    c = coached
+    _mark(client, tenant, c, "attended")
+    ok(client.post(f"{API}/client-packages/{c.pack['id']}/credit-adjustments", headers=owner,
+                   json={"delta": 10, "note": "Goodwill"}), 200)  # fmt: skip
+    _mark(client, tenant, c, "excused")
+    _mark(client, tenant, c, "attended")
+    assert _lines(tenant, c.payee["id"])[-1] == ("lesson", 1000, 300, 700)
 
 
 def test_an_independent_coach_is_never_on_payroll_and_an_employee_earns_no_share(client, tenant, owner, coached):
