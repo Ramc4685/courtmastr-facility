@@ -86,8 +86,13 @@ test('guest checkout for a program passes the scan, with and without field error
       await page.goto(`/f/${SLUG}/programs/${camp.id}/guest`)
       await expect(page.getByRole('heading', { level: 1, name: /^Register for/ })).toBeVisible()
       await scan(page, `${colorScheme} guest checkout`)
+      // Nothing filled and the declaration unticked: one submit marks every missing field and the declaration inline.
       await page.getByRole('button', { name: 'Continue to payment' }).click()
       await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveAttribute('aria-invalid', 'true')
+      await expect(page.getByLabel('Date of birth', { exact: true })).toHaveAttribute('aria-invalid', 'true')
+      const declaration = page.getByRole('checkbox', { name: /dates of birth I entered are true/ })
+      await expect(declaration).toHaveAttribute('aria-invalid', 'true')
+      await expect(declaration).toHaveAccessibleDescription(/Tick this box/)
       await scan(page, `${colorScheme} guest checkout with field errors`)
     }
 
@@ -101,6 +106,7 @@ test('guest checkout for a program passes the scan, with and without field error
     await page.getByRole('textbox', { name: 'Last name', exact: true }).fill('Guest')
     await page.getByRole('textbox', { name: 'Email', exact: true }).fill(`guest-${crypto.randomUUID()}@example.com`)
     await page.getByLabel('Date of birth', { exact: true }).fill('1990-04-12')
+    await page.getByRole('checkbox', { name: /dates of birth I entered are true/ }).check()
     await page.getByRole('button', { name: 'Continue to payment' }).click()
     await expect(page.getByText(/Total to pay now/)).toBeVisible()
     const card = page.getByRole('combobox', { name: 'Card' })
