@@ -239,6 +239,26 @@ def test_a_session_code_is_its_persons_and_dies_with_the_enrolment(client, tenan
     assert theirs
 
 
+def test_merging_two_records_with_codes_on_one_session_keeps_the_survivors_code(client, tenant, owner, b):
+    """Duplicate records both enrolled on one session each hold a code; the merge revokes the loser's instead of
+    tripping uq_entry_code_booking, and the survivor's code keeps working."""
+    dup = adult(client, owner, b.location, first_name=b.person["first_name"], last_name=b.person["last_name"])
+    with clock.freeze(at(9)):
+        lesson = book(b, 10, 11, kind="session", resources=[b.court2])
+    seat = scalar(tenant, select(Session.id).where(Session.booking_id == UUID(lesson)))
+    for p in (b.person, dup):
+        ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": str(seat), "client_id": p["id"]}))
+    with clock.freeze(at(9)):
+        sync(b, lesson)
+        kept = clear(b, next(c for c in codes(b, lesson) if str(c.client_id) == b.person["id"]))
+    ok(client.post(f"{API}/clients/{b.person['id']}/merge", headers=owner,
+                   json={"merged_client_ids": [dup["id"]]}), 200)  # fmt: skip
+    rows = {(str(c.client_id), c.status, c.revoke_reason) for c in codes(b, lesson)}
+    assert rows == {(b.person["id"], "active", None), (b.person["id"], "revoked", "merged")}
+    with clock.freeze(at(9.8)):
+        assert verify(client, b, kept)["result"] == "allow"
+
+
 def test_a_moved_booking_fails_its_old_code_at_once_and_a_failed_payment_revokes(client, b):
     with clock.freeze(at(9.8)):
         booking = book(b, 10, 11)

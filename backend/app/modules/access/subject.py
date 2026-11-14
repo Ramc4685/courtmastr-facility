@@ -21,6 +21,12 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
     # a hold the survivor already has for the same booking wins (one hold per booking and person)
     session.execute(delete(EntryCodeHold).where(EntryCodeHold.client_id == loser_id, EntryCodeHold.booking_id.in_(
         select(EntryCodeHold.booking_id).where(EntryCodeHold.client_id == survivor_id))))  # fmt: skip
+    # likewise a live code: the loser's is revoked where the survivor already holds one (uq_entry_code_booking)
+    for row in session.scalars(select(EntryCode).where(
+            EntryCode.client_id == loser_id, EntryCode.status == "active", EntryCode.booking_id.in_(
+                select(EntryCode.booking_id).where(EntryCode.client_id == survivor_id, EntryCode.status == "active"))
+    ).with_for_update()).all():  # fmt: skip
+        building._revoke(session, row, "merged")
     for model in (CheckIn, Credential, EntryCode, EntryCodeHold):
         session.execute(update(model).where(model.client_id == loser_id).values(client_id=survivor_id))
     session.execute(delete(KioskMatch).where(KioskMatch.client_id == loser_id))
