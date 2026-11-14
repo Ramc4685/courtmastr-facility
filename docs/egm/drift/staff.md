@@ -1,27 +1,47 @@
-State reported: working tree of branch `claude/phase15-public-api-integrations` on 2026-11-13, including the uncommitted `list_my_shifts` change. Line numbers are for this tree. Status: 14 open, 0 closed.
-
-Re-checked against the previous report: staff `README.md` is unchanged, so every earlier finding still holds. Only the line numbers moved, because `service.py` grew by about nine lines. The contract comparison with `docs/api/openapi-money.yaml` (tag staff) is new in this report.
-
 ## backend/app/modules/staff/README.md
 
-- [wording] Line 9 says `models.py` holds "the twelve tables of section 4 plus `bonus_rule`", which makes thirteen. `models.py` defines exactly twelve tables, `bonus_rule` among them (`models.py:93,122,160,185,215,228,247,266,299,325,358,390`). The docstring that line 9 points to for "deviations" names only the network allow-list and the missing `client_id` (`models.py:1-6`) and says nothing about `bonus_rule`.
-- [wording] Line 36 says "The run has three sections", but four bullets follow: Sessions, Commissions, Bonuses, Hourly (lines 38-54). The model allows three `includes` values (`sessions`, `commissions`, `hourly`, `models.py:335`). Bonuses ride on `sessions` (`service.py:1376-1378`).
-- [undocumented] Only `staff.shift.published` is documented (line 126). The context also publishes `staff.trainer.created` (`events.py:9-15`; `service.py:174`), `staff.time_entry.closed` (`events.py:18-23`; `service.py:589`) and `staff.payroll_run.finalized` (`events.py:26-29`; `service.py:1132`).
-- [undocumented] A finalized run can be voided: `void_run` accepts `calculated` and `finalized` (`service.py:1136-1140`). Lines 34-35 read as if finalize and void were two alternative exits from `calculated`. Lines 111 and 128 depend on voiding a finalized run, but the README never says it is allowed.
-- [undocumented] `GET /my-shifts` (`router.py:249`) is gated only by a signed-in staff login (`Staff = Depends(require())`, `router.py:22`). `GET /time-entries/current` (`router.py:195`) is also missing. The README lists other routes individually (lines 22-26) but neither of these.
-- [undocumented] Clock-in preconditions and error codes (time-clock paragraph, lines 28-32). Clock-in needs an hourly rate in force for the chosen job, else a 422 on `/job_classification_id` (`service.py:547-552`). A punch outside the allowed networks is `403 network-not-allowed` (`service.py:554,577`). A second punch is `409 already-clocked-in` (`service.py:556`). Clocking out while not clocked in is `409 not-clocked-in` (`service.py:574,580`). The README names only `time-entry-overlap`.
-- [undocumented] Bonus rules pay nothing unless the payee has a pay-rate row, or a session-completion rule when the run includes commissions. `_session_pay` returns early when both are empty (`service.py:1315`), before the bonus loop (`service.py:1376-1378`). Lines 50-53 present bonuses as paid whenever "sessions" is in `includes`.
-- [undocumented] Taking the last trainer off a session with no other resource is refused with `409 session-needs-resource` (`service.py:1017`; `router.py:141`). The instructor paragraph (lines 22-26) mentions only `booking-conflict`.
-- [wording] Lines 68-69 ("`resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`...") sit inside the `own-sessions-only` bullet (lines 66-67) but describe trainer-payee creation (`service.py:152-162`). They belong with the line 60 bullet.
-- [wording] Lines 16-20 list the cross-context calls payroll uses. They leave out `memberships.service.eligibility` (`service.py:1357`, used for membership-type pay, line 98) and the write-side calls `platform.service.set_linked_resource` (`service.py:156,195`), `resources.service.trainer_group` and `resources.service.create_resource` (`service.py:158-162`).
-- [undocumented] Working-tree change: `list_my_shifts` now allows a `starts_at` filter (`service.py:752-753`: `filter_fields={"location_id": ..., "starts_at": Shift.starts_at}`). The only caller is the calendar feed, which sends `starts_at[gte]` and `starts_at[lt]` (`integrations/feeds.py:234,248-249`). The README never mentions `/my-shifts` or its filters (see the route item above). The only staff test for the route lists it without a filter (`tests/test_staff.py:267-271`), so the new filter has no staff-side test.
+Checked: 2026-11-13 (re-verified against the working tree; citations spot-checked, no change in findings).
 
-## docs/api/openapi-money.yaml (tag staff)
+Compared with `backend/app/modules/staff/*.py` and `domain/*.py`, and the `staff` tag operations of `docs/api/openapi-money.yaml` (written `contract:<line>`, tag description at contract:78, staff paths at contract:4759-5890). Paths are relative to `backend/app/modules/staff/` unless they start with `docs/`, `backend/` or `web/`. Read in the working tree on `claude/coach-share`, uncommitted edits included. README line numbers are from the current file.
 
-- [missing in code] `listShifts` declares `starts_at[gte]` and `starts_at[lt]` (`openapi-money.yaml:5273-5274`). `service.list_shifts` allows only `staff_user_id`, `location_id` and `status` (`service.py:742`), so those parameters return `400 bad-request` ("Unknown query parameter", `core/pagination.py:79-83`). The working-tree change added `starts_at` to the other list, `list_my_shifts`, not to this one.
-- [missing in code] `listTimeEntries` declares `is_open`, `include_voided`, `clock_in_at[gte]` and `clock_in_at[lte]` (`openapi-money.yaml:5153-5156`). `service.list_time_entries` allows `staff_user_id`, `location_id` and `job_classification_id` only (`service.py:616-617`), and the router docstring says so (`router.py:212`). The README documents the `getTimeSummary` departure (lines 105-106) but not these list filters.
-- [missing in YAML] Six code routes have no operation in the staff YAML: `GET /my-shifts` (`router.py:249`), `GET /shifts/variance` (`router.py:271`), `GET /staff-payees/{id}/sessions` (`router.py:131`), `PUT /sessions/{schedule_session_id}/instructor` (`router.py:139`), and `PUT` and `DELETE /staff-payees/{id}/pay-rates/membership-types/{membership_type_id}` (`router.py:77,87`). The router docstring admits this (`router.py:1-3`). `listShifts` in the YAML instead says "Any staff principal may list its own published shifts without the key" (`openapi-money.yaml:5260`). The code gates `/shifts` with `staff.shift.manage` and serves own shifts from the separate `/my-shifts`.
+### [stale-not-built]
 
-## Closed since the previous report
+- None found. Everything the README says is built (routes, keys, events, tables, handlers, constants, `docs/status/12-staff.md`, `check_step_up`) exists. The "Not built" list (README 207-214) still matches the code.
 
-None.
+### [missing]
+
+- None found. Every symbol, route, error code and file the README names exists.
+
+### [contract]
+
+- Five staff routes have no operation in the contract: `PUT` and `DELETE /staff-payees/{id}/pay-rates/membership-types/{membership_type_id}` (router.py:77-90; README 110, 115), `GET /staff-payees/{id}/sessions` (router.py:131-136; README 31), `PUT /sessions/{schedule_session_id}/instructor` (router.py:139-144; README 26-30), `GET /my-shifts` (router.py:249-251; README 41-42) and `GET /shifts/variance` (router.py:271-278; README 136-138). The contract has no `/sessions`, `/my-shifts` or `membership-types` path under staff (grep finds only `/membership-types/{id}/access` at contract:4675, which is access's).
+- `listPayRates` (contract:4846-4868) returns `PayRatePage`, a keyset page with Limit, Cursor and Sort. The route returns a plain `list[PayRateOut]` (router.py:67-69).
+- `getTimeSummary` (contract:5254-5278) takes `clock_in_at[gte]`/`[lte]` and Limit/Cursor/Sort and returns `TimeSummaryRowPage`. The route takes local dates `from` and `to` (at most 62 days) and returns a list (router.py:224-228; service.py:690-732; `_check_span` service.py:106-110). The README documents this at 89-90 but the contract was not updated.
+- `exportPayrollRun` (contract:5516-5537) says CSV, XLSX or PDF with a `format` query parameter and answers `202` with `ExportRef`. The route has no `format`, builds the CSV synchronously and answers `200` with `{filename, content_type, content}` (router.py:324-328; service.py:1208-1225; README 95-97 documents it).
+- `clockIn` (contract:5118-5139) lists problem code `no-rate-for-classification` and says the exclusion constraint "maps `ex_time_entry_overlap` to `already-clocked-in`". The code answers a missing rate with `422 validation-failed` on `/job_classification_id` (service.py:550-553), raises `already-clocked-in` from a service check (service.py:556-557), and maps `ex_time_entry_overlap` to `time-entry-overlap` (service.py:65).
+- The tag description (contract:78) reads "Payees, pay rates, time clock, shifts, payroll runs (STF)". It omits the coach revenue share routes (engagements, tax form, share rules, earnings, payouts: router.py:364-458), instructor assignment, shift copy and variance.
+
+### [undocumented]
+
+- File table (README 7-15) omits `events.py` (`TrainerCreated`, `TimeEntryClosed`, `PayrollRunFinalized`, `ShiftPublished`: events.py:11-36) and `permissions.py` (the `staff.*` catalogue rows incl. the five `coach_payout.*` keys: permissions.py:21-34).
+- `DELETE /coach-payouts/{id}` discards a draft statement and sends its lines back to unpaid (router.py:423-428; coach.py:404-409; key `staff.coach_payout.create`, permissions.py:32). README 188-195 describes draft, approved and paid but never the discard.
+- `GET /staff-payees/{id}/sessions` is gated by `scheduling.booking.read` (service.py:62, 975), defaults to the coming week and caps the window at 62 days (service.py:976-978). README 31 gives only `?from&to`.
+- `getTimeSummary` returns `pay_minor` only to callers who also hold `staff.pay_rate.read`, else null (service.py:710, 721; router.py:225). README 89-90 does not say so.
+- The earning line description is the bare `Lesson` when a booking has no client (coach.py:203; share.py:67 when the name is empty). README 179-180 gives only "Lesson with Ana R." and "Junior lesson".
+- Settings are tenant-wide or per location (`location_id` query, location override else tenant row) and carry more than the network list: `pay_period`, `default_commission_basis` (router.py:181-191; service.py:455-492). README 93 mentions only the network allow-list.
+- Shift rules not in the README: a shift is at most 24 hours (service.py:760-761), an overlap is `409 shift-conflict` from `ex_shift_overlap` (service.py:66), and a cancelled shift refuses edits with `shift-cancelled` (service.py:781-782).
+- Clock-out also refuses `network-not-allowed` (service.py:577-578) and answers `not-clocked-in` when the clock-out time is not after the clock-in (service.py:580-581). README 38-40 lists the punch errors for clock-in and the second-clock-in/not-clocked-in pair only.
+
+### [wording]
+
+- README 9 says `models.py` holds "the twelve tables of section 4". The file defines seventeen: the twelve plus `coach_engagement`, `coach_share_rule`, `coach_earning`, `coach_payout`, `coach_payout_line` (models.py:458-594).
+- README 9 says `bonus_rule`'s deviations are "in its docstring". The docstring (models.py:158-162) lists none, and it says trained time "in the pay period", where README 130-131 says bonuses use the run's window, not `staff_settings.pay_period`.
+- README 61-62 says trained time is "session, comp and flat-activity lines". The code counts `session`, `comp_session` and `program_instruction` (service.py:1315); `floor_shift` and the other flat rates are not trained time.
+- README 64-65 says a payee with "neither a pay-rate row nor a session-completion rule" gets no bonuses. The session-completion rule only counts when the run includes `commissions` (service.py:1333-1335), so on a `sessions`-only run a payee with a rule and no pay-rate row also gets none.
+- README 91-92 says `rate-in-use` once "any time entry at that job exists" from the day before the rate's start. The check skips voided entries (service.py:425).
+- README 97 says cells starting `= + - @` are prefixed with `'`. `_csv_safe` also prefixes tab and carriage return (service.py:1205).
+- README 102-103 says `staff.time_entry.closed` is published "on clock-out". It is also published when a manager adds a closed entry and when an edit closes an open one (service.py:589-593, 658, 675-676).
+- README 167-168 says a coach "never sees" a share rule. A coach with `own` reach reads their earning lines and statements, and each line carries `coach_share_pct` and `court_fee_minor` (schemas.py:505-506; coach.py:289-290), so the rule's percent and fee are visible there.
+- README 188-189 says a statement run covers "every independent coach at a location". The query takes every trainer payee at the location with unpaid lines (coach.py:365-376); only independents have lines because `_target` checks engagement (coach.py:192-193).
+
+Counts: [stale-not-built] 0, [missing] 0, [contract] 6, [undocumented] 8, [wording] 9.

@@ -51,7 +51,6 @@ register(
     _p("collections.read", C, "View collections profiles and the collections report", "", _MG),
     _p("collections.manage", L, "Manage collections", "", _MG),
     _p("collections_tag.manage", T, "Manage collections tags", "", _MG),
-    _p("dispute.manage", L, "Manage payment disputes", "", _AD),
     _p("history.read", L, "View billing history", "", _MG),
     _p("ledger.read", L, "View ledger entries", "", _AD),
     _p("ledger.export", L, "Export the ledger", "X", _AD),

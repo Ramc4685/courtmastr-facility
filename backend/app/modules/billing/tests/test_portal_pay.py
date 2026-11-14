@@ -9,8 +9,11 @@ import pytest
 from sqlalchemy import select, text
 
 from app.core import clock, inbound_webhooks
+from app.core.auth import Principal
 from app.core.db.platform import platform_engine
 from app.core.errors import ValidationFailed
+from app.core.pagination import ListQuery
+from app.core.settings import get_settings
 from app.modules.billing import checkout, documents, webhooks
 from app.modules.billing.models import Coupon, CouponRedemption, Invoice, InvoicePayLink, Payment
 from app.modules.billing.tests.test_billing import assert_books_agree, svc, work
@@ -283,6 +286,90 @@ def test_a_webhook_stored_but_never_processed_is_retried(shop):
     assert stored[0] not in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
 
 
+def test_a_webhook_that_beats_its_row_is_matched_after_a_short_retry_not_warned(shop, caplog, monkeypatch):
+    """S5a: the processor's event can arrive before the charging request commits its row; the handler looks
+    again for a few seconds before calling it unmatched."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        paid = svc.take_payment(session, client_id=shop.client_id, location_id=shop.location_id, amount_minor=600,
+                                tender_kind="card", method_token="tok_card_ok", idempotency_key=f"late-{uuid4().hex}")  # fmt: skip
+        ref, account_ref = paid.provider_payment_ref, svc._provider_account(session).provider_account_ref
+    real, misses, naps = webhooks.apply_event, [1], []
+
+    def late(session, kind, obj, account=None):
+        if misses:  # the first look runs before the request's commit
+            misses.pop()
+            raise webhooks.Unmatched()
+        return real(session, kind, obj, account)
+
+    monkeypatch.setattr(webhooks, "apply_event", late)
+    monkeypatch.setattr(webhooks.time, "sleep", naps.append)
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
+                                     {"kind": "payment", "object": ref, "account": account_ref})  # fmt: skip
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert naps == [webhooks.UNMATCHED_RETRY_SEC[0]] and "unmatched" not in caplog.text
+    assert inbound_webhooks.get(stored[0]).status == "processed"
+
+
+def test_a_processor_charge_with_no_local_row_is_kept_for_staff_never_dropped(shop, caplog, monkeypatch):
+    """A request that died after charging on the own-row path leaves a processor charge and no row: its webhook is
+    kept `failed` with a fixed reason (retried by the sweep, in case the row commits late), logged by event id
+    only, so an operator can find and refund the orphan charge."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    orphan = (
+        payment_provider.get("fake")
+        .create_payment(
+            account_ref=account_ref,
+            amount_minor=700,
+            currency="USD",
+            method_token="tok_card_ok",
+            idempotency_key=f"{shop.tenant.id}:payment:died-{uuid4().hex}",
+        )
+        .provider_payment_ref
+    )
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
+                                     {"kind": "payment", "object": orphan, "account": account_ref})  # fmt: skip
+    naps = []
+    monkeypatch.setattr(webhooks.time, "sleep", naps.append)
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    kept = inbound_webhooks.get(stored[0])
+    assert kept.status == "failed" and naps == list(webhooks.UNMATCHED_RETRY_SEC)  # looked again, then kept
+    assert "unmatched" in caplog.text and orphan not in caplog.text
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "
+                          "WHERE id = :id"), {"id": stored[0]})  # fmt: skip
+    assert stored[0] in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
+
+
+def test_staff_see_an_unmatched_charge_once_the_sweep_gives_up_by_reference_and_time_only(api, shop, monkeypatch):
+    """S5b: the given-up event is listed for staff with history access (reference, kind, time; no amount or
+    personal data). A caller scoped to other locations does not see a tenant-wide provider account's events."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    orphan = f"pi_orphan_{uuid4().hex}"
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
+                                     {"kind": "payment", "object": orphan, "account": account_ref})  # fmt: skip
+    monkeypatch.setattr(webhooks.time, "sleep", lambda _: None)
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0  # still being retried
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
+                     {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
+    listed = api("GET", "/unmatched-provider-events?include=total")
+    assert listed["page"]["total"] == 1
+    [row] = listed["data"]
+    assert (row["id"], row["kind"], row["provider_ref"], row["provider"]) == (str(stored[0]), "payment", orphan, "fake")
+    assert set(row) == {"id", "provider", "kind", "provider_ref", "received_at"}
+    api("GET", "/unmatched-provider-events?amount_minor=1", None, 400)  # no filters
+    elsewhere = Principal(kind="staff", tenant_id=shop.tenant.id, staff_user_id=uuid4(), location_ids=frozenset({uuid4()}),
+                          permissions={"billing.history.read": "all"})  # fmt: skip
+    with work(shop.tenant) as session:
+        assert webhooks.list_unmatched(session, elsewhere, ListQuery(include_total=True))["page"]["total"] == 0
+
+
 def test_an_event_whose_payload_is_gone_fails_loudly_and_is_never_marked_processed(shop, caplog):
     ready(shop)
     stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", None, "payment.succeeded", {})
@@ -303,3 +390,104 @@ def test_the_portal_reads_the_processor_without_starting_a_setup(api, shop, memb
         "provider": "fake", "publishable_key": None, "account_ref": None,
     }  # fmt: skip
     api("GET", "/portal/payment-methods/processor", None, 403)  # staff are not portal clients
+
+
+def test_the_web_can_ask_what_became_of_its_own_attempt_only(api, shop, member, client, desk):
+    """S1: GET /payment-attempts/{key} (staff) and /portal/payment-attempts/{key} report the outcome of the caller's
+    own attempt under that key; another caller, or a key nobody used, is 404. `settled` is false while the row is
+    `initiated` (the processor's answer is not known)."""
+    location = str(shop.location_id)
+    key = f"web-{uuid4().hex}"
+    body = {"client_id": str(shop.client_id), "location_id": location, "amount_minor": 700, "tender_kind": "cash"}
+    sent = client.post("/api/v1/payments", json=body, headers=shop.owner | {"Idempotency-Key": key})
+    assert sent.status_code == 201, sent.text
+    assert api("GET", f"/payment-attempts/{key}") == {"settled": True, "statuses": ["succeeded"], "amount_minor": 700}
+    api("GET", f"/payment-attempts/{key}", None, 404, headers=desk.front)  # another staff user's key
+    api("GET", f"/payment-attempts/never-{uuid4().hex}", None, 404)
+    member.api("GET", f"/portal/payment-attempts/{key}", None, 404)  # not the member's money
+
+    invoice = _invoice_for(api, shop, member.id)
+    mine = f"portal-{uuid4().hex}"
+    paid = client.post("/api/v1/portal/payments", json={"invoice_ids": [invoice["id"]], "method_token": "tok_card_ok"},
+                       headers=member.headers | {"Idempotency-Key": mine})  # fmt: skip
+    assert paid.status_code == 201, paid.text
+    assert member.api("GET", f"/portal/payment-attempts/{mine}")["statuses"] == ["succeeded"]
+    api("GET", f"/payment-attempts/{mine}", None, 404)  # the owner did not send it
+    with work(shop.tenant) as session:
+        session.execute(
+            text("UPDATE payment SET status = 'initiated' WHERE idempotency_key LIKE :k"), {"k": f"%{mine}"}
+        )
+    assert member.api("GET", f"/portal/payment-attempts/{mine}")["settled"] is False
+    assert member.api("GET", f"/portal/payment-attempts/{mine[:-1]}", None, 404) is not None  # no prefix match
+
+
+def test_an_attempt_is_readable_only_by_the_identity_that_made_it(api, shop, member, client, monkeypatch):
+    """Security review of S1: the portal lookup is anchored on the caller's identity, never widened by household
+    or matched with an empty prefix; a portal purchase (secure_online_checkout) is bound to the buyer's identity
+    too; guessing is rate limited."""
+    ready(shop)
+    shared = f"same-{uuid4().hex}"
+    with work(shop.tenant) as session:  # another identity of the same household paid for this very client
+        svc.take_payment(session, client_id=member.id, location_id=shop.location_id, amount_minor=900,
+                         tender_kind="cash", idempotency_key=f"portal:{uuid4()}:{shared}")  # fmt: skip
+        svc.take_payment(session, client_id=member.id, location_id=shop.location_id, amount_minor=800,
+                         tender_kind="cash", idempotency_key=shared)  # a key minted with no caller prefix  # fmt: skip
+    member.api("GET", f"/portal/payment-attempts/{shared}", None, 404)
+
+    plan = package_plan(client, shop.owner, shop.tenant, online_sale_mode="paid_in_full")
+    bought = f"pack-{uuid4().hex}"
+    sale = client.post("/api/v1/portal/client-packages", headers=member.headers | {"Idempotency-Key": bought},
+                       json={"package_plan_id": plan["id"], "location_id": str(shop.location_id),
+                             "method_token": "tok_card_ok"})  # fmt: skip
+    assert sale.status_code == 201, sale.text
+    seen = member.api("GET", f"/portal/payment-attempts/{bought}")
+    assert (
+        seen["settled"] and seen["statuses"] == ["succeeded"] and set(seen) == {"settled", "statuses", "amount_minor"}
+    )
+    api("GET", f"/payment-attempts/{bought}", None, 404)  # staff did not send it
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(cfg.buckets, "payment-attempt", cfg.buckets["payment-attempt"].model_copy(update={"limit": 2}))
+    answers = [client.get(f"/api/v1/portal/payment-attempts/guess-{n}", headers=member.headers).status_code
+               for n in range(3)]  # fmt: skip
+    assert answers == [404, 404, 429]
+
+
+def test_an_unmatched_event_that_moved_no_money_of_ours_is_ignored_without_a_retry(api, shop, monkeypatch):
+    """A failed intent or a charge made outside the app names no row here: it costs no retry wait, is marked
+    processed and never reaches the staff list."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.failed",
+                                     {"kind": "payment", "object": f"pi_{uuid4().hex}", "account": account_ref,
+                                      "expects_row": False})  # fmt: skip
+    naps = []
+    monkeypatch.setattr(webhooks.time, "sleep", naps.append)
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert (inbound_webhooks.get(stored[0]).status, naps) == ("processed", [])
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
+                     {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
+    assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0
+
+
+def test_the_sweep_ignores_an_unmatched_event_that_moved_no_money_of_ours_too(api, shop):
+    """The worker never ran for an ignorable event (failed intent, outside charge): the stale-event sweep applies the
+    same `expects_row` rule, so it is marked processed and never reaches the staff list."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.failed",
+                                     {"kind": "payment", "object": f"pi_{uuid4().hex}", "account": account_ref,
+                                      "expects_row": False})  # fmt: skip
+    with platform_engine().begin() as conn:  # the enqueue was lost: only the sweep sees it
+        conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "
+                          "WHERE id = :id"), {"id": stored[0]})  # fmt: skip
+    webhooks.retry_provider_events.fn(str(shop.tenant.id))
+    assert inbound_webhooks.get(stored[0]).status == "processed"
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
+                     {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
+    assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0

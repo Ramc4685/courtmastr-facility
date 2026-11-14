@@ -403,3 +403,13 @@ by reporting and by the QuickBooks sync and never posts to the sub-ledger.
 ## Reconciliation with the data model (Phase 1 review)
 
 `data-model-money.md` section 1 implements this ADR as written (charge, invoice, payment, payment_allocation, ledger_transaction and ledger_entry with the six accounts, dunning columns, provider port tables). Open question 4 is closed: `tenant.billing_locked_through_on` ships in v1 (`data-model-core.md`), advanced by the accounting export (ADR 0012) or by an Owner. Two extensions made by the data model stand: `client_id` is nullable on `charge`, `invoice.bill_to_client_id` and `payment` for walk-in POS sales only (guarded by checks to `pos` origin), and ledger rows of a merged-away client stay on the tombstone and are resolved through `client.merged_into_id` in views.
+
+## Exception: coach lesson value rounds down (coach revenue share)
+
+A lesson paid from a package is valued for the coach's share at the package's net revenue divided by the credits
+granted at sale, rounded **down**, not half-up: $100 over three lessons recognises $33.33 each, $99.99 in all, and
+the remaining cent stays the facility's (staff README "Coach revenue share", `staff/domain/share.py`). The share
+split of each lesson still rounds half-up once at the line. Why not half-up with the last lesson absorbing the
+remainder: a credit event re-values the whole package, so when an earlier credit comes back the lessons shift
+places, the "last" lesson changes, and already-paid statements would get one-cent reversing lines. Rounding down
+gives every lesson the same value whatever its place. **Status: proposed; the owner has not signed it off.**

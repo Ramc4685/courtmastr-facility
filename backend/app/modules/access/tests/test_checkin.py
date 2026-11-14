@@ -346,7 +346,7 @@ def test_merge_and_erasure_handlers(client, tenant, owner, f):
         exported = subject._export(session, f.person["id"])
         assert len(exported["check_ins"]) == 1 and exported["credentials"][0]["kind"] == "barcode"
         erased = subject._erase(session, f.person["id"])
-    assert erased == {"retained_check_ins": 1, "revoked_credentials": 1}
+    assert erased == {"retained_check_ins": 1, "revoked_credentials": 1, "revoked_entry_codes": 0}
 
 
 def test_wallet_pass_has_its_own_revocable_credential_accepted_at_the_door(client, tenant, owner, f):

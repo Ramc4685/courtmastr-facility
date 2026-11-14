@@ -29,6 +29,8 @@ spendable_packages(session, client_id, reservation_type_id=None, on=None)
 sell(session, *, client_id, location_id, package_plan_id, ...)  # POS, portal, add-ons
 session_credit_facts(session, source_type, source_ids)          # staff session pay and completion commission
 sales_by_seller(session, staff_user_id, starts_at, ends_at, location_ids=None)  # package-sale commission
+consumed_sources(session, client_package_id)                   # coach share: every source that spent a credit
+package_lessons(session, client_package_id)                    # coach share: credits sold, spent sources in order
 ```
 
 `source_type` is `booking` or `enrollment`. Late cancel and no-show consume or return the credit per

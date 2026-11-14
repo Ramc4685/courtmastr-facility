@@ -591,7 +591,7 @@ def sell(
     start_on: date | None = None, channel: str = "staff", online: bool = False, sold_by_staff_user_id: UUID | None = None,
     invoice_mode: str | None = None, is_complimentary: bool = False, internal_remarks: str | None = None,
     source_contract_id: UUID | None = None, source_contract_addon_id: UUID | None = None, multiplier: int = 1,
-    payment: dict | None = None, idempotency_key: str | None = None,
+    payment: dict | None = None, idempotency_key: str | None = None, sale: str | None = None,
 ) -> dict:  # fmt: skip
     """Sell (or grant) a package from a plan. Internal: staff sale, portal purchase, POS, complimentary grants
     and membership add-ons all come through here. Returns {"package", "invoice", "payment", "series"}.
@@ -662,7 +662,7 @@ def sell(
             raise ValidationFailed("Nothing is due now, so there is nothing to pay.", pointer="/payment")
         paid = billing.service.take_payment(
             session, client_id=client.id, location_id=location_id, invoice_id=invoice.id,
-            idempotency_key=idempotency_key, origin="portal" if online else "staff", **payment,
+            idempotency_key=idempotency_key, origin="portal" if online else "staff", sale=sale, **payment,
         )  # fmt: skip
     audit.record(
         session, _COMP if is_complimentary else _SELL, package, location_id=location_id,
@@ -727,10 +727,47 @@ def sell_package(session: Session, principal: Principal, data: dict, idempotency
     sold_by = data.get("sold_by_staff_user_id")
     if sold_by and not platform.service.staff_user_exists(session, sold_by):
         raise ValidationFailed("Unknown staff user.", pointer="/sold_by_staff_user_id")
+    idempotency_key = billing.service.staff_key(principal, idempotency_key)  # this caller's, as staff payments
+    # Each attempt raises a fresh invoice: the payment key is bound to the whole sale instead (take_payment `sale`).
+    ref = repr(("packages", sorted((k, v) for k, v in data.items() if k != "payment")))
+    if data.get("payment") and (replayed := _replayed_sale(session, data, idempotency_key, ref)) is not None:
+        return replayed
     sold = sell(
-        session, **{**data, "sold_by_staff_user_id": sold_by or _staff_id(principal)}, idempotency_key=idempotency_key
-    )
+        session, **{**data, "sold_by_staff_user_id": sold_by or _staff_id(principal)}, idempotency_key=idempotency_key,
+        sale=ref,
+    )  # fmt: skip
+    paid = sold["payment"]
+    orphan = paid is not None and paid.status in ("succeeded", "processing")
+    if orphan and not billing.service.paid_sources(session, paid.id):  # the earlier charge pays for this sale
+        sold["payment"] = billing.service.allocate(session, paid.id, invoice_id=sold["invoice"].id)
     return _sale_view(session, sold)
+
+
+def _replayed_sale(session: Session, data: dict, key: str | None, ref: str) -> dict | None:
+    """The sale a finished payment under `key` paid for, or None when the key took no payment yet (or only an
+    `initiated` one, which this sale then finishes, or a settled one that pays for nothing yet: the request died
+    after the charge and the sweep settled it, so this sale is sold and takes that payment). Selling again would
+    add a package the payment does not cover."""
+    prior = billing.service.find_payment(session, key) if key else None
+    if prior is None or prior.status == "initiated":
+        return None
+    payment = billing.service.take_payment(  # the request-hash check only: a finished payment is replayed, never charged
+        session, client_id=data["client_id"], location_id=data["location_id"], idempotency_key=key, sale=ref,
+        **data["payment"],
+    )  # fmt: skip
+    sources = billing.service.paid_sources(session, payment.id)
+    if not sources and payment.status in ("succeeded", "processing"):
+        return None
+    for context, kind, source_id, invoice_id in sources:
+        package = session.get(ClientPackage, source_id) if (context, kind) == ("packages", "client_package") else None
+        if package is not None:
+            return package_view(session, package) | {
+                "invoice_id": invoice_id, "payment_id": payment.id, "payment_status": payment.status,
+            }  # fmt: skip
+    raise Conflict(  # declined, cancelled or still unknown: it paid for nothing, so nothing to return or reuse
+        "This Idempotency-Key already finished a sale. Check what happened to that attempt before selling again.",
+        code="idempotency-key-reused",
+    )  # fmt: skip
 
 
 def grant_complimentary(session: Session, principal: Principal, data: dict) -> dict:
@@ -1482,10 +1519,38 @@ def session_credit_facts(session: Session, source_type: str, source_ids) -> dict
         return {}
     e = CreditLedgerEntry
     rows = session.execute(
-        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor)
+        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor, ClientPackage.id)
         .join(ClientPackage, ClientPackage.id == e.client_package_id)
         .where(e.source_type == source_type, e.source_id.in_(ids))
         .group_by(e.source_id, ClientPackage.id)
         .having(func.sum(e.consumed_delta) > 0)
     ).all()  # fmt: skip
-    return {row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2]} for row in rows}
+    return {
+        row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2], "client_package_id": row[3]} for row in rows
+    }
+
+
+def consumed_sources(session: Session, client_package_id: UUID) -> list[tuple[str, UUID]]:
+    """Internal read for coach revenue share: the (source_type, source_id) pairs that ever spent a credit of this
+    package, so a refund of the package can revalue the lessons it paid for. Sorted, so callers lock in one order."""
+    e = CreditLedgerEntry
+    return [tuple(row) for row in session.execute(
+        select(e.source_type, e.source_id).distinct()
+        .where(e.client_package_id == client_package_id, e.source_id.is_not(None), e.consumed_delta != 0)
+        .order_by(e.source_type, e.source_id)
+    )]  # fmt: skip
+
+
+def package_lessons(session: Session, client_package_id: UUID) -> dict:
+    """Internal read for coach revenue share: the credits granted when the package was sold (credits added by hand
+    later are not counted), and the sources holding a spent credit now, in the order they first spent one."""
+    e = CreditLedgerEntry
+    sold = session.scalar(select(func.coalesce(func.sum(e.granted_delta), 0)).where(
+        e.client_package_id == client_package_id, e.entry_type == "grant"
+    ))  # fmt: skip
+    spent = session.execute(
+        select(e.source_type, e.source_id).where(e.client_package_id == client_package_id, e.source_id.is_not(None))
+        .group_by(e.source_type, e.source_id).having(func.sum(e.consumed_delta) > 0)
+        .order_by(func.min(e.occurred_at).filter(e.consumed_delta > 0), e.source_id)
+    ).all()  # fmt: skip
+    return {"sold": int(sold), "lessons": [(row[0], row[1]) for row in spent]}

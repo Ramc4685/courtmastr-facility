@@ -94,6 +94,44 @@ describe('TakePaymentDialog', { timeout: 20_000 }, () => {
     expect(payments[1]?.headers['idempotency-key']).not.toBe(payments[0]?.headers['idempotency-key'])
   })
 
+  it('locks a tender to its key and values after a lost answer until the server says no money moved (S1)', async () => {
+    const payments: Call[] = []
+    const checks: Call[] = []
+    mockFetch({
+      'GET /api/v1/tender-types': { status: 200, body: tenders },
+      'GET /api/v1/clients/c1/payment-methods': { status: 200, body: [] },
+      'GET /api/v1/provider-accounts': { status: 200, body: fake },
+      'POST /api/v1/payments': (call) => {
+        payments.push(call)
+        return payments.length === 1 ? { status: 503, body: { status: 503, code: 'provider-unavailable', detail: 'The card processor did not answer.' } } : { status: 201, body: payment(call.body as Record<string, unknown>, 'succeeded', payments.length) }
+      },
+    })
+    const inner = vi.mocked(fetch).getMockImplementation() as typeof fetch
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).startsWith('/api/v1/payment-attempts/')) {
+        checks.push({ method: 'GET', url: String(input), headers: {}, body: undefined })
+        return new Response(JSON.stringify({ settled: true, statuses: ['failed'], amount_minor: 500 }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return inner(input, init)
+    })
+    const onClose = vi.fn()
+    wrap(<TakePaymentDialog clientId="c1" locationId="l1" balanceMinor={500} onClose={onClose} />)
+    const row = await screen.findByRole('group', { name: /Tender 1/ })
+    await userEvent.selectOptions(within(row).getByRole('combobox', { name: 'Tender' }), 'Card')
+    await userEvent.selectOptions(await within(row).findByRole('combobox', { name: 'New payment method' }), 'tok_card_ok')
+    await userEvent.click(screen.getByRole('button', { name: 'Take payment' }))
+    expect(await within(row).findByRole('alert')).toHaveTextContent('The card processor did not answer.')
+    expect(within(row).getByRole('textbox', { name: /Amount/ })).toBeDisabled()
+    expect(within(row).getByRole('combobox', { name: 'New payment method' })).toBeDisabled()
+    await userEvent.click(within(row).getByRole('button', { name: 'Check what happened' }))
+    expect(await within(row).findByRole('alert')).toHaveTextContent('did not go through')
+    expect(checks[0]?.url).toBe(`/api/v1/payment-attempts/${payments[0]?.headers['idempotency-key']}`)
+    expect(within(row).getByRole('textbox', { name: /Amount/ })).toBeEnabled() // no money moved: free, with a new key
+    await userEvent.click(screen.getByRole('button', { name: 'Take payment' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(payments[1]?.headers['idempotency-key']).not.toBe(payments[0]?.headers['idempotency-key'])
+  })
+
   it('runs the bank check for a card that needs authentication, then confirms and applies it to the invoice', async () => {
     const payments: Call[] = []
     const calls = mockFetch({

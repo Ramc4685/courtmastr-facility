@@ -261,6 +261,13 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    post("/payments", {  # + refund_credit_plan: credit on account, part of it given back
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 200, "tender_kind": "cash",
+    }, key=f"populate-credit-{uuid4().hex}")  # fmt: skip
+    post(
+        f"/clients/{person['id']}/account-credit/refund", {"amount_minor": 100, "reason": "Leaving"},
+        key=f"populate-credit-refund-{uuid4().hex}",
+    )  # fmt: skip
     billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
     disputed = post("/payments", {  # + dispute: a settled card payment the payer then disputes
@@ -285,6 +292,7 @@ def populate(client, tenant) -> SimpleNamespace:
         people["kid_id"],
     )  # fmt: skip
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
+    space |= _populate_coach_share(client, headers, post, tenant, location["id"], space["staff_payee_id"])
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_shared_post_billed(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
@@ -293,6 +301,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_program_forms(client, headers, post, tenant, location["id"])
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
+    space |= _populate_building(post, tenant, location["id"], space)
     _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(
@@ -497,7 +506,11 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     profile = client.put(f"/api/v1/clients/{person['id']}/collections-profile", headers=headers,
                          json={"collections_tag_id": tag["id"]})  # fmt: skip
     assert profile.status_code == 200, profile.text
+    bulk = post("/billing-bulk-actions", {  # billing_bulk_action + billing_bulk_action_item
+        "action": "render_invoices", "location_id": location["id"], "invoice_ids": [unpaid["id"]],
+    }, key="populate-bulk-render")  # fmt: skip
     return {
+        "billing_bulk_action_id": bulk["id"],
         "collections_tag_id": tag["id"],
         "statement_batch_id": batch["id"],
         "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],
@@ -666,7 +679,7 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
                                 "allows_self_signup": True})  # fmt: skip
     assert response.status_code == 200, response.text
     signup = {"location_id": location_id, "email": f"new-{uuid4().hex[:8]}@{tenant.slug}.example.com",
-              "first_name": "Nia", "last_name": "Newcomer"}  # fmt: skip
+              "first_name": "Nia", "last_name": "Newcomer", "birth_on": "1990-01-02", "birth_on_declared": True}  # fmt: skip
     response = client.post("/api/v1/public/portal-signups", headers={"X-Tenant-Slug": tenant.slug}, json=signup)
     assert response.status_code == 202, response.text  # portal_signup (SSP-05)
     video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
@@ -1122,6 +1135,27 @@ def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_r
     }  # fmt: skip
 
 
+def _populate_coach_share(client, headers, post, tenant, location_id, payee_id) -> dict:
+    """Coach revenue share: an engagement (from 2099, so today's payroll is untouched), a share rule, one ledger line
+    (written straight in: the ledger normally follows package events) and a draft payout that gathers it."""
+    from app.modules.staff.models import CoachEarning
+
+    post(f"/staff-payees/{payee_id}/engagements", {"engagement": "independent", "effective_from_on": "2099-01-01"})
+    rule = client.put("/api/v1/coach-share-rules", headers=headers, json={
+        "staff_payee_id": payee_id, "effective_from_on": "2099-01-01", "coach_share_pct": "70"})  # fmt: skip
+    assert rule.status_code == 200, rule.text
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        today = service.location_today(session, UUID(location_id))
+        session.add(CoachEarning(
+            location_id=UUID(location_id), staff_payee_id=UUID(payee_id), kind="lesson", earned_on=today,
+            source_type="booking", source_id=uuid4(), description="Lesson", gross_minor=5000,
+            facility_share_minor=1500, coach_share_minor=3500, coach_share_pct=70, court_fee_minor=0,
+        ))  # fmt: skip
+    payout = post("/coach-payouts", {"staff_payee_id": payee_id, "location_id": location_id,
+                                     "period_starts_on": today.isoformat(), "period_ends_on": today.isoformat()})  # fmt: skip
+    return {"coach_share_rule_id": rule.json()["id"], "coach_payout_id": payout["data"][0]["id"]}
+
+
 def _populate_leagues(client, headers, post, tenant, location_id, client_id, court_id, category_id) -> dict:
     """Build module 11: a row in every leagues table. A fee-paying league with four teams (one billed), a
     roster place, an official, a committed schedule run (booked games), a result (standings) with the official
@@ -1300,6 +1334,32 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
         "kiosk_device_id": device["kiosk_device_id"], "check_in_station_id": station["id"],
         "id_card_template_id": card["id"],
     }  # fmt: skip
+
+
+def _populate_building(post, tenant, location_id, space) -> dict:
+    """Building control (CHK-15, CHK-16): a door, a court's lighting zone, one remote unlock (an activity row) and
+    an entry code for populate()'s booking, written directly (the booking is not inside the issue window)."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.core import crypto
+    from app.modules.access.models import EntryCode, EntryCodeHold
+    from app.modules.clients.models import Client
+
+    door = post("/door-devices", {"location_id": location_id, "name": "Main door", "device_ref": "door-1"})
+    zone = post("/lighting-zones", {"location_id": location_id, "name": "Court 1 lights", "zone_ref": "relay-1",
+                                    "resource_ids": [space["resource_id"]]})  # fmt: skip
+    post(f"/door-devices/{door['id']}/unlock", {"reason": "Populate"})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        now, person = clock.now(), session.scalar(select(Client.id).order_by(Client.id).limit(1))
+        session.add(EntryCode(
+            location_id=location_id, booking_id=space["booking_id"], client_id=person, code_hash=f"pop-{uuid4().hex}",
+            code_ciphertext=crypto.encrypt("12345678", tenant.id), valid_from_at=now, valid_until_at=now + timedelta(hours=1),
+        ))  # fmt: skip
+        session.add(EntryCodeHold(location_id=location_id, booking_id=space["booking_id"], client_id=person,
+                                  reason="age-not-confirmed"))  # fmt: skip
+    return {"door_device_id": door["id"], "lighting_zone_id": zone["id"]}
 
 
 def _populate_pos_desk(client, headers, post, tenant, location_id, product_category_id) -> None:

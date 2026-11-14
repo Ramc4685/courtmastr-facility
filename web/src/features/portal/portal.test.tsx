@@ -27,6 +27,18 @@ const invoice = (id: string, client: string) => ({
 })
 const card = { id: 'pm1', client_id: 'c1', kind: 'card', brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2099, funding: 'credit', wallet: null, is_autopay: false, status: 'active', created_at: '' }
 
+/** Answers GET /portal/payment-attempts/{key} (any key) with `body`, recording the calls. */
+function wrapChecks(inner: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>, checks: Call[], body: unknown) {
+  return async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const url = String(input)
+    if (url.startsWith('/api/v1/portal/payment-attempts/')) {
+      checks.push({ method: 'GET', url, headers: {}, body: undefined })
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return inner(input, init)
+  }
+}
+
 function open(path: string, routes: Parameters<typeof mockFetch>[0]) {
   const calls = mockFetch({
     'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c2', 'Mia', 'manager')] } },
@@ -163,6 +175,65 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     expect(await within(dialog).findByRole('status')).toHaveTextContent('Ten lessons is ready: 10 left')
     expect(buys.map((b) => (b.body as { client_id: string }).client_id)).toEqual(['c1', 'c1'])
     expect(buys[0]?.headers['idempotency-key']).not.toBe(buys[1]?.headers['idempotency-key'])
+  })
+
+  it('locks the invoice payment to its key and values after an unknown outcome, even across closing the dialog (S1)', async () => {
+    const payments: Call[] = []
+    const checks: Call[] = []
+    open('/portal/invoices', {
+      'GET /api/v1/portal/invoices': page([invoice('i9', 'c1')]),
+      'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
+      'POST /api/v1/portal/payments': (call) => {
+        payments.push(call)
+        return payments.length < 2 ? { status: 503, body: { status: 503, code: 'provider-unavailable', detail: 'The card processor did not answer.' } } : { status: 201, body: { client_secret: null, credit_applied_minor: 0, payment: { id: 'p9', status: 'succeeded', amount_minor: 2500, receipt_number: 9 } } }
+      },
+    })
+    vi.mocked(fetch).mockImplementation(wrapChecks(vi.mocked(fetch).getMockImplementation() as typeof fetch, checks, { settled: true, statuses: ['succeeded'], amount_minor: 2500 }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Pay $25.00' }))
+    expect(await within(dialog).findByText(/stays as it was/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: /Amount/ })).toBeDisabled()
+    expect(within(dialog).getByRole('combobox', { name: 'Pay with' })).toBeDisabled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
+    dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
+    expect(within(dialog).getByRole('textbox', { name: /Amount/ })).toBeDisabled() // reopening does not free it
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Check what happened' }))
+    expect(await within(dialog).findByText(/went through. Try again to see it here/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: /Amount/ })).toBeDisabled() // money moved: replay, never a fresh key
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again $25.00' }))
+    expect(await within(dialog).findByText('Thank you. $25.00 paid, receipt #9.')).toBeInTheDocument()
+    const keys = payments.map((p) => p.headers['idempotency-key'])
+    expect(new Set(keys).size).toBe(1)
+    expect(payments.map((p) => (p.body as { amount_minor: number }).amount_minor)).toEqual([2500, 2500])
+    expect(checks.map((c) => c.url)).toEqual([`/api/v1/portal/payment-attempts/${keys[0]}`])
+  })
+
+  it('keeps the package purchase key after an unknown outcome and the form locked until it is answered (S1)', async () => {
+    const buys: Call[] = []
+    open('/portal/packages', {
+      'GET /api/v1/portal/client-packages': page([]),
+      'GET /api/v1/portal/package-plans': page([{ id: 'pp2', name: 'Five lessons', fee_minor: 20000, session_count: 5, is_purchasable: true, validity_count: 6, validity_unit: 'month' }]),
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
+      'POST /api/v1/portal/client-packages': (call) => {
+        buys.push(call)
+        return buys.length === 1
+          ? { status: 500, body: { status: 500, code: 'internal-error', detail: 'Something went wrong.' } }
+          : { status: 201, body: { name: 'Five lessons', is_unlimited: false, sessions_available_count: 5, valid_until_on: '2027-05-10', payment_status: 'succeeded' } }
+      },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Buy Five lessons' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Buy Five lessons' })
+    await userEvent.selectOptions(await within(dialog).findByRole('combobox', { name: 'Card' }), 'tok_card_ok')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Pay $200.00' }))
+    expect(await within(dialog).findByText(/stays as it was/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Card' })).toBeDisabled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again' }))
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Five lessons is ready')
+    expect(buys[0]?.headers['idempotency-key']).toBe(buys[1]?.headers['idempotency-key'])
+    expect(buys[0]?.body).toEqual(buys[1]?.body)
   })
 })
 

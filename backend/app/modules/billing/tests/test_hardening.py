@@ -100,9 +100,9 @@ def test_credit_refund_stays_inside_the_callers_locations(api, shop, desk):
     api("POST", path, body, 422, "refund-exceeds-unapplied", headers=desk.west_manager)
     api("POST", "/payments", _cash(shop, shop.client_id, 300, desk.west), 201)
     api("POST", path, body, 422, "refund-exceeds-unapplied", headers=desk.west_manager)  # only 300 in reach
-    refunds = api("POST", path, body | {"amount_minor": 300}, 201, headers=desk.west_manager)
+    refunds = api("POST", path, body | {"amount_minor": 300}, 201, headers=desk.west_manager)["refunds"]
     assert [r["amount_minor"] for r in refunds] == [300]
-    assert [r["amount_minor"] for r in api("POST", path, body, 201)] == [400]  # the owner draws on Main
+    assert [r["amount_minor"] for r in api("POST", path, body, 201)["refunds"]] == [400]  # the owner draws on Main
 
 
 def test_sending_a_receipt_needs_the_send_key(client, api, shop):

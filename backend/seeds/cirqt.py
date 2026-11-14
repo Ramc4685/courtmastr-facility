@@ -2,8 +2,10 @@
 
 Development and test only. One location with four courts; each court is set up for badminton or pickleball, and
 Courts 2 and 3 each turn into one volleyball court (owner's answer: one volleyball court never spans both).
-The owner's numbers (constants below, assumptions marked): prime 18:00-22:00 Chicago time, morning pickleball until
-noon, guest and member prices, a 15%-off weekly club rate, a 10-minute volleyball changeover, open 06:00-23:00.
+The owner's numbers (constants below, assumptions marked): open 24 hours every day, a $10 membership (access fee),
+badminton and pickleball $25 an hour peak and $15 off-peak, volleyball $40 an hour flat, peak 18:00-22:00 Chicago
+time (a rate-rule time band managers change on the rental setup screen), a 15%-off weekly club rate and a 10-minute
+volleyball changeover. Non-members pay 20% more: the one remaining pricing assumption.
 Adult and junior memberships, 50 adults and 30 children in households, five staff sign-ins, a staff coach and an
 independent coach with a one-lesson package, and a badminton and a volleyball league with teams. Built only through
 the product's service functions; every section is skipped when it already exists. Synthetic names only.
@@ -25,6 +27,8 @@ from app.core.db.platform import resolve_tenant
 from app.core.db.session import tenant_session
 from app.core.settings import get_settings
 from app.modules import billing, clients, leagues, memberships, rentals, resources
+from app.modules.access import building
+from app.modules.access.models import DoorDevice
 from app.modules.billing.models import Invoice, RevenueCategory
 from app.modules.clients.models import Client, ClientEmail
 from app.modules.leagues import depth
@@ -33,7 +37,15 @@ from app.modules.leagues.models import Competition, Sport, Venue
 from app.modules.memberships.models import MembershipContract, MembershipPlan, MembershipType
 from app.modules.platform import service as platform_service
 from app.modules.platform import staff
-from app.modules.platform.models import Identity, Location, StaffUser, SubscriptionPlan, Tenant, UserLocationAccess
+from app.modules.platform.models import (
+    Identity,
+    Location,
+    Role,
+    StaffUser,
+    SubscriptionPlan,
+    Tenant,
+    UserLocationAccess,
+)
 from app.modules.rentals.models import RentalType
 from app.modules.resources.models import Resource, ResourceGroup
 
@@ -47,20 +59,20 @@ LOCATION = {"name": "CIRQT", "time_zone": ZONE, "country_code": "US", "sort_orde
 COURTS = ["Court 1", "Court 2", "Court 3", "Court 4"]
 VOLLEYBALL_COURTS = ["Court 2", "Court 3"]
 HOURS = [
-    {"weekday": d, "opens_time": "06:00", "closes_time": "23:00", "is_closed": False} for d in range(1, 8)
-]  # assumed
+    {"weekday": d, "opens_time": "00:00", "closes_time": "24:00", "is_closed": False} for d in range(1, 8)
+]  # owner: open 24 hours every day
+UPKEEP_JOB = "Upkeep and front desk (not lessons)"  # the staff coach's only clock job: never coaching time
 STAFF = {"manager": "Mara", "front_desk": "Felix", "league_admin": "Lena", "coach": "Rowan"}  # owner from onboarding
-MEMBERSHIP_FEE = 1000  # assumed $10 a month (owner gave no figure)
-PRIME = ("18:00", "22:00")  # owner: prime time 6 pm to 10 pm, every day
-MORNING_END = "12:00"  # owner: mornings run until noon
-GUEST = Decimal("1.2")  # assumed: non-members pay 20% more
-OFF_PRIME = Decimal("0.8")  # owner said 10 to 30% cheaper outside prime; 20% assumed
+MEMBERSHIP_FEE = 1000  # owner: the membership (access fee) is $10, billed monthly
+PRIME = ("18:00", "22:00")  # peak 6 pm to 10 pm every day: a rate-rule band, editable at /rentals/setup
+GUEST = Decimal("1.2")  # assumed: non-members pay 20% more (the one remaining pricing assumption)
 CLUB_DISCOUNT = Decimal("15")  # assumed: a club or coach holding the same weekly slot pays 15% less
-# rental type -> (courts, member prime price, member morning price or None, changeover buffer minutes), cents/hour
+# rental type -> (courts, member peak price, member off-peak price, changeover buffer minutes), cents/hour; equal
+# peak and off-peak prices mean a flat price (no peak band)
 RENTAL_TYPES = {
-    "Badminton court": (COURTS, 2500, None, 0),
-    "Pickleball court": (COURTS, 2500, 1200, 0),  # owner: morning pickleball $12 (he said $10 to $15)
-    "Volleyball court": (VOLLEYBALL_COURTS, 4000, None, 10),  # owner: 10-minute changeover either side
+    "Badminton court": (COURTS, 2500, 1500, 0),  # owner: $25 peak, $15 off-peak
+    "Pickleball court": (COURTS, 2500, 1500, 0),  # owner: as badminton
+    "Volleyball court": (VOLLEYBALL_COURTS, 4000, 4000, 10),  # owner: $40 flat; 10-minute changeover either side
 }
 
 
@@ -114,6 +126,7 @@ def build(slug: str = SLUG, name: str = NAME) -> dict:
             platform_service.replace_facility_hours(session, actor, location.id, HOURS)
         _staff(session, location, mail)
         courts = _courts(session, actor, location)
+        _building(session, actor, location, courts)
         categories = _categories(session)
         types = _memberships(session, actor, categories)
         _rentals(session, actor, location, courts, categories["RENTALS"], types)
@@ -121,7 +134,17 @@ def build(slug: str = SLUG, name: str = NAME) -> dict:
         _contracts(session, actor, location, people)
         _leagues(session, actor, location, courts, categories["LEAGUES"], people)
         _coaching(session, actor, location, categories["RENTALS"], mail)
+        _portal(session, actor, location)
     return {"tenant_id": tenant_id, "slug": slug, "domain": mail}
+
+
+def _portal(session, actor, location) -> None:
+    """Unmanned: a newcomer signs up, buys and books online with no staff step, so self sign-up is on."""
+    from app.modules.engagement import service as engagement
+
+    engagement.put_portal_settings(session, actor, location.id, {
+        "is_enabled": True, "is_public": True, "allows_self_signup": True, "allows_online_purchases": True,
+    })  # fmt: skip
 
 
 def _staff(session, location, mail: str) -> None:
@@ -161,6 +184,20 @@ def _courts(session, actor, location) -> dict:
     return {name: have[name] for name in COURTS}
 
 
+def _building(session, actor, location, courts: dict) -> None:
+    """The front door and one lighting zone per court on the simulated controller (CHK-15, CHK-16)."""
+    if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location.id)):
+        return
+    building.create_door(
+        session,
+        actor,
+        {"location_id": location.id, "name": "Front door", "device_ref": "door-front", "is_entrance": True},
+    )
+    for number, court in enumerate(COURTS, start=1):
+        building.create_zone(session, actor, {"location_id": location.id, "name": f"{court} lights",
+                                              "zone_ref": f"relay-{number}", "resource_ids": [courts[court]]})  # fmt: skip
+
+
 def _categories(session) -> dict:
     billing.service.ensure_defaults(session)
     have = {c.code: c for c in session.scalars(select(RevenueCategory))}
@@ -192,7 +229,7 @@ def _memberships(session, actor, categories) -> dict:
 def _rentals(session, actor, location, courts, category, types) -> None:
     have = set(session.scalars(select(RentalType.name).where(RentalType.location_id == location.id)))
     member_types = [types["Adult"].id, types["Junior"].id]
-    for order, (type_name, (names, prime, morning, buffer)) in enumerate(RENTAL_TYPES.items()):
+    for order, (type_name, (names, prime, off, buffer)) in enumerate(RENTAL_TYPES.items()):
         if type_name in have:
             continue
         rtype = rentals.service.create_type(session, actor, {
@@ -200,13 +237,15 @@ def _rentals(session, actor, location, courts, category, types) -> None:
             "resource_ids": [courts[n] for n in names], "default_length_min": 60, "min_length_min": 60,
             "max_length_min": 180, "slot_granularity_min": 30, "min_lead_min": 60, "cancel_cutoff_hours": 24,
             "late_cancel_fee_pct": Decimal("50"), "buffer_before_min": buffer, "buffer_after_min": buffer,
-            "online_description": "Book a court by the hour. Prime time is 6 pm to 10 pm; members pay less.",
+            "online_description": "Book a court by the hour, day or night. Members pay less."
+            + (" Peak time is 6 pm to 10 pm." if prime != off else ""),
         })  # fmt: skip
-        # Base = guest off-prime, member price = member off-prime. Rules: the first matching rate rule by sort_order
-        # wins, so each band has one rule per membership type (member price) before the guest rule.
-        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1]}, prime)]
-        if morning:
-            bands.append(("Morning", {"start_time": "06:00", "end_time": MORNING_END}, morning))
+        # Base = guest off-peak, member price = member off-peak. Rules: the first matching rate rule by sort_order
+        # wins, so the peak band has one rule per membership type (member price) before the guest rule. Managers
+        # change the band's start and end times on the rental setup screen (rate rules "Prime" and "Member prime").
+        bands = (
+            [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1], "is_peak": True}, prime)] if prime != off else []
+        )
         rules = []
         for label, band, member_price in bands:
             for type_id in member_types:
@@ -214,7 +253,6 @@ def _rentals(session, actor, location, courts, category, types) -> None:
                               "membership_type_id": type_id, "amount_minor": member_price} | band)  # fmt: skip
             rules.append({"kind": "rate", "name": label, "sort_order": len(rules),
                           "amount_minor": cents(member_price * GUEST)} | band)  # fmt: skip
-        off = cents(prime * OFF_PRIME)
         hourly = {"name": "Hourly", "amount_minor": cents(off * GUEST), "member_amount_minor": off, "basis": "per_hour"}
         rate = rentals.service.create_rate(session, actor, rtype["id"], hourly | {"rules": rules})
         club = [{"kind": "discount", "name": "Weekly slot", "sort_order": len(rules), "discount_pct": CLUB_DISCOUNT}]
@@ -280,6 +318,13 @@ def _people(session, actor, location, mail: str) -> dict:
             children += kids
     for row in session.scalars(select(ClientEmail).where(ClientEmail.verified_at.is_(None))):
         row.verified_at = clock.now()  # synthetic addresses count as confirmed
+    # The owner has seen every adult's ID: only the confirm action confirms an age (clients README), so the seed
+    # calls it as the owner. Children stay unconfirmed, as a self-typed date would.
+    owner_id = session.scalar(select(StaffUser.id).join(Role).where(Role.system_key == "owner").limit(1))
+    as_owner = staff.principal_for(session, owner_id)
+    for adult in adults:
+        if adult.is_birth_on_unverified:
+            clients.service.confirm_age(session, as_owner, adult.id, {})
     for local in ("member", "parent"):
         identity = session.scalar(
             select(Identity).where(Identity.kind == "client", Identity.email == f"{local}@{mail}")
@@ -325,14 +370,19 @@ def _leagues(session, actor, location, courts, category, people) -> None:
         for court in VOLLEYBALL_COURTS:  # each convertible court is its own volleyball venue
             depth.create_venue(session, actor, body(ls.VenueCreate, location_id=location.id, name=f"Volleyball, {court}", resource_ids=[courts[court]]))  # fmt: skip
     adults = iter(a for a in people["adults"] if a.id not in (people["parent"].id, people["member"].id))
-    for sport, league_name, teams, size, fee in (
-        ("Badminton", "Tuesday Badminton League", BADMINTON_TEAMS, 2, 8000),
-        ("Volleyball", "Thursday Volleyball League", VOLLEYBALL_TEAMS, 6, 24000),
+    # Scored set by set; a forfeit counts as the sets needed, and ties on points go to set ratio, then points ratio.
+    by_sets = [{"metric": m} for m in ("PTS", "SR", "PR", "H2H")]
+    badminton = {"scoring_mode": "sets", "sets_best_of": 3, "set_points_to": 21, "set_cap": 30, "forfeit_score_for": 2}
+    volleyball = {"scoring_mode": "sets", "sets_best_of": 5, "set_points_to": 25, "deciding_set_points_to": 15, "forfeit_score_for": 3}  # fmt: skip
+    for sport, league_name, teams, size, fee, scoring in (
+        ("Badminton", "Tuesday Badminton League", BADMINTON_TEAMS, 2, 8000, badminton),
+        ("Volleyball", "Thursday Volleyball League", VOLLEYBALL_TEAMS, 6, 24000, volleyball),
     ):
         league = service.create_competition(session, actor, body(
             ls.CompetitionCreate, location_id=location.id, kind="league", name=league_name, sport_id=sports[sport].id,
             season_id=season.id, starts_on=monday, ends_on=monday + timedelta(weeks=10), is_public=True,
             team_fee_minor=fee, revenue_category_id=category.id, team_fee_text=f"${fee // 100} per team",
+            standings_sort=by_sets, **scoring,
         ))  # fmt: skip
         service.transition_competition(session, actor, league.id, "activate")
         for team_name in teams:
@@ -348,14 +398,17 @@ def _leagues(session, actor, location, courts, category, people) -> None:
 
 def _coaching(session, actor, location, category, mail: str) -> None:
     """Two coaches, to show the difference the owner asked about. Rowan is a staff coach: a staff sign-in (coach
-    role) linked to his trainer column, paid $30 per session through payroll. Ines is an independent coach: a client
-    record (she rents courts like anyone), plus a trainer column and a payee with no sign-in whose pay is 70% of the
-    lesson money as a commission line on the payroll run (the product computes it; paying her happens outside).
-    Lessons are a "Private lesson" type sold as a one-lesson package online ($50, assumed)."""
+    role) linked to his trainer column, paid $30 per session through payroll (the owner pays coaches per session),
+    with one clock job for non-coaching work only, `UPKEEP_JOB` at $15 an hour (assumed). Ines is an independent coach: a client
+    record (she rents courts like anyone), plus a trainer column and a payee with no sign-in, engaged as an
+    independent coach on a 70% revenue share (staff README "Coach revenue share"): her lessons land on her earnings
+    ledger and payout statements, never on payroll; paying her happens outside the product. Lessons are a "Private
+    lesson" type sold as a one-lesson package online ($50, assumed) or five for $225 (assumed)."""
     from app.modules.packages import service as packages
     from app.modules.packages.models import PackagePlan
     from app.modules.scheduling import service as scheduling
     from app.modules.scheduling.models import ReservationType
+    from app.modules.staff import coach
     from app.modules.staff import schemas as ss
     from app.modules.staff import service as staffing
     from app.modules.staff.models import StaffPayee
@@ -366,14 +419,24 @@ def _coaching(session, actor, location, category, mail: str) -> None:
     rowan = session.scalar(
         select(StaffUser).join(Identity, Identity.id == StaffUser.identity_id).where(Identity.email == f"coach@{mail}")
     )
-    for name, user, rate in (("Rowan (staff coach)", rowan, {"pay_basis": "per_session", "rate_60_minor": 3000}),
-                             ("Ines (independent coach)", None, {"pay_basis": "per_session", "session_commission_pct": Decimal(70)})):  # fmt: skip
+    for name, user in (("Rowan (staff coach)", rowan), ("Ines (independent coach)", None)):
         payee = staffing.create_payee(session, actor, ss.StaffPayeeCreate(
             kind="trainer", display_name=name, location_id=location.id, resource_group_id=group.id,
             staff_user_id=user.id if user else None).model_dump())  # fmt: skip
-        staffing.put_default_pay_rate(session, actor, payee.id, ss.PayRateWrite(**rate).model_dump())
         if user is not None:
             user.linked_resource_id = payee.resource_id  # the coach's own calendar column
+            rate = ss.PayRateWrite(pay_basis="per_session", rate_60_minor=3000)
+            staffing.put_default_pay_rate(session, actor, payee.id, rate.model_dump())
+        else:
+            start = date(2026, 1, 1)
+            coach.set_engagement(session, actor, payee.id, {"engagement": "independent", "effective_from_on": start})
+            coach.put_share_rule(session, actor, ss.CoachShareRuleWrite(
+                staff_payee_id=payee.id, effective_from_on=start, coach_share_pct=Decimal(70)).model_dump())  # fmt: skip
+    # Lessons are paid per session from the payee rate above; the clock is for other work, and payroll never counts
+    # clocked minutes inside a paid session, so a lesson is paid once even if he stays clocked in.
+    job = staffing.create_job_classification(session, actor, {"name": UPKEEP_JOB})
+    staffing.add_hourly_rate(session, actor, rowan.id, {
+        "job_classification_id": job.id, "rate_minor": 1500, "effective_from_on": date(2026, 1, 1)})  # fmt: skip
     clients.service.create_client(session, actor, {"first_name": "Ines", "last_name": "Independent",
                                                    "home_location_id": location.id, "primary_email": f"ines@{mail}"})  # fmt: skip
     lesson = session.scalar(select(ReservationType).where(ReservationType.name == "Private lesson"))
@@ -382,12 +445,13 @@ def _coaching(session, actor, location, category, mail: str) -> None:
             "location_id": location.id, "name": "Private lesson", "default_capacity": 1, "default_duration_min": 60,
             "default_allows_free_booking": False, "color": "#2563eb",
         })  # fmt: skip
-    if not session.scalar(select(PackagePlan.id).where(PackagePlan.name == "One lesson")):
-        packages.create_plan(session, actor, {
-            "reservation_type_id": lesson.id, "name": "One lesson", "session_mode": "fixed", "session_count": 1,
-            "fee_minor": 5000, "fee_basis": "per_package", "revenue_category_id": category.id,
-            "online_sale_mode": "paid_in_full", "validity_count": 3, "validity_unit": "month",
-        })  # fmt: skip
+    for name, count, fee in (("One lesson", 1, 5000), ("Five lessons", 5, 22500)):
+        if not session.scalar(select(PackagePlan.id).where(PackagePlan.name == name)):
+            packages.create_plan(session, actor, {
+                "reservation_type_id": lesson.id, "name": name, "session_mode": "fixed", "session_count": count,
+                "fee_minor": fee, "fee_basis": "per_package", "revenue_category_id": category.id,
+                "online_sale_mode": "paid_in_full", "validity_count": 3, "validity_unit": "month",
+            })  # fmt: skip
 
 
 def seed() -> None:

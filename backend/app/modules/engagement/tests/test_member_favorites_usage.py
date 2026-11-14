@@ -1,7 +1,8 @@
 """Phase 11 C2 part 2: favourites with a personal schedule (APP-13) and anonymous app usage counts (APP-17)."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import func, select
@@ -21,7 +22,17 @@ from app.modules.scheduling.tests.helpers import at, book, facility
 from conftest import add_staff, login, make_tenant, new_client
 
 API = "/api/v1"
-SOON = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=3)
+CHICAGO = ZoneInfo("America/Chicago")  # facility() puts the location here
+# One clock: core.clock frozen at noon on the facility's (Chicago's) real date, and the sessions three local days
+# later, so the hour the suite runs (UTC is a day ahead of Chicago in its evening) changes nothing.
+NOW = datetime.combine(datetime.now(CHICAGO).date(), time(12), CHICAGO).astimezone(UTC)
+SOON = datetime.combine(NOW.astimezone(CHICAGO).date() + timedelta(days=3), time(0), CHICAGO).astimezone(UTC)
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock():
+    with clock.freeze(NOW):
+        yield
 
 
 def ok(response, status=200):

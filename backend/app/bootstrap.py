@@ -1,6 +1,7 @@
 """Process wiring shared by the API, the worker, the relay and scripts: adapters by configuration,
 module registration (permission catalogue, authenticator, event subscribers)."""
 
+from app.adapters.building_control import SimulatedBuildingControl
 from app.adapters.email import MemoryEmail, SmtpEmail
 from app.adapters.fake_payments import FakeProvider
 from app.adapters.local_storage import LocalStorage
@@ -9,7 +10,7 @@ from app.adapters.scanner import ClamdScanner, NoopScanner
 from app.adapters.wallet_pass import FakeWalletPass
 from app.core.auth import deps
 from app.core.settings import REPO_ROOT, get_settings
-from app.ports import email, notifications, payment_provider, scanner, storage, wallet_pass
+from app.ports import building_control, email, notifications, payment_provider, scanner, storage, wallet_pass
 
 _done = False
 
@@ -30,6 +31,9 @@ def bootstrap() -> None:
     cfg = settings.storage
     scanner.configure(ClamdScanner(cfg.clamd_host, cfg.clamd_port) if cfg.scanner == "clamd" else NoopScanner())
     wallet_pass.configure(FakeWalletPass())  # CHK-13 partial: signed passes need issuer certificates
+    # CHK-15, CHK-16: no vendor adapter yet; `none` leaves the port empty, so every command fails and is surfaced
+    simulated = settings.building_control.adapter == "simulated"
+    building_control.configure(SimulatedBuildingControl() if simulated else None)
     if settings.payments.provider == "fake":
         payment_provider.register(FakeProvider())
     elif settings.payments.provider == "stripe":
@@ -52,6 +56,7 @@ def bootstrap() -> None:
 
     deps.set_authenticator(platform.auth.authenticate)
     deps.set_authenticator(integrations.auth.authenticate, prefix="fhk")
+    deps.set_key_principal_loader(integrations.auth.principal_for_key)
     deps.set_csrf_verifier(platform.auth.verify_csrf)
     if settings.notifications.adapter != "noop":
         engagement.service.install_notifier()  # transactional notices go through the delivery log and suppressions

@@ -113,13 +113,14 @@ def test_portal_invite_profile_and_dependents(client, tenant, owner, location_id
 
     kid = client.post(f"{API}/portal/dependents", headers=portal, json={
         "relationship_type_id": types["parent_of"]["id"], "first_name": "Kit", "last_name": "Mom",
-        "email": "mom@example.com",
+        "email": "mom@example.com", "birth_on": "2019-02-03", "birth_on_declared": True,
     })  # fmt: skip
     assert kid.status_code == 201, kid.text
     kid = kid.json()
     assert kid["authority"] == "manager" and kid["can_edit"]
     sibling_type = client.post(f"{API}/portal/dependents", headers=portal, json={
-        "relationship_type_id": types["sibling_of"]["id"], "first_name": "No", "last_name": "Rights"})  # fmt: skip
+        "relationship_type_id": types["sibling_of"]["id"], "first_name": "No", "last_name": "Rights",
+        "birth_on": "2019-02-03", "birth_on_declared": True})  # fmt: skip
     assert sibling_type.status_code == 422
     listed = client.get(f"{API}/portal/clients", headers=portal).json()["data"]
     assert [c["id"] for c in listed] == [mom["id"], kid["id"]]
@@ -180,3 +181,35 @@ def test_staff_approve_pending_request(client, tenant, owner, location_id, mailb
     approved = client.post(f"{API}/client-relationships/{pending['id']}/approve", headers=owner).json()
     assert approved["status"] == "active"
     assert client.post(f"{API}/client-relationships/{pending['id']}/approve", headers=owner).status_code == 409
+
+
+def test_two_first_callers_seed_the_system_relationship_types_once(tenant):
+    """The lazy seed races safely: the second caller waits on the first's rows, then neither raises."""
+    import threading
+
+    from sqlalchemy import func, select
+
+    from app.modules.clients.models import RelationshipType
+
+    errors = []
+
+    def second():
+        try:
+            with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+                clients.households.ensure_relationship_types(session)
+        except Exception as exc:  # noqa: BLE001 - surfaced by the assert below
+            errors.append(exc)
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        clients.households.ensure_relationship_types(session)  # inserted, not yet committed
+        racer = threading.Thread(target=second)
+        racer.start()
+        racer.join(timeout=1.0)  # blocks on the uncommitted rows
+    racer.join(timeout=10)
+    assert not racer.is_alive() and errors == []
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        types = {t.code: t for t in session.scalars(select(RelationshipType))}
+        assert session.scalar(select(func.count()).select_from(RelationshipType)) == len(
+            clients.households.SYSTEM_TYPES
+        )
+        assert types["parent_of"].inverse_type_id == types["child_of"].id

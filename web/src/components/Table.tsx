@@ -4,7 +4,7 @@ import { Button } from './Button'
 import { ErrorState, LoadingState } from './States'
 
 export type Column<T> = { header: string; cell: (row: T) => ReactNode; className?: string }
-type Page<T> = { data: T[]; page: { next_cursor?: string | null; has_more: boolean } }
+type Page<T> = { data: T[]; page: { next_cursor?: string | null; has_more: boolean; total?: number | null } }
 
 /** Keyset paging: we keep the cursors of the pages already seen so "Previous" can go back. */
 export function useKeysetQuery<T>(key: readonly unknown[], fetchPage: (cursor: string | undefined) => Promise<Page<T>>) {

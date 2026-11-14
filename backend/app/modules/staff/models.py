@@ -113,6 +113,9 @@ class StaffPayee(TenantOwned, Timestamps, Base):
     is_booking_alert_enabled: Mapped[bool] = mapped_column(server_default=text("false"))
     is_reminder_copy_enabled: Mapped[bool] = mapped_column(server_default=text("false"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+    # Compliance placeholder (coach share): the date a W-9 or similar form was received, null = none on file.
+    # Never a tax identifier.
+    tax_form_on_file_on: Mapped[date | None]
 
 
 class PayRate(TenantOwned, Timestamps, Base):
@@ -409,3 +412,183 @@ class PayStatementLine(TenantOwned, Timestamps, Base):
     base_minor: Mapped[int | None]
     amount_minor: Mapped[int]
     was_paid_before: Mapped[bool] = mapped_column(server_default=text("false"))
+
+
+# --- coach revenue share (independent coaches) -----------------------------------------------------------------
+
+
+class Engagement(StrEnum):
+    EMPLOYEE = "employee"  # a staff coach: paid through payroll
+    INDEPENDENT = "independent"  # an independent coach: earns a share of lesson revenue, never on payroll
+
+
+class CourtFeeBasis(StrEnum):
+    SESSION = "session"
+    HOUR = "hour"
+
+
+class CourtFeeApplies(StrEnum):
+    BEFORE_SPLIT = "before_split"  # the fee comes off the lesson price, then the rest is split
+    AFTER_SPLIT = "after_split"  # the lesson price is split, then the fee comes off the coach's share
+
+
+class EarningKind(StrEnum):
+    LESSON = "lesson"
+    REVERSAL = "reversal"
+    ADJUSTMENT = "adjustment"
+
+
+class EarningSource(StrEnum):
+    ENROLLMENT = "enrollment"
+    BOOKING = "booking"
+
+
+class PayoutStatus(StrEnum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+    PAID = "paid"
+
+
+class PayoutMethod(StrEnum):
+    BANK_TRANSFER = "bank_transfer"
+    CHEQUE = "cheque"
+    OTHER = "other"
+
+
+class CoachEngagement(TenantOwned, Timestamps, Base):
+    """How a trainer payee is engaged from a date on; the latest row on or before a day is in force, and no row
+    means a staff coach (employee). Effective-dated so a change never rewrites a past payroll or earning."""
+
+    __tablename__ = "coach_engagement"
+    __table_args__ = tenant_args(
+        *tfk("staff_payee_id", "staff_payee", index=False),
+        enum_check("engagement", Engagement),
+        UniqueConstraint("tenant_id", "staff_payee_id", "effective_from_on", name="uq_coach_engagement"),
+    )
+
+    staff_payee_id: Mapped[UUID]
+    engagement: Mapped[str] = enum_column()
+    effective_from_on: Mapped[date]
+
+
+class CoachShareRule(TenantOwned, Timestamps, Base):
+    """An independent coach's share of net lesson revenue. Most specific wins: coach and lesson type, coach, lesson
+    type, then the tenant default (both null). Effective-dated; earnings snapshot what they used."""
+
+    __tablename__ = "coach_share_rule"
+    __table_args__ = tenant_args(
+        *tfk("staff_payee_id", "staff_payee", index=False),
+        *tfk("reservation_type_id", "reservation_type"),
+        enum_check("court_fee_basis", CourtFeeBasis),
+        enum_check("court_fee_applies", CourtFeeApplies),
+        UniqueConstraint("tenant_id", "staff_payee_id", "reservation_type_id", "effective_from_on",
+                         name="uq_coach_share_rule", postgresql_nulls_not_distinct=True),
+        CheckConstraint("coach_share_pct BETWEEN 0 AND 100 AND court_fee_minor >= 0", name="amounts"),
+    )  # fmt: skip
+
+    staff_payee_id: Mapped[UUID | None]
+    reservation_type_id: Mapped[UUID | None]
+    effective_from_on: Mapped[date]
+    coach_share_pct: Mapped[Decimal] = mapped_column(_Pct)
+    court_fee_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    court_fee_basis: Mapped[str] = enum_column(server_default=text("'session'"))
+    court_fee_applies: Mapped[str] = enum_column(server_default=text("'before_split'"))
+
+
+class CoachEarning(TenantOwned, Base):
+    """The immutable earnings ledger of independent coaches: one line per recognised lesson, a reversing line when
+    the money goes back, and manual adjustments. Shares always sum to the gross. No client id and no client text:
+    the description is "Lesson" (or "Adjustment"), because an immutable row could never be erased or exported."""
+
+    __tablename__ = "coach_earning"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("staff_payee_id", "staff_payee", index=False),
+        *tfk("reservation_type_id", "reservation_type"),
+        *tfk("reverses_coach_earning_id", "coach_earning", index=False),
+        *tfk("created_by_staff_user_id", "staff_user"),
+        enum_check("kind", EarningKind),
+        enum_check("source_type", EarningSource),
+        CheckConstraint("gross_minor = facility_share_minor + coach_share_minor", name="split"),
+        CheckConstraint("(kind = 'reversal') = (reverses_coach_earning_id IS NOT NULL)", name="reversal"),
+        CheckConstraint("kind <> 'adjustment' OR (reason IS NOT NULL AND btrim(reason) <> '' AND gross_minor = 0)",
+                        name="adjustment"),
+        CheckConstraint("kind = 'adjustment' OR (source_type IS NOT NULL AND source_id IS NOT NULL)", name="source"),
+        Index("uq_coach_earning_reversal", "tenant_id", "reverses_coach_earning_id", unique=True,
+              postgresql_where=text("reverses_coach_earning_id IS NOT NULL")),
+        Index("ix_coach_earning_payee", "tenant_id", "staff_payee_id", "earned_on", "id"),
+        Index("ix_coach_earning_source", "tenant_id", "source_type", "source_id"),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID]
+    staff_payee_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    earned_on: Mapped[date]
+    source_type: Mapped[str | None] = enum_column()
+    source_id: Mapped[UUID | None]
+    reservation_type_id: Mapped[UUID | None]
+    description: Mapped[str]
+    gross_minor: Mapped[int]
+    facility_share_minor: Mapped[int]
+    coach_share_minor: Mapped[int]
+    coach_share_pct: Mapped[Decimal | None] = mapped_column(_Pct)
+    court_fee_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    reverses_coach_earning_id: Mapped[UUID | None]
+    reason: Mapped[str | None]
+    created_by_staff_user_id: Mapped[UUID | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+
+
+class CoachPayout(TenantOwned, Timestamps, Base):
+    """A payout statement: what the facility owes one independent coach for gathered earning lines. A record only;
+    the software moves no money (a Stripe Connect transfer can fill `payment_reference` later). Paid is final;
+    corrections go on the next statement."""
+
+    __tablename__ = "coach_payout"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("staff_payee_id", "staff_payee"),
+        *tfk("created_by_staff_user_id", "staff_user"),
+        *tfk("approved_by_staff_user_id", "staff_user"),
+        *tfk("paid_by_staff_user_id", "staff_user"),
+        enum_check("status", PayoutStatus),
+        enum_check("payment_method", PayoutMethod),
+        CheckConstraint("period_ends_on >= period_starts_on", name="period"),
+        CheckConstraint("gross_minor = facility_share_minor + coach_share_minor", name="split"),
+        CheckConstraint("status = 'draft' OR approved_at IS NOT NULL", name="approved"),
+        CheckConstraint("(status = 'paid') = (paid_on IS NOT NULL AND payment_method IS NOT NULL)", name="paid"),
+        Index("ix_coach_payout_location", "tenant_id", "location_id", "period_ends_on", "id"),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID]
+    staff_payee_id: Mapped[UUID]
+    period_starts_on: Mapped[date]
+    period_ends_on: Mapped[date]
+    status: Mapped[str] = enum_column(server_default=text("'draft'"))
+    line_count: Mapped[int] = mapped_column(server_default=text("0"))
+    gross_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    facility_share_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    coach_share_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    adjustment_minor: Mapped[int] = mapped_column(server_default=text("0"))
+    created_by_staff_user_id: Mapped[UUID | None]
+    approved_at: Mapped[datetime | None]
+    approved_by_staff_user_id: Mapped[UUID | None]
+    paid_at: Mapped[datetime | None]
+    paid_by_staff_user_id: Mapped[UUID | None]
+    paid_on: Mapped[date | None]
+    payment_method: Mapped[str | None] = enum_column()
+    payment_reference: Mapped[str | None]
+
+
+class CoachPayoutLine(TenantOwned, Timestamps, Base):
+    """An earning line gathered into a payout; an earning is on one payout at most."""
+
+    __tablename__ = "coach_payout_line"
+    __table_args__ = tenant_args(
+        *tfk("coach_payout_id", "coach_payout", ondelete="CASCADE"),
+        *tfk("coach_earning_id", "coach_earning", index=False),
+        UniqueConstraint("tenant_id", "coach_earning_id", name="uq_coach_payout_line_earning"),
+    )
+
+    coach_payout_id: Mapped[UUID]
+    coach_earning_id: Mapped[UUID]

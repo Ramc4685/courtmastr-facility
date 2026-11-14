@@ -43,6 +43,8 @@ const LINKS = [
   { to: '/staff-time/shifts', label: 'Shifts', permission: 'staff.shift.manage' },
   { to: '/staff-time/payees', label: 'Trainers & salespeople', permission: 'resources.resource.manage' },
   { to: '/staff-time/payroll', label: 'Payroll', permission: 'staff.payroll_run.create' },
+  { to: '/staff-time/coach-share', label: 'Coach revenue share', permission: 'staff.coach_payout.create' },
+  { to: '/staff-time/my-earnings', label: 'My earnings', permission: 'staff.coach_payout.read' },
   { to: '/staff-time/setup', label: 'Set-up', permission: 'staff.time_entry.manage' },
 ]
 

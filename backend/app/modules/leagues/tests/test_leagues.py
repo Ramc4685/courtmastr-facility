@@ -178,6 +178,9 @@ def test_schedule_generator_books_courts_and_reports_clashes(client, owner, f):
     after = {g["id"]: g for g in get(client, owner, f"/schedule-runs/{run['id']}/games")["data"]}
     assert after[first["id"]]["status"] == "unschedulable"
     assert after[first["id"]]["conflict_note"]["reason"] == "booking-conflict"
+    assert (
+        "is already held by booking #" in after[first["id"]]["conflict_note"]["detail"]
+    )  # staff see what was in the way
     booked = [g for g in after.values() if g["status"] == "scheduled"]
     assert len(booked) == 5 and all(g["booking_id"] for g in booked)
     clash = book(client, owner, f, [f.court], booked[0]["starts_at"], booked[0]["ends_at"])
@@ -532,3 +535,12 @@ def test_w2_07_bracket_booking_needs_the_games_key_and_copied_rosters_the_roster
     copied = ok(client.post(f"{API}/competitions/{target['id']}/teams/copy", headers=owner,
                             json={"source_competition_id": comp["id"], "includes_rosters": True}), 201)  # fmt: skip
     assert len(copied) == 2
+
+
+def test_integers_above_int4_are_a_422_not_a_500(client, owner):
+    """The team fee and the sort order are int4 columns: a larger number overflowed Postgres (a 500)."""
+    too_big = 2**31
+    sport = client.post(f"{API}/sports", headers=owner, json={"name": "Big", "default_team_fee_minor": too_big})
+    assert sport.status_code == 422, sport.text
+    group = client.post(f"{API}/age-groups", headers=owner, json={"name": "Big", "sort_order": too_big})
+    assert group.status_code == 422, group.text

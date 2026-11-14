@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator
 
-from app.core.schemas import In, Out, Page, PageInfo  # noqa: F401  (re-exported: the router uses s.Page)
+from app.core.schemas import In, Int4, Out, Page, PageInfo  # noqa: F401  (re-exported: the router uses s.Page)
 
 Audience = Literal["staff", "client"]
 ClientKind = Literal["web", "mobile"]
@@ -239,7 +239,7 @@ class LocationFields(In):
     time_clock_rounding_min: Literal[5, 6, 10, 15, 30] | None = None
     accepted_card_brands: list[str] | None = None
     is_gdpr_mode: bool | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
 
 
 class LocationCreate(LocationFields):

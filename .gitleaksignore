@@ -13,3 +13,5 @@ a60a475ca4176e9cc00bca219ba9a83338c50e2f:backend/app/modules/billing/router.py:g
 d4b5395e3534f49fd65008a2fd7329275132a93a:backend/app/modules/billing/tests/test_stripe.py:stripe-access-token:100
 d4b5395e3534f49fd65008a2fd7329275132a93a:backend/app/modules/billing/tests/test_stripe.py:stripe-access-token:93
 faefbb0157bead75752d69aa9ff2ddb3c6d42ffc:web/src/features/integrations/integrations.test.tsx:generic-api-key:25
+a76c8ac7152c8b829b52e0d464d68c5e2221abf5:backend/app/modules/staff/tests/test_coach_share.py:generic-api-key:178
+d391caeb1f48c5428605023c3835741237492990:backend/app/modules/staff/tests/test_coach_share.py:generic-api-key:131

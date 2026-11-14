@@ -27,7 +27,15 @@ from app.modules import billing, clients, documents, memberships, platform, prog
 from app.modules.access import desk
 from app.modules.access import events as ev
 from app.modules.access.domain import cards
-from app.modules.access.domain.evaluate import ALERT_ACTION, DEFAULT_RULES, Decision, Facts, evaluate, in_schedule
+from app.modules.access.domain.evaluate import (
+    ALERT_ACTION,
+    DEFAULT_RULES,
+    Decision,
+    Facts,
+    evaluate,
+    for_booking,
+    in_schedule,
+)
 from app.modules.access.models import (
     AccessRule,
     AccessSchedule,
@@ -247,12 +255,13 @@ def _check_in(
     session: Session, *, client, location_id: UUID, channel: str, identified_by: str, credential: Credential | None,
     staff_user_id: UUID | None = None, kiosk: KioskDevice | None = None, override: bool = False,
     override_reason: str | None = None, window: tuple[timedelta, timedelta] | None = None,
-    station_id: UUID | None = None,
+    station_id: UUID | None = None, booked: bool = False,
 ) -> tuple[CheckIn, Decision, dict]:  # fmt: skip
     """Shared by every channel: decide, write the log row, count the visit and mark attendance, one transaction.
-    The caller has already gated `override`."""
+    The caller has already gated `override`. `booked`: the entry a booking's door code makes, which membership
+    rules never refuse (`for_booking`); the front desk and the kiosk never pass it."""
     facts, card = _facts(session, client, location_id)
-    decision = evaluate(facts)
+    decision = for_booking(evaluate(facts)) if booked else evaluate(facts)
     now = clock.now()
     result = "granted" if decision.would_grant else "granted_override" if override else "denied"
     row = CheckIn(
@@ -943,7 +952,8 @@ def kiosk_exit(session: Session, device: KioskDevice, pin: str) -> None:
 
 _ACCESS_DEFAULTS = {
     "hidden_detail_fields": ["balance_due", "membership_dates", "visit_counts"], "staff_early_minutes": 180,
-    "staff_late_minutes": 300,
+    "staff_late_minutes": 300, "entry_code_early_min": 15, "entry_code_grace_min": 10, "light_lead_in_min": 5,
+    "light_run_on_min": 5, "requires_paid_entry": True, "door_alert_bad_codes_per_hour": 20,
 }  # fmt: skip
 
 

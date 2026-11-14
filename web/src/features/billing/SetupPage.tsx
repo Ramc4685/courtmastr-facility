@@ -6,11 +6,13 @@ import { Button } from '../../components/Button'
 import { Checkbox, Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, LoadingState } from '../../components/States'
+import { Table, useKeysetQuery } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
-import { TENDER_LABEL, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { TENDER_LABEL } from './money'
 import { FormDialog, ListTable, TextArea, useProviderAccounts, useRevenueCategories, useTaxes, useTenderTypes } from './shared'
 
 type Tax = Schemas['TaxOut']
@@ -28,7 +30,8 @@ function useDone(key: string[]) {
 function TaxDialog({ tax, onClose }: { tax: Tax | null; onClose: () => void }) {
   const done = useDone(['billing'])
   const detail = useQuery({ queryKey: ['billing', 'tax', tax?.id], queryFn: () => api.get('/api/v1/taxes/{tax_id}', { path: { tax_id: tax?.id ?? '' } }), enabled: Boolean(tax) })
-  const [form, setForm] = useState({ code: tax?.code ?? '', label: tax?.label ?? '', remarks: tax?.remarks ?? '', rate: '', from: today(), is_active: tax?.is_active ?? true })
+  const today = useLocationToday()
+  const [form, setForm] = useState({ code: tax?.code ?? '', label: tax?.label ?? '', remarks: tax?.remarks ?? '', rate: '', from: today,is_active: tax?.is_active ?? true })
   const save = useMutation({
     mutationFn: () =>
       tax
@@ -237,6 +240,34 @@ function TendersTab() {
   )
 }
 
+type Unmatched = Schemas['UnmatchedProviderEventOut']
+
+/** Phase 9 S5: succeeded charges and refunds this app started at the processor that have no record here, after
+ * the retry sweep gave up. No amount is stored with the event, so staff look the reference up at the processor. */
+function UnmatchedEvents() {
+  const paging = useKeysetQuery<Unmatched>(['billing', 'unmatched-provider-events'], (cursor) =>
+    api.get('/api/v1/unmatched-provider-events', { query: { cursor, include: 'total' } }),
+  )
+  const total = paging.query.data?.page.total ?? 0
+  return (
+    <section aria-labelledby="unmatched-heading" className="space-y-2">
+      <h3 id="unmatched-heading" className="font-medium">Unmatched processor activity ({total})</h3>
+      <p className="text-sm text-muted">Each row is a charge or refund that went through at the processor but has no payment or refund recorded here, usually because the request that made it stopped part way. Look the reference up in the processor's dashboard to see what it was and who paid.</p>
+      <Table
+        caption="Unmatched processor activity"
+        rowKey={(e) => e.id}
+        paging={paging}
+        empty={<EmptyState title="Nothing unmatched" />}
+        columns={[
+          { header: 'Received', cell: (e) => formatDateTime(e.received_at) },
+          { header: 'Kind', cell: (e) => (e.kind === 'refund' ? 'Refund' : e.kind === 'payment' ? 'Charge' : '—') },
+          { header: 'Processor reference', cell: (e) => <code>{e.provider_ref ?? '—'}</code> },
+        ]}
+      />
+    </section>
+  )
+}
+
 function ProcessorTab() {
   const { can } = useAuth()
   const toast = useToast()
@@ -291,6 +322,7 @@ function ProcessorTab() {
           {import.meta.env.DEV && <Button variant="secondary" onClick={() => connect.mutate('fake')}>Connect the test processor</Button>}
         </div>
       )}
+      {can('billing.history.read') && <UnmatchedEvents />}
     </div>
   )
 }

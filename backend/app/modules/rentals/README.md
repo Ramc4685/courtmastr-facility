@@ -21,10 +21,14 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   single or recurring) or `create_booking(hold_minutes=...)` (portal) with source ('rentals',
   'rental_booking', id). `scheduling.service.HOOKS["rentals"]` writes the rental_booking row in each
   occurrence's savepoint, so worker-generated occurrences (series above 50) and extension passes get one too.
-- **Pricing** (RNT-02): member price when the payer is a member, else the amount; per-hour occurrences cut at
+- **Pricing** (RNT-02): member price when the payer is a member (or every listed player is a covered ward of the
+  payer, see "Family member prices"), else the amount; per-hour occurrences cut at
   every band edge and local midnight; first matching `rate` rule by sort_order replaces the unit; every
   matching `discount` rule adds up, capped at the unit; quantity is real elapsed time (DST-safe); a line never
   mixes prices; amount half-up once per line; occurrence shares are a largest-remainder split.
+- **Peak bands**: a rule's `is_peak` marks its band (whole day when it has no times) as the owner's peak time
+  for the court-use report, whatever its price; pricing ignores it. Default off; migration 2010 marked the
+  existing time-banded rate rules dearer than their base.
 - **Charges** go only through billing internals: one `rental_booking_charge` and one billing charge per line,
   source ('rentals', 'rental_booking_charge', line id), so a retried request or job never bills twice
   (`post_charge` is idempotent by source; the route also honours `Idempotency-Key`). Routing: `new_single`,
@@ -64,8 +68,8 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   non-payment suspends a contract and a suspended contract is not active. **Owner decision 2026-11-13 (question
   13): an overdue member whose contract is not yet suspended, a membership held at another location, and a punch
   pass whose visits are used up all count as members** for members-only plans, member prices and eligibility,
-  which is what `is_member` already answers (any active contract, tenant-wide). Rental prices still treat every payer
-  as a non-member (no member rates on bookings).
+  which is what `is_member` already answers (any active contract, tenant-wide). Member prices on rentals: see
+  "Member prices and the minors rule" below.
 - **Waivers on rental plans (owner decisions 2026-11-13, question 8; ADR 0013).** A document bound to a rental
   plan (`scope_type = rental_plan`) blocks its sale until accepted, at the desk (`sell_plan`) and in the portal
   (`portal_buy_plan`, before any charge): `documents.service.requirements_for`, then `ensure_pending` issues the
@@ -95,12 +99,28 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 - A rate counts the booked resources that are in the type's resource list (linked resources such as lights do
   not multiply a `per_resource` rate); a type without a list counts all booked resources.
 - Plan quantity is per occurrence (per hour of the occurrence or one per occurrence), not per resource.
-- A moved rental is not re-priced: its posted charges stay; staff cancel and rebook to re-price.
+- A moved rental is not re-priced: its posted charges stay, even when the move crosses into another price band or
+  a membership has lapsed since; staff cancel and rebook to re-price (decided for the pilot, tested).
 - Only recurring rentals can be extended (`not-a-series` otherwise); extension occurrences arrive unbilled.
+  Extending re-checks the minors rule for the holder and the series' players on the new dates. Extending a series
+  booked in a minor's name needs a fresh `minor_override_reason` (and the key); the original
+  reason is never copied to the new occurrences (`add_rule(source_data=...)` replaces it in the copied template).
+  Scheduling's generic `POST /booking-series/{id}/rules` and `PATCH .../rules/{rule_id}` refuse a series whose
+  template carries a source (409 `series-owned-by-rental`, owners too), so the rental's extension route is the
+  only way to add dates.
 - A series above 50 occurrences accepts only `unbilled` or `no_charge`; bill it from the queue once generated.
 - Portal payment is a one-off card token through the PaymentProvider port; confirm takes no stored method. A
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
-- Public availability ignores `client_id` (no member pricing) and returns one page of at most 200 slots.
+- Public availability is anonymous and quotes guest prices; the portal's `GET /portal/rental-availability`
+  quotes the signed-in client's member prices, reading membership once per date per request (not per slot), behind
+  the `portal-availability` rate-limit bucket (60 a minute per IP; it fails closed, 503, while Redis is down). Both cover the whole local day for the chosen
+  court (`resource_id`) and time-of-day band (`from_time` inclusive, `to_time` exclusive, by slot start; a band
+  that ends at or before its start is 422 at `/to_time`; times are local wall clock, any offset is ignored),
+  ordered by court then start, in keyset pages of up to 200 (`cursor` from `page.next_cursor`; a bad cursor is
+  400): nothing is cut off silently. The slots are computed per request and paged in
+  memory, so the cursor (court name, court id, start) is stable only while the day's holds do not change; a booking
+  between pages can drop a slot, never repeat one. The portal shows "Show more times" while `has_more`. The
+  past-due lockout covers portal POSTs only: a locked-out payer still sees open times and is refused at checkout.
 - Reads of types, rates and plans are `authenticated` (location containment only), as the contract says.
 - Internal functions added to other contexts (additive): `scheduling.service.template_for`, `book`,
   `add_rule`, `free_ranges`, `booking_views`, `booking_ids`, `series_scope`, `HOOKS`;
@@ -178,3 +198,99 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   own; otherwise 422 `payment-method-not-usable`), optionally `save_method`, and pays the deposit through
   `billing.checkout.secure_online_checkout` with `amount_minor`. A decline is now 409 `payment-failed` (it was
   `payment-declined`), the shared portal-sale code.
+
+## Member prices and the minors rule (pilot, CIRQT)
+
+- **Root cause of the member-price gap.** `pricing.price` always supported a member amount and membership-type
+  rules, but none of its callers passed the payer: `_Priced` (staff preview, create, bill selected, portal
+  checkout) and `search_availability` (the portal's open times) both priced every payer as a guest, while the
+  rate's member price and the type's text promised less. There was no second price path; the defect was that the
+  one path never knew who pays.
+- **One price for quote and charge.** `_price_for` is the only caller of `pricing.price`: staff preview and create,
+  `bill_selected` (preview and charge), the portal open times and the portal checkout all go through it, so a quote
+  and its charge agree. It reads `_member_pricing`, which is memberships' `member_on`, the date-aware form of
+  `eligibility` (owner decision 13): an active contract, owned or shared, at any location, overdue or
+  used up counts on a date; suspended or frozen on that date, or after the contract's end, does not, and a
+  contract cancelled on or before its start date (un-sold, everything reversed) never counts. Memberships has no
+  "paid to activate" gate (non-payment suspends, which already excludes the dates). The membership type of the covering contract
+  feeds membership-type rate rules. A line is flagged `is_member_price` when the member amount or a
+  membership-type rule set its unit.
+- **Dates.** Membership is read on each occurrence's local date through memberships' `member_on`: a recurring
+  rental that outlives a membership pays the guest price for the later occurrences (separate lines; a line never
+  mixes prices). An auto-renewing contract covers past its end date until it is cancelled or a renewal fails; if it
+  lapses, occurrences not yet charged price as guest when they are billed, and charges already posted stay. Arrears
+  billing (bill selected) of a date an ended contract covered charges the member price. The online members-only
+  check reads the same function on the rental's date. A `flat` rate is one
+  charge for the request, priced on the first date: a member on the first date pays the flat member price for
+  the whole series even if the membership lapses before the last occurrence, and a guest on the first date pays the
+  guest price throughout (decided for the pilot). Bands are local wall time; a booking across a band edge is cut
+  there and each line is rounded half-up once.
+- **Lapse between quote and payment.** The portal quotes from `/portal/rental-availability`; the checkout prices
+  again and posts the charge. If the membership lapsed in between, the charge (guest price) wins: the checkout
+  quote carries it with `is_member_price: false`, and the portal tells the member the price changed before they
+  pay. Once posted, a charge is not repriced at payment.
+- **Guest checkout:** rentals have no guest (sign-in-free) checkout; a guest is a client without a membership.
+- **Minors.** A rental is never held by a minor (`minor-cannot-hold-rental`, staff and portal). A minor may play
+  as an uncharged party only when the holder is one of their guardians (`clients.households.guardian_ids`,
+  `minor-needs-guardian`); the existing `rental_party` list is the participant list. Minor means under the
+  tenant's `minor_age` (`platform.service.minor_age`), read in one function, `_is_minor`, on the rental's local
+  date, so Phase 13's single setting changes one line. At the desk an unknown birth date counts as an adult, the
+  convention of `clients.service.is_minor` (ADR 0002 section 5) that access and engagement use too; treating it
+  as a minor would refuse every adult with no birth date on file. Staff are warned instead: preview and create
+  return `birth_on_unknown` (holder and players with no date) and the form says so.
+- **Online fails closed (deviation from ADR 0002 section 5).** Nobody looks at the portal customer, so there an
+  unknown birth date is not an adult: the holder needs a birth date on file (`birth-date-required`) and a player
+  with none counts as a minor (allowed only on a guardian's booking). A dependant added in the portal needs
+  `birth_on`. A first birth date entered in the portal is kept, flagged `client.is_birth_on_unverified` for staff
+  review (a staff save of the date clears it) and audited with the change; a recorded date stays locked
+  (`field-locked`). The portal never keys the holder on acting authority (parents of portal-added children are
+  `manager`, like any managed profile): it reads `is_adult` and `is_my_ward` on the portal client view. A delegate
+  sees `is_adult` as null (names only, no age signal).
+- **Staff override.** `minor_override_reason` on create (and preview) needs `rentals.booking.override_minor`
+  (admin, manager) and lifts both checks. The reason is kept on `rental_booking.minor_override_reason`; the audit
+  record carries a flag only. The staff form asks for the reason only after the server refuses and only to holders
+  of the key; the reason is cleared when the client changes. Staff see the stored reason on the rental (staff
+  view and list, never the portal view). The staff form names household members who will play (the client's active
+  relationships, sent as uncharged `parties`).
+- **Portal.** A parent books in their own name and names household members who will play
+  (`player_client_ids`, each one the identity can act for, else 404). Acting for someone who is not an adult
+  (`is_adult` false), the booking dialog books in the signed-in person's name, ticks the child as a player when
+  they are the parent's ward, and says why; a signed-in person without a birth date is asked to add one first.
+- **Who may bring a child.** Only a guardian (`guardian_ids`: a guardianship relationship such as parent or
+  guardian). A delegate with acting rights (a grandparent or minder) may book for themselves, but a child on their
+  booking is refused (`minor-needs-guardian`); the dialog says "Only a parent or guardian can bring ..." and does not
+  offer the child as a player. Decided for the pilot: the guardian is the person answerable for the child at the court. The portal rental view still carries no
+  co-party ids (S-06).
+- **A child's own plan.** A rental plan bought in a child's name can be spent by a guardian holding the rental
+  (`_purchase_for`, staff and portal) only while the plan's owner is a minor on the first date (an unknown birth
+  date is not, so it fails closed), the holder is one of the child's guardians (the minors rule's test), and the
+  child is a listed player on every occurrence the plan pays for; otherwise it stays the child's alone (a grown
+  child shares through plan sharing). The ledger records the holder as the user. The guardian
+  passes the plan's waiver gate as a share-holder does (`_share_holder_documents`): their own acceptance, once per
+  purchase, consumed against the purchase (`test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate`).
+- **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
+- **Family member prices (owner decision).** A rental earns the member price on a date when the holder is a
+  member that date, or when every listed player is covered that date (by their own membership, or by a household or
+  shared membership naming them: `member_on` for each person, so shares count) AND has the holder as a guardian (the
+  minors rule's `clients.households.guardian_ids`; owner: "a child can be on the parent's membership too"). An
+  unrelated member listed as a player never lowers a guest holder's price, at the desk or online. With a non-member
+  holder, a single uncovered or unrelated player means guest prices for the whole rental. The member rate rules
+  matched are those of the covering membership types. Staff and portal bookings, previews, open times and charges
+  all go through `_member_pricing`; a charge reads the players written on the occurrences, so for a series every
+  player listed on any occurrence must qualify. Portal open times take the players the holder will name
+  (`player_client_ids`, people the holder may act for, else 404) and quote what the checkout charges; the booking
+  screen re-quotes when a player is ticked or unticked, and the checkout shows the final price before payment.
+  **Owner question (open):** a non-member parent booking with their covered child pays the member price, $15 not
+  $18 off-peak, $25 not $30 at peak and $40 not $48 for volleyball, so one child membership stands in for the
+  parent's own $10 membership. Confirm that is intended.
+- **Seam (claude/building-control).** That branch emails the door entry code to the rental holder and, for
+  sessions, to every participant, children included. Rentals now never have a child holder, but a child player of a
+  session gets the code; the owner should confirm that is wanted before both land.
+- **Age confirmation (owner decision "Staff confirm once").** A self-declared adult (a date typed at sign-up with
+  the declaration) may hold and pay for a rental online; a minor or a person with no date may not (the minors rule
+  above, unchanged). The portal checkout carries `entry_code_notice` before payment. Building-control issues the
+  held entry code on `clients.client.age_confirmed` and treats an unverified date as "hold", through
+  `clients.service.is_age_confirmed` (clients README). `rentals.booking.override_minor` and
+  `clients.client.confirm_age` are withheld from API keys (integrations `KEY_WITHHELD`).
+- **Out of scope** (seen, not built): online recurring bookings by members, club contracts, no-show and overstay
+  handling, independent-coach payouts, the utilisation report, leagues.

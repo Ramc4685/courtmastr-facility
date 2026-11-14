@@ -67,10 +67,14 @@ describe('FacilityApp', { timeout: 20_000 }, () => {
     await user.type(await screen.findByLabelText(/First name/), 'Nia')
     await user.type(screen.getByLabelText(/Last name/), 'Newcomer')
     await user.type(screen.getByLabelText(/^Email/), 'nia@example.com')
-    await user.click(screen.getByRole('button', { name: 'Send confirmation link' }))
+    fireEvent.change(screen.getByLabelText(/Date of birth/), { target: { value: '1994-06-07' } })
+    const send = screen.getByRole('button', { name: 'Send confirmation link' })
+    expect(send).toBeDisabled() // the birth date is declared true before it is sent
+    await user.click(screen.getByLabelText('I confirm the date of birth I entered is true.'))
+    await user.click(send)
     expect(await screen.findByRole('status')).toHaveTextContent('nia@example.com')
     const post = calls.find((c) => c.method === 'POST')
-    expect(post?.body).toMatchObject({ location_id: 'l1', email: 'nia@example.com', first_name: 'Nia', phone_mobile: null })
+    expect(post?.body).toMatchObject({ location_id: 'l1', email: 'nia@example.com', first_name: 'Nia', phone_mobile: null, birth_on: '1994-06-07', birth_on_declared: true })
   })
 
   it('keeps a page heading and title when no location allows online sign-up', async () => {
@@ -113,6 +117,7 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     await user.type(screen.getByLabelText('Last name'), 'Newcomer')
     await user.type(screen.getByLabelText('Email'), 'nia@example.com')
     fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1990-05-04' } })
+    await user.click(screen.getByLabelText('I confirm the dates of birth I entered are true.'))
     await user.click(screen.getByRole('button', { name: 'Continue to payment' }))
     return user
   }
@@ -128,6 +133,7 @@ describe('guest checkout', { timeout: 20_000 }, () => {
       payer: { first_name: 'Nia', last_name: 'Newcomer', email: 'nia@example.com', birth_on: '1990-05-04' },
       participants: [],
       items: [{ program_group_id: 'g1', program_fee_id: 'f1', participant: null }],
+      birth_on_declared: true,
     })
     await user.selectOptions(screen.getByLabelText('Card'), 'tok_card_ok')
     await user.click(screen.getByRole('button', { name: 'Pay and register' }))
@@ -155,6 +161,31 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('submits without the declaration so every field error shows at once, the declaration inline too', async () => {
+    const refused = {
+      status: 422,
+      body: {
+        status: 422, code: 'validation-failed', detail: 'Check the highlighted fields.',
+        errors: [
+          { pointer: '/payer/email', code: 'validation-failed', detail: 'Enter a valid email address.' },
+          { pointer: '/birth_on_declared', code: 'validation-failed', detail: 'Input should be True' },
+        ],
+      },
+    }
+    const calls = open(GUEST, routes({ 'POST /api/v1/public/guest-checkouts': refused }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Continue to payment' }))
+    const declaration = screen.getByLabelText('I confirm the dates of birth I entered are true.')
+    expect(await screen.findByText('Tick this box to confirm the dates of birth are true.')).toBeInTheDocument()
+    expect(declaration).toHaveAttribute('aria-invalid', 'true')
+    expect(declaration).toHaveAccessibleDescription('Tick this box to confirm the dates of birth are true.')
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(calls.find((c) => c.url.endsWith('/guest-checkouts'))?.body).toMatchObject({ birth_on_declared: false })
+    await user.click(declaration)
+    expect(declaration).not.toHaveAttribute('aria-invalid')
+  })
+
   it('retries after a decline with the same guest token and a new attempt key', async () => {
     let tries = 0
     const calls = open(GUEST, routes({
@@ -171,6 +202,23 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     expect([declined?.body, paid?.body]).toMatchObject([{ guest_token: 'gt_1', method_token: 'tok_card_declined' }, { guest_token: 'gt_1', method_token: 'tok_card_ok' }])
     expect(declined?.headers['idempotency-key']).not.toBe(paid?.headers['idempotency-key'])
     expect(calls.filter((c) => c.url.endsWith('/guest-checkouts'))).toHaveLength(1) // the place stays held
+  })
+
+  it('keeps the attempt key and the card after a lost answer, so the retry replays it (S1)', async () => {
+    let tries = 0
+    const calls = open(GUEST, routes({
+      [CONFIRM]: () => (++tries === 1 ? { status: 504, body: { status: 504, code: 'gateway-timeout', detail: 'No answer.' } } : done),
+    }))
+    const user = await fillAndContinue()
+    await user.selectOptions(await screen.findByLabelText('Card'), 'tok_card_ok')
+    await user.click(screen.getByRole('button', { name: 'Pay and register' }))
+    expect(await screen.findByText(/stays as it was/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Card')).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText(/You are registered/)).toBeInTheDocument()
+    const [lost, paid] = confirms(calls)
+    expect(paid?.headers['idempotency-key']).toBe(lost?.headers['idempotency-key'])
+    expect(paid?.body).toEqual(lost?.body)
   })
 
   it('reloads the terms and clears the tick when they changed under the guest (409 terms-changed)', async () => {

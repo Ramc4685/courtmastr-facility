@@ -1,6 +1,8 @@
 """Kernel hardening and the ports that ship ahead of their modules: redirect guard, emailed-link tokens in
 the URL fragment, security headers, the body-size cap, lane overrides, notifications, the fake provider."""
 
+from uuid import uuid4
+
 import pytest
 
 from app.adapters.fake_payments import FakeProvider
@@ -394,3 +396,84 @@ def test_signed_in_slug_naming_another_tenant_is_not_found(client, tenant, owner
     assert foreign.status_code == unknown.status_code == 404
     strip = lambda r: {k: v for k, v in r.json().items() if k != "trace_id"}  # noqa: E731
     assert strip(foreign) == strip(unknown) and foreign.json()["code"] == "tenant-not-found"
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "pointer"),
+    [
+        ("/relationship-types", {"name": "Aunt\u0000"}, "/name"),
+        ("/products", {"name": "Grip", "notes": ["ok", "bad\u0000"]}, "/notes/1"),
+    ],
+)
+def test_a_nul_character_in_request_text_is_a_422(client, tenant, owner, path, body, pointer):
+    """Postgres text cannot hold NUL: the request is refused once, centrally, before any handler runs."""
+    refused = client.post(f"{API}{path}", headers=owner, json=body)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["errors"][0]["pointer"] == pointer
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/clients?q=a%00b", "/refunds?status=a%00b", "/clients?a%00b=1", "/report-definitions/a%00b"],
+)
+def test_a_nul_character_in_a_query_or_path_value_is_a_422(client, tenant, owner, path):
+    refused = client.get(f"{API}{path}", headers=owner)
+    assert refused.status_code == 422, refused.text
+
+
+def test_a_nul_character_in_a_request_dict_key_is_a_422(client, tenant, owner):
+    body = {"action": "reverse_charges", "location_id": str(uuid4()), "charge_ids": [str(uuid4())],
+            "params": {"reason": "x", "k\u0000": "v"}}  # fmt: skip
+    refused = client.post(f"{API}/billing-bulk-actions", headers=owner | {"Idempotency-Key": uuid4().hex}, json=body)
+    assert refused.status_code == 422, refused.text
+
+
+def test_a_booking_number_above_int4_is_a_422(client, tenant, owner):
+    refused = client.post(f"{API}/bookings/{uuid4()}/merge", headers=owner, json={"booking_number": 2**31})
+    assert refused.status_code == 422, refused.text
+
+
+def _data_error(sql: str, **params):
+    """A real psycopg 22003 from Postgres, raised through SQLAlchemy as the routes would see it."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DataError
+
+    from app.core.db.session import app_engine
+
+    with app_engine().connect() as conn:
+        conn.execute(text("CREATE TEMP TABLE overflow_probe (n int4)"))
+        try:
+            conn.execute(text(sql), params)
+        except DataError as error:
+            return error
+    raise AssertionError("no DataError")
+
+
+def _answer(error, method: str):
+    import json
+
+    from starlette.requests import Request
+
+    from app.core.api import _on_data_error
+
+    response = _on_data_error(Request({"type": "http", "method": method, "path": "/x", "headers": []}), error)
+    return response.status_code, json.loads(response.body)["code"]
+
+
+def test_only_an_int4_bind_on_the_write_path_is_a_422_any_other_overflow_is_a_500(caplog):
+    """S4: 22003 is the caller's fault only when a request value bound into an INSERT or UPDATE overflows an
+    integer column; arithmetic overflow in a query, or any read, is a server fault logged with its trace id."""
+    bind = _data_error("INSERT INTO overflow_probe (n) VALUES (:n)", n=2**31)
+    with caplog.at_level("WARNING"):
+        assert _answer(bind, "POST") == (422, "validation-failed")
+    [warned] = [r for r in caplog.records if r.levelname == "WARNING"]  # the 422 is not silent, and carries no value
+    assert "overflow_probe" in warned.getMessage() and "trace" in warned.getMessage()
+    assert str(2**31) not in warned.getMessage()
+    caplog.clear()
+    assert _answer(bind, "GET") == (500, "internal-error")  # never on a read
+    arithmetic = _data_error("SELECT 9223372036854775807::bigint + 1")
+    with caplog.at_level("ERROR"):
+        assert _answer(arithmetic, "POST") == (500, "internal-error")
+    assert any(record.exc_info for record in caplog.records)
+    read = _data_error("SELECT 2147483647::int4 + 1")  # "integer out of range", but in a query, not a bind
+    assert _answer(read, "POST") == (500, "internal-error")

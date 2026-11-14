@@ -11,11 +11,13 @@ from datetime import timedelta
 from uuid import UUID
 
 from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.ids import new_id
 from app.core.settings import get_settings
 from app.modules import platform
 from app.modules.clients import service
@@ -54,18 +56,19 @@ SYSTEM_TYPES = {
 
 
 def ensure_relationship_types(session: Session) -> None:
-    """The system types are seeded per tenant on first use."""
+    """The system types are seeded per tenant on first use. Two first callers at once both insert with ON CONFLICT
+    DO NOTHING (the second waits on the first's rows), then link inverses from what is there."""
     if session.scalar(select(RelationshipType.id).where(RelationshipType.is_system).limit(1)):
         return
-    rows = {}
-    for code, (label, _, grants, guardian) in SYSTEM_TYPES.items():
-        rows[code] = RelationshipType(
-            code=code, label=label, grants_acting_rights=grants, is_guardianship=guardian, is_system=True
-        )
-        session.add(rows[code])
-    session.flush()
+    session.execute(pg_insert(RelationshipType).values([
+        {"id": new_id(), "tenant_id": session.info["tenant_id"], "code": code, "label": label,
+         "grants_acting_rights": grants, "is_guardianship": guardian, "is_system": True}
+        for code, (label, _, grants, guardian) in SYSTEM_TYPES.items()
+    ]).on_conflict_do_nothing(constraint="uq_relationship_type_code"))  # fmt: skip
+    rows = {r.code: r for r in session.scalars(select(RelationshipType).where(
+        RelationshipType.is_system, RelationshipType.code.in_(SYSTEM_TYPES)))}  # fmt: skip
     for code, (_, inverse, _, _) in SYSTEM_TYPES.items():
-        if inverse:
+        if inverse and code in rows and inverse in rows and rows[code].inverse_type_id is None:
             rows[code].inverse_type_id = rows[inverse].id
     session.flush()
 
@@ -502,11 +505,24 @@ def _portal_load(session: Session, principal: Principal, client_id: UUID, capabi
     return session.get(Client, client_id), found
 
 
-def portal_view(client: Client, found: str) -> dict:
-    """Delegates see names only; self, manager and guardian see the profile they may edit."""
+def is_adult(session: Session, client: Client) -> bool:
+    """Internal: a birth date on file and at or over the tenant's minor age today at the client's home location.
+    Unknown counts as not an adult: surfaces that must fail closed (the unmanned portal) read this."""
+    if client.birth_on is None:
+        return False
+    on = platform.service.location_today(session, client.home_location_id)
+    return not service.is_minor(client, on, platform.service.minor_age(session))
+
+
+def portal_view(session: Session, client: Client, found: str, me_id: UUID | None = None) -> dict:
+    """Delegates see names only (`is_adult` null: no age signal); self, manager and guardian see the profile they
+    may edit. `is_adult` and `is_my_ward` (the signed-in person `me_id` is a guardian) let the portal explain who may hold or join a booking."""
     view = {
         "id": client.id, "first_name": client.first_name, "last_name": client.last_name,
         "preferred_name": client.preferred_name, "authority": found, "can_edit": found in EDIT,
+        "is_adult": is_adult(session, client) if found in EDIT else None, "is_my_ward": me_id is not None and me_id in guardian_ids(session, client.id),
+        "age_confirmed": service._age_confirmed(client) if found in EDIT else None,
+        "entry_code_notice": service.entry_code_notice(session, client, client.home_location_id) if found in EDIT else None,
     }  # fmt: skip
     if found in EDIT:
         view.update({f: getattr(client, f) for f in PORTAL_FIELDS})
@@ -517,28 +533,34 @@ def portal_view(client: Client, found: str) -> dict:
 
 def portal_list_clients(session: Session, principal: Principal) -> list[dict]:
     identity_id = _portal_principal(principal)
+    me = _self_id(session, identity_id)
     out = []
     for client_id in actable_client_ids(session, identity_id):
         found = authority(session, identity_id, client_id)
-        out.append(portal_view(session.get(Client, client_id), found))
+        out.append(portal_view(session, session.get(Client, client_id), found, me))
     return out
+
+
+def _self_id(session: Session, identity_id: UUID) -> UUID | None:
+    return next((r.client_id for r in _access_rows(session, identity_id) if r.is_primary), None)
 
 
 def portal_get_client(session: Session, principal: Principal, client_id: UUID) -> dict:
     client, found = _portal_load(session, principal, client_id, "book")
-    return portal_view(client, found)
+    return portal_view(session, client, found, _self_id(session, principal.identity_id))
 
 
 def portal_update_client(session: Session, principal: Principal, client_id: UUID, data: dict) -> dict:
     client, found = _portal_load(session, principal, client_id, "edit_profile")
     if data.get("birth_on", client.birth_on) != client.birth_on and client.birth_on is not None:
         raise ValidationFailed("Ask staff to change a recorded birth date.", pointer="/birth_on", code="field-locked")
+    # A first birth date entered here is kept and flagged for staff review (apply_update; audited with the change).
     changes = service.apply_update(session, client, data, context="portal", actor_staff_id=None)
     if changes:
         audit.record(session, "clients.client.update", client, location_id=client.home_location_id, changes=changes)
         events.publish(session, service.ClientUpdated(client_id=client.id), client.id)
     session.flush()
-    return portal_view(client, found)
+    return portal_view(session, client, found, _self_id(session, principal.identity_id))
 
 
 def portal_get_emergency_contacts(session: Session, principal: Principal, client_id: UUID) -> list:
@@ -689,7 +711,7 @@ def portal_create_dependent(session: Session, principal: Principal, data: dict) 
     )
     session.flush()
     _changed(session, rel, "clients.relationship.request", {"status": [None, "active"]})
-    return portal_view(child, "manager")
+    return portal_view(session, child, "manager", me.id)
 
 
 def portal_end_relationship(session: Session, principal: Principal, rel_id: UUID) -> dict:

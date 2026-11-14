@@ -14,10 +14,13 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Note = Annotated[str, StringConstraints(max_length=2000)]
 Minor = Annotated[int, Field(ge=0, le=10**10)]
+_INT4 = 2**31 - 1  # the coach share tables keep money in integer (int4) columns
 Pct = Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
 Password = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 Basis = Literal["invoiced", "paid"]
 Section = Literal["sessions", "commissions", "hourly"]
+FIRST_DAY, LAST_DAY = date(1900, 1, 1), date(2999, 12, 31)
+Day = Annotated[date, Field(ge=FIRST_DAY, le=LAST_DAY)]  # year 1 overflowed local-midnight arithmetic (500)
 
 
 # --- payees ------------------------------------------------------------------------------------------------
@@ -33,6 +36,7 @@ class StaffPayeeOut(Out):
     is_booking_alert_enabled: bool
     is_reminder_copy_enabled: bool
     is_active: bool
+    tax_form_on_file_on: date | None = None
 
 
 class StaffPayeeCreate(In):
@@ -376,8 +380,8 @@ class SessionInstructorOut(Out):
 
 class PayrollRunCreate(In):
     location_id: UUID | None = None
-    period_starts_on: date
-    period_ends_on: date
+    period_starts_on: Day
+    period_ends_on: Day
     commission_basis: Basis | None = None
     includes: Annotated[list[Section], Field(min_length=1, max_length=3)] = ["sessions", "commissions", "hourly"]
     scope_staff_payee_id: UUID | None = None
@@ -441,3 +445,122 @@ class PayrollExport(Out):
     filename: str
     content_type: str
     content: str
+
+
+# --- coach revenue share (independent coaches) -------------------------------------------------------------------
+
+EngagementKind = Literal["employee", "independent"]
+Reference = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+
+class CoachEngagementOut(Out):
+    id: UUID
+    staff_payee_id: UUID
+    engagement: EngagementKind
+    effective_from_on: date
+
+
+class CoachEngagementWrite(In):
+    engagement: EngagementKind = Field(description="employee: a staff coach on payroll; independent: revenue share")
+    effective_from_on: date
+
+
+class CoachTaxFormWrite(In):
+    tax_form_on_file_on: date | None = Field(
+        description="When a tax form (for example a W-9) was received; null when none is on file. Never a tax id."
+    )
+
+
+class CoachShareRuleOut(Out):
+    id: UUID
+    staff_payee_id: UUID | None
+    reservation_type_id: UUID | None
+    effective_from_on: date
+    coach_share_pct: Decimal
+    court_fee_minor: int
+    court_fee_basis: Literal["session", "hour"]
+    court_fee_applies: Literal["before_split", "after_split"]
+
+
+class CoachShareRuleWrite(In):
+    staff_payee_id: UUID | None = Field(None, description="One coach; null for every independent coach")
+    reservation_type_id: UUID | None = Field(None, description="One lesson or program type; null for all")
+    effective_from_on: date
+    coach_share_pct: Pct
+    court_fee_minor: Annotated[int, Field(ge=0, le=_INT4)] = 0
+    court_fee_basis: Literal["session", "hour"] = "session"
+    court_fee_applies: Literal["before_split", "after_split"] = "before_split"
+
+
+class CoachEarningOut(Out):
+    id: UUID
+    location_id: UUID
+    staff_payee_id: UUID
+    kind: Literal["lesson", "reversal", "adjustment"]
+    earned_on: date
+    source_type: Literal["enrollment", "booking"] | None
+    source_id: UUID | None
+    reservation_type_id: UUID | None
+    description: str
+    gross_minor: int
+    facility_share_minor: int
+    coach_share_minor: int
+    coach_share_pct: Decimal | None = Field(description="Null unless you may read share rules")
+    court_fee_minor: int | None = Field(description="Null unless you may read share rules")
+    reverses_coach_earning_id: UUID | None
+    reason: str | None
+    coach_payout_id: UUID | None
+    created_at: datetime
+
+
+class CoachPayoutOut(Out):
+    id: UUID
+    location_id: UUID
+    staff_payee_id: UUID
+    coach_name: str
+    period_starts_on: date
+    period_ends_on: date
+    status: Literal["draft", "approved", "paid"]
+    line_count: int
+    gross_minor: int
+    facility_share_minor: int
+    coach_share_minor: int
+    adjustment_minor: int
+    approved_at: datetime | None
+    paid_at: datetime | None
+    paid_on: date | None
+    payment_method: Literal["bank_transfer", "cheque", "other"] | None
+    payment_reference: str | None
+    tax_form_on_file_on: date | None
+    notice: str = Field(description="The software moves no money; this is a record of what is owed and paid")
+    no_rule_line_count: int = Field(
+        description="Lesson lines written with no share rule in force: they pay the coach nothing unless adjusted"
+    )
+
+
+class CoachPayoutList(Out):
+    data: list[CoachPayoutOut]
+
+
+class CoachPayoutCreate(In):
+    location_id: UUID
+    period_starts_on: date
+    period_ends_on: date
+    staff_payee_id: UUID | None = Field(None, description="One coach; omit for every independent coach here")
+
+
+class CoachAdjustmentCreate(In):
+    amount_minor: Annotated[int, Field(ge=-_INT4, le=_INT4, description="Positive raises the coach's share")]
+    reason: Reason
+
+
+class CoachPayoutApprove(In):
+    acknowledge_no_rule_lines: bool = Field(
+        False, description="Required when the statement holds lesson lines with no share rule (they finalise at zero)"
+    )
+
+
+class CoachPayoutPaid(In):
+    paid_on: date
+    payment_method: Literal["bank_transfer", "cheque", "other"]
+    payment_reference: Reference | None = Field(None, description="Transfer or cheque reference, staff-typed")

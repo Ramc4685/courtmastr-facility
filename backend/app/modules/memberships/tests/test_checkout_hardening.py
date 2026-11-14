@@ -7,12 +7,24 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import func, select
 
+from app.core import clock
 from app.core.errors import DomainError, ValidationFailed
 from app.modules import billing, platform
 from app.modules.billing.tests.test_money import provider_payments
 from app.modules.memberships import service
 from app.modules.memberships.models import MembershipContract
-from app.modules.memberships.tests.support import API, charges, membership_plan, ok, package_plan, tx, world
+from app.modules.memberships.tests.support import (
+    API,
+    SYSTEM,
+    as_ids,
+    charges,
+    invoices,
+    membership_plan,
+    ok,
+    package_plan,
+    tx,
+    world,
+)
 from app.modules.memberships.tests.test_renewal_jobs import _member
 from conftest import add_staff, login, new_client, scalar
 
@@ -39,6 +51,14 @@ def shop(w, client, owner):
             return service.portal_buy(session, member, body, key or f"k-{uuid4().hex}")
 
     return type("Shop", (), {"buy": staticmethod(buy), "today": today, "member": member})
+
+
+def _portal(shop, key: str) -> str:
+    return f"portal:{shop.member.identity_id}:{key}"  # a client's key is bound to its identity (billing.checkout)
+
+
+def _staff(key: str) -> str:
+    return billing.service.staff_key(SYSTEM, key)  # a staff sale's key is stored under its caller's prefix
 
 
 def _contracts(w) -> int:
@@ -77,7 +97,7 @@ def test_a_processor_timeout_sells_nothing_and_the_retry_sells_once(w, shop):
     assert (timeout.value.status, timeout.value.code, _contracts(w)) == (503, "provider-unavailable", 0)
     sold = shop.buy(key, method_token="tok_card_unknown")
     assert sold["payment_status"] == "succeeded" and _contracts(w) == 1
-    assert len(charges(w.tenant, w.person["id"])) == 1 and provider_payments(w, key) == 1  # charged once
+    assert len(charges(w.tenant, w.person["id"])) == 1 and provider_payments(w, _portal(shop, key)) == 1  # charged once
 
 
 def test_sale_cannot_carry_what_the_seller_may_not_do(w, client, owner):
@@ -108,4 +128,70 @@ def test_a_key_spent_on_a_package_buys_no_membership(w, shop, client, owner):
         assert packages.service.portal_buy(session, shop.member, body, key)["payment_status"] == "succeeded"
     with pytest.raises(ValidationFailed) as reused:
         shop.buy(key, method_token="tok_card_ok")
-    assert (reused.value.code, _contracts(w), provider_payments(w, key)) == ("idempotency-key-reused", 0, 1)
+    paid = provider_payments(w, _portal(shop, key))
+    assert (reused.value.code, _contracts(w), paid) == ("idempotency-key-reused", 0, 1)
+
+
+def test_a_staff_sale_that_died_is_finished_by_a_same_key_retry_of_the_same_sale(w, shop, client, owner):
+    """Each staff attempt raises a fresh invoice, so the payment key is bound to the sale, not the invoice: the same
+    sale retried with the key finishes the first charge; another sale under the key is refused before the processor."""
+    key = f"k-{uuid4().hex}"
+    card = {"amount_minor": 1000, "tender_kind": "card", "method_token": "tok_card_ok"}
+    other = membership_plan(client, owner, w.tenant)  # the same price: only what is sold differs
+    with pytest.raises(RuntimeError), tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+        raise RuntimeError("the request died before commit")
+    with pytest.raises(DomainError) as reused, tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card, membership_plan_id=UUID(other["id"])), key)
+    assert (reused.value.code, _contracts(w), provider_payments(w, _staff(key))) == ("idempotency-key-reused", 0, 1)
+    with tx(w.tenant) as session:
+        sold = service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+    assert (sold["payment_status"], _contracts(w), provider_payments(w, _staff(key))) == ("succeeded", 1, 1)
+
+
+@pytest.mark.parametrize("tender", [("card", "tok_card_ok"), ("bank_debit", "tok_ach_ok")])
+def test_a_same_key_retry_of_a_finished_staff_sale_returns_it_and_sells_nothing_new(w, shop, tender):
+    """A succeeded or processing payment under the key already paid for a contract: the retry returns that contract
+    and its invoice, never a second contract with an unpaid invoice."""
+    key = f"k-{uuid4().hex}"
+    pay = {"amount_minor": 1000, "tender_kind": tender[0], "method_token": tender[1]}
+    sold = []
+    for _ in range(2):
+        with tx(w.tenant) as session:
+            sold.append(service.sell_contract(session, SYSTEM, as_ids(w, payment=pay), key))
+    first, again = sold
+    assert first["payment_status"] in ("succeeded", "processing")
+    assert [again[k] for k in ("id", "invoice_id", "payment_id")] == [
+        first[k] for k in ("id", "invoice_id", "payment_id")
+    ]
+    assert (_contracts(w), len(invoices(w.tenant, UUID(w.person["id"]))), provider_payments(w, _staff(key))) == (
+        1,
+        1,
+        1,
+    )
+
+
+def test_a_staff_sale_that_died_after_the_charge_and_was_swept_takes_that_payment(w, shop, client, owner):
+    """The card was charged, the request died, the sweep settled the payment with nothing to pay: the same-key retry
+    of the same sale sells once and applies that payment to the new invoice, with no second charge."""
+    key = f"k-{uuid4().hex}"
+    card = {"amount_minor": 1000, "tender_kind": "card", "method_token": "tok_card_ok"}
+    other = membership_plan(client, owner, w.tenant)
+    with pytest.raises(RuntimeError), tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+        raise RuntimeError("the request died before commit")
+    with clock.freeze(clock.now() + timedelta(minutes=10)), tx(w.tenant) as session:
+        billing.webhooks.reconcile(session)
+    with tx(w.tenant) as session:
+        assert billing.service.find_payment(session, _staff(key)).status == "succeeded"  # settled, paying for nothing
+    with pytest.raises(DomainError) as reused, tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card, membership_plan_id=UUID(other["id"])), key)
+    assert (reused.value.code, _contracts(w), provider_payments(w, _staff(key))) == ("idempotency-key-reused", 0, 1)
+    with tx(w.tenant) as session:
+        sold = service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+    assert (sold["payment_status"], _contracts(w), provider_payments(w, _staff(key))) == ("succeeded", 1, 1)
+    assert len(invoices(w.tenant, UUID(w.person["id"]))) == 1
+    with tx(w.tenant) as session:
+        payment = billing.service.find_payment(session, _staff(key))
+        assert (payment.id, payment.unapplied_minor) == (sold["payment_id"], 0)
+        assert [row[3] for row in billing.service.paid_sources(session, payment.id)] == [sold["invoice_id"]]

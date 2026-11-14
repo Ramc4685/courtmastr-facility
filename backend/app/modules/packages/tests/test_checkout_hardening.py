@@ -69,7 +69,8 @@ def test_a_processor_timeout_sells_nothing_and_the_retry_sells_once(w, client, o
         _buy(w, plan, key, method_token="tok_card_unknown")
     assert (timeout.value.status, timeout.value.code, _packages(w)) == (503, "provider-unavailable", 0)
     sold = _buy(w, plan, key, method_token="tok_card_unknown")
-    assert (sold["payment_status"], _packages(w), provider_payments(w, key)) == ("succeeded", 1, 1)
+    paid = provider_payments(w, f"portal:{w.member.identity_id}:{key}")  # a client's key is bound to its identity
+    assert (sold["payment_status"], _packages(w), paid) == ("succeeded", 1, 1)
 
 
 def test_pkg_09_buy_with_a_stored_method(w, client, owner):

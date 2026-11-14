@@ -79,6 +79,9 @@ class ClientUpdate(_Profile):
     last_name: Name | None = None
     home_location_id: UUID | None = None
     version: int | None = None  # optimistic concurrency: a stale version is 409 version-conflict
+    confirm_age: bool | None = (
+        None  # also confirm the age (ID seen): needs clients.client.confirm_age; nothing else confirms
+    )
 
 
 class ClientListItem(Out):
@@ -103,6 +106,11 @@ class ClientOut(ClientListItem):
 
     gender: str | None
     birth_on: date | None
+    is_birth_on_unverified: bool = False  # self-declared online; waits for staff to confirm it once
+    age_confirmed: bool = False  # a birth date staff entered or confirmed (clients.service.is_age_confirmed)
+    age_confirmed_at: datetime | None = None
+    age_confirmed_by_staff_user_id: UUID | None = None
+    age_confirmation_reset: bool = False  # this edit changed a confirmed date: it waits for staff again
     organization_name: str | None
     phone_home: str | None
     phone_work: str | None
@@ -366,6 +374,44 @@ class PortalAccessList(Out):
     data: list[PortalAccessOut]
 
 
+class AgeReviewItem(Out):
+    """One client in the staff age-check queue. birth_on is null without clients.client.read_sensitive."""
+
+    id: UUID
+    first_name: str
+    last_name: str
+    home_location_id: UUID
+    birth_on: date | None
+    earliest_booking_at: datetime | None  # null: no online booking yet (listed last)
+    created_via: str
+    created_at: datetime
+
+
+class AgeConfirmation(In):
+    """Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken."""
+
+    birth_on: date | None = None
+
+
+class AgeConfirmationBatch(In):
+    """Staff already know these people (IDs seen at the desk). The note says why; it is kept flag-only."""
+
+    client_ids: list[UUID] = Field(min_length=1, max_length=200)
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class AgeConfirmationSkip(Out):
+    client_id: UUID
+    reason: Literal["not-found", "minor", "no-birth-date"]  # not-found: unknown, or out of the caller's reach
+
+
+class AgeConfirmationBatchOut(Out):
+    client_ids: list[UUID]
+    confirmed_count: int  # people confirmed now; anyone already confirmed is left alone
+    skipped_client_ids: list[UUID]  # not confirmed: the ids in `skipped`
+    skipped: list[AgeConfirmationSkip]
+
+
 class PortalInvite(In):
     email: EmailStr | None = None  # one of the client's addresses; default: the primary
     attach_as_manager: bool = False  # when the address is already another person's login
@@ -411,6 +457,10 @@ class PortalClientOut(Out):
     postal_code: str | None = None
     country_code: str | None = None
     custom_values: CustomValues = {}
+    is_adult: bool | None = None  # a birth date on file at or over the minor age (unknown: false; delegates: null)
+    is_my_ward: bool = False  # the signed-in person is this client's guardian
+    age_confirmed: bool | None = None  # staff confirmed the birth date once (delegates: null); the web and app read it
+    entry_code_notice: str | None = None  # set while a self-declared date waits for staff: show it before payment
 
 
 class PortalClientList(Out):
@@ -430,7 +480,8 @@ class PortalDependentCreate(In):
     relationship_type_id: UUID  # read from the caller's side: "I am <type> of the new person"
     first_name: Name
     last_name: Name
-    birth_on: date | None = None
+    birth_on: date  # required: the minors rule on rentals and the unmanned site fail closed without it
+    birth_on_declared: Literal[True]  # the parent declares the birth date is true; staff confirm it once
     gender: GenderValue | None = None
     email: EmailStr | None = None  # may repeat the parent's address (FAM-02)
 

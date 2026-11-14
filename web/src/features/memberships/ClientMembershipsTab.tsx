@@ -9,6 +9,8 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { addDays, formatDate, formatDateTime, todayIn, toMinor } from '../../lib/format'
+import { useLocationZone } from '../../lib/locationDate'
+import { AttemptFields, AttemptLock, checkStaffAttempt, keepsAttemptKey, useAttemptKey } from '../billing/attempt'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import {
   CONTRACT_TONE,
@@ -29,11 +31,6 @@ import {
 type Client = Schemas['ClientOut']
 const contractsKey = (clientId: string) => ['membership-contracts', 'client', clientId]
 
-function useLocationZone(locationId: string) {
-  const { me } = useAuth()
-  return me?.locations?.find((l) => l.id === locationId)?.time_zone
-}
-
 /** Quote, then sell (MEM-07): the dates, proration and every billing period come from the server's quote, so what
  * the seller sees is what the sale writes. `replacing` turns it into a plan change (cancel, then sell). */
 export function SellMembershipDialog({ client, replacing, onClose }: { client: Client; replacing?: ContractOut; onClose: () => void }) {
@@ -44,7 +41,10 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
   const plans = (useMembershipPlans(true).data?.data ?? []).filter((p) => p.id !== replacing?.membership_plan_id)
   const locationId = replacing?.location_id ?? client.home_location_id ?? me?.locations?.[0]?.id ?? ''
   const today = todayIn(useLocationZone(locationId))
-  const [form, setForm] = useState({
+  // One Idempotency-Key per sale attempt (attempt.tsx): after a lost answer the key and values outlive the dialog,
+  // so Cancel and reopen resumes the same attempt instead of charging again.
+  const attempt = useAttemptKey<{ form: typeof initial; change: typeof initialChange; payment: PaymentState }>(`sell-membership:${client.id}:${replacing?.id ?? 'new'}`, checkStaffAttempt)
+  const initial = {
     membership_plan_id: '',
     location_id: locationId,
     start_on: today,
@@ -53,9 +53,11 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
     is_autopay: null as boolean | null, // null: the plan's default, else the billing setting (BIL-17)
     is_auto_renew: true,
     internal_notes: '',
-  })
-  const [change, setChange] = useState({ last_day: today, reason: 'upgrade' as 'upgrade' | 'downgrade', credit: '' })
-  const [payment, setPayment] = useState<PaymentState>(noPayment())
+  }
+  const initialChange = { last_day: today, reason: 'upgrade' as 'upgrade' | 'downgrade', credit: '' }
+  const [form, setForm] = useState(attempt.saved?.form ?? initial)
+  const [change, setChange] = useState(attempt.saved?.change ?? initialChange)
+  const [payment, setPayment] = useState<PaymentState>(attempt.saved?.payment ?? noPayment())
   const plan = plans.find((p) => p.id === form.membership_plan_id)
   const startOn = replacing ? addDays(change.last_day, 1) : form.start_on
   const body = {
@@ -83,20 +85,23 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
   const settings = useQuery({ queryKey: ['membership-settings'], queryFn: () => api.get('/api/v1/membership-settings'), retry: false })
   const sell = useMutation({
     mutationFn: async () => {
-      if (replacing) {
+      if (replacing && !attempt.locked) {
+        // a locked retry finishes the earlier attempt, whose cancel already went through
         await api.post('/api/v1/membership-contracts/{contract_id}/cancel', {
           path: { contract_id: replacing.id },
           body: { reason: change.reason, effective_on: change.last_day, credit_minor: toMinor(change.credit) ?? 0, is_refunded: false, remarks: `Changed to ${plan?.name ?? 'another plan'}` },
         })
       }
       try {
-        return await api.post('/api/v1/membership-contracts', { body: { ...body, internal_notes: form.internal_notes || null, payment: paymentBody(payment) } })
+        return await api.post('/api/v1/membership-contracts', { body: { ...body, internal_notes: form.internal_notes || null, payment: paymentBody(payment) }, idempotencyKey: attempt.key })
       } catch (e) {
-        // The reference product has no atomic plan change; we put the old contract back if the new sale fails.
-        if (replacing) await api.post('/api/v1/membership-contracts/{contract_id}/undo-cancel', { path: { contract_id: replacing.id } }).catch(() => undefined)
+        // The reference product has no atomic plan change; we put the old contract back if the new sale fails
+        // (only when it surely failed: after a lost answer the sale may have gone through).
+        if (replacing && !keepsAttemptKey(e)) await api.post('/api/v1/membership-contracts/{contract_id}/undo-cancel', { path: { contract_id: replacing.id } }).catch(() => undefined)
         throw e
       }
     },
+    onSettled: (_data, error) => attempt.settle(error, { form, change, payment }),
     onSuccess: (sold) => {
       void qc.invalidateQueries({ queryKey: ['membership-contracts'] })
       void qc.invalidateQueries({ queryKey: ['client-packages'] })
@@ -123,12 +128,13 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
             Cancel
           </Button>
           <Button onClick={() => sell.mutate()} loading={sell.isPending} disabled={!q || !paymentReady(payment)}>
-            {replacing ? 'Change plan' : 'Sell membership'}
+            {attempt.locked ? 'Try again' : replacing ? 'Change plan' : 'Sell membership'}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
         {replacing && (
           <fieldset className="grid gap-3 rounded border border-border p-3 sm:grid-cols-2">
             <legend className="px-1 text-sm font-medium">End the current contract</legend>
@@ -247,7 +253,7 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
             {sell.error.message}
           </p>
         )}
-      </div>
+      </AttemptFields>
     </Dialog>
   )
 }

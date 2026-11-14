@@ -1,19 +1,23 @@
 """Demo check-in (build module 10): kiosk settings and a registered front-door kiosk at Downtown, a barcode for
 the demo member and two front-desk check-ins, so the recent check-ins list and a client's history are not
-empty."""
+empty. Building control (CHK-15, CHK-16): a front door and one lighting zone per Downtown court, on the
+simulated controller; its credential is not kept (staff rotate it from the Building control screen)."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules.access import service
-from app.modules.access.models import KioskDevice
+from app.modules.access import building, service
+from app.modules.access.models import DoorDevice, KioskDevice
 from app.modules.clients.models import Client
 from app.modules.platform.models import Location
+from app.modules.resources.models import Resource, ResourceGroup
 
 
 def seed(session: Session) -> None:
     actor = session.info["actor"]
     location = session.scalar(select(Location).where(Location.slug == "downtown"))
+    if location is not None:
+        _building(session, actor, location)
     if location is None or session.scalar(select(KioskDevice.id).where(KioskDevice.location_id == location.id)):
         return
     service.put_kiosk_settings(session, actor, location.id, {"welcome_message": "Welcome! Have a great workout."})
@@ -26,3 +30,21 @@ def seed(session: Session) -> None:
     member = session.scalar(select(Client).where(Client.last_name == "Member"))
     if member is not None:
         service.assign_credential(session, actor, member.id, {"kind": "barcode", "value": "DEMO-CARD-0001"})
+
+
+def _building(session: Session, actor, location: Location) -> None:
+    if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location.id)):
+        return
+    building.create_door(
+        session,
+        actor,
+        {"location_id": location.id, "name": "Front door", "device_ref": "door-front", "is_entrance": True},
+    )
+    courts = session.scalars(
+        select(Resource).join(ResourceGroup, ResourceGroup.id == Resource.resource_group_id)
+        .where(Resource.location_id == location.id, ResourceGroup.name == "Courts", Resource.parent_id.is_(None))
+        .order_by(Resource.sort_order)
+    ).all()  # fmt: skip
+    for number, court in enumerate(courts, start=1):  # a court's halves light through its holds
+        building.create_zone(session, actor, {"location_id": location.id, "name": f"{court.name} lights",
+                                              "zone_ref": f"relay-{number}", "resource_ids": [court.id]})  # fmt: skip

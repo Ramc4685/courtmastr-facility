@@ -275,6 +275,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `rentals.booking.update` | L | | | Y | Y | Y | - | - | - | - | RNT-04 |
 | `rentals.booking.cancel` | L | | | Y | Y | Y | - | - | - | - | RNT-08 (refund is a separate key) |
 | `rentals.booking.override_rate` | L | P | | Y | Y | - | - | - | - | - | RNT-02 |
+| `rentals.booking.override_minor` | L | P | | Y | Y | - | - | - | - | - | pilot minors rule (rentals README) |
 | `rentals.rental_type.manage` | T | | | Y | Y | - | - | - | - | - | RNT-01, RNT-02, RNT-05, SSP-04 |
 | `rentals.rental_plan.manage` | T | | | Y | Y | - | - | - | - | - | RNT-09 |
 | `rentals.rental_plan.sell` | L | | | Y | Y | Y | - | - | - | - | RNT-09 |
@@ -296,6 +297,8 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `clients.client.merge` | T | D | | Y | Y | - | - | - | - | - | CLI-13 |
 | `clients.client.export` | T | X | | Y | - | - | - | - | - | - | IMP-03, RPT-19 |
 | `clients.client.assign_owner` | T | W | | Y | Y | - | - | - | - | - | CLI-17 (default trainer, salesperson) |
+| `clients.client.confirm_age` | L | | | Y | Y | Y | - | - | - | - | Owner decision 2026-11-13: staff confirm a self-declared birth date once (ID seen; nothing kept) |
+| `clients.client.confirm_ages` | L | + | | Y | Y | - | - | - | - | - | Go-live bulk confirm of known members (up to 200, a note each time); needs `clients.client.confirm_age` too |
 | `clients.relationship.manage` | T | | | Y | Y | Y | - | Y | - | - | FAM-01 |
 | `clients.activity.read` | T | | own | Y | Y | Y | own | - | - | - | CLI-09, CLI-20 |
 | `clients.activity.write` | T | | own | Y | Y | Y | own | - | - | - | CLI-09, CLI-20 |
@@ -414,7 +417,6 @@ combined key. The reference sets "customize contract" per user only and Billing 
 | `billing.collections.read` | C | | | Y | Y | - | - | - | - | - | BIL-20 (profile, collections report) |
 | `billing.collections.manage` | L | | | Y | Y | - | - | - | - | - | BIL-20, BIL-22 (at the client's home location) |
 | `billing.collections_tag.manage` | T | | | Y | Y | - | - | - | - | - | BIL-20 (tag list) |
-| `billing.dispute.manage` | L | | | Y | - | - | - | - | - | - | PAY-17 |
 | `billing.history.read` | L | | | Y | Y | - | - | - | - | - | BIL-09 |
 | `billing.ledger.read` | L | | | Y | - | - | - | - | - | - | our design (raw double-entry rows) |
 | `billing.ledger.export` | L | X | | Y | - | - | - | - | - | - | INT-07, PAY-16 |
@@ -469,8 +471,9 @@ gating of cart price/quantity edits": permission wins over the Classic preferenc
 | `access.rule.manage` | L | | | Y | Y | - | - | - | - | - | CHK-08, CHK-09, CHK-10, CHK-17 |
 | `access.settings.manage` | L | | | Y | Y | - | - | - | - | - | CHK-02, CHK-06, CHK-07, CHK-12 |
 | `access.client.set_access_mode` | C | P | | Y | Y | - | - | - | - | - | CHK-08 (always admit, always deny one client) |
-| `access.door.unlock` | L | P | | Y | Y | - | - | - | - | - | CHK-16 (simulated adapter in v1) |
+| `access.door.unlock` | L | P + | | Y | Y | - | - | - | - | - | CHK-16 (simulated adapter in v1) |
 | `access.device.manage` | L | K | | Y | - | - | - | - | - | - | CHK-15, CHK-16 |
+| `access.lighting.override` | L | | | Y | Y | - | - | - | - | - | CHK-16 (court lights on or off for a period: cleaning, events) |
 
 Without `read_full_details` the check-in window shows only the fields the location's visibility toggles allow
 (CHK-02).
@@ -516,9 +519,17 @@ Without `read_full_details` the check-in window shows only the fields the locati
 | `staff.payroll_run.create` | L | W | | Y | - | - | - | - | - | - | STF-09 |
 | `staff.payroll_run.approve` | L | W + | | Y | - | - | - | - | - | - | STF-09 |
 | `staff.payroll_run.export` | L | W X | | Y | - | - | - | - | - | - | STF-09, STF-10 |
+| `staff.coach_payout.read` | L | W | own | Y | - | - | own | - | - | - | coach share (independent coaches' earnings and statements) |
+| `staff.coach_payout.create` | L | W | | Y | - | - | - | - | - | - | coach share |
+| `staff.coach_payout.adjust` | L | W | | Y | - | - | - | - | - | - | coach share (manual adjustment with a reason) |
+| `staff.coach_payout.approve` | L | W + | | Y | - | - | - | - | - | - | coach share |
+| `staff.coach_payout.pay` | L | W + | | Y | - | - | - | - | - | - | coach share (records a payment; moves no money) |
 
 `staff.time_entry.manage` never applies to the caller's own entries unless the caller is Owner or Admin
-(STF-07: staff cannot edit their own entries). Punching re-authenticates the user (STF-07) and honours the IP
+(STF-07: staff cannot edit their own entries).
+An independent coach's engagement and share rules use `staff.pay_rate.read` and `.manage`, so a coach never sees
+or changes their own share; with `own` reach on `staff.coach_payout.read` a coach sees only their own earnings and
+statements. Nobody below Admin adjusts their own payout (`own-pay`). Punching re-authenticates the user (STF-07) and honours the IP
 allow-list (STF-06, PLT-07).
 
 ### 6.15 engagement

@@ -382,3 +382,28 @@ def test_service_gate_denies_without_the_router(client, tenant, owner):
         with pytest.raises(PermissionDenied), tx(tenant) as session:
             call(session)
     assert contract(tenant, sold["id"]).version == 2  # sold and activated; nothing else touched it
+
+
+def test_a_staff_sale_key_is_its_callers_and_cannot_block_another_flow(client, tenant, owner):
+    """A staff sale's key is stored under `staff:<actor>:` like the other staff payments: a key shaped like another
+    flow's (autopay here) cannot collide with that flow's payment, and the attempt lookup finds the sale for its
+    caller only."""
+    from uuid import UUID
+
+    from app.modules import billing
+
+    w = world(client, owner, tenant)
+    key = f"autopay:{uuid4()}:1"
+    with tx(tenant) as session:  # the real autopay payment that owns this key
+        real = billing.service.take_payment(
+            session, client_id=UUID(w.person["id"]), location_id=UUID(w.location_id), amount_minor=500,
+            tender_kind="cash", idempotency_key=key,
+        )  # fmt: skip
+        real_id = real.id
+    body = sale(w, payment={"amount_minor": 3100, "tender_kind": "card", "method_token": "tok_card_ok"})
+    sold = ok(client.post(f"{API}/membership-contracts", headers=owner | {"Idempotency-Key": key}, json=body), 201)
+    assert sold["payment_status"] == "succeeded" and sold["payment_id"] != str(real_id)
+    mine = ok(client.get(f"/api/v1/payment-attempts/{key}", headers=owner))
+    assert (mine["statuses"], mine["amount_minor"]) == (["succeeded"], 3100)  # the sale, not the autopay payment
+    email, _ = add_staff(tenant, "front_desk", location_ids=[w.location_id])
+    assert client.get(f"/api/v1/payment-attempts/{key}", headers=login(client, tenant, email)).status_code == 404

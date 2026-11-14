@@ -442,6 +442,8 @@ def test_money_on_account_is_spent_oldest_first_and_refunded_newest_first(shop):
         assert svc.credit_balance(session, shop.client_id) == 150
         with clock.freeze(NOON + timedelta(hours=2)):
             newest = card(session, shop, 300)
+    # the payments commit first, as in production: a credit refund plans in a short transaction of its own
+    with work(shop.tenant) as session:
         with refused("refund-exceeds-unapplied", ValidationFailed):
             svc.refund_credit(session, shop.client_id, amount_minor=451, reason="Leaving", idempotency_key="a" * 12)
         refunds = svc.refund_credit(
@@ -553,15 +555,16 @@ def test_the_sweep_finishes_an_orphan_and_cancels_what_never_reached_the_process
         patched.setattr(fake, "create_payment", lambda **_: (_ for _ in ()).throw(RuntimeError("no network")))
         card(session, shop, 300, idempotency_key=lost)
     with work(shop.tenant) as session:
-        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0}  # too fresh to touch
+        # too fresh to touch
+        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}
     with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
-        assert webhooks.reconcile(session) == {"payments": 2, "cancelled": 0, "refunds": 0}
+        assert webhooks.reconcile(session) == {"payments": 2, "cancelled": 0, "refunds": 0, "failed": 0}
         states = dict(session.execute(select(Payment.idempotency_key, Payment.status)).all())
         assert states == {charged: "succeeded", lost: "initiated"}
     with clock.freeze(clock.now() + timedelta(minutes=45)), work(shop.tenant) as session:
         assert webhooks.reconcile(session)["cancelled"] == 1
         assert session.scalar(select(Payment.status).where(Payment.idempotency_key == lost)) == "cancelled"
-        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0}
+        assert webhooks.reconcile(session) == {"payments": 0, "cancelled": 0, "refunds": 0, "failed": 0}
         assert_books_agree(session)
 
 
@@ -800,8 +803,9 @@ def test_books_agree_after_a_random_sequence_including_every_undo(shop):
         return rows[0] if rows else None
 
     live = (Charge.status == "active", Charge.kind != "reversal")
-    with work(shop.tenant) as session:
-        for _step in range(160):
+    for _step in range(160):
+        # one transaction per step, as one request each: a credit refund plans only over committed payments
+        with work(shop.tenant) as session:
             action = rng.choice(steps)
             if action == "charge":
                 charge(session, shop, rng.randint(1, 5000), quantity=Decimal(rng.choice(["1", "3", "0.5"])))
@@ -873,6 +877,7 @@ def test_books_agree_after_a_random_sequence_including_every_undo(shop):
             )
             for invoice in session.scalars(select(Invoice).where(Invoice.status != "voided")):
                 assert planned[invoice.id] == max(invoice.total_minor, 0)
+    with work(shop.tenant) as session:
         assert transactions(session) > 100 and session.scalar(select(func.count()).select_from(Refund)) > 0
     with tenant_session(shop.tenant.id) as session:  # and it all committed: the deferred triggers agreed
         assert sum(balances(session).values()) == 0
@@ -885,8 +890,10 @@ def test_a_pending_provider_refund_reserves_the_money_until_it_settles(shop, mon
     fake = payment_provider.get("fake")
     monkeypatch.setattr(fake, "refund", lambda **_: RefundState("fake_ref_slow", "pending"))
     monkeypatch.setattr(fake, "find_refund", lambda **_: None)
+    with work(shop.tenant) as session:  # the payment commits first, as in production
+        payment_id = card(session, shop, 500).id
     with work(shop.tenant) as session:
-        payment = card(session, shop, 500)
+        payment = session.get(svc.Payment, payment_id)
         posted = transactions(session)
         pending = svc.refund(session, payment.id, amount_minor=300, reason="Slow bank", idempotency_key=uuid4().hex)
         assert (pending.status, payment.refunded_minor, payment.unapplied_minor) == ("pending", 300, 200)  # reserved
@@ -901,3 +908,294 @@ def test_a_pending_provider_refund_reserves_the_money_until_it_settles(shop, mon
         assert svc.confirm_refund(session, pending.id).status == answer  # a replay changes nothing
         assert transactions(session) == posted + (answer == "succeeded")
         assert_books_agree(session)
+
+
+def test_a_payment_under_a_held_receipt_counter_charges_nothing_and_its_key_replays(shop, monkeypatch):
+    """The `initiated` payment row commits in a short transaction before the processor is charged. When another
+    transaction holds what that needs (the receipt counter) past 500 ms, the payment is 409 `request-in-progress`
+    before any charge; it never falls back to an uncommitted row a dying request would leave unfindable. The same
+    Idempotency-Key afterwards charges once."""
+    import threading
+
+    from app.modules import platform
+
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)  # the tenant has issued a receipt: its counter row exists
+    fake, charged = payment_provider.get("fake"), []
+    real = fake.create_payment
+
+    def spy(**kwargs):
+        with tenant_session(shop.tenant.id) as other:
+            charged.append(other.scalar(select(func.count()).select_from(Payment)))
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "create_payment", spy)
+    locked, release = threading.Event(), threading.Event()
+
+    def hold():
+        with tenant_session(shop.tenant.id) as other:
+            platform.service.next_number(other, "receipt")
+            locked.set()
+            release.wait(15)
+        # rolled back: the number is not used
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert locked.wait(10)
+    try:
+        with pytest.raises(Conflict) as refused, work(shop.tenant) as session:
+            card(session, shop, 500, idempotency_key="pay-1")
+        assert refused.value.code == "request-in-progress"
+    finally:
+        release.set()
+        holder.join(20)
+    assert charged == []  # the processor was never asked to charge
+    with work(shop.tenant) as session:
+        assert session.scalar(select(func.count()).select_from(Payment)) == 1  # the cash payment only
+        first = card(session, shop, 500, idempotency_key="pay-1")
+        assert first.status == "succeeded"
+    with work(shop.tenant) as session:
+        again = card(session, shop, 500, idempotency_key="pay-1")
+        assert again.id == first.id and charged == [2]  # committed before the charge, and charged once
+
+
+def _charges_seen(shop, monkeypatch) -> list:
+    """Spy on the fake processor: each charge records how many committed rows carry its Idempotency-Key."""
+    fake, seen = payment_provider.get("fake"), []
+    real = fake.create_payment
+
+    def spy(**kwargs):
+        key = kwargs["idempotency_key"].split(":payment:")[1]
+        with tenant_session(shop.tenant.id) as other:
+            seen.append(other.scalar(select(func.count()).select_from(Payment).where(Payment.idempotency_key == key)))
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "create_payment", spy)
+    return seen
+
+
+def _hold_receipt_counter(shop, release_after: float | None = None):
+    """Another request takes a receipt number and keeps its transaction open until released (then rolls back)."""
+    import threading
+
+    from app.modules import platform
+
+    locked, release = threading.Event(), threading.Event()
+
+    def hold():
+        with tenant_session(shop.tenant.id) as other:
+            platform.service.next_number(other, "receipt")
+            locked.set()
+            release.wait(release_after if release_after is not None else 15)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert locked.wait(10)
+    return release, holder
+
+
+@pytest.mark.parametrize("held_ms", [505, 515, 530])
+def test_a_counter_freed_just_after_the_timeout_never_charges_an_uncommitted_payment(shop, monkeypatch, held_ms):
+    """Another request holds the receipt counter a little past the 500 ms lock timeout, then lets go: the payment
+    is 409 or charged with its row committed, never charged with only an uncommitted row."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)
+    seen = _charges_seen(shop, monkeypatch)
+    release, holder = _hold_receipt_counter(shop, release_after=held_ms / 1000)
+    try:
+        with work(shop.tenant) as session:
+            card(session, shop, 500, idempotency_key=f"edge-{held_ms}")
+    except Conflict as refused:
+        assert refused.code == "request-in-progress"
+    finally:
+        release.set()
+        holder.join(20)
+    assert all(committed == 1 for committed in seen), seen
+
+
+def test_a_receipt_counter_released_by_a_savepoint_rollback_is_not_trusted(shop, monkeypatch):
+    """S2: ROLLBACK TO SAVEPOINT releases the counter lock the cash leg took but keeps the transaction, so a card
+    after it must not be numbered in the caller's transaction (its row would be uncommitted during the charge);
+    after RELEASE SAVEPOINT the lock is still ours and the card is numbered in place."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)  # the counter row exists
+    fake, committed = payment_provider.get("fake"), []
+    real = fake.create_payment
+
+    def spy(**kwargs):
+        with tenant_session(shop.tenant.id) as other:
+            committed.append(other.scalar(select(func.count()).select_from(Payment)))
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "create_payment", spy)
+    with work(shop.tenant) as session:
+        savepoint = session.begin_nested()
+        cash(session, shop, 200)
+        assert svc._holds_receipt_counter(session)
+        savepoint.rollback()
+        assert not svc._holds_receipt_counter(session)  # the marker outlived the lock; the lock check does not
+        assert card(session, shop, 500, idempotency_key=f"s2-{uuid4().hex}").status == "succeeded"
+    assert committed == [2]  # the card's `initiated` row was committed before the charge
+
+    with work(shop.tenant) as session:
+        savepoint = session.begin_nested()
+        cash(session, shop, 200)
+        savepoint.commit()
+        assert svc._holds_receipt_counter(session)  # released savepoint: the lock stays with the transaction
+
+
+def test_a_savepoint_that_numbers_again_keeps_the_outer_transactions_receipt_lock(shop):
+    """The transaction took the counter first: a savepoint that numbers again and rolls back leaves the lock with
+    the transaction, so the marker must stay too, or the next card waits on its own lock (409)."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)
+        savepoint = session.begin_nested()
+        cash(session, shop, 200)
+        savepoint.rollback()
+        assert svc._holds_receipt_counter(session)  # still held by the transaction, so the card is numbered in place
+        assert card(session, shop, 500, idempotency_key=f"s2-{uuid4().hex}").status == "succeeded"
+
+
+def test_a_first_receipt_while_another_request_creates_the_counter_charges_nothing(shop, monkeypatch):
+    """The tenant's counter row is being inserted by another, uncommitted request: 409 before any charge."""
+    ready(shop)
+    seen = _charges_seen(shop, monkeypatch)
+    release, holder = _hold_receipt_counter(shop)
+    try:
+        with pytest.raises(Conflict) as refused, work(shop.tenant) as session:
+            card(session, shop, 500, idempotency_key="first-receipt")
+        assert refused.value.code == "request-in-progress"
+    finally:
+        release.set()
+        holder.join(20)
+    assert seen == []
+
+
+def test_a_database_error_that_is_not_a_lock_charges_nothing(shop, monkeypatch):
+    """The short transaction fails for another reason (here it cannot connect): the error stands, nothing is
+    charged, nothing falls back to the caller's transaction."""
+    from sqlalchemy.exc import OperationalError
+
+    from app.modules.billing import service as svc
+
+    ready(shop)
+    seen = _charges_seen(shop, monkeypatch)
+    real = svc.tenant_session
+
+    def refused(*args, **kwargs):
+        raise OperationalError("connect", None, Exception("too many clients already"))
+
+    with pytest.raises(OperationalError), work(shop.tenant) as session:
+        monkeypatch.setattr(svc, "tenant_session", refused)
+        card(session, shop, 500, idempotency_key="no-connection")
+    monkeypatch.setattr(svc, "tenant_session", real)
+    assert seen == []
+    with work(shop.tenant) as session:
+        assert session.scalar(select(func.count()).select_from(Payment)) == 0
+
+
+def test_a_payment_for_a_client_created_in_the_same_transaction_does_not_hold_the_counter_over_the_charge(
+    shop, monkeypatch
+):
+    """Own-row path (a guest's new client): the row is written in the caller's transaction, its receipt number is
+    taken and committed in a short step first, so no other request waits on the counter during the charge; the
+    provider key is the tenant and the request's Idempotency-Key, so a retry replays the same charge."""
+    from app.modules import platform
+    from app.modules.clients.models import Client
+
+    ready(shop)
+    fake, numbers = payment_provider.get("fake"), []
+    real = fake.create_payment
+
+    def spy(**kwargs):
+        assert kwargs["idempotency_key"] == f"{shop.tenant.id}:payment:guest-1"
+        with tenant_session(shop.tenant.id) as other:
+            other.execute(text("SET LOCAL lock_timeout = '100ms'"))
+            numbers.append(platform.service.next_number(other, "receipt"))  # would time out under a held counter
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "create_payment", spy)
+    with work(shop.tenant) as session:
+        guest = Client(first_name="Guest", last_name="Payer", home_location_id=shop.location_id)
+        session.add(guest)
+        session.flush()
+        paid = card(session, shop, 500, idempotency_key="guest-1", client_id=guest.id)
+        assert paid.status == "succeeded"
+    assert len(numbers) == 1 and paid.receipt_number < numbers[0]
+
+
+def test_an_unknown_payment_the_processor_never_created_is_abandoned_and_its_key_freed(shop, monkeypatch):
+    """A 429 (or a timeout before the processor saw the call) leaves the payment `unknown` with no processor
+    object: after the abandon window the sweep, finding nothing by the key, cancels it, so the key stops
+    answering `unknown` and the payer can start again."""
+    from app.ports.payment_provider import PaymentState
+
+    ready(shop)
+    fake = payment_provider.get("fake")
+    monkeypatch.setattr(fake, "create_payment", lambda **_: PaymentState("", "unknown"))
+    with work(shop.tenant) as session:
+        assert card(session, shop, 500, idempotency_key="rate-limited").status == "unknown"
+    monkeypatch.setattr(fake, "find_payment", lambda **_: None)
+    with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
+        webhooks.reconcile(session)  # inside the window: still unknown, the processor may yet show it
+    with work(shop.tenant) as session:
+        assert session.scalar(select(Payment.status)) == "unknown"
+    with clock.freeze(clock.now() + timedelta(minutes=40)), work(shop.tenant) as session:
+        webhooks.reconcile(session)
+    with work(shop.tenant) as session:
+        assert card(session, shop, 500, idempotency_key="rate-limited").status == "cancelled"
+
+
+class _Died(Exception):
+    pass
+
+
+def test_a_key_reused_with_other_parameters_is_refused_before_the_processor(shop, monkeypatch):
+    """S1: the request dies after the charge (the row is committed `initiated`); a retry under the same key with
+    another amount, card, payer or invoice is 409 `idempotency-key-reused` with no processor call and the row
+    untouched. The same request replays the one charge."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)
+        bill = charge(session, shop, 800)
+        other = new_client_row(session, shop)
+    fake = payment_provider.get("fake")
+    calls = []
+    real = fake.create_payment
+    monkeypatch.setattr(fake, "create_payment", lambda **k: calls.append(k["amount_minor"]) or real(**k))
+    with pytest.raises(_Died), work(shop.tenant) as session:
+        card(session, shop, 500, idempotency_key="s1")
+        raise _Died()
+    assert calls == [500]
+    for change in (
+        {"amount": 300},
+        {"token": "tok_other"},
+        {"client_id": other},
+        {"allocations": [(bill.id, 500)]},
+        {"tender_kind": "bank_debit"},
+    ):
+        args = {"amount": 500, "token": "tok_card_ok"} | change
+        with refused("idempotency-key-reused"), work(shop.tenant) as session:
+            card(session, shop, args.pop("amount"), args.pop("token"), idempotency_key="s1", **args)
+    assert calls == [500]
+    with work(shop.tenant) as session:
+        rows = session.execute(select(Payment.status, Payment.amount_minor).order_by(Payment.amount_minor)).all()
+        assert rows == [("succeeded", 100), ("initiated", 500)]
+        replayed = card(session, shop, 500, idempotency_key="s1")
+        assert (replayed.status, replayed.amount_minor) == ("succeeded", 500)
+    assert calls == [500, 500]  # the same provider key: one charge at the processor
+    with refused("idempotency-key-reused"), work(shop.tenant) as session:
+        card(session, shop, 300, idempotency_key="s1")  # a finished attempt is not re-pointed either
+
+
+def new_client_row(session, shop):
+    from app.modules.clients.models import Client
+
+    person = Client(first_name="Other", last_name="Payer", home_location_id=shop.location_id)
+    session.add(person)
+    session.flush()
+    return person.id

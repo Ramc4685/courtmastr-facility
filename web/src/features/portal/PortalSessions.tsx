@@ -14,6 +14,7 @@ import { SecretDialog } from '../integrations/SecretDialog'
 import { programError, REASON_TEXT } from '../programs/queries'
 import { addDays, addMonths, formatDay, formatMonth, formatTime, startOfMonth, startOfWeek, toInstant, today, zoned, zoneLabel } from '../scheduling/time'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { clientName, LocationPicker, PaymentOutcome, useAttemptKey, usePortal, usePortalClients } from './shared'
 
 type Listing = Schemas['PortalSessionListing']
@@ -107,7 +108,7 @@ function BuyAndBookDialog({ listing, clientId, onClose }: { listing: Listing; cl
   const [planId, setPlanId] = useState('')
   const plan = covering.find((p) => p.id === planId) ?? covering[0]
   const pay = usePaymentChoice(clientId)
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-session-package:${listing.session_id}`, checkPortalAttempt)
   const paid = (plan?.fee_minor ?? 0) > 0
   const run = useMutation({
     mutationFn: async () => {
@@ -115,6 +116,7 @@ function BuyAndBookDialog({ listing, clientId, onClose }: { listing: Listing; cl
         body: { client_id: clientId, package_plan_id: plan?.id ?? '', location_id: listing.location_id, ...(paid ? pay.body : {}), tender_kind: 'card' },
         idempotencyKey: attempt.key,
       })
+      attempt.settle(null) // the sale answered; the booking after it is not money
       try {
         await api.post('/api/v1/portal/enrollments', { body: { client_id: clientId, session_id: listing.session_id, client_package_id: sale.id } })
         return { sale, failure: null }
@@ -142,7 +144,7 @@ function BuyAndBookDialog({ listing, clientId, onClose }: { listing: Listing; cl
               Cancel
             </Button>
             <Button disabled={!plan || (paid && !pay.ready)} loading={run.isPending} onClick={() => run.mutate()}>
-              {plan && paid ? `Pay ${money(plan.fee_minor)} and book` : 'Get it and book'}
+              {attempt.locked ? 'Try again' : plan && paid ? `Pay ${money(plan.fee_minor)} and book` : 'Get it and book'}
             </Button>
           </>
         )
@@ -168,13 +170,16 @@ function BuyAndBookDialog({ listing, clientId, onClose }: { listing: Listing; cl
       ) : (
         <div className="space-y-4">
           <p>This session is paid for with a package. Buy one and we book the session with it straight away.</p>
-          <Select label="Package" value={plan.id} onChange={(e) => setPlanId(e.target.value)} options={covering.map((p) => ({ value: p.id, label: `${p.name}, ${(p.fee_minor ?? 0) > 0 ? money(p.fee_minor) : 'free'}` }))} />
           {run.error && (
             <p role="alert" className="text-danger">
               {programError(run.error)}
             </p>
           )}
-          {paid && <PaymentChoice choice={pay} />}
+          <AttemptLock attempt={attempt} />
+          <AttemptFields attempt={attempt}>
+            <Select label="Package" value={plan.id} onChange={(e) => setPlanId(e.target.value)} options={covering.map((p) => ({ value: p.id, label: `${p.name}, ${(p.fee_minor ?? 0) > 0 ? money(p.fee_minor) : 'free'}` }))} />
+            {paid && <PaymentChoice choice={pay} />}
+          </AttemptFields>
         </div>
       )}
     </Dialog>

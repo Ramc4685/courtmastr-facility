@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, Field
 
-from app.core.schemas import In, Out, Page
+from app.core.schemas import In, Int4, Out, Page
 
 __all__ = ["Page"]
 
@@ -17,8 +17,13 @@ Text = Annotated[str, Field(max_length=4000)]
 Points = Annotated[Decimal, Field(ge=-100, le=100, max_digits=5, decimal_places=2)]
 Wall = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
 Color = Annotated[str, Field(pattern=r"^#[0-9a-f]{6}$")]
-Metric = Literal["GP", "W", "L", "T", "GF", "GA", "PTS", "GD", "WP", "OTL", "FF", "BP", "SPT", "H2H"]
+Metric = Literal[
+    "GP", "W", "L", "T", "GF", "GA", "PTS", "GD", "WP", "OTL", "FF", "BP", "SPT", "H2H", "SW", "SL", "SR", "PR"
+]  # SW, SL: sets won and lost; SR: set ratio; PR: points ratio over played sets (sets competitions)
+SetPoints = Annotated[int, Field(ge=1, le=99)]
 Email = Annotated[str, Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+# int4 columns: a larger number overflowed Postgres (a 500)
+Fee = Annotated[int, Field(ge=0, le=2_147_483_647)]
 
 
 class StandingsColumn(In):
@@ -43,6 +48,12 @@ class _ScoringIn(In):
     tracks_sportsmanship: bool | None = None
     standings_columns: Annotated[list[StandingsColumn], Field(min_length=1, max_length=14)] | None = None
     standings_sort: Annotated[list[StandingsSort], Field(min_length=1, max_length=8)] | None = None
+    scoring_mode: Literal["points", "sets"] | None = None
+    sets_best_of: Literal[1, 3, 5] | None = None
+    set_points_to: SetPoints | None = None
+    set_win_by: Annotated[int, Field(ge=1, le=5)] | None = None
+    set_cap: SetPoints | None = None  # the score that ends a set however close (badminton 30)
+    deciding_set_points_to: SetPoints | None = None  # the last possible set's target (volleyball 15)
 
 
 class _ScoringOut(Out):
@@ -57,6 +68,12 @@ class _ScoringOut(Out):
     tracks_sportsmanship: bool
     standings_columns: list[dict]
     standings_sort: list[dict]
+    scoring_mode: str
+    sets_best_of: int | None
+    set_points_to: int | None
+    set_win_by: int
+    set_cap: int | None
+    deciding_set_points_to: int | None
 
 
 # --- reference lists --------------------------------------------------------------------------------------------
@@ -65,7 +82,7 @@ class _ScoringOut(Out):
 class SportCreate(_ScoringIn):
     name: Name
     default_game_length_min: Annotated[int, Field(gt=0, le=600)] = 60
-    default_team_fee_minor: Annotated[int, Field(ge=0)] | None = None
+    default_team_fee_minor: Fee | None = None
     fees_text: Text | None = None
     rules_text: Text | None = None
     is_active: bool = True
@@ -74,7 +91,7 @@ class SportCreate(_ScoringIn):
 class SportUpdate(_ScoringIn):
     name: Name | None = None
     default_game_length_min: Annotated[int, Field(gt=0, le=600)] | None = None
-    default_team_fee_minor: Annotated[int, Field(ge=0)] | None = None
+    default_team_fee_minor: Fee | None = None
     fees_text: Text | None = None
     rules_text: Text | None = None
     is_active: bool | None = None
@@ -94,7 +111,7 @@ class AgeGroupWrite(In):
     name: Name | None = None
     min_age: Annotated[int, Field(ge=0, le=120)] | None = None
     max_age: Annotated[int, Field(ge=0, le=120)] | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
     is_active: bool | None = None
 
 
@@ -201,7 +218,7 @@ class CompetitionOut(_ScoringOut):
 class DivisionWrite(In):
     name: Name | None = None
     kind: Literal["division", "pool"] | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
 
 
 class DivisionOut(Out):
@@ -347,6 +364,8 @@ class LeagueStandingOut(Out):
     goals_against: int
     goal_difference: int
     win_pct: Decimal
+    set_points_for: int = 0  # rally points of played sets, sets competitions only
+    set_points_against: int = 0
     bonus_points: Decimal
     adjustment_points: Decimal
     adjustment_reason: str | None
@@ -426,6 +445,22 @@ class ScheduleRunOut(Out):
 Label = Annotated[str, Field(max_length=100)]
 
 
+class LeagueNightIn(In):
+    resource_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    notes: Text | None = None
+
+
+class LeagueNightOut(Out):
+    booking_id: UUID
+    competition_id: UUID
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    resource_ids: list[UUID]
+
+
 class GameCreate(In):
     competition_id: UUID
     division_id: UUID | None = None
@@ -496,11 +531,14 @@ class GameOut(Out):
     notes: str | None
     home_score: int | None = None
     away_score: int | None = None
+    set_scores: str | None = None  # '21-18, 19-21, 21-15' from the home side, sets competitions
+    sets_best_of: int | None = None  # set when the competition scores by sets: the score dialog's set rows
     version: int
 
 
 class GameSideIn(In):
-    score: Annotated[int, Field(ge=0, le=10_000)] | None = None
+    score: Annotated[int, Field(ge=0, le=10_000)] | None = None  # sets won, derived when `sets` is given
+    sets: Annotated[list[Annotated[int, Field(ge=0, le=99)]], Field(max_length=5)] | None = None
     participation: Literal["full", "default", "forfeit"] = "full"
     went_to_overtime: bool = False
     bonus_points: Annotated[Decimal, Field(ge=-100, le=100, max_digits=5, decimal_places=2)] = Decimal(0)
@@ -515,6 +553,7 @@ class GameResultPut(In):
 class GameSideOut(Out):
     competition_team_id: UUID
     score: int | None
+    sets: list[int] = []
     participation: str
     went_to_overtime: bool
     bonus_points: Decimal
@@ -876,6 +915,7 @@ class PublicCompetitionOut(Out):
     sport_name: str
     season_id: UUID | None
     show_players: bool
+    scoring_mode: str = "points"
     status: str
     starts_on: date
     ends_on: date | None
@@ -897,6 +937,7 @@ class PublicGameOut(Out):
     away_name: str | None
     home_score: int | None
     away_score: int | None
+    set_scores: str | None = None
 
 
 class PublicStandingOut(Out):
@@ -1133,6 +1174,7 @@ class PublicBracketSlotOut(Out):
     away_name: str | None
     home_score: int | None
     away_score: int | None
+    set_scores: str | None = None
     starts_at: datetime | None
     is_bye: bool
     winner: Literal["home", "away"] | None
@@ -1154,6 +1196,7 @@ class BoardGameOut(Out):
     away_name: str | None
     home_score: int | None
     away_score: int | None
+    set_scores: str | None = None
 
 
 class PublicBoardOut(Out):

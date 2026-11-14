@@ -12,6 +12,7 @@ import { INVOICE_STATUS, parseMoney, PAYMENT_STATUS, TENDER_LABEL, toMoneyInput 
 import { FormError, MoneyInput, PdfButton, StatusBadge } from '../billing/shared'
 import { PaymentAuthentication } from '../billing/PaymentMethodField'
 import { PortalPage } from './PortalApp'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { NewCardField, PaymentOutcome, useAttemptKey, useCheckoutProvider, usePortal } from './shared'
 
 type Invoice = Schemas['PortalInvoiceOut']
@@ -112,7 +113,7 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
   const [amount, setAmount] = useState(toMoneyInput(invoice.balance_minor))
   const amountMinor = parseMoney(amount)
   const amountError = amountMinor === null || amountMinor <= 0 ? 'Enter an amount above zero.' : amountMinor > invoice.balance_minor ? `At most ${money(invoice.balance_minor)} is owed.` : undefined
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-invoice:${invoice.id}`, checkPortalAttempt)
   const settled = () => void qc.invalidateQueries({ queryKey: ['portal'] })
   const pay = useMutation({
     mutationFn: () =>
@@ -120,9 +121,9 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
         body: { invoice_ids: [invoice.id], amount_minor: amountMinor, payment_method_id: methodId === NEW_CARD ? null : methodId, method_token: methodId === NEW_CARD ? token : null, use_account_credit: useCredit, set_autopay: false },
         idempotencyKey: attempt.key,
       }),
-    onSuccess: (r) => {
+    onSuccess: () => {
       settled()
-      if (r.payment?.status === 'failed') attempt.settle(null) // a decline: the next try is a new attempt
+      attempt.settle(null) // an answer for the attempt (paid, declined, waiting on the bank): the next is a new one
     },
     onError: attempt.settle,
   })
@@ -164,7 +165,7 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
               Cancel
             </Button>
             <Button key="pay" loading={pay.isPending} disabled={methods.isPending || Boolean(amountError) || (methodId === NEW_CARD && !token)} onClick={() => { confirm.reset(); pay.mutate() }}>
-              Pay {amountMinor && !amountError ? money(amountMinor) : ''}
+              {attempt.locked ? 'Try again' : 'Pay'} {amountMinor && !amountError ? money(amountMinor) : ''}
             </Button>
           </>
         )
@@ -185,11 +186,13 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
       ) : (
         <div className="space-y-4">
           <FormError error={pay.error} />
+          <AttemptLock attempt={attempt} />
           {failed && (
             <p role="alert" className="text-danger">
               The payment was declined or the bank check failed. Try another card.
             </p>
           )}
+          <AttemptFields attempt={attempt}>
           <MoneyInput label="Amount" hint="Pay all of it or part now; any rest stays on the invoice." value={amount} onChange={(e) => setAmount(e.target.value)} error={amount ? amountError : undefined} required />
           <Select
             label="Pay with"
@@ -202,6 +205,7 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
           />
           {methodId === NEW_CARD && <NewCardField value={token} onChange={setToken} />}
           <Checkbox label="Use my account credit first" checked={useCredit} onChange={(e) => setUseCredit(e.target.checked)} />
+          </AttemptFields>
         </div>
       )}
     </Dialog>
