@@ -235,11 +235,53 @@ def test_a_booking_across_midnight_and_a_month_end_earns_on_both_days(client, ow
     assert [(r["period_on"], r["revenue_minor"]) for r in months] == [("2031-05-01", 4500), ("2031-06-01", 4500)]
 
 
-@pytest.mark.parametrize(("day", "expected"), [(date(2031, 3, 9), 23.0), (date(2031, 11, 2), 25.0)])
-def test_a_24_hour_sunday_across_a_clock_change(client, owner, f, day, expected):
-    _, found = report(client, owner, "court_use", f, from_on=day.isoformat(), to_on=day.isoformat())
+def night_bands(client, owner, f, *bands: tuple[str, str]) -> None:
+    """A dearer night rate (so peak) with wall-time bands that a clock change skips or repeats."""
+    ok(client.post(f"{API}/rental-types/{f.rtype}/rates", headers=owner, json={
+        "name": "Night", "amount_minor": 4000, "basis": "per_hour", "rules": [
+            {"kind": "rate", "name": f"Night {s}", "start_time": s, "end_time": e, "amount_minor": 5000}
+            for s, e in bands]}))  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    ("day", "expected", "peak"),
+    [
+        # spring forward: 23 h; 01:00-02:00 happens, 02:30-03:00 never does; evening 17:00-24:00 = 7 h
+        (date(2031, 3, 9), 23.0, 8.0),
+        # fall back: 25 h; 01:00-02:00 happens twice, 02:30-03:00 once; evening 7 h
+        (date(2031, 11, 2), 25.0, 9.5),
+    ],
+)
+def test_a_24_hour_sunday_across_a_clock_change(client, owner, f, day, expected, peak):
+    night_bands(client, owner, f, ("01:00", "02:00"), ("02:30", "03:00"))
+    run, found = report(client, owner, "court_use", f, from_on=day.isoformat(), to_on=day.isoformat())
     court1, court2 = by_label(found)["Court 1"], by_label(found)["Court 2"]
     assert court1["available_hours"] == court2["available_hours"] == expected  # Court 2's window does not narrow
+    assert court1["peak_available_hours"] == peak
+    _, cells = report(client, owner, "court_use_heatmap", f, from_on=day.isoformat(), to_on=day.isoformat())
+    # buckets by local hour label: no 02:00 in spring; in autumn both 01:00 hours share the 01:00 row
+    assert [c["hour"] for c in cells] == [f"{h:02d}:00" for h in range(24) if h != 2 or day.month != 3]
+
+
+@pytest.mark.parametrize(
+    ("day", "expected", "peak"),
+    [
+        # spring forward in Sydney (5 Oct 2031, 02:00 -> 03:00): opening at 02:30 does not exist, so the courts open
+        # at 03:00 = 21 h; the 02:30-03:00 band never happens; evening 7 h
+        (date(2031, 10, 5), 21.0, 7.0),
+        # fall back (6 Apr 2031, 03:00 -> 02:00): 02:30 happens twice, so 02:30-03:00 twice plus 03:00-24:00 = 22 h;
+        # the band twice = 1 h; evening 7 h
+        (date(2031, 4, 6), 22.0, 8.0),
+    ],
+)
+def test_a_southern_hemisphere_clock_change(client, owner, f, day, expected, peak):
+    ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"time_zone": "Australia/Sydney"}), 200)
+    ok(client.put(f"{API}/locations/{f.location}/facility-hours", headers=owner, json={
+        "days": [{"weekday": d} | hours("02:30", "24:00") for d in range(1, 8)]}), 200)  # fmt: skip
+    night_bands(client, owner, f, ("02:30", "03:00"))
+    _, found = report(client, owner, "court_use", f, from_on=day.isoformat(), to_on=day.isoformat())
+    court1 = by_label(found)["Court 1"]
+    assert (court1["available_hours"], court1["peak_available_hours"]) == (expected, peak)
 
 
 def test_heatmap_by_hour_and_weekday(client, owner, f):

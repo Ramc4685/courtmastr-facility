@@ -150,7 +150,10 @@ Status per feature: `docs/status/15-reporting.md`.
     There is no holiday calendar: a holiday is a closure. Any time rented or played outside that (past closing,
     during a closure) is added back, so play always has hours under it: no revenue without hours, utilization
     never over 100% and never empty on a day with play. `outside_hours` still shows that play.
-    A 23 or 25 hour day comes out at 23 or 25 hours because wall times are converted in the zone per day.
+    A 23 or 25 hour day comes out at 23 or 25 hours. Wall times (hours, peak bands) are the instants of the
+    local day whose wall clock reads inside them: on a spring-forward day a time the clocks skip has none (a band
+    02:30-03:00 vanishes, opening at 02:30 opens at 03:00), on a fall-back day a repeated time counts both times.
+    Tested in America/Chicago and Australia/Sydney.
   - *Court windows do not narrow the hours* (rule found and chosen, 2026-11-13). Availability windows are
     advisory: scheduling neither refuses nor warns on a staff booking outside them (scheduling README rule 9:
     "the calendar shades them"), staff rentals accept any time, and only the free-time search behind online

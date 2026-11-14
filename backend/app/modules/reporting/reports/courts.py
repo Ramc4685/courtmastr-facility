@@ -52,9 +52,18 @@ def _min(mr: str) -> str:
     return f"(SELECT coalesce(sum(extract(epoch FROM upper(x) - lower(x))), 0)::bigint / 60 FROM unnest({mr}) x)"
 
 
-def _wall(day: str, clock: str, zone: str = "c.time_zone") -> str:
-    """A local date and wall time (24:00 is the next midnight) as an instant in the court's zone."""
-    return f"((({day})::date + {clock}) AT TIME ZONE {zone})"
+def _wall(z: str, start: str, end: str) -> str:
+    """The instants of local day `z` (a `zday` row) whose wall time is in [start, end), 24:00 being the next
+    midnight. A day holds one clock change at most, at `turn`, with UTC offset `o1` before it and `o2` after: each
+    side maps wall times with its own offset and keeps only its own instants, so a wall time the clocks skip has
+    no instant (a band is clamped or vanishes) and one they repeat has both (counted twice)."""
+
+    def side(offset: str, part: str) -> str:
+        at = lambda clock: f"(({z}.day + {clock}) - {z}.{offset}) AT TIME ZONE 'UTC'"  # noqa: E731
+        return f"tstzrange({at(start)}, {at(end)}) * {part}"
+
+    before, after = f"tstzrange(lower({z}.whole), {z}.turn)", f"tstzrange({z}.turn, upper({z}.whole))"
+    return f"tstzmultirange({side('o1', before)}, {side('o2', after)})"
 
 
 def _fires(band: str, day: str) -> str:
@@ -103,8 +112,7 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
     args |= {"o_loc": list(ranges), "o_from": [r[0] for r in ranges.values()], "o_to": [r[1] for r in ranges.values()]}
     revenue = "(SELECT * FROM rpt_court_revenue WHERE charge_id IN (SELECT charge_id FROM rv_charge))"
     items = _split(revenue, "charge_id", "net_minor", "s.item_weight", "q.rental_booking_charge_item_id")
-    band = f"tstzrange({_wall('z.day', 'b.start_time', 'z.time_zone')}, {_wall('z.day', 'b.end_time', 'z.time_zone')})"
-    opening = f"tstzrange({_wall('d.day', 'fh.opens_time', 'd.time_zone')}, {_wall('d.day', 'fh.closes_time', 'd.time_zone')})"
+    band, opening = _wall("z", "b.start_time", "b.end_time"), _wall("d", "fh.opens_time", "fh.closes_time")
     near = "tstzrange(CAST(s.from_on - 1 AS timestamp) AT TIME ZONE 'UTC', CAST(s.to_on + 2 AS timestamp) AT TIME ZONE 'UTC')"
     sql = f"""
     WITH span AS (
@@ -124,7 +132,7 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
                x.part AS item_minor
         FROM ({items}) x
     ),
-    zday AS (  -- every local day needed: the span's, and the days of the occurrences it is paid for
+    zday0 AS (  -- every local day needed: the span's, and the days of the occurrences it is paid for
         SELECT location_id, time_zone, day, bool_or(in_span) AS in_span,
                tstzrange(day::timestamp AT TIME ZONE time_zone, (day + 1)::timestamp AT TIME ZONE time_zone) AS whole
         FROM (SELECT s.location_id, s.time_zone, g::date AS day, true AS in_span FROM span s
@@ -133,6 +141,15 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
               SELECT c.location_id, c.time_zone, g::date, false FROM rv_item i JOIN court c ON c.court_id = i.court_id
               CROSS JOIN {_days("i.played", "c.time_zone")} g) d
         GROUP BY location_id, time_zone, day
+    ),
+    zday AS (  -- the UTC offset at each end of the day and, on a clock-change day, the minute it changes
+        SELECT d.*, o.o1, o.o2,
+               CASE WHEN o.o1 = o.o2 THEN upper(d.whole) ELSE (
+                   SELECT min(t) FROM generate_series(lower(d.whole), upper(d.whole), interval '1 minute') t
+                   WHERE (t AT TIME ZONE d.time_zone) - (t AT TIME ZONE 'UTC') <> o.o1) END AS turn
+        FROM zday0 d CROSS JOIN LATERAL (
+            SELECT (lower(d.whole) AT TIME ZONE d.time_zone) - (lower(d.whole) AT TIME ZONE 'UTC') AS o1,
+                   (upper(d.whole) AT TIME ZONE d.time_zone) - (upper(d.whole) AT TIME ZONE 'UTC') AS o2) o
     ),
     court_peak AS (  -- the union of the peak bands of the rental types a court offers, once per court and day
         SELECT t.court_id, z.day,
@@ -143,7 +160,7 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         GROUP BY t.court_id, z.day
     ),
     day AS (
-        SELECT c.court_id, c.location_id, z.time_zone, z.day, z.whole
+        SELECT c.court_id, c.location_id, z.day, z.whole, z.o1, z.o2, z.turn
         FROM court c JOIN zday z ON z.location_id = c.location_id AND z.in_span
     ),
     hold AS (
@@ -154,7 +171,7 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         SELECT d.court_id, d.day, d.whole,
                (CASE WHEN fh.weekday IS NULL THEN tstzmultirange(d.whole)
                      WHEN fh.is_closed OR fh.opens_time IS NULL OR fh.closes_time IS NULL THEN {EMPTY}
-                     ELSE tstzmultirange({opening})
+                     ELSE {opening}
                 END) - coalesce(shut.mr, {EMPTY}) AS hours_mr,
                coalesce(pk.mr, {EMPTY}) AS peak_mr
         FROM day d
