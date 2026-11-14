@@ -869,81 +869,23 @@ def test_every_template_example_row_passes_its_own_check_and_names_match_in_nfc(
     assert (again["created_count"], again["updated_count"], again["skipped_count"]) == (0, 1, 0)
 
 
-# --- go-live: a staff-run clients import may confirm the imported adults' ages (owner decision, staff confirm once)
-# An import confirms a row only when that row supplied the birth date, the client is new or its stored date is the
-# same, and the date is an adult's; the person who commits needs both age keys (and the step-up), checked per chunk.
-
-
-def _age_rows(tag: str, *extra: list) -> list[list]:
-    return [CLIENT_HEADER,
-            ["", "Ada", f"Adult{tag}", "", "", "1980-02-03", "", "", "", ""],
-            ["", "Kit", f"Child{tag}", "", "", "2016-06-07", "", "", "", ""],
-            ["", "Nod", f"Nodate{tag}", "", "", "", "", "", "", ""], *extra]  # fmt: skip
-
-
-def _ages(tenant, tag: str) -> dict[str, bool]:
-    with tenant_session(tenant.id) as session:
-        rows = session.execute(text(
-            "SELECT first_name, age_confirmed_at IS NOT NULL FROM client WHERE last_name LIKE :t"), {"t": f"%{tag}"})  # fmt: skip
-        return dict(rows.all())
-
-
-def _confirming(client, headers, job):
-    return client.post(f"{API}/import-jobs/{job['id']}/commits", headers=headers, json={"confirm_ages": True})
-
-
-def _staff(client, tenant, owner, *denied: str) -> dict:
-    email, staff_id = add_staff(tenant, "admin", all_locations=True)
-    if denied:
-        grants = [{"permission_key": k, "is_allowed": False} for k in denied]
-        ok(client.put(f"{API}/staff-users/{staff_id}/permission-overrides", headers=owner, json={"grants": grants}))
-    return {"headers": login(client, tenant, email), "id": staff_id}
-
-
-def test_a_clients_import_confirms_only_adult_rows_that_vouch_for_their_own_date(client, tenant, owner, location_id):
-    assert run(client, owner, location_id, "clients", _age_rows("Off"))["status"] == "completed"
-    assert set(_ages(tenant, "Off").values()) == {False}  # default off
-    same = new_client(client, owner, location_id, first_name="Sam", last_name="SameOn", birth_on="1985-05-05",
-                      primary_email="sam.same@example.com")["id"]  # a self sign-up, unconfirmed  # fmt: skip
-    other = new_client(client, owner, location_id, first_name="Dee", last_name="DiffOn", birth_on="1985-05-05",
-                       primary_email="dee.diff@example.com")["id"]  # fmt: skip
-    rows = _age_rows("On", ["", "Sam", "SameOn", "sam.same@example.com", "", "1985-05-05", "", "", "", ""],
-                     ["", "Dee", "DiffOn", "dee.diff@example.com", "", "1986-06-06", "", "", "", ""])  # fmt: skip
+def test_an_import_never_confirms_an_age_and_the_row_report_says_so(client, tenant, owner, location_id):
+    """Owner decision: no import confirms an age, for anyone, under any flag. Imported adults wait in the age-check
+    queue (go-live: its bulk confirm); a row that brought a date says it was imported with the age not confirmed."""
+    rows = [CLIENT_HEADER,
+            ["", "Ada", "AdultNever", "", "", "1980-02-03", "", "", "", ""],
+            ["", "Kit", "ChildNever", "", "", "2016-06-07", "", "", "", ""],
+            ["", "Nod", "NodateNever", "", "", "", "", "", "", ""]]  # fmt: skip
     job = check(client, owner, start(client, owner, location_id, "clients", to_csv(rows)))
-    ok(_confirming(client, owner, job), 202)
+    ok(client.post(f"{API}/import-jobs/{job['id']}/commits", headers=owner, json={"confirm_ages": True}), 202)
     drain()
-    assert _ages(tenant, "On") == {"Ada": True, "Kit": False, "Nod": False, "Sam": True, "Dee": False}
-    seen = outcomes(tenant, job)
-    assert {n: codes for n, (_, codes) in seen.items() if codes} == {
-        3: ["age-not-confirmed"],
-        4: ["age-not-confirmed"],
-        6: ["age-not-confirmed"],
-    }  # child, no date, other date
+    assert ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))["created_count"] == 3
     with tenant_session(tenant.id) as session:
-        fired = session.execute(text(
-            "SELECT count(*) FROM outbox_event WHERE event_type = 'clients.client.age_confirmed' AND aggregate_id IN "
-            "(SELECT id FROM client WHERE last_name IN ('AdultOn', 'SameOn'))")).scalar()  # fmt: skip
-    assert fired == 2 and other and same
-
-
-def test_confirming_on_import_needs_both_age_keys_at_commit(client, tenant, owner, location_id):
-    job = check(client, owner, start(client, owner, location_id, "clients", to_csv(_age_rows("Gate"))))
-    for denied in ("clients.client.confirm_age", "clients.client.confirm_ages"):
-        lacking = _staff(client, tenant, owner, denied)
-        assert _confirming(client, lacking["headers"], job).status_code in (403, 404)
-    stale = login(client, tenant, elevated=False)
-    assert _confirming(client, stale, job).json()["code"] == "step-up-required"
-    assert _ages(tenant, "Gate") == {}
-
-
-def test_an_age_key_revoked_mid_import_stops_confirming_and_says_so(client, tenant, owner, location_id):
-    admin = _staff(client, tenant, owner)
-    job = check(client, admin["headers"], start(client, admin["headers"], location_id, "clients",
-                                                to_csv(_age_rows("Lost"))))  # fmt: skip
-    ok(_confirming(client, admin["headers"], job), 202)
-    deny = {"grants": [{"permission_key": "clients.client.confirm_ages", "is_allowed": False}]}
-    ok(client.put(f"{API}/staff-users/{admin['id']}/permission-overrides", headers=owner, json=deny))
-    drain()
-    done = ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))
-    assert done["status"] == "completed" and set(_ages(tenant, "Lost").values()) == {False}  # imported
-    assert outcomes(tenant, job)[2][1] == ["age-not-confirmed"]  # imported, age not confirmed
+        confirmed = session.execute(text(
+            "SELECT count(*) FROM client WHERE last_name LIKE '%Never' AND age_confirmed_at IS NOT NULL")).scalar()  # fmt: skip
+    assert confirmed == 0
+    seen = outcomes(tenant, job)
+    assert {n: codes for n, (_, codes) in seen.items()} == {2: ["age-not-confirmed"], 3: ["age-not-confirmed"], 4: []}
+    queue = ok(client.get(f"{API}/client-age-reviews", headers=owner, params={"created_via": "import", "limit": 200}))
+    assert "AdultNever" in {c["last_name"] for c in queue["data"]}  # a child never enters the queue
+    assert "ChildNever" not in {c["last_name"] for c in queue["data"]}

@@ -337,7 +337,8 @@ def test_bulk_confirm_needs_both_keys_a_step_up_a_note_and_at_most_200(client, o
     elsewhere = ok(client.post(f"{API}/locations", headers=owner, json={
         "name": f"Elsewhere {uuid4().hex[:4]}", "time_zone": "America/Chicago", "country_code": "US"}))["id"]  # fmt: skip
     away = login(client, tenant, add_staff(tenant, "manager", location_ids=[elsewhere])[0])
-    assert client.post(BULK, headers=away, json=body).status_code == 404
+    skipped = ok(client.post(BULK, headers=away, json=body), 200)  # out of reach: skipped and reported
+    assert (sorted(skipped["skipped_client_ids"]), skipped["confirmed_count"]) == (sorted([a, b]), 0)
     assert confirmed_events(tenant, a) == confirmed_events(tenant, b) == 0
 
 
@@ -354,6 +355,51 @@ def test_bulk_confirm_audits_and_announces_each_person_once_with_the_note_flag_o
     again = ok(client.post(BULK, headers=owner, json={"client_ids": [a], "note": NOTE}), 200)
     assert again["confirmed_count"] == 0 and confirmed_events(tenant, a) == 1
     assert not {a, b} & queued(client, owner)
+
+
+def test_bulk_confirm_authorises_each_person_at_their_home_location_and_skips_the_rest(client, owner, tenant, f):
+    """A manager at another location sees a person their location was told about, but the bulk confirm is at the
+    person's home: that person is skipped and reported, never confirmed; the manager's own client is confirmed."""
+    from app.modules.clients import service
+
+    there = other_location(client, owner)
+    told = self_declared(client, owner, tenant, f)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        service.note_unconfirmed_booking(session, told, clock.now() + timedelta(days=2), there)
+    theirs = new_client(client, owner, there, birth_on=ADULT)["id"]
+    manager = login(client, tenant, add_staff(tenant, "manager", location_ids=[there])[0])
+    assert {told, theirs} <= {
+        c["id"] for c in ok(client.get(f"{API}/client-age-reviews", headers=manager), 200)["data"]
+    }
+    done = ok(client.post(BULK, headers=manager, json={"client_ids": [told, theirs], "note": NOTE}), 200)
+    assert (done["skipped_client_ids"], done["confirmed_count"]) == ([told], 1)
+    assert staff_view(client, owner, told)["age_confirmed"] is False and confirmed_events(tenant, told) == 0
+    assert staff_view(client, owner, theirs)["age_confirmed"] is True
+
+
+def test_the_queue_filters_to_a_freshly_imported_batch(client, owner, tenant, f):
+    """Imports never confirm an age: imported adults wait in the queue, and staff pick the batch by how and when
+    the records were created before the go-live bulk confirm."""
+    from app.modules.clients import service
+
+    earlier = self_declared(client, owner, tenant, f)
+    with tenant_session(tenant.id) as session:  # the database's clock, which stamps created_at
+        since = session.get(Client, earlier).created_at.isoformat()
+    with tenant_session(tenant.id, actor=system_principal("import")) as session:
+        imported, _ = service.import_client(session, {
+            "first_name": "Imo", "last_name": f"Batch-{uuid4().hex[:6]}", "home_location_id": f.location,
+            "birth_on": ADULT})  # fmt: skip
+        imported = str(imported.id)
+    later = self_declared(client, owner, tenant, f)
+
+    def batch(**filters) -> set[str]:
+        page = ok(client.get(f"{API}/client-age-reviews", headers=owner, params={"limit": 200, **filters}), 200)
+        return {c["id"] for c in page["data"]}
+
+    assert imported in queued(client, owner) and staff_view(client, owner, imported)["age_confirmed"] is False
+    assert {imported, later} <= batch(**{"created_at[gt]": since}) and earlier not in batch(**{"created_at[gt]": since})
+    picked = batch(**{"created_via": "import", "created_at[gt]": since})
+    assert imported in picked and not {earlier, later} & picked
 
 
 # --- one source of truth and the location rules ------------------------------------------------------------------

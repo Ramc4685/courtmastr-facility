@@ -850,11 +850,20 @@
           "confirmed_count": {
             "title": "Confirmed Count",
             "type": "integer"
+          },
+          "skipped_client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Skipped Client Ids",
+            "type": "array"
           }
         },
         "required": [
           "client_ids",
-          "confirmed_count"
+          "confirmed_count",
+          "skipped_client_ids"
         ],
         "title": "AgeConfirmationBatchOut",
         "type": "object"
@@ -29155,18 +29164,6 @@
           }
         },
         "title": "IdentityProviderUpdate",
-        "type": "object"
-      },
-      "ImportCommitCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "confirm_ages": {
-            "default": false,
-            "title": "Confirm Ages",
-            "type": "boolean"
-          }
-        },
-        "title": "ImportCommitCreate",
         "type": "object"
       },
       "ImportDryRunCreate": {
@@ -116495,7 +116492,7 @@
     },
     "/api/v1/import-jobs/{import_job_id}/commits": {
       "post": {
-        "description": "Import the checked rows; the job moves to completed with a report of rows that failed. Needs every\nlocation (403 all-locations-required) and the keys of the staff commands the type's writes stand for;\n409 check-stale when the file changed after the check. `confirm_ages` (clients only, staff holding\nclients.client.confirm_age) counts the imported adults' birth dates as confirmed.",
+        "description": "Import the checked rows; the job moves to completed with a report of rows that failed. Needs every\nlocation (403 all-locations-required) and the keys of the staff commands the type's writes stand for;\n409 check-stale when the file changed after the check.",
         "operationId": "createImportJobCommit",
         "parameters": [
           {
@@ -116528,23 +116525,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/ImportCommitCreate"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Body"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "content": {

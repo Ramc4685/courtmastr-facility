@@ -216,23 +216,12 @@ def start_dry_run(session: Session, principal: Principal, job_id: UUID, data: di
     return job_view(session, job)
 
 
-def start_commit(session: Session, principal: Principal, job_id: UUID, data: dict | None = None) -> dict:
-    """Import the rows a dry run passed; rows that fail now are reported, never silently dropped. `confirm_ages`
-    (clients only, a staff user holding the confirm-age key, never an API key) confirms the imported adults."""
+def start_commit(session: Session, principal: Principal, job_id: UUID) -> dict:
+    """Import the rows a dry run passed; rows that fail now are reported, never silently dropped."""
     job = _load(session, principal, job_id, RUN)
     require_all_locations(principal)
     for key in KIND_KEYS[job.kind]:
         authorize(principal, key, location_id=job.location_id)
-    confirm_ages = bool((data or {}).get("confirm_ages"))
-    if confirm_ages:
-        if principal.kind != "staff":
-            raise PermissionDenied(
-                "Only a signed-in staff user can confirm ages.", required=clients.service.CONFIRM_AGE
-            )
-        if job.kind != "clients":
-            raise ValidationFailed("Only a clients import can confirm ages.", pointer="/confirm_ages")
-        authorize(principal, clients.service.CONFIRM_AGE, location_id=job.location_id)
-        authorize(principal, clients.service.CONFIRM_AGES, location_id=job.location_id)  # + step-up
     if job.status not in (JobStatus.VALIDATED, JobStatus.NEEDS_REVIEW):
         raise Conflict("Run the check first." if job.status in _CHECKABLE else "This import is already running.")
     if job.progress.get("checked_file_id") != str(job.source_file_id):
@@ -241,11 +230,9 @@ def start_commit(session: Session, principal: Principal, job_id: UUID, data: dic
         raise Conflict("No row can be imported; fix the file and upload it again.", code="nothing-to-import")
     _reset(session, job)
     job.status, job.started_at = JobStatus.IMPORTING, clock.now()
-    if confirm_ages:  # the person who commits vouches; every chunk re-checks them
-        job.progress = {"confirm_ages_by": str(principal.staff_user_id)}
     session.flush()
     audit.record(session, "imports.import_job.commit", job, location_id=job.location_id,
-                 changes={"status": job.status, "confirm_ages": confirm_ages})  # fmt: skip
+                 changes={"status": job.status})  # fmt: skip
     _enqueue(session, job)
     return job_view(session, job)
 
@@ -455,11 +442,8 @@ def run_chunk(session: Session, job_id: UUID) -> bool:
     size = chunk_rows(session, kind)
     _, raw = platform.files.read(session, job.source_file_id)
     headers, records = csvio.read(csvio.decode(raw))
-    by = job.progress.get("confirm_ages_by") if job.status == JobStatus.IMPORTING else None
-    held = by is not None and _can_confirm_ages(session, UUID(by), job.location_id)
     ctx = Context(job.location_id, job.date_format, platform.service.location_today(session, job.location_id), job.id,
-                  job.submitted_by_staff_user_id, confirm_ages_by=UUID(by) if held else None,
-                  confirm_ages_lost=by is not None and not held)  # fmt: skip
+                  job.submitted_by_staff_user_id, is_dry_run=job.status == JobStatus.VALIDATING)  # fmt: skip
     parsed = [kind.parse(csvio.values(r, headers, job.column_mapping), ctx) if r else None for r in records]
     heads: dict[str, list[int]] = {}
     for i, item in enumerate(parsed):
@@ -500,18 +484,6 @@ def _submitter_cannot_run(session: Session, job: ImportJob) -> str | None:
     if job.status == JobStatus.IMPORTING and any(k not in submitter.permissions for k in KIND_KEYS[job.kind]):
         return "The person who started this import is no longer allowed to make these changes."
     return None
-
-
-def _can_confirm_ages(session: Session, staff_user_id: UUID, location_id: UUID) -> bool:
-    """Per chunk, like the other import rights: the committer still holds both age keys at the job's location
-    (step-up is not re-checked off-request). If not, the rows import and say the age was not confirmed."""
-    who = platform.staff.principal_for(session, staff_user_id)
-    keys = (clients.service.CONFIRM_AGE, clients.service.CONFIRM_AGES)
-    return (
-        who is not None
-        and all(k in who.permissions for k in keys)
-        and (who.location_ids is None or location_id in who.location_ids)
-    )
 
 
 def _stop(session: Session, job: ImportJob, reason: str, code: str) -> None:

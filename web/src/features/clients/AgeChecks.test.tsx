@@ -63,7 +63,7 @@ describe('age checks', () => {
     const row = (id: string, first: string) => ({ id, first_name: first, last_name: 'Member', home_location_id: 'l1', birth_on: '1980-01-02', earliest_booking_at: null, created_via: 'import', created_at: '2026-11-10T00:00:00Z' })
     const calls = mockFetch({
       'GET /api/v1/client-age-reviews': { status: 200, body: { data: [row('c1', 'Ana'), row('c2', 'Ben'), row('c3', 'Cy')], page: empty } },
-      'POST /api/v1/client-age-reviews/confirmations': { status: 200, body: { client_ids: ['c1', 'c3'], confirmed_count: 2 } },
+      'POST /api/v1/client-age-reviews/confirmations': { status: 200, body: { client_ids: ['c1', 'c3'], confirmed_count: 1, skipped_client_ids: ['c3'] } },
     })
     show(<AgeChecksPage />)
     const confirmSelected = screen.getByRole('button', { name: /Confirm selected/ })
@@ -80,6 +80,18 @@ describe('age checks', () => {
     await vi.waitFor(() =>
       expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ client_ids: ['c1', 'c3'], note: 'known members, IDs seen at the desk' }),
     )
+    expect(await screen.findByRole('status')).toHaveTextContent('1 person was not confirmed: their home location is outside yours.')
+  })
+
+  it('narrows the queue to a freshly imported batch', async () => {
+    keys.held.add('clients.client.confirm_age')
+    const calls = mockFetch({ 'GET /api/v1/client-age-reviews': { status: 200, body: { data: [], page: empty } } })
+    show(<AgeChecksPage />)
+    await screen.findByText('No one is waiting for an age check')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Imported only' }))
+    await vi.waitFor(() => expect(calls.at(-1)?.url).toContain('created_via=import'))
+    await userEvent.type(screen.getByLabelText('Joined on or after'), '2026-11-13')
+    await vi.waitFor(() => expect(calls.at(-1)?.url).toContain('created_at%5Bgte%5D='))
   })
 
   it('offers no selection to staff who confirm one at a time', async () => {

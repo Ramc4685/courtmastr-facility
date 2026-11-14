@@ -403,6 +403,7 @@ class AgeConfirmationBatch(In):
 class AgeConfirmationBatchOut(Out):
     client_ids: list[UUID]
     confirmed_count: int  # people confirmed now; anyone already confirmed is left alone
+    skipped_client_ids: list[UUID]  # not confirmed: unknown, or homed where the caller may not confirm ages
 
 
 class PortalInvite(In):

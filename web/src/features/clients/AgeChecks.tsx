@@ -75,17 +75,22 @@ const columns: Column<Schemas['AgeReviewItem']>[] = [
 export function AgeChecksPage() {
   const { can } = useAuth()
   const qc = useQueryClient()
-  const paging = useKeysetQuery(QUEUE, (cursor) => api.get('/api/v1/client-age-reviews', { query: { cursor } }))
+  const [imported, setImported] = useState(false)
+  const [since, setSince] = useState('')
+  const filters = { created_via: imported ? 'import' : undefined, 'created_at[gte]': since ? new Date(`${since}T00:00`).toISOString() : undefined }
+  const paging = useKeysetQuery([...QUEUE, filters], (cursor) => api.get('/api/v1/client-age-reviews', { query: { cursor, ...filters } }))
   const [chosen, setChosen] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
+  const [skipped, setSkipped] = useState(0)
   const bulk = can(CONFIRM_AGE) && can(CONFIRM_AGES)
   const confirm = useMutation({
     mutationFn: () => api.post('/api/v1/client-age-reviews/confirmations', { body: { client_ids: chosen, note } }),
-    onSuccess: () => {
+    onSuccess: (done) => {
       setOpen(false)
       setChosen([])
       setNote('')
+      setSkipped(done.skipped_client_ids.length)
       void qc.invalidateQueries({ queryKey: ['clients'] })
     },
   })
@@ -116,6 +121,18 @@ export function AgeChecksPage() {
           )
         }
       />
+      <div className="mb-4 flex flex-wrap items-end gap-4">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="h-4 w-4" checked={imported} onChange={(e) => setImported(e.target.checked)} />
+          Imported only
+        </label>
+        <Input label="Joined on or after" type="date" value={since} onChange={(e) => setSince(e.target.value)} />
+      </div>
+      {skipped > 0 && (
+        <p role="status" className="mb-4 text-danger">
+          {skipped === 1 ? '1 person was' : `${skipped} people were`} not confirmed: their home location is outside yours.
+        </p>
+      )}
       <Table caption="Clients waiting for an age check" columns={bulk ? [pick, ...columns] : columns} rowKey={(r) => r.id} paging={paging} empty={<EmptyState title="No one is waiting for an age check" />} />
       <Dialog
         open={open}

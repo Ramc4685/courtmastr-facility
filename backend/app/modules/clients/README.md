@@ -36,7 +36,7 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   the same date and no merged record brings a login the survivor did not have; otherwise it becomes unconfirmed
   (merge audit `age_confirmation_reset`, flag-only), keeps the earliest booking and joins the queue. No event fires.
 - **One source of truth.** A client is confirmed when it has a birth date and `age_confirmed_at`; only the confirm
-  action (single, bulk, or an opted-in import) sets it, so a raw write of `birth_on` (a seed, a script) is
+  action (single or bulk; never an import) sets it, so a raw write of `birth_on` (a seed, a script) is
   unconfirmed. `is_birth_on_unverified` in the API is derived from it (migration 1985 drops the stored flag).
 - **Where staff confirm.** At the client's home location, or at the booking location the one staff notice went to
   (`age_review_location_id`): that location's staff see the person in the queue and confirm without moving them.
@@ -59,13 +59,15 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   `platform.service.location_contact`). A declared minor is told instead that a parent or guardian must book and come
   with them (codes are never sent to minors).
 
-- **Go-live for existing members.** Migration 1983 left every existing date unconfirmed. Two ways out, both audited
-  per person and firing `age_confirmed` once each: `POST /client-age-reviews/confirmations` (up to 200 ids and a
-  required note, kept flag-only; key `clients.client.confirm_ages`, `+` step-up, admin and manager, plus
-  `clients.client.confirm_age` at each person's location; the web queue's checkboxes and "Confirm selected"), and a
-  clients import committed with `confirm_ages: true` by staff holding both age keys (only adult rows that vouch for
-  their own date, imports README; off by default; an API key can never start an import). Assumption: front desk confirms one at a time, so the bulk key
-  starts at manager.
+- **Go-live for existing members.** Migration 1983 left every existing date unconfirmed, and an import never
+  confirms an age (owner decision): imported adults wait in the queue, and their rows say "Imported, age not
+  confirmed". The way out is `POST /client-age-reviews/confirmations`: up to 200 ids and a required note, kept
+  flag-only; key `clients.client.confirm_ages`, `+` step-up, admin and manager, plus `clients.client.confirm_age` at
+  each person's HOME location (not the location a booking told). Anyone outside that reach is skipped and listed in
+  `skipped_client_ids`, never confirmed. Each confirmed person is audited once and fires `age_confirmed` once. To
+  pick a freshly imported batch, filter the queue with `created_via=import` and `created_at[gte]=<when the import
+  ran>`; the web queue has "Imported only" and "Joined on or after" for this, with checkboxes and "Confirm selected".
+  Assumption: the front desk confirms one at a time, so the bulk key starts at manager.
 
 ## Integrator notes
 

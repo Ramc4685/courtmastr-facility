@@ -6086,8 +6086,7 @@ export interface paths {
          * Create Import Job Commit
          * @description Import the checked rows; the job moves to completed with a report of rows that failed. Needs every
          *     location (403 all-locations-required) and the keys of the staff commands the type's writes stand for;
-         *     409 check-stale when the file changed after the check. `confirm_ages` (clients only, staff holding
-         *     clients.client.confirm_age) counts the imported adults' birth dates as confirmed.
+         *     409 check-stale when the file changed after the check.
          */
         post: operations["createImportJobCommit"];
         delete?: never;
@@ -17337,6 +17336,8 @@ export interface components {
             client_ids: string[];
             /** Confirmed Count */
             confirmed_count: number;
+            /** Skipped Client Ids */
+            skipped_client_ids: string[];
         };
         /** AgeGroupOut */
         AgeGroupOut: {
@@ -26283,14 +26284,6 @@ export interface components {
             is_enabled?: boolean | null;
             /** Scopes */
             scopes?: string[] | null;
-        };
-        /** ImportCommitCreate */
-        ImportCommitCreate: {
-            /**
-             * Confirm Ages
-             * @default false
-             */
-            confirm_ages: boolean;
         };
         /** ImportDryRunCreate */
         ImportDryRunCreate: {
@@ -59739,11 +59732,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ImportCommitCreate"] | null;
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             202: {

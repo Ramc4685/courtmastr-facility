@@ -938,7 +938,8 @@ _NO_BOOKING = datetime(9999, 12, 31, tzinfo=UTC)  # sorts people with no booking
 
 def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -> dict:
     """Clients whose birth date waits for staff, people with a booking first (earliest booking soonest), within the
-    caller's locations. Filter: location_id (the home location). `?include=total` gives the dashboard count."""
+    caller's locations. Filters: location_id (the home location), created_via and created_at[gte|lt] (a freshly
+    imported batch, for the go-live bulk confirm). `?include=total` gives the dashboard count."""
     authorize(principal, CONFIRM_AGE)
     stmt = select(Client).where(
         Client.age_confirmed_at.is_(None), Client.status == "active", Client.merged_into_id.is_(None),
@@ -950,7 +951,9 @@ def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -
     due = func.coalesce(Client.earliest_booking_at, literal(_NO_BOOKING, DateTime(timezone=True)))
     page = paginate(
         session, stmt, query, id_column=Client.id, sort_fields={"earliest_booking_at": due},
-        default_sort="earliest_booking_at", filter_fields={"location_id": Client.home_location_id},
+        default_sort="earliest_booking_at",
+        filter_fields={"location_id": Client.home_location_id, "created_via": Client.created_via,
+                       "created_at": Client.created_at},
     )  # fmt: skip
     masked = not principal.has(_SENSITIVE)
     page["data"] = [
@@ -1037,16 +1040,22 @@ def _confirm(session: Session, client: Client, staff_user_id: UUID | None, locat
 
 def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
     """Bulk confirm for people staff already know (go-live: "known members, IDs seen at the desk"): the bulk key
-    (+ step-up) and the confirm key at each person's location; one audit and one event per person; the note is
-    required and kept flag-only. Already-confirmed people are left alone. Any id out of reach is 404."""
+    (+ step-up) and the confirm key at each person's HOME location (never the location a booking told); one audit
+    and one event per person; the note is required and kept flag-only. Already-confirmed people are left alone.
+    Anyone out of reach (unknown, or homed where the caller may not confirm) is skipped and reported, not confirmed."""
     authorize(principal, CONFIRM_AGES)
     ids = list(dict.fromkeys(data["client_ids"]))
     if len(ids) > MAX_AGE_CONFIRMATIONS:
         raise ValidationFailed(f"Confirm at most {MAX_AGE_CONFIRMATIONS} people at once.", pointer="/client_ids")
-    people = []
+    people, skipped = [], []
     for client_id in ids:  # every gate before anything is written
-        client = load(session, principal, client_id, CONFIRM_AGE)
-        where = _authorize_confirm(principal, client)
+        try:
+            client = load(session, principal, client_id, CONFIRM_AGE)
+            authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+        except (PermissionDenied, NotFound):
+            skipped.append(client_id)  # unknown and out of reach answer the same
+            continue
+        where = client.home_location_id
         _require_live(client)
         if client.birth_on is None:
             raise ValidationFailed("A selected person has no birth date.", pointer="/client_ids",
@@ -1055,20 +1064,7 @@ def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
     done = [c.id for c, where in people
             if not _age_confirmed(c) and _confirm(session, c, principal.staff_user_id, where, note=True)]  # fmt: skip
     session.flush()
-    return {"client_ids": ids, "confirmed_count": len(done)}
-
-
-def _import_age_refusal(session: Session, client: Client, created: bool, row_date: date | None, stored) -> str | None:
-    """Why an import with `confirm_ages` may not vouch for this row's age; None when it may. The row must supply
-    the date itself, for a client it created or one whose stored date is the same, and the date must be an adult's:
-    an import never confirms a date it did not bring (a self sign-up matched on name and email)."""
-    if row_date is None:
-        return "Imported, age not confirmed: this row has no birth date."
-    if not created and stored != row_date:
-        return "Imported, age not confirmed: the birth date on file differs from this row's."
-    if _declared_minor(session, client):
-        return "Imported, age not confirmed: a child's age is never confirmed (children get no entry code)."
-    return None
+    return {"client_ids": ids, "confirmed_count": len(done), "skipped_client_ids": skipped}
 
 
 def disable_client(session: Session, principal: Principal, client_id: UUID) -> Client:
@@ -1367,17 +1363,14 @@ def ensure_member_number(session: Session, client_id: UUID) -> str | None:
     return client.member_number
 
 
-def import_client(
-    session: Session, data: dict, *, import_job_id: UUID | None = None, confirm_age_by: UUID | None = None
-) -> tuple[Client, bool]:
+def import_client(session: Session, data: dict, *, import_job_id: UUID | None = None) -> tuple[Client, bool]:
     """Importer entry point (IMP-01): match on member number, then on a single client with the same primary
     email and names; update that client, else create one (created_via `import`, no verification email).
     A new record that the duplicate rule (`_duplicate_of`) pairs with an existing client is refused with 409
     `possible-duplicate`, so an import never adds a likely duplicate. An update keeps the home location, member
     number and primary email; a new email is added as a secondary address (primary only when there was none).
     Returns (client, created). Field policy is the staff context; the caller runs it per row in a savepoint.
-    `confirm_age_by` (a commit with `confirm_ages`; the commit carries the gate) confirms the row's date when the
-    row vouches for it (`_import_age_refusal`); otherwise `client.age_not_confirmed_reason` says why."""
+    An import never confirms an age: imported adults wait in the age-check queue (go-live: its bulk confirm)."""
     actor = session.info["actor"]
     match = None
     if data.get("member_number"):
@@ -1400,9 +1393,7 @@ def import_client(
         other, predicate = _duplicate_of()
         if session.scalar(select(other.id).join(Client, predicate).where(Client.id == client.id).limit(1)):
             raise Conflict("This person looks like a client who already exists.", code="possible-duplicate")
-        _import_confirm(session, client, True, data.get("birth_on"), None, confirm_age_by)
         return client, True
-    stored = match.birth_on
     skip = ("primary_email", "member_number", "home_location_id")
     update = {k: v for k, v in data.items() if k not in skip and v is not None}
     current = client_addresses(session, match.id)
@@ -1416,18 +1407,8 @@ def import_client(
     if changes:
         audit.record(session, "clients.client.update", match, location_id=match.home_location_id, changes=changes)
         events.publish(session, ClientUpdated(client_id=match.id), match.id)
-    _import_confirm(session, match, False, data.get("birth_on"), stored, confirm_age_by)
     session.flush()
     return match, False
-
-
-def _import_confirm(session: Session, client: Client, created: bool, row_date, stored, by: UUID | None) -> None:
-    if by is None or _age_confirmed(client):
-        return
-    reason = _import_age_refusal(session, client, created, row_date, stored)
-    if reason is None:
-        _confirm(session, client, by, client.home_location_id, source="import")
-    client.age_not_confirmed_reason = reason  # type: ignore[attr-defined]  # read by the import row report
 
 
 def create_self_service(session: Session, data: dict, *, created_via: str, verified_email: bool = False) -> Client:
