@@ -8,22 +8,21 @@ This check builds CIRQT in the product and drives it the way the owner would. No
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 20 pass, 0 fail, 7 gaps.** First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot` (head 1981), which re-ran the scenarios; the minors follow-up (head 1982) added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
+**Result: 23 pass, 0 fail, 7 gaps** (re-run on 2026-11-13 with the owner's real prices and 24-hour opening). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot` (head 1981), which re-ran the scenarios; the minors follow-up (head 1982) added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
 
-## Assumptions (owner to confirm)
+## Owner's numbers and assumptions
 
-These are the values the seed uses. Marked items are assumptions.
+These are the values the seed uses. The owner gave the court prices, hours and membership fee on 2026-11-13; marked items are assumptions.
 
 - **Zone:** America/Chicago.
-- **Hours:** open 06:00 to 23:00 every day *(assumed)*.
-- **Prime time:** 18:00 to 22:00 every day. At prime, members pay $40 a court-hour for volleyball and $25 for badminton and pickleball.
-- **Off-prime:** 20% less than prime *(assumed; the owner said 10 to 30%)*.
-- **Morning pickleball:** $12 until noon *(the owner said $10 to $15)*.
-- **Guests:** pay 20% more than members *(assumed)*. Guest prices are therefore:
-  - badminton: $24 off-prime, $30 prime;
-  - volleyball: $38.40 off-prime, $48 prime;
-  - morning pickleball: $14.40.
-- **Membership:** $10 a month, adult and junior *(assumed)*.
+- **Hours:** open 24 hours every day (00:00 to 24:00).
+- **Membership (access fee):** $10, billed monthly, adult and junior.
+- **Badminton and pickleball:** members pay $25 a court-hour at peak and $15 off-peak. There is no separate morning price.
+- **Volleyball:** members pay $40 a court-hour at any time (flat).
+- **Peak time:** 18:00 to 22:00 every day. This is plain configuration, not code. A manager changes it on the rental setup screen (`/rentals/setup`): open the rental type's rate and edit the start and end times of its "Prime" and "Member prime" rate rules. A flat-priced type such as volleyball has no peak rules.
+- **Guests:** pay 20% more than members *(assumed; the one remaining pricing assumption)*. Guest prices are therefore:
+  - badminton and pickleball: $18 off-peak, $30 peak;
+  - volleyball: $48 at any time.
 - **Club rate:** a club or coach holding the same weekly slot pays 15% less *(assumed)*.
 - **Volleyball changeover:** 10 minutes before and after, on Courts 2 and 3.
 - **One-lesson package:** $50 *(assumed)*.
@@ -45,16 +44,16 @@ These are the values the seed uses. Marked items are assumptions.
 | e | A minor cannot be opted into marketing. | **gap**: no minor rule |
 | e | A minor cannot get a buying login. | **gap**: the invitation works like an adult's |
 | f | Desk work: check-in, a walk-in rental, cash, cancel, refund. | pass (secondary, because CIRQT is unmanned). The front desk role may not refund, so a manager does it. |
-| g | Prime and off-prime pricing in Chicago time, with a booking that straddles 18:00 ($24 + $30), the noon morning edge, Saturday, and the public slot prices. | pass |
+| g | Peak and off-peak pricing in Chicago time, with a booking that straddles 18:00 ($18 + $30), Saturday, flat volleyball, and the public slot prices through the night (open 24 hours). | pass |
 | g | Member prices on bookings. | pass (closed on `claude/rentals-pilot`): members pay the member rate per band; quote and charge share one pricing function |
-| h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass (a walk-in guest pays the guest price, $24) |
+| h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass (a walk-in guest pays the guest off-peak price, $18) |
 | h | No-show rule for rentals. | **gap** |
 | i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
 | i | Utilisation measured from opening hours. | **gap** |
 | j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. The seed turns self sign-up on. Sign-up asks for a birth date and a declaration that it is true; a self-declared adult books and pays at once and sees "Your entry code will be sent once our staff have confirmed your age. This is a one-time check." with the CIRQT phone. The person cannot change the date. |
 | j | Staff confirm a newcomer's age once (owner decision "Staff confirm once"). | pass. The newcomer is in the age-check queue; the desk confirms with `clients.client.confirm_age`, `clients.client.age_confirmed` fires once and the notice goes. Seeded adults were confirmed by the owner through the same action. Building-control (not built) issues the held entry code on that event. |
 | k | Staff book several courts for several weeks in one go, on one invoice. | pass |
-| k | A club holds a weekly prime slot for 8 weeks at 15% off ($25.50 a week). | pass |
+| k | A club holds a weekly peak slot for 8 weeks at 15% off ($21.25 a week: the $25 member peak price less 15%). | pass |
 | k | A member bulk-books online. | **gap**: one court and one occurrence per checkout |
 | l | A member buys a lesson package and enrols in a coached lesson. The lesson holds its court. | pass |
 | m | A parent buys a lesson for a child and drops the child off. | pass |
@@ -200,7 +199,7 @@ This was not built.
 3. Do independent coaches sell lessons through CIRQT (you collect and pay them), or do they rent courts and collect from students themselves?
 4. Is a club's weekly slot a fixed-term agreement (for example a season with a renewal), or open-ended?
 5. From what age may a child play without a parent present?
-6. Confirm the assumed figures listed at the top.
+6. Confirm the assumed figures listed at the top (the guest uplift and the non-pricing items).
 
 ## Dev sign-ins
 

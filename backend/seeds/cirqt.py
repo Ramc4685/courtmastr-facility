@@ -2,8 +2,10 @@
 
 Development and test only. One location with four courts; each court is set up for badminton or pickleball, and
 Courts 2 and 3 each turn into one volleyball court (owner's answer: one volleyball court never spans both).
-The owner's numbers (constants below, assumptions marked): prime 18:00-22:00 Chicago time, morning pickleball until
-noon, guest and member prices, a 15%-off weekly club rate, a 10-minute volleyball changeover, open 06:00-23:00.
+The owner's numbers (constants below, assumptions marked): open 24 hours every day, a $10 membership (access fee),
+badminton and pickleball $25 an hour peak and $15 off-peak, volleyball $40 an hour flat, peak 18:00-22:00 Chicago
+time (a rate-rule time band managers change on the rental setup screen), a 15%-off weekly club rate and a 10-minute
+volleyball changeover. Non-members pay 20% more: the one remaining pricing assumption.
 Adult and junior memberships, 50 adults and 30 children in households, five staff sign-ins, a staff coach and an
 independent coach with a one-lesson package, and a badminton and a volleyball league with teams. Built only through
 the product's service functions; every section is skipped when it already exists. Synthetic names only.
@@ -55,21 +57,20 @@ LOCATION = {"name": "CIRQT", "time_zone": ZONE, "country_code": "US", "sort_orde
 COURTS = ["Court 1", "Court 2", "Court 3", "Court 4"]
 VOLLEYBALL_COURTS = ["Court 2", "Court 3"]
 HOURS = [
-    {"weekday": d, "opens_time": "06:00", "closes_time": "23:00", "is_closed": False} for d in range(1, 8)
-]  # assumed
+    {"weekday": d, "opens_time": "00:00", "closes_time": "24:00", "is_closed": False} for d in range(1, 8)
+]  # owner: open 24 hours every day
 UPKEEP_JOB = "Upkeep and front desk (not lessons)"  # the staff coach's only clock job: never coaching time
 STAFF = {"manager": "Mara", "front_desk": "Felix", "league_admin": "Lena", "coach": "Rowan"}  # owner from onboarding
-MEMBERSHIP_FEE = 1000  # assumed $10 a month (owner gave no figure)
-PRIME = ("18:00", "22:00")  # owner: prime time 6 pm to 10 pm, every day
-MORNING_END = "12:00"  # owner: mornings run until noon
-GUEST = Decimal("1.2")  # assumed: non-members pay 20% more
-OFF_PRIME = Decimal("0.8")  # owner said 10 to 30% cheaper outside prime; 20% assumed
+MEMBERSHIP_FEE = 1000  # owner: the membership (access fee) is $10, billed monthly
+PRIME = ("18:00", "22:00")  # peak 6 pm to 10 pm every day: a rate-rule band, editable at /rentals/setup
+GUEST = Decimal("1.2")  # assumed: non-members pay 20% more (the one remaining pricing assumption)
 CLUB_DISCOUNT = Decimal("15")  # assumed: a club or coach holding the same weekly slot pays 15% less
-# rental type -> (courts, member prime price, member morning price or None, changeover buffer minutes), cents/hour
+# rental type -> (courts, member peak price, member off-peak price, changeover buffer minutes), cents/hour; equal
+# peak and off-peak prices mean a flat price (no peak band)
 RENTAL_TYPES = {
-    "Badminton court": (COURTS, 2500, None, 0),
-    "Pickleball court": (COURTS, 2500, 1200, 0),  # owner: morning pickleball $12 (he said $10 to $15)
-    "Volleyball court": (VOLLEYBALL_COURTS, 4000, None, 10),  # owner: 10-minute changeover either side
+    "Badminton court": (COURTS, 2500, 1500, 0),  # owner: $25 peak, $15 off-peak
+    "Pickleball court": (COURTS, 2500, 1500, 0),  # owner: as badminton
+    "Volleyball court": (VOLLEYBALL_COURTS, 4000, 4000, 10),  # owner: $40 flat; 10-minute changeover either side
 }
 
 
@@ -211,7 +212,7 @@ def _memberships(session, actor, categories) -> dict:
 def _rentals(session, actor, location, courts, category, types) -> None:
     have = set(session.scalars(select(RentalType.name).where(RentalType.location_id == location.id)))
     member_types = [types["Adult"].id, types["Junior"].id]
-    for order, (type_name, (names, prime, morning, buffer)) in enumerate(RENTAL_TYPES.items()):
+    for order, (type_name, (names, prime, off, buffer)) in enumerate(RENTAL_TYPES.items()):
         if type_name in have:
             continue
         rtype = rentals.service.create_type(session, actor, {
@@ -219,13 +220,13 @@ def _rentals(session, actor, location, courts, category, types) -> None:
             "resource_ids": [courts[n] for n in names], "default_length_min": 60, "min_length_min": 60,
             "max_length_min": 180, "slot_granularity_min": 30, "min_lead_min": 60, "cancel_cutoff_hours": 24,
             "late_cancel_fee_pct": Decimal("50"), "buffer_before_min": buffer, "buffer_after_min": buffer,
-            "online_description": "Book a court by the hour. Prime time is 6 pm to 10 pm; members pay less.",
+            "online_description": "Book a court by the hour, day or night. Members pay less."
+            + (" Peak time is 6 pm to 10 pm." if prime != off else ""),
         })  # fmt: skip
-        # Base = guest off-prime, member price = member off-prime. Rules: the first matching rate rule by sort_order
-        # wins, so each band has one rule per membership type (member price) before the guest rule.
-        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1]}, prime)]
-        if morning:
-            bands.append(("Morning", {"start_time": "06:00", "end_time": MORNING_END}, morning))
+        # Base = guest off-peak, member price = member off-peak. Rules: the first matching rate rule by sort_order
+        # wins, so the peak band has one rule per membership type (member price) before the guest rule. Managers
+        # change the band's start and end times on the rental setup screen (rate rules "Prime" and "Member prime").
+        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1]}, prime)] if prime != off else []
         rules = []
         for label, band, member_price in bands:
             for type_id in member_types:
@@ -233,7 +234,6 @@ def _rentals(session, actor, location, courts, category, types) -> None:
                               "membership_type_id": type_id, "amount_minor": member_price} | band)  # fmt: skip
             rules.append({"kind": "rate", "name": label, "sort_order": len(rules),
                           "amount_minor": cents(member_price * GUEST)} | band)  # fmt: skip
-        off = cents(prime * OFF_PRIME)
         hourly = {"name": "Hourly", "amount_minor": cents(off * GUEST), "member_amount_minor": off, "basis": "per_hour"}
         rate = rentals.service.create_rate(session, actor, rtype["id"], hourly | {"rules": rules})
         club = [{"kind": "discount", "name": "Weekly slot", "sort_order": len(rules), "discount_pct": CLUB_DISCOUNT}]

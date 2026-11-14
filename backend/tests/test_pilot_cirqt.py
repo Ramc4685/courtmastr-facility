@@ -382,19 +382,19 @@ def test_f_desk_checks_in_takes_a_walk_in_rental_with_payment_and_refunds_it(cli
     assert checked["check_in"]["result"] == "granted"
     walk_in = ok(c.post(f"{API}/clients", headers=w.desk, json={"first_name": "Drop", "last_name": f"In-{uuid4().hex[:4]}", "home_location_id": w.location}))  # fmt: skip
     rental = ok(rent(c, w, w.desk, "Badminton court", "Court 4", day, "10:00", "11:00", walk_in["id"]))
-    assert rental["quote"]["total_minor"] == 2400
+    assert rental["quote"]["total_minor"] == 1800  # a guest off-peak hour: $15 member price plus 20%
     [invoice] = rental["invoice_ids"]
     payment = ok(c.post(f"{API}/payments", headers=w.desk | key(), json={
-        "client_id": walk_in["id"], "location_id": w.location, "amount_minor": 2400, "tender_kind": "cash", "invoice_id": invoice,
+        "client_id": walk_in["id"], "location_id": w.location, "amount_minor": 1800, "tender_kind": "cash", "invoice_id": invoice,
     }))  # fmt: skip
     assert ok(c.get(f"{API}/invoices/{invoice}", headers=w.desk), 200)["status"] == "paid"
     cancelled = ok(
         c.post(f"{API}/rentals/{rental['rental']['id']}/cancel", headers=w.desk, json={"reason": "client"}), 200
     )
-    assert cancelled["reversed_minor"] == 2400 and cancelled["late_fee_minor"] == 0
-    refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.desk | key(), json={"amount_minor": 2400, "reason": "Walk-in cancelled"})  # fmt: skip
+    assert cancelled["reversed_minor"] == 1800 and cancelled["late_fee_minor"] == 0
+    refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.desk | key(), json={"amount_minor": 1800, "reason": "Walk-in cancelled"})  # fmt: skip
     if refund.status_code == 403:  # front desk may not refund: a manager does it
-        refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.manager | key(), json={"amount_minor": 2400, "reason": "Walk-in cancelled"})  # fmt: skip
+        refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.manager | key(), json={"amount_minor": 1800, "reason": "Walk-in cancelled"})  # fmt: skip
         w.desk_cannot_refund = True
     assert refund.status_code == 201, refund.text
 
@@ -412,31 +412,35 @@ def preview(c, w, client_id: str, day: date, start: str, end: str, sport: str = 
 
 def test_g_peak_and_off_peak_in_the_location_zone_with_a_straddling_booking(client_module, w):
     c, saturday, walk_in = client_module, MON + timedelta(days=12), w.guest
-    # Guest (non-member) prices: badminton $30 prime (18:00-22:00 Chicago), $24 outside; pickleball $14.40 mornings.
-    assert preview(c, w, walk_in, PDAY, "10:00", "11:00")["subtotal_minor"] == 2400
+    # Guest (non-member) prices, the owner's member prices plus the assumed 20%: badminton and pickleball $30 peak
+    # (18:00-22:00 Chicago), $18 off-peak; volleyball $48 at any hour (the owner's $40 is flat).
+    assert preview(c, w, walk_in, PDAY, "10:00", "11:00")["subtotal_minor"] == 1800
     assert preview(c, w, walk_in, PDAY, "18:00", "19:00")["subtotal_minor"] == 3000
     straddle = preview(c, w, walk_in, PDAY, "17:00", "19:00")  # one hour each side of 18:00 local
-    assert sorted(line["unit_amount_minor"] for line in straddle["lines"]) == [2400, 3000]
-    assert straddle["subtotal_minor"] == 5400
-    assert preview(c, w, walk_in, saturday, "19:00", "20:00")["subtotal_minor"] == 3000  # prime every day
-    assert preview(c, w, walk_in, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1440
+    assert sorted(line["unit_amount_minor"] for line in straddle["lines"]) == [1800, 3000]
+    assert straddle["subtotal_minor"] == 4800
+    assert preview(c, w, walk_in, saturday, "19:00", "20:00")["subtotal_minor"] == 3000  # peak every day
     assert (
-        preview(c, w, walk_in, PDAY, "11:30", "12:30", "Pickleball court")["subtotal_minor"] == 720 + 1200
-    )  # noon edge
+        preview(c, w, walk_in, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1800
+    )  # no morning price
+    assert preview(c, w, walk_in, PDAY, "19:00", "20:00", "Pickleball court")["subtotal_minor"] == 3000
     assert preview(c, w, walk_in, PDAY, "19:00", "20:00", "Volleyball court")["subtotal_minor"] == 4800
+    assert preview(c, w, walk_in, PDAY, "10:00", "11:00", "Volleyball court")["subtotal_minor"] == 4800
     slots = ok(c.get(f"{API}/public/rental-availability?rental_type_id={w.types['Badminton court']}&on={PDAY.isoformat()}"
                      f"&length_min=60&resource_id={w.courts['Court 4']}", headers=w.public), 200)["data"]  # fmt: skip
     by_start = {datetime.fromisoformat(s["starts_at"].replace("Z", "+00:00")).astimezone(ZONE).strftime("%H:%M"): s["price_minor"] for s in slots}  # fmt: skip
-    assert by_start["06:00"] == 2400 and by_start["18:00"] == 3000 and by_start["22:00"] == 2400
-    assert "22:30" not in by_start  # closes 23:00
+    assert by_start["06:00"] == 1800 and by_start["18:00"] == 3000 and by_start["22:00"] == 1800
+    assert by_start["02:00"] == 1800 and by_start["22:30"] == 1800  # open 24 hours
 
 
 def test_g_member_prices(client_module, w):
     c = client_module
-    assert preview(c, w, w.member, PDAY, "10:00", "11:00")["subtotal_minor"] == 2000  # owner: $25 prime less 20%
-    assert preview(c, w, w.member, PDAY, "18:00", "19:00")["subtotal_minor"] == 2500
-    assert preview(c, w, w.member, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1200
-    assert preview(c, w, w.member, PDAY, "19:00", "20:00", "Volleyball court")["subtotal_minor"] == 4000
+    assert preview(c, w, w.member, PDAY, "10:00", "11:00")["subtotal_minor"] == 1500  # owner: $15 off-peak
+    assert preview(c, w, w.member, PDAY, "18:00", "19:00")["subtotal_minor"] == 2500  # owner: $25 peak
+    assert preview(c, w, w.member, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1500
+    assert preview(c, w, w.member, PDAY, "19:00", "20:00", "Pickleball court")["subtotal_minor"] == 2500
+    assert preview(c, w, w.member, PDAY, "19:00", "20:00", "Volleyball court")["subtotal_minor"] == 4000  # flat
+    assert preview(c, w, w.member, PDAY, "10:00", "11:00", "Volleyball court")["subtotal_minor"] == 4000
 
 
 # --- h. cancellation and no-show -----------------------------------------------------------------------------
@@ -447,7 +451,7 @@ def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_
     payer = w.guest
     far = ok(rent(c, w, w.desk, "Pickleball court", "Court 2", MON + timedelta(days=4), "14:00", "15:00", payer))
     paid = far["quote"]["subtotal_minor"]
-    assert paid == 2400  # a walk-in guest: the guest off-prime price (members pay 2000, test_g_member_prices)
+    assert paid == 1800  # a walk-in guest: the guest off-peak price (members pay 1500, test_g_member_prices)
     ok(c.post(f"{API}/payments", headers=w.desk | key(), json={"client_id": payer, "location_id": w.location,
          "amount_minor": paid, "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": far["invoice_ids"][0]}))  # fmt: skip
     result = ok(c.post(f"{API}/rentals/{far['rental']['id']}/cancel", headers=w.desk, json={"reason": "client"}), 200)
@@ -504,11 +508,11 @@ def test_i_daily_and_monthly_court_utilisation_and_revenue(client_module, w):
     # Workaround: an availability window per court matching the opening hours.
     for court in cirqt.COURTS:
         ok(c.post(f"{API}/resources/{w.courts[court]}/availability-windows", headers=w.manager, json={
-            "starts_on": TODAY.isoformat(), "weekdays": [1, 2, 3, 4, 5, 6, 7], "start_time": "06:00", "end_time": "23:00",
+            "starts_on": TODAY.isoformat(), "weekdays": [1, 2, 3, 4, 5, 6, 7], "start_time": "00:00", "end_time": "24:00",
         }))  # fmt: skip
     daily = _report(c, w, "resource_utilization", from_on=day.isoformat(), to_on=day.isoformat())
     by = {r["resource_name"]: r for r in daily["rows"]}
-    assert by["Court 1"]["open_hours"] == 17 and by["Court 1"]["utilization_pct"] == 11.8  # 2 of 17 hours
+    assert by["Court 1"]["open_hours"] == 24 and by["Court 1"]["utilization_pct"] == 8.3  # 2 of 24 hours
     assert by["Court 4"]["utilization_pct"] in (0, 0.0, None) or by["Court 4"]["held_hours"] == 0
     first = day.replace(day=1)
     last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
@@ -517,7 +521,7 @@ def test_i_daily_and_monthly_court_utilisation_and_revenue(client_module, w):
     assert all(0 <= (r["utilization_pct"] or 0) <= 100 for r in monthly["rows"])
     revenue = _report(c, w, "revenue_summary", from_on=first.isoformat(), to_on=last.isoformat())
     rentals = next(r for r in revenue["rows"] if "rental" in (r["revenue_category"] or "").lower())
-    assert rentals["net_minor"] >= 2 * 2400 + 4800  # at least today's two bookings at guest prices
+    assert rentals["net_minor"] >= 2 * 1500 + 4000  # at least today's two bookings, at member prices
 
 
 @pytest.mark.xfail(
