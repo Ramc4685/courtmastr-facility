@@ -427,6 +427,11 @@ _BODIES = {
     "runSync": {},
     # platform OIDC (Phase 8 S3)
     "updateIdentityProvider": {"display_name": "Renamed"},
+    # coach revenue share (staff README)
+    "setCoachEngagement": {"engagement": "independent", "effective_from_on": "2031-01-01"},
+    "setCoachTaxForm": {"tax_form_on_file_on": "2031-01-01"},
+    "addCoachPayoutAdjustment": {"amount_minor": 100, "reason": "Isolation"},
+    "markCoachPayoutPaid": {"paid_on": "2031-01-01", "payment_method": "cheque"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
@@ -632,6 +637,9 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/report-schedules", schedule | {"saved_report_id": b.saved_report_id}),
         ("/report-schedules", schedule | {"location_id": b.location_id}),
         ("/report-schedules", schedule | {"recipient_staff_user_ids": [b.staff_user_id]}),
+        ("/coach-payouts", {"location_id": b.location_id, "period_starts_on": "2020-01-01", "period_ends_on": "2020-01-02"}),
+        ("/coach-payouts", {"location_id": a.location_id, "period_starts_on": "2020-01-01", "period_ends_on": "2099-01-02",
+                            "staff_payee_id": b.staff_payee_id}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
@@ -641,6 +649,9 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         )
     foreign_binding = {"scope_type": "program_default", "template_id": b.template_id}
     assert client.put("/api/v1/document-bindings", headers=a.headers, json=foreign_binding).status_code == 422
+    for rule in ({"staff_payee_id": b.staff_payee_id}, {"reservation_type_id": b.reservation_type_id}):
+        body = rule | {"effective_from_on": "2020-01-01", "coach_share_pct": "50"}
+        assert client.put("/api/v1/coach-share-rules", headers=a.headers, json=body).status_code == 422
     # A's location with B's connection: the connection id itself is not found.
     foreign = {
         "external_connection_id": b.external_connection_id,

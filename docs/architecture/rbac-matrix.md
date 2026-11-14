@@ -519,9 +519,17 @@ Without `read_full_details` the check-in window shows only the fields the locati
 | `staff.payroll_run.create` | L | W | | Y | - | - | - | - | - | - | STF-09 |
 | `staff.payroll_run.approve` | L | W + | | Y | - | - | - | - | - | - | STF-09 |
 | `staff.payroll_run.export` | L | W X | | Y | - | - | - | - | - | - | STF-09, STF-10 |
+| `staff.coach_payout.read` | L | W | own | Y | - | - | own | - | - | - | coach share (independent coaches' earnings and statements) |
+| `staff.coach_payout.create` | L | W | | Y | - | - | - | - | - | - | coach share |
+| `staff.coach_payout.adjust` | L | W | | Y | - | - | - | - | - | - | coach share (manual adjustment with a reason) |
+| `staff.coach_payout.approve` | L | W + | | Y | - | - | - | - | - | - | coach share |
+| `staff.coach_payout.pay` | L | W + | | Y | - | - | - | - | - | - | coach share (records a payment; moves no money) |
 
 `staff.time_entry.manage` never applies to the caller's own entries unless the caller is Owner or Admin
-(STF-07: staff cannot edit their own entries). Punching re-authenticates the user (STF-07) and honours the IP
+(STF-07: staff cannot edit their own entries).
+An independent coach's engagement and share rules use `staff.pay_rate.read` and `.manage`, so a coach never sees
+or changes their own share; with `own` reach on `staff.coach_payout.read` a coach sees only their own earnings and
+statements. Nobody below Admin adjusts their own payout (`own-pay`). Punching re-authenticates the user (STF-07) and honours the IP
 allow-list (STF-06, PLT-07).
 
 ### 6.15 engagement

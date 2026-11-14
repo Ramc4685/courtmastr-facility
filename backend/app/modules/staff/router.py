@@ -3,7 +3,7 @@ own published shifts), `getShiftVariance`, the membership-type pay-rate override
 put a trainer on a scheduling session through scheduling's service."""
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -12,8 +12,8 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, require
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
+from app.modules.staff import coach, service
 from app.modules.staff import schemas as s
-from app.modules.staff import service
 
 router = APIRouter(
     route_class=TxRoute, tags=["staff"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -349,3 +349,110 @@ def update_pay_statement(pay_statement_id: UUID, body: s.PayStatementUpdate, ctx
 def list_pay_statement_lines(pay_statement_id: UUID, query: Lists, ctx: Ctx = StatementRead):
     """Filters: kind. Sort: occurred_on."""
     return service.list_pay_statement_lines(ctx.session, ctx.principal, pay_statement_id, query)
+
+
+# --- coach revenue share (independent coaches; staff README "Coach revenue share") -------------------------------
+
+CoachRead = Depends(require(coach.COACH_READ))
+PayoutCreate = Depends(require(coach.PAYOUT_CREATE))
+PayoutAdjust = Depends(require(coach.PAYOUT_ADJUST))
+PayoutApprove = Depends(require(coach.PAYOUT_APPROVE))
+PayoutPay = Depends(require(coach.PAYOUT_PAY))
+FILE: dict[int | str, dict] = {200: {"content": {"application/pdf": {}, "text/csv": {}}, "description": "The file."}}
+
+
+@router.get("/staff-payees/{staff_payee_id}/engagements", response_model=list[s.CoachEngagementOut])
+def list_coach_engagements(staff_payee_id: UUID, ctx: Ctx = PayRead):
+    """Effective-dated: the latest row on or before a day is in force; none means a staff coach (employee)."""
+    return coach.list_engagements(ctx.session, ctx.principal, staff_payee_id)
+
+
+@router.post("/staff-payees/{staff_payee_id}/engagements", response_model=s.CoachEngagementOut, status_code=201)
+def set_coach_engagement(staff_payee_id: UUID, body: s.CoachEngagementWrite, ctx: Ctx = PayManage):
+    """A row for the same date is replaced. Errors: own-pay below Admin."""
+    return coach.set_engagement(ctx.session, ctx.principal, staff_payee_id, body.model_dump())
+
+
+@router.put("/staff-payees/{staff_payee_id}/tax-form", response_model=s.StaffPayeeOut)
+def set_coach_tax_form(staff_payee_id: UUID, body: s.CoachTaxFormWrite, ctx: Ctx = PayManage):
+    """Whether a tax form is on file, and since when. Tax identifiers are never stored."""
+    return coach.set_tax_form(ctx.session, ctx.principal, staff_payee_id, body.model_dump())
+
+
+@router.get("/coach-share-rules", response_model=s.Page[s.CoachShareRuleOut])
+def list_coach_share_rules(query: Lists, ctx: Ctx = PayRead):
+    """Filters: staff_payee_id, reservation_type_id."""
+    return coach.list_share_rules(ctx.session, ctx.principal, query)
+
+
+@router.put("/coach-share-rules", response_model=s.CoachShareRuleOut)
+def put_coach_share_rule(body: s.CoachShareRuleWrite, ctx: Ctx = PayManage):
+    """Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with."""
+    return coach.put_share_rule(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.delete("/coach-share-rules/{coach_share_rule_id}", status_code=204)
+def delete_coach_share_rule(coach_share_rule_id: UUID, ctx: Ctx = PayManage):
+    coach.delete_share_rule(ctx.session, ctx.principal, coach_share_rule_id)
+    return Response(status_code=204)
+
+
+@router.get("/coach-earnings", response_model=s.Page[s.CoachEarningOut])
+def list_coach_earnings(query: Lists, ctx: Ctx = CoachRead):
+    """Filters: staff_payee_id, location_id, kind, earned_on (with [gte] and [lte]). Own reach: your own lines."""
+    return coach.list_earnings(ctx.session, ctx.principal, query)
+
+
+@router.get("/coach-payouts", response_model=s.Page[s.CoachPayoutOut])
+def list_coach_payouts(query: Lists, ctx: Ctx = CoachRead):
+    """Filters: staff_payee_id, location_id, status. Own reach: your own statements."""
+    return coach.list_payouts(ctx.session, ctx.principal, query)
+
+
+@router.post("/coach-payouts", response_model=s.CoachPayoutList, status_code=201)
+def create_coach_payouts(body: s.CoachPayoutCreate, ctx: Ctx = PayoutCreate):
+    """One draft per independent coach with unpaid earnings up to the period's end. Moves no money."""
+    return coach.create_payouts(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/coach-payouts/{coach_payout_id}", response_model=s.CoachPayoutOut)
+def get_coach_payout(coach_payout_id: UUID, ctx: Ctx = CoachRead):
+    return coach.get_payout(ctx.session, ctx.principal, coach_payout_id)
+
+
+@router.delete("/coach-payouts/{coach_payout_id}", status_code=204)
+def delete_coach_payout(coach_payout_id: UUID, ctx: Ctx = PayoutCreate):
+    """A draft only; its lines go back to unpaid. Errors: invalid-state-transition."""
+    coach.delete_payout(ctx.session, ctx.principal, coach_payout_id)
+    return Response(status_code=204)
+
+
+@router.get("/coach-payouts/{coach_payout_id}/lines", response_model=list[s.CoachEarningOut])
+def list_coach_payout_lines(coach_payout_id: UUID, ctx: Ctx = CoachRead):
+    return coach.list_payout_lines(ctx.session, ctx.principal, coach_payout_id)
+
+
+@router.post("/coach-payouts/{coach_payout_id}/adjustments", response_model=s.CoachPayoutOut, status_code=201)
+def add_coach_payout_adjustment(coach_payout_id: UUID, body: s.CoachAdjustmentCreate, ctx: Ctx = PayoutAdjust):
+    """A draft only. Errors: invalid-state-transition, own-pay."""
+    return coach.add_adjustment(ctx.session, ctx.principal, coach_payout_id, body.model_dump())
+
+
+@router.post("/coach-payouts/{coach_payout_id}/approve", response_model=s.CoachPayoutOut)
+def approve_coach_payout(coach_payout_id: UUID, ctx: Ctx = PayoutApprove):
+    """Step-up required. Errors: invalid-state-transition, step-up-required."""
+    return coach.approve_payout(ctx.session, ctx.principal, coach_payout_id)
+
+
+@router.post("/coach-payouts/{coach_payout_id}/paid", response_model=s.CoachPayoutOut)
+def mark_coach_payout_paid(coach_payout_id: UUID, body: s.CoachPayoutPaid, ctx: Ctx = PayoutPay):
+    """Records how the facility paid; the software transfers nothing. Paid is final. Step-up required."""
+    return coach.mark_paid(ctx.session, ctx.principal, coach_payout_id, body.model_dump())
+
+
+@router.get("/coach-payouts/{coach_payout_id}/document", responses=FILE, response_class=Response)
+def get_coach_payout_document(coach_payout_id: UUID, ctx: Ctx = CoachRead, format: Literal["pdf", "csv"] = "pdf"):  # noqa: A002
+    name, media, data = coach.export_payout(ctx.session, ctx.principal, coach_payout_id, format)
+    return Response(data, media_type=media, headers={
+        "Content-Disposition": f'attachment; filename="{name}"', "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store"})  # fmt: skip

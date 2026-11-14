@@ -5683,6 +5683,205 @@ paths:
       x-features: [STF-15]
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
+  /staff-payees/{staff_payee_id}/engagements:
+    get:
+      operationId: listCoachEngagements
+      tags: [staff]
+      summary: A coach's engagement history (employee or independent, effective-dated)
+      x-priority: P1
+      x-permission: staff.pay_rate.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: staff_payee_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: setCoachEngagement
+      tags: [staff]
+      summary: Set the engagement from a date (same date replaces)
+      description: 'Independent coaches are never on payroll from that date; their lessons earn a revenue share instead.'
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: staff_payee_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachEngagementWrite'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /staff-payees/{staff_payee_id}/tax-form:
+    put:
+      operationId: setCoachTaxForm
+      tags: [staff]
+      summary: Record whether a tax form is on file (a date, never a tax id)
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: staff_payee_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachTaxFormWrite'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-share-rules:
+    get:
+      operationId: listCoachShareRules
+      tags: [staff]
+      summary: "Share rules (default, per lesson type, per coach, per coach and type)"
+      x-priority: P1
+      x-permission: staff.pay_rate.read
+      x-features: [COACH-SHARE]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    put:
+      operationId: putCoachShareRule
+      tags: [staff]
+      summary: Create or replace the rule for a key and start date
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachShareRuleWrite'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-share-rules/{coach_share_rule_id}:
+    delete:
+      operationId: deleteCoachShareRule
+      tags: [staff]
+      summary: Remove a rule (earning lines keep the share they were made with)
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_share_rule_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-earnings:
+    get:
+      operationId: listCoachEarnings
+      tags: [staff]
+      summary: "Earning lines (immutable; refunds and corrections are reversing lines), own reach for coaches"
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts:
+    get:
+      operationId: listCoachPayouts
+      tags: [staff]
+      summary: Payout statements. Own reach for coaches
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: createCoachPayouts
+      tags: [staff]
+      summary: Draft statements of unpaid lines, one coach or every independent coach at a location
+      description: 'Records what the facility owes and paid; the product moves no money (a Stripe Connect payout would plug in here later).'
+      x-priority: P1
+      x-permission: staff.coach_payout.create
+      x-features: [COACH-SHARE]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachPayoutCreate'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}:
+    get:
+      operationId: getCoachPayout
+      tags: [staff]
+      summary: One statement
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    delete:
+      operationId: deleteCoachPayout
+      tags: [staff]
+      summary: Discard a draft (its lines become unpaid again)
+      x-priority: P1
+      x-permission: staff.coach_payout.create
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/lines:
+    get:
+      operationId: listCoachPayoutLines
+      tags: [staff]
+      summary: The earning lines on a statement
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/adjustments:
+    post:
+      operationId: addCoachPayoutAdjustment
+      tags: [staff]
+      summary: Add a manual adjustment with a reason (draft only)
+      x-priority: P1
+      x-permission: staff.coach_payout.adjust
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachAdjustmentCreate'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/approve:
+    post:
+      operationId: approveCoachPayout
+      tags: [staff]
+      summary: Approve a draft (step-up)
+      x-priority: P1
+      x-permission: staff.coach_payout.approve
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/paid:
+    post:
+      operationId: markCoachPayoutPaid
+      tags: [staff]
+      summary: Record an approved statement as paid outside the product (step-up); paid is final
+      description: 'Records what the facility owes and paid; the product moves no money (a Stripe Connect payout would plug in here later).'
+      x-priority: P1
+      x-permission: staff.coach_payout.pay
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachPayoutPaid'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/document:
+    get:
+      operationId: getCoachPayoutDocument
+      tags: [staff]
+      summary: The statement as PDF or CSV (`format=pdf|csv`)
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
 components:
   securitySchemes:
     staffSession: {type: apiKey, in: cookie, name: fh_session, description: Opaque staff session cookie; unsafe methods
@@ -8083,6 +8282,52 @@ components:
         commission_basis: {type: string, enum: [invoiced, paid]}
         includes: {type: array, items: {type: string}}
         scope_staff_payee_id: {type: [string, 'null'], format: uuid}
+    CoachEngagementWrite:
+      type: object
+      required: [engagement, effective_from_on]
+      properties:
+        engagement: {type: string, enum: [employee, independent]}
+        effective_from_on: {type: string, format: date}
+    CoachTaxFormWrite:
+      type: object
+      required: [tax_form_on_file_on]
+      properties:
+        tax_form_on_file_on: {type: [string, 'null'], format: date, description: When a tax form was received; never a
+            tax identifier.}
+    CoachShareRuleWrite:
+      type: object
+      description: Precedence is coach and type, then coach, then type, then the default. Net lesson revenue is after
+        discounts and refunds and before tax; a package lesson is the package's net divided by its sessions.
+      required: [effective_from_on, coach_share_pct]
+      properties:
+        staff_payee_id: {type: [string, 'null'], format: uuid}
+        reservation_type_id: {type: [string, 'null'], format: uuid}
+        effective_from_on: {type: string, format: date}
+        coach_share_pct: {type: string, description: 'Decimal 0 to 100'}
+        court_fee_minor: {type: integer, minimum: 0}
+        court_fee_basis: {type: string, enum: [session, hour]}
+        court_fee_applies: {type: string, enum: [before_split, after_split]}
+    CoachPayoutCreate:
+      type: object
+      required: [location_id, period_starts_on, period_ends_on]
+      properties:
+        location_id: {type: string, format: uuid}
+        period_starts_on: {type: string, format: date}
+        period_ends_on: {type: string, format: date}
+        staff_payee_id: {type: [string, 'null'], format: uuid}
+    CoachAdjustmentCreate:
+      type: object
+      required: [amount_minor, reason]
+      properties:
+        amount_minor: {type: integer, description: Positive raises the coach's share; the gross is unchanged.}
+        reason: {type: string, maxLength: 500}
+    CoachPayoutPaid:
+      type: object
+      required: [paid_on, payment_method]
+      properties:
+        paid_on: {type: string, format: date}
+        payment_method: {type: string, enum: [bank_transfer, cheque, other]}
+        payment_reference: {type: [string, 'null'], maxLength: 120, description: Scanned for card numbers.}
     PayStatementLine:
       type: object
       required: [id, kind, occurred_on, source_type, source_id, description, quantity, amount_minor, was_paid_before]

@@ -285,6 +285,7 @@ def populate(client, tenant) -> SimpleNamespace:
         people["kid_id"],
     )  # fmt: skip
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
+    space |= _populate_coach_share(client, headers, post, tenant, location["id"], space["staff_payee_id"])
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_shared_post_billed(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
@@ -1120,6 +1121,27 @@ def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_r
         "shift_id": shift["id"], "staff_payee_id": trainer["id"], "salesperson_payee_id": seller["id"],
         "payroll_run_id": run["id"], "pay_statement_id": statement["id"],
     }  # fmt: skip
+
+
+def _populate_coach_share(client, headers, post, tenant, location_id, payee_id) -> dict:
+    """Coach revenue share: an engagement (from 2099, so today's payroll is untouched), a share rule, one ledger line
+    (written straight in: the ledger normally follows package events) and a draft payout that gathers it."""
+    from app.modules.staff.models import CoachEarning
+
+    post(f"/staff-payees/{payee_id}/engagements", {"engagement": "independent", "effective_from_on": "2099-01-01"})
+    rule = client.put("/api/v1/coach-share-rules", headers=headers, json={
+        "staff_payee_id": payee_id, "effective_from_on": "2020-01-01", "coach_share_pct": "70"})  # fmt: skip
+    assert rule.status_code == 200, rule.text
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        today = service.location_today(session, UUID(location_id))
+        session.add(CoachEarning(
+            location_id=UUID(location_id), staff_payee_id=UUID(payee_id), kind="lesson", earned_on=today,
+            source_type="booking", source_id=uuid4(), description="Lesson", gross_minor=5000,
+            facility_share_minor=1500, coach_share_minor=3500, coach_share_pct=70, court_fee_minor=0,
+        ))  # fmt: skip
+    payout = post("/coach-payouts", {"staff_payee_id": payee_id, "location_id": location_id,
+                                     "period_starts_on": today.isoformat(), "period_ends_on": today.isoformat()})  # fmt: skip
+    return {"coach_share_rule_id": rule.json()["id"], "coach_payout_id": payout["data"][0]["id"]}
 
 
 def _populate_leagues(client, headers, post, tenant, location_id, client_id, court_id, category_id) -> dict:

@@ -32,6 +32,7 @@ from app.modules.staff.domain import pay
 from app.modules.staff.events import PayrollRunFinalized, ShiftPublished, TimeEntryClosed, TrainerCreated
 from app.modules.staff.models import (
     BonusRule,
+    CoachEngagement,
     CommissionRule,
     JobClassification,
     PayRate,
@@ -1224,13 +1225,30 @@ def export_run(session: Session, principal: Principal, run_id: UUID) -> str:
 # --- payroll calculation -----------------------------------------------------------------------------------
 
 
+def _engagements(session: Session, payee_ids) -> dict[UUID, list[tuple[date, str]]]:
+    """Each payee's effective-dated engagement rows (coach share); a payee with none is a staff coach."""
+    found: dict[UUID, list[tuple[date, str]]] = defaultdict(list)
+    ids = list(payee_ids)
+    for row in session.scalars(select(CoachEngagement).where(CoachEngagement.staff_payee_id.in_(ids))) if ids else ():
+        found[row.staff_payee_id].append((row.effective_from_on, row.engagement))
+    return found
+
+
 class _Sheet:
     """Statements being built for one run, keyed by subject (the payee, else the hourly employee)."""
 
-    def __init__(self, session: Session, run: PayrollRun):
+    def __init__(self, session: Session, run: PayrollRun, payees: list[StaffPayee] = ()):
         self.session, self.run = session, run
         self.statements: dict[tuple, PayStatement] = {}
         self.session_spans: dict[UUID, list] = {}  # staff user -> spans of sessions this run pays
+        self.engagements = _engagements(session, [p.id for p in payees])
+
+    def independent(self, payee: StaffPayee | None, day: date) -> bool:
+        """An independent coach is never on payroll: their lessons are paid through the coach share instead."""
+        if payee is None or payee.id not in self.engagements:
+            return False
+        latest = [e for start, e in sorted(self.engagements[payee.id]) if start <= day]
+        return bool(latest) and latest[-1] == "independent"
 
     def statement(self, *, payee: StaffPayee | None = None, staff_user_id: UUID | None = None, name: str = ""):
         key = ("payee", payee.id) if payee else ("user", staff_user_id)
@@ -1272,7 +1290,7 @@ def _calculate(session: Session, run: PayrollRun) -> None:
     if run.scope_staff_payee_id is not None:
         payees_stmt = payees_stmt.where(StaffPayee.id == run.scope_staff_payee_id)
     payees = list(session.scalars(payees_stmt.order_by(StaffPayee.display_name, StaffPayee.id)))
-    sheet = _Sheet(session, run)
+    sheet = _Sheet(session, run, payees)
     zones: dict[UUID, str] = {}
 
     def zone(location_id: UUID) -> str:
@@ -1341,7 +1359,9 @@ def _session_pay(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) ->
     for view in sorted(views, key=lambda v: (v["starts_at"], v["id"])):
         minutes = int((view["ends_at"] - view["starts_at"]).total_seconds() // 60)
         local_start = view["starts_at"].astimezone(zone)
-        common = dict(occurred_on=local_start.date(), source_type="booking", source_id=view["id"],
+        if sheet.independent(payee, local_start.date()):
+            continue
+        common =dict(occurred_on=local_start.date(), source_type="booking", source_id=view["id"],
                       reservation_type_id=view["reservation_type_id"], description=view["title"] or "Session")  # fmt: skip
         if view["kind"] == "block":
             fact = pay.block_line(default, view["block_kind"], minutes) if default else None
@@ -1434,11 +1454,14 @@ def _commissions(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) ->
     for sale in sales:
         rule = pay.pick_rule(rules, "package_sale", reservation_type_id=sale["reservation_type_id"])
         base = totals.get(sale["id"], {}).get(basis, 0)
-        if rule is None or not (amount := pay.commission(base, rule.commission_pct, rule.flat_minor)):
+        sold_on = sale["sold_at"].astimezone(ZoneInfo(tz)).date()
+        if rule is None or sheet.independent(payee, sold_on):
+            continue
+        if not (amount := pay.commission(base, rule.commission_pct, rule.flat_minor)):
             continue
         sheet.line(
             sheet.statement(payee=payee), "commission_minor", kind="package_sale_commission",
-            occurred_on=sale["sold_at"].astimezone(ZoneInfo(tz)).date(), source_type="client_package",
+            occurred_on=sold_on, source_type="client_package",
             source_id=sale["id"], reservation_type_id=sale["reservation_type_id"], description=sale["name"],
             commission_pct=rule.commission_pct, base_minor=base, amount_minor=amount,
             was_paid_before=sale["id"] in before,
@@ -1453,6 +1476,8 @@ def _commissions(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) ->
     for period in periods:
         rule = pay.pick_rule(rules, "membership_sale", membership_type_id=period["membership_type_id"])
         if rule is None or (rule.is_first_invoice_only and not period["is_first"]):
+            continue
+        if sheet.independent(payee, period["bill_on"]):
             continue
         base = totals.get(period["period_id"], {}).get(basis, 0)
         if not (amount := pay.commission(base, rule.commission_pct, rule.flat_minor)):
@@ -1489,8 +1514,8 @@ def _hourly_pay(session: Session, sheet: _Sheet, payees: list[StaffPayee], zone)
         if not run.period_starts_on <= day <= run.period_ends_on:
             continue
         rate = pay.rate_on(rates.get((entry.staff_user_id, entry.job_classification_id), []), day)
-        if rate is None:
-            continue
+        if rate is None or sheet.independent(by_user.get(entry.staff_user_id), day):
+            continue  # an independent coach has no time-clock pay
         # A clocked minute inside a session this run pays is paid once, as the session (CIRQT pilot).
         paid = pay.overlap_minutes(
             entry.clock_in_at, entry.clock_out_at, sheet.session_spans.get(entry.staff_user_id, ())

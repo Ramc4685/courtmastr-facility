@@ -1,6 +1,6 @@
 ## backend/app/modules/programs/README.md
 
-Checked against the working tree on branch claude/fix-browser-dates, with the contract `docs/api/openapi-programs.yaml` (`router.py` has 103 routes). Lines are README lines unless a path is given.
+Checked against the working tree on branch claude/coach-share (worktree), with the contract `docs/api/openapi-programs.yaml` (`router.py` has 103 routes). Lines are README lines unless a path is given.
 
 - [stale-not-built] Lines 74-76 say REG-10 is partial: "only the full fee is charged" and "Instalment plans are not built". Lines 255-264 and the code say deposits and instalments are built: `checkout.py:455-461` (plan checkout), `schemas.py:326` (`payment_plan`), `models.py:428-470` (`payment_plan`, `balance_due_on`, `instalment_*` columns).
 - [stale-not-built] Lines 77-79 say REG-12 is partial: "No guest checkout" and "No coupon in the basket". Lines 186-245 document guest checkout as built (`router.py:741-768`, `checkout.py:515-582`). Coupons are accepted on portal and guest confirm (`checkout.py:445`, `:681`). Only a payment plan refuses one (`checkout.py:459-461`, `coupon-not-applicable`).
@@ -23,6 +23,6 @@ Checked against the working tree on branch claude/fix-browser-dates, with the co
 - [undocumented] `selfservice.public_seats(..., limit)` (`selfservice.py:213-219`) passes the limit to `scheduling.service.session_window` before the hidden, visible-range and hides-full filters run, so filtered-out sessions can crowd listed ones out. Line 14 says only "the same listing rule".
 - [undocumented] `__init__.py:36-37` registers the onboarding step "offer" ("Create your first membership or program"). The README does not mention it.
 - [wording] Line 6 names `0611_programs_registration.py` as the migration. The module's tables and columns also come from `1401_programs_forms_tools.py`, `1501_portal_entry_and_accounts.py` and `1521_portal_booking_and_buying.py`.
-- [wording] Line 168-171 and 163-166 name `purge_anonymous` registered with `platform.retention.register_purge`; the registered purge name is `programs_anonymous_form_submissions` (`subject.py:119`), which the README omits.
+- [wording] Lines 150-152 name `purge_anonymous` registered with `platform.retention.register_purge`; the registered purge name is `programs_anonymous_form_submissions` (`subject.py:119`), which the README omits.
 
 Counts: stale-not-built 5, missing 0, contract 8, undocumented 7, wording 2.

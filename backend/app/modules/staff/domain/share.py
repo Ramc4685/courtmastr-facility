@@ -1,0 +1,67 @@
+"""Pure arithmetic for independent coaches' revenue share (staff README "Coach revenue share").
+
+Money is integer minor units; each value is rounded half-up once, and the facility's share is always the gross
+minus the coach's, so the two shares sum to the gross by construction.
+"""
+
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
+
+_HUNDRED = Decimal(100)
+
+
+def half_up(value: Decimal) -> int:
+    return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def lesson_value(net_minor: int, credits: int) -> int:
+    """One lesson's gross: the package's net price (after discounts and refunds, before tax) per credit."""
+    if credits <= 0 or net_minor <= 0:
+        return 0
+    return half_up(Decimal(net_minor) / credits)
+
+
+def court_fee(fee_minor: int, basis: str, minutes: int) -> int:
+    """The facility's court fee for one lesson: flat per session, or per hour prorated to the lesson length."""
+    return fee_minor if basis == "session" else half_up(Decimal(fee_minor) * minutes / 60)
+
+
+def split(gross: int, pct: Decimal, fee: int = 0, applies: str = "before_split") -> tuple[int, int]:
+    """(facility_share, coach_share) of one lesson. `before_split`: the fee comes off the price and the rest is
+    split; `after_split`: the price is split and the fee comes off the coach's part. The coach never goes below
+    zero on a lesson, and a negative gross (a reversal) splits by the same rule with the signs flipped."""
+    sign, amount = (-1, -gross) if gross < 0 else (1, gross)
+    if applies == "before_split":
+        coach = half_up(Decimal(max(amount - fee, 0)) * pct / _HUNDRED)
+    else:
+        coach = max(half_up(Decimal(amount) * pct / _HUNDRED) - fee, 0)
+    coach = min(coach, amount)
+    return sign * (amount - coach), sign * coach
+
+
+def in_force(rows: list[tuple[date, object]], on: date):
+    """The value of the latest (effective_from_on, value) row on or before `on`, else None."""
+    best = None
+    for start, value in sorted(rows, key=lambda r: r[0]):
+        if start <= on:
+            best = value
+    return best
+
+
+def pick_rule(rules: list, payee_id, reservation_type_id, on: date):
+    """Most specific share rule in force on a day: coach and type, coach, type, then the tenant default."""
+    for key in ((payee_id, reservation_type_id), (payee_id, None), (None, reservation_type_id), (None, None)):
+        found = in_force([(r.effective_from_on, r) for r in rules
+                          if (r.staff_payee_id, r.reservation_type_id) == key], on)  # fmt: skip
+        if found is not None:
+            return found
+    return None
+
+
+def client_label(first_name: str | None, last_name: str | None, is_minor: bool) -> str:
+    """Client-neutral text for a coach's statement: first name and last initial; a minor is never named."""
+    if is_minor:
+        return "Junior lesson"
+    first, last = (first_name or "").strip(), (last_name or "").strip()
+    name = f"{first} {last[:1]}.".strip() if last else first
+    return f"Lesson with {name}" if name else "Lesson"

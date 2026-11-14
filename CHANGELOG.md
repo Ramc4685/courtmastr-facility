@@ -7,6 +7,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Independent coaches: mark a coach as independent from a date, set their revenue share (per coach or lesson type, with an optional court fee), and their lessons build an earnings ledger instead of payroll pay; payout statements (PDF and CSV) are approved and recorded as paid, and coaches see their own earnings. No money moves in the product.
+- Reports: coach revenue split and unpaid coach earnings.
 - Age checks: online sign-up, guest checkout and portal dependants ask for a date of birth declared true; staff confirm it once from the client record or the new Age checks queue, with a count on the dashboard.
 - A self-declared adult books and pays online at once and is told the entry code follows once staff have confirmed their age.
 - Kiosk: after checking in, members see the classes starting soon and book one on the tablet, by the same rules as online booking; a location can have the kiosk book the next open class automatically, and sets how far ahead classes are listed and how long the list stays up.

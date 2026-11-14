@@ -44,7 +44,7 @@ NOT_FREE_TEXT = frozenset({
     "autopay_run_time", "closes_time", "end_time", "ends_at", "ends_time", "membership_renewal_run_time", "opens_time",
     "package_renewal_run_time", "return_time", "send_time", "start_time", "starts_at", "starts_time",
     # numbers sent as decimal strings
-    "adjustment_points", "bonus_points", "commission_pct", "default_discount_pct", "deposit_pct", "discount_pct",
+    "adjustment_points", "bonus_points", "coach_share_pct", "commission_pct", "default_discount_pct", "deposit_pct", "discount_pct",
     "late_cancel_fee_pct", "min_sportsmanship", "points_default_loss", "points_forfeit_loss", "points_forfeit_win",
     "points_loss", "points_overtime_loss", "points_tie", "points_win", "quantity", "quantity_total", "rate",
     "renewal_discount_pct", "session_commission_pct", "sportsmanship",
@@ -67,7 +67,7 @@ FREE_TEXT_FIELDS = frozenset({
     "internal_description", "internal_note", "internal_notes", "internal_remarks", "invoice_description",
     "invoice_email_subject", "invoice_footer", "label", "last_name", "last_name_prefix", "medical_notes", "memo",
     "message", "minor_override_reason", "more_info", "name", "name_prefix", "note", "notes", "online_description",
-    "organization_name",
+    "organization_name", "payment_reference",
     "override_reason", "owner_first_name", "owner_last_name", "portal_publish_name", "position", "preferred_name",
     "public_name", "public_title", "reason", "receipt_footer", "referral_source", "region", "registrant_comment",
     "relationship_label", "remarks", "removal_remarks", "renewal_description", "renewal_remark", "round_label",

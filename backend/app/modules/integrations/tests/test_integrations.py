@@ -188,6 +188,8 @@ def test_the_key_grantable_set_is_pinned():
     assert grantable == (listed - _WITHHELD_IN_LISTED_CONTEXTS) | _ENGAGEMENT
     assert {p.context for p in CATALOGUE.values()} - set(_GRANTABLE_COUNTS) == {
         "integrations", "platform", "reporting", "staff"}  # fmt: skip
+    # Coach earnings, payouts and share rules are pay data: never on a key.
+    assert not {k for k in grantable if k.startswith(("staff.coach_payout.", "staff.pay_rate."))}
 
 
 def test_a_key_can_neither_be_given_nor_use_the_rental_portal_switch(client, tenant, owner):

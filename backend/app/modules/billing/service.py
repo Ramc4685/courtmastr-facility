@@ -2065,14 +2065,16 @@ def charge_payments(session: Session, charge_id: UUID) -> list[tuple[UUID, int]]
 
 def source_totals(session: Session, source_context: str, source_type: str, source_ids: Iterable[UUID]) -> dict:
     """Internal read for payroll commission (STF-09, STF-10): per source id, the invoiced and the paid amount
-    of its live charges (adjustments and reversals included, voided charges left out)."""
+    of its live charges (adjustments and reversals included, voided charges left out). `net_minor` is the same
+    before tax, after discounts: the base of an independent coach's revenue share."""
     ids = list(source_ids)
     rows = session.execute(
-        select(Charge.source_id, func.sum(Charge.total_minor), func.sum(Charge.applied_minor))
+        select(Charge.source_id, func.sum(Charge.total_minor), func.sum(Charge.applied_minor),
+               func.sum(Charge.net_minor))  # fmt: skip
         .where(
             Charge.source_context == source_context, Charge.source_type == source_type,
             Charge.source_id.in_(ids), Charge.status != "voided",
         )
         .group_by(Charge.source_id)
     ).all() if ids else []  # fmt: skip
-    return {row[0]: {"invoiced_minor": int(row[1]), "paid_minor": int(row[2])} for row in rows}
+    return {row[0]: {"invoiced_minor": int(row[1]), "paid_minor": int(row[2]), "net_minor": int(row[3])} for row in rows}

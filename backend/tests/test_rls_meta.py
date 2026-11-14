@@ -14,12 +14,13 @@ TENANT_TABLES = sorted(set(Base.metadata.tables) - GLOBAL_TABLES)
 NO_UPDATED_AT = {
     "audit_event", "outbox_event", "processed_event", "idempotency_key", "ledger_transaction", "ledger_entry",
     "billing_notice", "stock_movement", "client_merge", "consent_event", "document_acceptance", "credit_ledger_entry",
-    "rental_plan_ledger_entry", "adapter_command_log",
+    "rental_plan_ledger_entry", "adapter_command_log", "coach_earning",
 }  # fmt: skip
 # SELECT and INSERT only: the grant model, not code review, keeps logs and the ledger immutable.
 APPEND_ONLY = {
     "audit_event", "ledger_transaction", "ledger_entry", "billing_notice", "stock_movement", "client_merge",
     "consent_event", "document_acceptance", "credit_ledger_entry", "rental_plan_ledger_entry", "adapter_command_log",
+    "coach_earning",
 }  # fmt: skip
 
 

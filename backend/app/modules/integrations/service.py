@@ -64,7 +64,8 @@ SECRET_ROTATION_GRACE = timedelta(hours=24)
 # The documented public API resources (docs/status/phase15-api.md): only their contexts' keys may go on a key.
 # An allow-list, so a new context's keys reach machines only when someone adds it here. Platform (audit, staff
 # directory), reporting (person-bound runs and schedules), integrations (keys, sync, a delivery log wider than
-# the key's scopes) and staff stay with signed-in people.
+# the key's scopes) and staff (pay, payroll, coach earnings and payouts: `staff.coach_payout.*`) stay with signed-in
+# people.
 KEY_CONTEXTS = frozenset({
     "access", "assessments", "billing", "clients", "documents", "leagues", "memberships", "packages", "pos",
     "programs", "rentals", "resources", "scheduling",

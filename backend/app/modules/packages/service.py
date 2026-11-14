@@ -1482,10 +1482,25 @@ def session_credit_facts(session: Session, source_type: str, source_ids) -> dict
         return {}
     e = CreditLedgerEntry
     rows = session.execute(
-        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor)
+        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor, ClientPackage.id,
+               ClientPackage.sessions_granted_count)
         .join(ClientPackage, ClientPackage.id == e.client_package_id)
         .where(e.source_type == source_type, e.source_id.in_(ids))
         .group_by(e.source_id, ClientPackage.id)
         .having(func.sum(e.consumed_delta) > 0)
     ).all()  # fmt: skip
-    return {row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2]} for row in rows}
+    return {
+        row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2], "client_package_id": row[3],
+                 "sessions_granted_count": row[4]}
+        for row in rows
+    }  # fmt: skip
+
+
+def consumed_sources(session: Session, client_package_id: UUID) -> list[tuple[str, UUID]]:
+    """Internal read for coach revenue share: the (source_type, source_id) pairs that ever spent a credit of this
+    package, so a refund of the package can revalue the lessons it paid for."""
+    e = CreditLedgerEntry
+    return [tuple(row) for row in session.execute(
+        select(e.source_type, e.source_id).distinct()
+        .where(e.client_package_id == client_package_id, e.source_id.is_not(None), e.consumed_delta != 0)
+    )]  # fmt: skip

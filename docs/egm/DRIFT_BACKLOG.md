@@ -675,3 +675,21 @@ Leagues re-run after set scoring (migration 2001) and league nights. Items alrea
 - [ ] [wording] README:51-52 "closure blocks never count"; every block is excluded (`service.py:1038`)
 - [ ] [wording] README:129 `rpt_booking`; reporting has `rpt_booking_start` (`reporting/views.py:212`)
 - [ ] [wording] README:15 "40 operations of tag `scheduling`"; the tag has 46, the router serves 40 at the contract path
+
+## Added on claude/coach-share (drift refresh 2026-11-13; evidence in `drift/<module>.md`)
+
+Refreshed for staff, billing, integrations, packages, platform, programs and reporting. Most items in the last
+six were already listed above and were re-verified, not re-derived. New items from this branch:
+
+- [x] [contract] staff: a coach saw `coach_share_pct` and `court_fee_minor` on their own earning lines, which
+  reveals their share rule. Fixed on this branch: both are null unless the caller holds `staff.pay_rate.read`.
+- [ ] [wording] staff README says "twelve tables"; `models.py` now has 17 (coach share added five).
+- [ ] [undocumented] staff README file table omits `events.py` and `permissions.py`; `DELETE /coach-payouts/{id}`
+  (discard a draft) is in the contract and code but not the README prose.
+- [ ] [contract] staff tag description in `openapi-money.yaml` omits coach share, instructor assignment, shift
+  copy and variance; five staff routes (membership-type pay rates, trainer sessions, instructor, my-shifts,
+  variance) have no contract operation; `listPayRates`, `getTimeSummary`, `exportPayrollRun`, `clockIn` shapes differ.
+- [ ] [undocumented] packages README: `session_credit_facts` now also returns `client_package_id` and
+  `sessions_granted_count`, and `consumed_sources` is new (both internal, for the coach ledger).
+- [ ] [undocumented] programs README: `enrollment_facts` (internal, for the coach ledger) is new.
+- [ ] [undocumented] billing README: `source_totals` now returns `net_minor` (before tax).

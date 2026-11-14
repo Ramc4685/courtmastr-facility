@@ -15011,6 +15011,701 @@
         "title": "ClockOut",
         "type": "object"
       },
+      "CoachAdjustmentCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_minor": {
+            "description": "Positive raises the coach's share",
+            "maximum": 10000000000.0,
+            "minimum": -10000000000.0,
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount_minor",
+          "reason"
+        ],
+        "title": "CoachAdjustmentCreate",
+        "type": "object"
+      },
+      "CoachEarningOut": {
+        "properties": {
+          "coach_payout_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coach Payout Id"
+          },
+          "coach_share_minor": {
+            "title": "Coach Share Minor",
+            "type": "integer"
+          },
+          "coach_share_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null unless you may read share rules",
+            "title": "Coach Share Pct"
+          },
+          "court_fee_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null unless you may read share rules",
+            "title": "Court Fee Minor"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "earned_on": {
+            "format": "date",
+            "title": "Earned On",
+            "type": "string"
+          },
+          "facility_share_minor": {
+            "title": "Facility Share Minor",
+            "type": "integer"
+          },
+          "gross_minor": {
+            "title": "Gross Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "lesson",
+              "reversal",
+              "adjustment"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          },
+          "reverses_coach_earning_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reverses Coach Earning Id"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "enrollment",
+                  "booking"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "staff_payee_id": {
+            "format": "uuid",
+            "title": "Staff Payee Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "staff_payee_id",
+          "kind",
+          "earned_on",
+          "source_type",
+          "source_id",
+          "reservation_type_id",
+          "description",
+          "gross_minor",
+          "facility_share_minor",
+          "coach_share_minor",
+          "coach_share_pct",
+          "court_fee_minor",
+          "reverses_coach_earning_id",
+          "reason",
+          "coach_payout_id",
+          "created_at"
+        ],
+        "title": "CoachEarningOut",
+        "type": "object"
+      },
+      "CoachEngagementOut": {
+        "properties": {
+          "effective_from_on": {
+            "format": "date",
+            "title": "Effective From On",
+            "type": "string"
+          },
+          "engagement": {
+            "enum": [
+              "employee",
+              "independent"
+            ],
+            "title": "Engagement",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "staff_payee_id": {
+            "format": "uuid",
+            "title": "Staff Payee Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "staff_payee_id",
+          "engagement",
+          "effective_from_on"
+        ],
+        "title": "CoachEngagementOut",
+        "type": "object"
+      },
+      "CoachEngagementWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "effective_from_on": {
+            "format": "date",
+            "title": "Effective From On",
+            "type": "string"
+          },
+          "engagement": {
+            "description": "employee: a staff coach on payroll; independent: revenue share",
+            "enum": [
+              "employee",
+              "independent"
+            ],
+            "title": "Engagement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engagement",
+          "effective_from_on"
+        ],
+        "title": "CoachEngagementWrite",
+        "type": "object"
+      },
+      "CoachPayoutCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "period_ends_on": {
+            "format": "date",
+            "title": "Period Ends On",
+            "type": "string"
+          },
+          "period_starts_on": {
+            "format": "date",
+            "title": "Period Starts On",
+            "type": "string"
+          },
+          "staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One coach; omit for every independent coach here",
+            "title": "Staff Payee Id"
+          }
+        },
+        "required": [
+          "location_id",
+          "period_starts_on",
+          "period_ends_on"
+        ],
+        "title": "CoachPayoutCreate",
+        "type": "object"
+      },
+      "CoachPayoutList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CoachPayoutOut"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CoachPayoutList",
+        "type": "object"
+      },
+      "CoachPayoutOut": {
+        "properties": {
+          "adjustment_minor": {
+            "title": "Adjustment Minor",
+            "type": "integer"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "coach_name": {
+            "title": "Coach Name",
+            "type": "string"
+          },
+          "coach_share_minor": {
+            "title": "Coach Share Minor",
+            "type": "integer"
+          },
+          "facility_share_minor": {
+            "title": "Facility Share Minor",
+            "type": "integer"
+          },
+          "gross_minor": {
+            "title": "Gross Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "notice": {
+            "description": "The software moves no money; this is a record of what is owed and paid",
+            "title": "Notice",
+            "type": "string"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "paid_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid On"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "bank_transfer",
+                  "cheque",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "payment_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Reference"
+          },
+          "period_ends_on": {
+            "format": "date",
+            "title": "Period Ends On",
+            "type": "string"
+          },
+          "period_starts_on": {
+            "format": "date",
+            "title": "Period Starts On",
+            "type": "string"
+          },
+          "staff_payee_id": {
+            "format": "uuid",
+            "title": "Staff Payee Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "approved",
+              "paid"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tax_form_on_file_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Form On File On"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "staff_payee_id",
+          "coach_name",
+          "period_starts_on",
+          "period_ends_on",
+          "status",
+          "line_count",
+          "gross_minor",
+          "facility_share_minor",
+          "coach_share_minor",
+          "adjustment_minor",
+          "approved_at",
+          "paid_at",
+          "paid_on",
+          "payment_method",
+          "payment_reference",
+          "tax_form_on_file_on",
+          "notice"
+        ],
+        "title": "CoachPayoutOut",
+        "type": "object"
+      },
+      "CoachPayoutPaid": {
+        "additionalProperties": false,
+        "properties": {
+          "paid_on": {
+            "format": "date",
+            "title": "Paid On",
+            "type": "string"
+          },
+          "payment_method": {
+            "enum": [
+              "bank_transfer",
+              "cheque",
+              "other"
+            ],
+            "title": "Payment Method",
+            "type": "string"
+          },
+          "payment_reference": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Transfer or cheque reference, staff-typed",
+            "title": "Payment Reference"
+          }
+        },
+        "required": [
+          "paid_on",
+          "payment_method"
+        ],
+        "title": "CoachPayoutPaid",
+        "type": "object"
+      },
+      "CoachShareRuleOut": {
+        "properties": {
+          "coach_share_pct": {
+            "title": "Coach Share Pct",
+            "type": "string"
+          },
+          "court_fee_applies": {
+            "enum": [
+              "before_split",
+              "after_split"
+            ],
+            "title": "Court Fee Applies",
+            "type": "string"
+          },
+          "court_fee_basis": {
+            "enum": [
+              "session",
+              "hour"
+            ],
+            "title": "Court Fee Basis",
+            "type": "string"
+          },
+          "court_fee_minor": {
+            "title": "Court Fee Minor",
+            "type": "integer"
+          },
+          "effective_from_on": {
+            "format": "date",
+            "title": "Effective From On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          },
+          "staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Payee Id"
+          }
+        },
+        "required": [
+          "id",
+          "staff_payee_id",
+          "reservation_type_id",
+          "effective_from_on",
+          "coach_share_pct",
+          "court_fee_minor",
+          "court_fee_basis",
+          "court_fee_applies"
+        ],
+        "title": "CoachShareRuleOut",
+        "type": "object"
+      },
+      "CoachShareRuleWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "coach_share_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Coach Share Pct"
+          },
+          "court_fee_applies": {
+            "default": "before_split",
+            "enum": [
+              "before_split",
+              "after_split"
+            ],
+            "title": "Court Fee Applies",
+            "type": "string"
+          },
+          "court_fee_basis": {
+            "default": "session",
+            "enum": [
+              "session",
+              "hour"
+            ],
+            "title": "Court Fee Basis",
+            "type": "string"
+          },
+          "court_fee_minor": {
+            "default": 0,
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Court Fee Minor",
+            "type": "integer"
+          },
+          "effective_from_on": {
+            "format": "date",
+            "title": "Effective From On",
+            "type": "string"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One lesson or program type; null for all",
+            "title": "Reservation Type Id"
+          },
+          "staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One coach; null for every independent coach",
+            "title": "Staff Payee Id"
+          }
+        },
+        "required": [
+          "effective_from_on",
+          "coach_share_pct"
+        ],
+        "title": "CoachShareRuleWrite",
+        "type": "object"
+      },
+      "CoachTaxFormWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "tax_form_on_file_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a tax form (for example a W-9) was received; null when none is on file. Never a tax id.",
+            "title": "Tax Form On File On"
+          }
+        },
+        "required": [
+          "tax_form_on_file_on"
+        ],
+        "title": "CoachTaxFormWrite",
+        "type": "object"
+      },
       "CollectionsProfileIn": {
         "additionalProperties": false,
         "properties": {
@@ -43221,6 +43916,66 @@
           "page"
         ],
         "title": "Page[ClientListItem]",
+        "type": "object"
+      },
+      "Page_CoachEarningOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CoachEarningOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CoachEarningOut]",
+        "type": "object"
+      },
+      "Page_CoachPayoutOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CoachPayoutOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CoachPayoutOut]",
+        "type": "object"
+      },
+      "Page_CoachShareRuleOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CoachShareRuleOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CoachShareRuleOut]",
         "type": "object"
       },
       "Page_CollectionsReportRow_": {
@@ -76700,6 +77455,18 @@
               }
             ],
             "title": "Staff User Id"
+          },
+          "tax_form_on_file_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Form On File On"
           }
         },
         "required": [
@@ -104231,6 +104998,1064 @@
         ],
         "x-api-key-scopes": [
           "clients.activity.read"
+        ]
+      }
+    },
+    "/api/v1/coach-earnings": {
+      "get": {
+        "description": "Filters: staff_payee_id, location_id, kind, earned_on (with [gte] and [lte]). Own reach: your own lines.",
+        "operationId": "listCoachEarnings",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CoachEarningOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Coach Earnings",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts": {
+      "get": {
+        "description": "Filters: staff_payee_id, location_id, status. Own reach: your own statements.",
+        "operationId": "listCoachPayouts",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CoachPayoutOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Coach Payouts",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "description": "One draft per independent coach with unpaid earnings up to the period's end. Moves no money.",
+        "operationId": "createCoachPayouts",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachPayoutCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachPayoutList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Coach Payouts",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts/{coach_payout_id}": {
+      "delete": {
+        "description": "A draft only; its lines go back to unpaid. Errors: invalid-state-transition.",
+        "operationId": "deleteCoachPayout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Coach Payout",
+        "tags": [
+          "staff"
+        ]
+      },
+      "get": {
+        "operationId": "getCoachPayout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachPayoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Coach Payout",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts/{coach_payout_id}/adjustments": {
+      "post": {
+        "description": "A draft only. Errors: invalid-state-transition, own-pay.",
+        "operationId": "addCoachPayoutAdjustment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachAdjustmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachPayoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Coach Payout Adjustment",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts/{coach_payout_id}/approve": {
+      "post": {
+        "description": "Step-up required. Errors: invalid-state-transition, step-up-required.",
+        "operationId": "approveCoachPayout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachPayoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Coach Payout",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts/{coach_payout_id}/document": {
+      "get": {
+        "operationId": "getCoachPayoutDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "pdf",
+              "enum": [
+                "pdf",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "text/csv": {}
+            },
+            "description": "The file."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Coach Payout Document",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts/{coach_payout_id}/lines": {
+      "get": {
+        "operationId": "listCoachPayoutLines",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoachEarningOut"
+                  },
+                  "title": "Response Listcoachpayoutlines",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Coach Payout Lines",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-payouts/{coach_payout_id}/paid": {
+      "post": {
+        "description": "Records how the facility paid; the software transfers nothing. Paid is final. Step-up required.",
+        "operationId": "markCoachPayoutPaid",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachPayoutPaid"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachPayoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Coach Payout Paid",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-share-rules": {
+      "get": {
+        "description": "Filters: staff_payee_id, reservation_type_id.",
+        "operationId": "listCoachShareRules",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CoachShareRuleOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Coach Share Rules",
+        "tags": [
+          "staff"
+        ]
+      },
+      "put": {
+        "description": "Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with.",
+        "operationId": "putCoachShareRule",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachShareRuleWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachShareRuleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Coach Share Rule",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/coach-share-rules/{coach_share_rule_id}": {
+      "delete": {
+        "operationId": "deleteCoachShareRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "coach_share_rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Coach Share Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Coach Share Rule",
+        "tags": [
+          "staff"
         ]
       }
     },
@@ -166278,6 +168103,144 @@
         ]
       }
     },
+    "/api/v1/staff-payees/{staff_payee_id}/engagements": {
+      "get": {
+        "description": "Effective-dated: the latest row on or before a day is in force; none means a staff coach (employee).",
+        "operationId": "listCoachEngagements",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoachEngagementOut"
+                  },
+                  "title": "Response Listcoachengagements",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Coach Engagements",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "description": "A row for the same date is replaced. Errors: own-pay below Admin.",
+        "operationId": "setCoachEngagement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachEngagementWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachEngagementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Coach Engagement",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/staff-payees/{staff_payee_id}/pay-rates": {
       "get": {
         "operationId": "listPayRates",
@@ -166809,6 +168772,79 @@
         ],
         "x-api-key-scopes": [
           "scheduling.booking.read"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/tax-form": {
+      "put": {
+        "description": "Whether a tax form is on file, and since when. Tax identifiers are never stored.",
+        "operationId": "setCoachTaxForm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachTaxFormWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPayeeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Coach Tax Form",
+        "tags": [
+          "staff"
         ]
       }
     },
