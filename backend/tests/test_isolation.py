@@ -463,7 +463,7 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     """Every route with an id parameter, called with A's token and B's id: 404, never 403 or data."""
     a, b = two_tenants
     url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
-    url = url.replace("{key}", "iso-foreign-key")  # an attempt key A never used: same 404 as B's would be
+    url = url.replace("{key}", "iso-foreign-key")  # B's real attempt: test_a_real_payment_attempt_in_tenant_b_is_404
     body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
     headers = a.headers | {"Idempotency-Key": f"iso-{name}-key"}
     if "/public/" in path:  # anonymous routes take the tenant from the host or X-Tenant-Slug, not the token
@@ -475,6 +475,31 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     response = client.request(method, url, headers=headers, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
+
+
+def test_a_real_payment_attempt_in_tenant_b_is_404_to_the_same_key_in_tenant_a(client, two_tenants):
+    """B holds a real payment stored under exactly the key A's caller would look up (A's own `staff:<actor>:`
+    prefix): A gets 404, while A's own attempt under that prefix answers. Only the tenant boundary tells them apart."""
+    from uuid import UUID
+
+    from app.modules.billing import service
+    from app.modules.billing.models import Payment
+    from conftest import system_principal
+
+    a, b = two_tenants
+    mine = f"iso-{uuid4().hex}"
+    body = {"client_id": a.client_id, "location_id": a.location_id, "amount_minor": 111, "tender_kind": "cash"}
+    paid = client.post("/api/v1/payments", headers=a.headers | {"Idempotency-Key": mine}, json=body)
+    assert paid.status_code == 201, paid.text
+    with tenant_session(a.tenant.id, actor=system_principal("tests")) as session:
+        stored = session.get(Payment, UUID(paid.json()["id"])).idempotency_key  # staff:<A's actor>:<mine>
+    theirs = f"iso-{uuid4().hex}"
+    with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+        service.take_payment(session, client_id=UUID(b.client_id), location_id=UUID(b.location_id), amount_minor=222,
+                             tender_kind="cash", idempotency_key=stored.removesuffix(mine) + theirs)  # fmt: skip
+    assert client.get(f"/api/v1/payment-attempts/{mine}", headers=a.headers).json()["amount_minor"] == 111
+    foreign = client.get(f"/api/v1/payment-attempts/{theirs}", headers=a.headers)
+    assert (foreign.status_code, foreign.json()["code"]) == (404, "not-found")
 
 
 def test_a_real_visit_token_from_another_tenant_is_404_at_this_kiosk(client, two_tenants):
