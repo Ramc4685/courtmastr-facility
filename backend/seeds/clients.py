@@ -41,8 +41,15 @@ def seed(session: Session) -> None:
         select(Identity).where(Identity.kind == "client", Identity.email == f"member@{DOMAIN}")
     ).scalar_one()
     clients.service.link_identity(session, existing[f"member@{DOMAIN}"].id, identity.id)
-    # The portal books courts only for an adult with a birth date on file (rentals minors rule).
-    existing[f"member@{DOMAIN}"].birth_on = existing[f"member@{DOMAIN}"].birth_on or date(1986, 6, 14)
+    # The portal books courts only for an adult with a birth date on file (rentals minors rule). The desk has seen
+    # Morgan's ID: only the confirm action confirms an age (clients README), so the seed calls it.
+    morgan = existing[f"member@{DOMAIN}"]
+    if not clients.service.is_age_confirmed(session, morgan.id):
+        clients.service.confirm_age(session, actor, morgan.id, {"birth_on": morgan.birth_on or date(1986, 6, 14)})
+    # Avery signed up online with a typed adult date that still waits for the one-time check (the age-check queue).
+    avery = existing[f"avery.nguyen@{DOMAIN}"]
+    if avery.birth_on is None:
+        clients.service.update_client(session, actor, avery.id, {"birth_on": date(1992, 9, 3)})
     _seed_people(session, existing, locations, identity.id)
 
 

@@ -534,7 +534,7 @@ def test_portal_holder_needs_a_birth_date_and_a_first_one_is_flagged_for_staff(c
         record = session.scalars(
             select(AuditEvent).where(AuditEvent.entity_id == me, AuditEvent.action == "clients.client.update")
         ).one()
-    assert record.changes["birth_on"] is True and record.changes["is_birth_on_unverified"] == [False, True]
+    assert record.changes["birth_on"] is True and ok(client.get(f"{API}/clients/{me}", headers=owner), 200)["age_confirmed"] is False
     # Owner decision 2026-11-13: a self-declared adult books and pays, but is told the first entry code waits for
     # staff to confirm the age once; the date is not trusted for entry until then.
     ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"phone": "217-555-0100"}), 200)

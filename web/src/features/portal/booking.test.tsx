@@ -132,7 +132,7 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
   })
 
   it('tells a self-declared adult on Bookings and before paying that the entry code waits for the one-time age check', async () => {
-    const notice = 'Your entry code will be sent once our staff have confirmed your age. This is a one-time check. Questions? Call 217-555-0100.'
+    const notice = 'Your entry code will be sent once our staff have confirmed your age. This is a one-time check. Questions? Call us on 217-555-0100.'
     const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
     const rental = { id: 'r1', client_id: 'c1', location_id: 'l1', rental_type_id: 'rt1', title: 'Court rental', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', status: 'tentative', resources: [] }
     const quote = { lines: [{ description: 'Court rental', amount_minor: 5000 }], subtotal_minor: 5000, tax_minor: 0, total_minor: 5000 }

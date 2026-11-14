@@ -585,7 +585,7 @@ def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(clie
     me, mine = newcomer(c, w, mailbox)
     # The declared date lets an adult book and pay at once; the entry code waits for staff's one-time check.
     assert mine["age_confirmed"] is False
-    assert mine["entry_code_notice"] == f"{NOTICE} Questions? Call {cirqt.PHONE}."
+    assert mine["entry_code_notice"] == f"{NOTICE} Questions? Call us on {cirqt.PHONE}."
     member = ok(c.post(f"{API}/portal/membership-contracts", headers=me | key(), json={
         "client_id": mine["id"], "location_id": w.location, "membership_plan_id": w.plans["Adult monthly"],
         "method_token": "tok_card_ok",

@@ -18,8 +18,8 @@ from sqlalchemy.orm import Session, aliased
 
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES, CONSTRAINT_FIELDS
-from app.core.auth import Principal, authorize, scope_query, tokens
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.auth import Principal, authorize, tokens
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.pan import contains_card_number
 from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL
@@ -146,6 +146,7 @@ def client_view(session: Session, principal: Principal, client: Client) -> dict:
     )
     view["tag_ids"] = list(session.scalars(select(ClientTag.tag_id).where(ClientTag.client_id == client.id)))
     view["age_confirmed"] = _age_confirmed(client)  # not masked: says nothing of the date itself
+    view["is_birth_on_unverified"] = client.is_birth_on_unverified  # derived from age_confirmed_at
     view["age_confirmation_reset"] = getattr(client, "age_confirmation_reset", False)  # set by update_client
     masked = not principal.has(_SENSITIVE)
     if masked:
@@ -794,9 +795,7 @@ def _create(
         created_via=created_via,
         created_by_staff_user_id=principal.staff_user_id,
         member_number_source="manual" if data.get("member_number") else None,
-        # Any typed date (sign-up, guest checkout, a dependant, the desk, an import) waits for confirm_age.
-        is_birth_on_unverified=data.get("birth_on") is not None,
-    )
+    )  # any typed date (sign-up, guest checkout, a dependant, the desk, an import) waits for confirm_age
     session.add(client)
     session.flush()
     _set_emails(session, client, emails or [], send_verification=verify)
@@ -873,7 +872,16 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
             raise ValidationFailed("Unknown location.", pointer="/home_location_id")
     wants_confirm = bool(data.pop("confirm_age", None))
     if wants_confirm:  # the confirm-age gate on the loaded client, before anything is written
-        authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+        _authorize_confirm(principal, client)
+    moving = data.get("home_location_id") not in (None, client.home_location_id)
+    if moving and client.birth_on is not None and not _age_confirmed(client) and principal.has(CONFIRM_AGE):
+        # Moving the home location must not become a way to gain the right to confirm: whoever holds the key moves
+        # an unconfirmed client only from a location where they could already confirm it.
+        try:
+            _authorize_confirm(principal, client)
+        except NotFound:
+            raise PermissionDenied("Staff who can reach this client's home location confirm the age first.",
+                                   code="age-check-pending", required=CONFIRM_AGE) from None  # fmt: skip
     confirmed = _age_confirmed(client)
     changes = apply_update(session, client, data, context="staff", actor_staff_id=principal.staff_user_id)
     if wants_confirm:
@@ -899,17 +907,31 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
 
 
 def _age_confirmed(client: Client) -> bool:
-    return client.birth_on is not None and not client.is_birth_on_unverified
+    """The one source of truth: a birth date and `age_confirmed_at`, which only the confirm action sets."""
+    return client.birth_on is not None and client.age_confirmed_at is not None
 
 
 def _mark_age_unconfirmed(client: Client) -> None:
-    client.is_birth_on_unverified = True
     client.age_confirmed_at = client.age_confirmed_by_staff_user_id = None
 
 
 def _mark_age_confirmed(client: Client, staff_user_id: UUID | None) -> None:
-    client.is_birth_on_unverified = False
     client.age_confirmed_at, client.age_confirmed_by_staff_user_id = clock.now(), staff_user_id
+
+
+def _confirm_location(principal: Principal, client: Client) -> UUID:
+    """Where the caller confirms: the home location, else the booking location staff were told at (so they need
+    not move the client first). authorize() then gives 404 when the caller reaches neither."""
+    reach = principal.location_ids
+    if reach is not None and client.home_location_id not in reach and client.age_review_location_id in reach:
+        return client.age_review_location_id
+    return client.home_location_id
+
+
+def _authorize_confirm(principal: Principal, client: Client) -> UUID:
+    location_id = _confirm_location(principal, client)
+    authorize(principal, CONFIRM_AGE, location_id=location_id)
+    return location_id
 
 
 _NO_BOOKING = datetime(9999, 12, 31, tzinfo=UTC)  # sorts people with no booking last (sort keys are NOT NULL)
@@ -920,10 +942,12 @@ def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -
     caller's locations. Filter: location_id (the home location). `?include=total` gives the dashboard count."""
     authorize(principal, CONFIRM_AGE)
     stmt = select(Client).where(
-        Client.is_birth_on_unverified, Client.status == "active", Client.merged_into_id.is_(None),
+        Client.age_confirmed_at.is_(None), Client.status == "active", Client.merged_into_id.is_(None),
         Client.birth_on <= _adult_born_by(session),  # children never get entry codes: not in the queue
     )  # fmt: skip
-    stmt = scope_query(stmt, principal, Client.home_location_id)
+    if principal.kind != "system" and principal.location_ids is not None:  # home, or the location told
+        reach = principal.location_ids
+        stmt = stmt.where(or_(Client.home_location_id.in_(reach), Client.age_review_location_id.in_(reach)))
     due = func.coalesce(Client.earliest_booking_at, literal(_NO_BOOKING, DateTime(timezone=True)))
     page = paginate(
         session, stmt, query, id_column=Client.id, sort_fields={"earliest_booking_at": due},
@@ -964,12 +988,13 @@ def note_unconfirmed_booking(session: Session, client_id: UUID, starts_at: datet
     # atomic: two first bookings at once still send one notice
     first = session.execute(
         update(Client).where(Client.id == client.id, Client.age_review_notified_at.is_(None))
-        .values(age_review_notified_at=clock.now()).returning(Client.id)
+        .values(age_review_notified_at=clock.now(), age_review_location_id=location_id).returning(Client.id)
         .execution_options(synchronize_session="fetch")
     ).scalar()  # fmt: skip
     changes = audit.diff(client)
     if first is not None:
         changes["age_review_notified_at"] = True
+        changes["age_review_location_id"] = str(location_id)
         _, to = platform.service.location_contact(session, location_id)
         if to:
             settings = get_settings()
@@ -977,7 +1002,7 @@ def note_unconfirmed_booking(session: Session, client_id: UUID, starts_at: datet
                 "app": settings.app.display_name, "name": display_name(client),
                 "url": f"{settings.app.web_base_url}/clients/age-checks"})  # fmt: skip
     if changes:
-        audit.record(session, "clients.client.age_review", client, location_id=client.home_location_id,
+        audit.record(session, "clients.client.age_review", client, location_id=location_id,
                      changes=changes)  # fmt: skip
 
 
@@ -986,17 +1011,17 @@ def confirm_age(session: Session, principal: Principal, client_id: UUID, data: d
     `birth_on` is sent, and the flag clears even when the date is unchanged. Nothing about the document is kept.
     Errors: birth-date-required (no date on file and none sent)."""
     client = load(session, principal, client_id, CONFIRM_AGE)
-    authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+    location_id = _authorize_confirm(principal, client)
     _require_live(client)
     client.birth_on = data.get("birth_on") or client.birth_on
     if client.birth_on is None:
         raise ValidationFailed("Enter the birth date shown on the ID.", pointer="/birth_on", code="birth-date-required")
-    _confirm(session, client, principal.staff_user_id)
+    _confirm(session, client, principal.staff_user_id, location_id)
     session.flush()
     return client
 
 
-def _confirm(session: Session, client: Client, staff_user_id: UUID | None, **extra) -> bool:
+def _confirm(session: Session, client: Client, staff_user_id: UUID | None, location_id: UUID, **extra) -> bool:
     """Confirm, audit once (birth_on flag-only, who and when by value) and fire age_confirmed on the transition.
     Returns whether this was the transition."""
     confirmed = _age_confirmed(client)
@@ -1004,7 +1029,7 @@ def _confirm(session: Session, client: Client, staff_user_id: UUID | None, **ext
     changes = audit.diff(client) | extra
     client.version += 1
     client.updated_by_staff_user_id = staff_user_id
-    audit.record(session, CONFIRM_AGE, client, location_id=client.home_location_id, changes=changes)
+    audit.record(session, CONFIRM_AGE, client, location_id=location_id, changes=changes)
     events.publish(session, ClientUpdated(client_id=client.id), client.id)
     if not confirmed:
         events.publish(session, ClientAgeConfirmed(client_id=client.id), client.id)
@@ -1022,13 +1047,14 @@ def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
     people = []
     for client_id in ids:  # every gate before anything is written
         client = load(session, principal, client_id, CONFIRM_AGE)
-        authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+        where = _authorize_confirm(principal, client)
         _require_live(client)
         if client.birth_on is None:
             raise ValidationFailed("A selected person has no birth date.", pointer="/client_ids",
                                    code="birth-date-required")  # fmt: skip
-        people.append(client)
-    done = [c.id for c in people if not _age_confirmed(c) and _confirm(session, c, principal.staff_user_id, note=True)]
+        people.append((client, where))
+    done = [c.id for c, where in people
+            if not _age_confirmed(c) and _confirm(session, c, principal.staff_user_id, where, note=True)]  # fmt: skip
     session.flush()
     return {"client_ids": ids, "confirmed_count": len(done)}
 
@@ -1038,7 +1064,7 @@ def confirm_imported_age(session: Session, client_id: UUID, staff_user_id: UUID)
     date counts as confirmed. Minors and dateless rows are left as they are."""
     client = get(session, client_id)
     if client.birth_on is not None and not _declared_minor(session, client) and not _age_confirmed(client):
-        _confirm(session, client, staff_user_id, source="import")
+        _confirm(session, client, staff_user_id, client.home_location_id, source="import")
 
 
 def disable_client(session: Session, principal: Principal, client_id: UUID) -> Client:
@@ -1228,11 +1254,15 @@ def entry_code_notice(session: Session, client: Client, location_id: UUID) -> st
     """Internal: what a person with a self-declared birth date is told before paying (owner decision
     2026-11-13), with the location's phone number; None once staff confirmed it (or with no date on file).
     A declared minor never gets a code, so they are told a parent or guardian books instead."""
-    if client.birth_on is None or not client.is_birth_on_unverified:
+    if client.birth_on is None or _age_confirmed(client):
         return None
     notice = MINOR_NOTICE if _declared_minor(session, client) else ENTRY_CODE_NOTICE
-    phone, _ = platform.service.location_contact(session, location_id)
-    return f"{notice} Questions? Call {phone}." if phone else notice
+    return with_phone(notice, platform.service.location_contact(session, location_id)[0])
+
+
+def with_phone(notice: str, phone: str | None) -> str:
+    """The one wording for "call us", shared with building control's held-code message (ENTRY_CODE_NOTICE too)."""
+    return f"{notice} Questions? Call us on {phone}." if phone else notice
 
 
 def is_minor(client: Client, on: date, age_of_majority: int) -> bool:

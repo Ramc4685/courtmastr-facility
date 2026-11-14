@@ -880,7 +880,7 @@ def _age_rows(tag: str) -> list[list]:
 
 def _ages(tenant, tag: str) -> dict[str, bool]:
     with tenant_session(tenant.id) as session:
-        rows = session.execute(text("SELECT first_name, is_birth_on_unverified FROM client WHERE last_name LIKE :t"),
+        rows = session.execute(text("SELECT first_name, age_confirmed_at IS NULL FROM client WHERE last_name LIKE :t"),
                                {"t": f"%{tag}"})  # fmt: skip
         return {name: not unverified for name, unverified in rows}
 

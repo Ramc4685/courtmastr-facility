@@ -1,11 +1,13 @@
 """Age confirmation (owner decision 2026-11-13, "Staff confirm once"): every online path that creates a client
 needs a birth date the person declares true; a self-typed date is always flagged until staff confirm it once."""
 
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select, update
 
+from app.core import clock
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
@@ -37,11 +39,8 @@ def flagged(tenant, client_id) -> bool:
 
 
 def self_declared(client, owner, tenant, f, birth_on: str | None = ADULT) -> str:
-    """A record whose birth date the person typed online (as sign-up leaves it)."""
-    who = new_client(client, owner, f.location, **({"birth_on": birth_on} if birth_on else {}))["id"]
-    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
-        session.execute(update(Client).where(Client.id == who).values(is_birth_on_unverified=birth_on is not None))
-    return who
+    """A record whose birth date waits for staff (as sign-up leaves it: any typed date does)."""
+    return new_client(client, owner, f.location, **({"birth_on": birth_on} if birth_on else {}))["id"]
 
 
 def confirm(client, headers, who: str, **body):
@@ -102,8 +101,6 @@ def test_a_portal_dependant_needs_the_declaration_and_the_parent_cannot_change_t
 def test_merge_carries_the_flag_with_a_backfilled_birth_date(client, owner, tenant, f):
     survivor = new_client(client, owner, f.location)["id"]
     loser = new_client(client, owner, f.location, birth_on=ADULT)["id"]
-    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
-        session.execute(update(Client).where(Client.id == loser).values(is_birth_on_unverified=True))
     merged = ok(client.post(f"{API}/clients/{survivor}/merge", headers=owner, json={"merged_client_ids": [loser]}), 200)
     assert (merged["birth_on"], merged["is_birth_on_unverified"]) == (ADULT, True)
 
@@ -120,7 +117,7 @@ def test_staff_confirm_an_unchanged_date_audited_flag_only_and_the_event_fires_o
     with tenant_session(tenant.id) as session:
         record = session.scalars(select(AuditEvent).where(
             AuditEvent.entity_id == who, AuditEvent.action == "clients.client.confirm_age")).one()  # fmt: skip
-    assert record.changes["is_birth_on_unverified"] == [True, False] and "birth_on" not in record.changes
+    assert record.changes["age_confirmed_at"][0] is None and "birth_on" not in record.changes
     assert ADULT not in str(record.changes)  # PII flag-only; no document detail exists to store
     assert confirmed_events(tenant, who) == 1
     ok(confirm(client, owner, who), 200)  # seeing the ID again is harmless and announces nothing new
@@ -357,3 +354,51 @@ def test_bulk_confirm_audits_and_announces_each_person_once_with_the_note_flag_o
     again = ok(client.post(BULK, headers=owner, json={"client_ids": [a], "note": NOTE}), 200)
     assert again["confirmed_count"] == 0 and confirmed_events(tenant, a) == 1
     assert not {a, b} & queued(client, owner)
+
+
+# --- one source of truth and the location rules ------------------------------------------------------------------
+
+
+def other_location(client, owner) -> str:
+    return ok(client.post(f"{API}/locations", headers=owner, json={
+        "name": f"Other {uuid4().hex[:4]}", "time_zone": "America/Chicago", "country_code": "US"}))["id"]  # fmt: skip
+
+
+def test_a_raw_birth_date_write_is_never_a_confirmation(client, owner, tenant, f):
+    """Seeds once wrote birth_on straight to the row and so confirmed it: age_confirmed_at alone confirms."""
+    who = new_client(client, owner, f.location)["id"]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.execute(update(Client).where(Client.id == who).values(birth_on=ADULT))
+    seen = staff_view(client, owner, who)
+    assert (seen["age_confirmed"], seen["is_birth_on_unverified"]) == (False, True)
+    assert who in queued(client, owner)
+
+
+def test_staff_at_the_booking_location_told_confirm_without_moving_the_home(client, owner, tenant, f, mailbox):
+    from app.modules.clients import service
+
+    there = other_location(client, owner)
+    ok(client.patch(f"{API}/locations/{there}", headers=owner, json={"alert_email": "there@example.com"}), 200)
+    who = self_declared(client, owner, tenant, f)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        service.note_unconfirmed_booking(session, who, clock.now() + timedelta(days=2), there)
+    assert [m.to for m in mailbox if m.to == "there@example.com"] == ["there@example.com"]
+    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[there])[0])
+    assert who in {c["id"] for c in ok(client.get(f"{API}/client-age-reviews", headers=desk), 200)["data"]}
+    assert ok(confirm(client, desk, who), 200)["home_location_id"] == f.location  # not moved
+    with tenant_session(tenant.id) as session:
+        record = session.scalars(select(AuditEvent).where(
+            AuditEvent.entity_id == who, AuditEvent.action == "clients.client.confirm_age")).one()  # fmt: skip
+    assert str(record.location_id) == there
+
+
+def test_moving_the_home_location_is_not_a_way_to_gain_the_right_to_confirm(client, owner, tenant, f):
+    there = other_location(client, owner)
+    who = self_declared(client, owner, tenant, f)
+    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[there])[0])
+    assert confirm(client, desk, who).status_code == 404
+    moved = client.patch(f"{API}/clients/{who}", headers=desk, json={"home_location_id": there})
+    assert (moved.status_code, moved.json()["code"]) == (403, "age-check-pending")
+    assert staff_view(client, owner, who)["home_location_id"] == f.location
+    ok(confirm(client, owner, who), 200)
+    ok(client.patch(f"{API}/clients/{who}", headers=desk, json={"home_location_id": there}), 200)  # confirmed: free

@@ -35,6 +35,15 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
 - **A merge never confirms.** The survivor stays confirmed only if it and every merged record were confirmed for
   the same date and no merged record brings a login the survivor did not have; otherwise it becomes unconfirmed
   (merge audit `age_confirmation_reset`, flag-only), keeps the earliest booking and joins the queue. No event fires.
+- **One source of truth.** A client is confirmed when it has a birth date and `age_confirmed_at`; only the confirm
+  action (single, bulk, or an opted-in import) sets it, so a raw write of `birth_on` (a seed, a script) is
+  unconfirmed. `is_birth_on_unverified` in the API is derived from it (migration 1985 drops the stored flag).
+- **Where staff confirm.** At the client's home location, or at the booking location the one staff notice went to
+  (`age_review_location_id`): that location's staff see the person in the queue and confirm without moving them.
+  Moving an unconfirmed client's home is refused (`403 age-check-pending`) for a holder of the confirm key who cannot
+  confirm at the current home, so a move is never a way to gain the right (chosen over audit-and-block as smaller).
+- **One wording.** `ENTRY_CODE_NOTICE` and `with_phone` ("Questions? Call us on X.") are shared with building
+  control's held-code message.
 - **Self-service needs a declared date.** Sign-up, guest checkout and portal dependants require `birth_on` and
   `birth_on_declared: true`; a person may not change a recorded date (`field-locked`).
 - **Seam for building-control.** Event `clients.client.age_confirmed` (fired once, on the transition) and

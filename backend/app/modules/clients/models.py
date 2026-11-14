@@ -150,6 +150,7 @@ class Client(TenantOwned, Timestamps, Base):
         *tfk("created_by_staff_user_id", "staff_user"),
         *tfk("updated_by_staff_user_id", "staff_user"),
         *tfk("age_confirmed_by_staff_user_id", "staff_user"),
+        *tfk("age_review_location_id", "location"),
         *tfk("photo_file_id", "stored_file"),  # CLI-12, clients/files.py
         CheckConstraint("btrim(first_name) <> ''", name="first_name"),
         CheckConstraint("btrim(last_name) <> ''", name="last_name"),
@@ -192,7 +193,7 @@ class Client(TenantOwned, Timestamps, Base):
         Index("ix_client_duplicate_key", "tenant_id", func.lower(text("last_name")), "birth_on"),
         Index("ix_client_merged_into", "tenant_id", "merged_into_id", postgresql_where=text("merged_into_id IS NOT NULL")),
         Index("ix_client_age_review", "tenant_id", "home_location_id", "earliest_booking_at", "id",
-              postgresql_where=text("is_birth_on_unverified")),
+              postgresql_where=text("birth_on IS NOT NULL AND age_confirmed_at IS NULL")),
     )  # fmt: skip
 
     first_name: Mapped[str] = mapped_column(info=_FLAG)
@@ -200,12 +201,18 @@ class Client(TenantOwned, Timestamps, Base):
     preferred_name: Mapped[str | None] = mapped_column(info=_FLAG)
     gender: Mapped[str | None] = enum_column()
     birth_on: Mapped[date | None] = mapped_column(info=_FLAG)
-    # A birth date the person typed online (sign-up, guest checkout, portal): flagged until staff confirm it once.
-    is_birth_on_unverified: Mapped[bool] = mapped_column(server_default=text("false"))
+    # The one source of truth for a confirmed age: only the confirm action sets it (see is_birth_on_unverified).
     age_confirmed_at: Mapped[datetime | None]  # staff saw ID (in person or a photo); nothing about it is kept
     age_confirmed_by_staff_user_id: Mapped[UUID | None]
     earliest_booking_at: Mapped[datetime | None]  # the staff age-check queue puts people who booked first
     age_review_notified_at: Mapped[datetime | None]  # staff were told once, on the first online booking
+    age_review_location_id: Mapped[UUID | None]  # the booking location told; its staff may confirm too
+
+    @property
+    def is_birth_on_unverified(self) -> bool:
+        """A birth date on file that staff have not confirmed (derived from age_confirmed_at, never stored)."""
+        return self.birth_on is not None and self.age_confirmed_at is None
+
     organization_name: Mapped[str | None]
     phone_mobile: Mapped[str | None] = mapped_column(info=_FLAG)
     phone_home: Mapped[str | None] = mapped_column(info=_FLAG)
