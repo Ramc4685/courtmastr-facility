@@ -127,7 +127,7 @@ Nothing in the product drives a door or a light today. The access module reserve
 **What a booking-bound one-time code needs:**
 
 - A validity window around the booking, for example 15 minutes before the start until the end. It must be in the location's zone and must account for the changeover buffers.
-- A choice between one code per booking (shared with the group) and one per participant. For rentals the booker is known and, since `claude/rentals-pilot`, any household players named on the booking (`rental_party`).
+- One code per person, never shared (decided; access README): a code goes to one adult (a rental's holder, or each adult enrolled on a session) and checks in only that person. Other players on a rental (`rental_party`, since `claude/rentals-pilot`) get no code; the holder lets them in.
 - Revocation when the booking is cancelled, plus reissue when it is rescheduled.
 - Issuing at or shortly before arrival, through the notification port.
 - An audit record of each issue and use.
@@ -207,7 +207,7 @@ This was not built.
 ## Open questions for the owner
 
 1. Should members pay the member price on rentals and guests pay more, or should everyone pay one price? This decides how urgent gap 2 is.
-2. Who issues door codes, and how early before a booking? One code per booking or per person? Which door or lighting hardware is installed?
+2. Who issues door codes, and how early before a booking? Which door or lighting hardware is installed? (Settled: a code is personal to one adult and never shared, see the access README.)
 3. Do independent coaches sell lessons through CIRQT (you collect and pay them), or do they rent courts and collect from students themselves?
 4. Is a club's weekly slot a fixed-term agreement (for example a season with a renewal), or open-ended?
 5. From what age may a child play without a parent present?
