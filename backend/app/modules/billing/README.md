@@ -527,6 +527,14 @@ and record a failed attempt ("payload missing").
   creates a payment from it: an operator finds it in `inbound_webhook_event` and refunds it at the processor.
   A retry with the same Idempotency-Key replays the same processor charge (it never charges twice) but cannot
   recover a request whose client never retries.
+- **Guest checkout stays on the own-row path (Phase 9 S5c, not changed).** `programs.checkout.guest_confirm`
+  creates the guest payer and participants in the request transaction, so its payment row takes the 23503
+  own-row path above. Committing the payer first was judged not contained: services never commit (overview
+  3.4; the request transaction belongs to `TxRoute`), so it would need a second session opened from programs
+  code; that transaction also holds the program chain locks and held places taken before the clients are
+  created; and a declined card, which today rolls the new clients back, would leave committed unverified client
+  records (personal data with no registration) that need their own clean-up and erasure path. The orphan risk
+  stays as described in the first bullet, with the S5b list as the operator's view.
 - **Unmatched processor activity shows no amount (Phase 9 S5b).** `GET /unmatched-provider-events`
   (`billing.history.read`, keyset, `include=total` for the count; Billing set-up, Processor tab) lists the
   events above once the sweep has stopped retrying them: provider, kind, the processor's reference and the
