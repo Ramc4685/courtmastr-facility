@@ -283,6 +283,36 @@ def test_a_webhook_stored_but_never_processed_is_retried(shop):
     assert stored[0] not in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
 
 
+def test_a_processor_charge_with_no_local_row_is_kept_for_staff_never_dropped(shop, caplog):
+    """A request that died after charging on the own-row path leaves a processor charge and no row: its webhook is
+    kept `failed` with a fixed reason (retried by the sweep, in case the row commits late), logged by event id
+    only, so an operator can find and refund the orphan charge."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    orphan = (
+        payment_provider.get("fake")
+        .create_payment(
+            account_ref=account_ref,
+            amount_minor=700,
+            currency="USD",
+            method_token="tok_card_ok",
+            idempotency_key=f"{shop.tenant.id}:payment:died-{uuid4().hex}",
+        )
+        .provider_payment_ref
+    )
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
+                                     {"kind": "payment", "object": orphan, "account": account_ref})  # fmt: skip
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    kept = inbound_webhooks.get(stored[0])
+    assert kept.status == "failed"
+    assert "unmatched" in caplog.text and orphan not in caplog.text
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "
+                          "WHERE id = :id"), {"id": stored[0]})  # fmt: skip
+    assert stored[0] in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
+
+
 def test_an_event_whose_payload_is_gone_fails_loudly_and_is_never_marked_processed(shop, caplog):
     ready(shop)
     stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", None, "payment.succeeded", {})

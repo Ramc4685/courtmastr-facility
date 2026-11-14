@@ -11,6 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
+import { useAttemptKey } from '../portal/shared'
 import { ReasonDialog } from './ChargeDialogs'
 import { HistoryList } from './InvoicePage'
 import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, toMoneyInput } from './money'
@@ -29,8 +30,10 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
   const [reason, setReason] = useState('')
   const [comments, setComments] = useState('')
   const [tried, setTried] = useState(false)
+  const attempt = useAttemptKey() // a retry after an unknown outcome replays the refund instead of paying twice
   const m = useMutation({
-    mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null } }),
+    mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null }, idempotencyKey: attempt.key }),
+    onSettled: (_data, error) => attempt.settle(error),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
       const outcome = refundOutcome([r], currency)
@@ -53,11 +56,11 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
         if (reason.trim()) m.mutate()
       }}
     >
-      <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => setAmount(e.target.value)} />
+      <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => { setAmount(e.target.value); attempt.restart() }} />
       <Select
         label="Refund to"
         value={method}
-        onChange={(e) => setMethod(e.target.value as 'original' | 'external')}
+        onChange={(e) => { setMethod(e.target.value as 'original' | 'external'); attempt.restart() }}
         options={[
           ...(PROCESSED.has(payment.tender_kind) ? [{ value: 'original', label: 'The original card or account (through the processor)' }] : []),
           { value: 'external', label: 'Paid out another way (cash, cheque): record only' },

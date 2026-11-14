@@ -53,14 +53,24 @@ export function makePortalValue(clients: PortalClient[], actingId: string | null
   }
 }
 
-/** One idempotency key per purchase attempt: kept across a retry after a processor timeout (503, so the
- * server replays rather than charges twice), replaced after any other failure (a decline is a new attempt). */
+/** Whether a failed money request's outcome is unknown (network loss, 5xx, another request still at work), so the
+ * retry must carry the same Idempotency-Key: the server then replays the same processor charge or refund
+ * instead of making a second. A success or a definite refusal (a decline, a validation error) ends the attempt. */
+export function keepsAttemptKey(error: unknown): boolean {
+  if (error === null || error === undefined) return false
+  if (!(error instanceof ApiError)) return true
+  return error.status >= 500 || (error.status === 409 && error.code === 'request-in-progress')
+}
+
+/** One idempotency key per purchase attempt: kept across a retry whose outcome is unknown (keepsAttemptKey),
+ * replaced after a success or a definite failure, or by `restart` when the user changes what they are paying. */
 export function useAttemptKey() {
   const [key, setKey] = useState(() => crypto.randomUUID())
   const settle = useCallback((error: Error | null) => {
-    if (!(error instanceof ApiError && error.status === 503)) setKey(crypto.randomUUID())
+    if (!keepsAttemptKey(error)) setKey(crypto.randomUUID())
   }, [])
-  return { key, settle }
+  const restart = useCallback(() => setKey(crypto.randomUUID()), [])
+  return { key, settle, restart }
 }
 
 /** The processor behind online checkout and the keys Stripe.js mounts with, from the read-only processor

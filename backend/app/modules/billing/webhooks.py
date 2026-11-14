@@ -50,18 +50,28 @@ def receive(provider_name: str, headers: dict[str, str], body: bytes) -> str:
     return "accepted"
 
 
+class Unmatched(DomainError):
+    """A processor payment or refund with no row of ours: a request that died after charging, or a row that has
+    not committed yet. Kept `failed` on the stored event (the sweep retries it, then an operator refunds it)."""
+
+    def __init__(self) -> None:
+        super().__init__("No payment or refund here matches this processor object.", code="unmatched-provider-event")
+
+
 def apply_event(session: Session, kind: str, object_ref: str | None, account_ref: str | None = None) -> None:
     """Bring our row in line with the provider's current state of the object the event names."""
     if not object_ref:
         return
     if kind == "payment":
         payment_id = session.scalar(select(Payment.id).where(Payment.provider_payment_ref == object_ref))
-        if payment_id is not None:
-            service.confirm_payment(session, payment_id)
+        if payment_id is None:
+            raise Unmatched()
+        service.confirm_payment(session, payment_id)
     elif kind == "refund":
         refund_id = session.scalar(select(Refund.id).where(Refund.provider_refund_ref == object_ref))
-        if refund_id is not None:
-            service.confirm_refund(session, refund_id)
+        if refund_id is None:
+            raise Unmatched()
+        service.confirm_refund(session, refund_id)
     elif kind == "method":
         methods.sync_method(session, object_ref)
     elif kind == "dispute":
@@ -104,6 +114,10 @@ def process_provider_event(session: Session, row_id: str) -> None:
         return
     try:
         apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
+    except Unmatched as error:  # no retry storm: the stale-event sweep tries it again, then it waits for an operator
+        log.warning("webhook %s unmatched: no local payment or refund", row_id)
+        inbound_webhooks.finish(UUID(row_id), error=_event_failure(error))
+        return
     except Exception as error:
         inbound_webhooks.finish(UUID(row_id), error=_event_failure(error))
         raise
