@@ -944,18 +944,19 @@ def test_n_the_independent_coach_earns_a_share_and_is_settled_by_payout_statemen
             len(unpaid), sum(r["gross_minor"] for r in unpaid), sum(r["coach_share_minor"] for r in unpaid))  # fmt: skip
         assert payout["gross_minor"] == payout["facility_share_minor"] + payout["coach_share_minor"]
         url = f"{API}/coach-payouts/{payout['id']}"
-        assert ok(c.post(f"{url}/approve", headers=owner), 200)["status"] == "approved"
+        # Approve brings the draft up to date: the refund's reversal of a lesson on it comes along, though dated later.
+        approved = ok(c.post(f"{url}/approve", headers=owner), 200)
+        assert (approved["status"], approved["coach_share_minor"]) == ("approved", payout["coach_share_minor"] - 3500)
         paid = ok(c.post(f"{url}/paid", headers=owner, json={
             "paid_on": (day + timedelta(days=1)).isoformat(), "payment_method": "bank_transfer",
             "payment_reference": "CIRQT-INES-1"}), 200)  # fmt: skip
-        assert (paid["status"], paid["coach_share_minor"]) == ("paid", payout["coach_share_minor"])
-        # Paid is final; the refund lands on the next statement as a correction.
+        assert (paid["status"], paid["coach_share_minor"]) == ("paid", approved["coach_share_minor"])
+        # Nothing is left for the next statement: the refund was settled on this one.
         later = period | {
             "period_starts_on": (day + timedelta(days=1)).isoformat(),
             "period_ends_on": (day + timedelta(days=1)).isoformat(),
         }
-        [correction] = ok(c.post(f"{API}/coach-payouts", headers=owner, json=later))["data"]
-        assert (correction["line_count"], correction["coach_share_minor"]) == (1, -3500)
+        assert ok(c.post(f"{API}/coach-payouts", headers=owner, json=later))["data"] == []
         # Rowan's lesson the same day goes through payroll, as a staff coach's always has.
         ok(c.put(f"{API}/sessions/{rowan_session}/attendance", headers=owner,
                  json={"marks": [{"enrollment_id": rowan_place["id"], "status": "attended"}]}), 200)  # fmt: skip
