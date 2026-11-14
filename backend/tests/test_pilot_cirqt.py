@@ -460,6 +460,8 @@ def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_
     assert balance["credit_minor"] == paid  # paid card money became credit
     soon = datetime.now(ZONE) + timedelta(hours=3)
     start = soon.replace(minute=0, second=0, microsecond=0)
+    if start.hour >= 22:  # both hour-long bookings below stay on one local date, still inside the 24-hour cut-off
+        start = (start + timedelta(days=1)).replace(hour=1)
     late = ok(rent(c, w, w.desk, "Pickleball court", "Court 1", start.date(), start.strftime("%H:%M"),
                    (start + timedelta(hours=1)).strftime("%H:%M"), payer))  # fmt: skip
     charged = late["quote"]["subtotal_minor"]
