@@ -259,7 +259,7 @@ function SignupConfirmPage({ config }: { config: Config }) {
 }
 
 // Server pointers (without the slash) that have an input of their own; any other error shows in the top alert.
-const GUEST_FIELDS = ['payer/first_name', 'payer/last_name', 'payer/email', 'payer/birth_on', 'participants/0/first_name', 'participants/0/last_name', 'participants/0/birth_on']
+const GUEST_FIELDS = ['birth_on_declared', 'payer/first_name', 'payer/last_name', 'payer/email', 'payer/birth_on', 'participants/0/first_name', 'participants/0/last_name', 'participants/0/birth_on']
 const FEE_FIELDS = ['program_fee_id', 'items/0/program_fee_id']
 
 type GuestForm = { first_name: string; last_name: string; email: string; birth_on: string; kid_first: string; kid_last: string; kid_birth_on: string; fee_id: string }
@@ -284,7 +284,8 @@ function GuestCheckoutPage({ config }: { config: Config }) {
           payer: { first_name: form.first_name, last_name: form.last_name, email: form.email, birth_on: form.birth_on },
           participants: forKid ? [{ first_name: form.kid_first, last_name: form.kid_last || form.last_name, birth_on: form.kid_birth_on }] : [],
           items: [{ program_group_id: g.id, program_fee_id: form.fee_id || g.fees[0]?.id || null, participant: forKid ? 0 : null }],
-          birth_on_declared: true,
+          // The server refuses an undeclared form, so every field error shows together on one submit.
+          birth_on_declared: declared as true,
         },
       })
     },
@@ -353,8 +354,9 @@ function GuestCheckoutPage({ config }: { config: Config }) {
             <Select label="Fee" value={form.fee_id} error={errors.program_fee_id ?? errors['items/0/program_fee_id']} onChange={(e) => setForm({ ...form, fee_id: e.target.value })} placeholder="Choose a fee"
               options={g.fees.map((fee) => ({ value: fee.id, label: `${fee.description} · ${formatMoney(fee.amount_minor, config.currency)}` }))} />
           )}
-          <Checkbox label="I confirm the dates of birth I entered are true." checked={declared} onChange={(e) => setDeclared(e.target.checked)} />
-          <Button type="submit" className="w-full" loading={start.isPending} disabled={!declared}>
+          <Checkbox label="I confirm the dates of birth I entered are true." checked={declared} onChange={(e) => setDeclared(e.target.checked)}
+            error={errors.birth_on_declared && !declared ? 'Tick this box to confirm the dates of birth are true.' : ''} />
+          <Button type="submit" className="w-full" loading={start.isPending}>
             Continue to payment
           </Button>
         </form>

@@ -117,7 +117,6 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     await user.type(screen.getByLabelText('Last name'), 'Newcomer')
     await user.type(screen.getByLabelText('Email'), 'nia@example.com')
     fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1990-05-04' } })
-    expect(screen.getByRole('button', { name: 'Continue to payment' })).toBeDisabled()
     await user.click(screen.getByLabelText('I confirm the dates of birth I entered are true.'))
     await user.click(screen.getByRole('button', { name: 'Continue to payment' }))
     return user
@@ -160,6 +159,31 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByLabelText('Date of birth')).toHaveAccessibleDescription('Enter a real date.')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('submits without the declaration so every field error shows at once, the declaration inline too', async () => {
+    const refused = {
+      status: 422,
+      body: {
+        status: 422, code: 'validation-failed', detail: 'Check the highlighted fields.',
+        errors: [
+          { pointer: '/payer/email', code: 'validation-failed', detail: 'Enter a valid email address.' },
+          { pointer: '/birth_on_declared', code: 'validation-failed', detail: 'Input should be True' },
+        ],
+      },
+    }
+    const calls = open(GUEST, routes({ 'POST /api/v1/public/guest-checkouts': refused }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Continue to payment' }))
+    const declaration = screen.getByLabelText('I confirm the dates of birth I entered are true.')
+    expect(await screen.findByText('Tick this box to confirm the dates of birth are true.')).toBeInTheDocument()
+    expect(declaration).toHaveAttribute('aria-invalid', 'true')
+    expect(declaration).toHaveAccessibleDescription('Tick this box to confirm the dates of birth are true.')
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(calls.find((c) => c.url.endsWith('/guest-checkouts'))?.body).toMatchObject({ birth_on_declared: false })
+    await user.click(declaration)
+    expect(declaration).not.toHaveAttribute('aria-invalid')
   })
 
   it('retries after a decline with the same guest token and a new attempt key', async () => {
