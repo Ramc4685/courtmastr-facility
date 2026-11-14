@@ -395,7 +395,7 @@ class _Priced:
 
     def __init__(
         self, session: Db, rtype: RentalType, decision: dict, occurrences: list[pricing.Occurrence], on: date,
-        client_id: UUID | None,
+        client_id: UUID | None, players: tuple[UUID, ...] = (),
     ):  # fmt: skip
         custom = decision.get("custom_rate")
         if custom:
@@ -417,7 +417,9 @@ class _Priced:
             selected = session.scalars(select(RentalRateTax.tax_id).where(RentalRateTax.rental_rate_id == row.id)).all()
         if decision.get("tax_ids") is not None:
             selected = decision["tax_ids"]
-        self.lines = _price_for(session, self.rate, occurrences, client_id, decision.get("line_grouping"))
+        self.lines = _price_for(
+            session, self.rate, occurrences, client_id, decision.get("line_grouping"), players=players
+        )
         try:
             pricing.apply_discount(self.lines, decision.get("discount_minor") or 0)
         except ValueError:
@@ -448,15 +450,24 @@ class _Priced:
         }  # fmt: skip
 
 
-def _member_pricing(session: Db, client_id: UUID | None, on: date) -> tuple[bool, frozenset]:
-    """Whether the payer pays member prices on a local date, and under which membership type: memberships'
-    `member_on`, the date-aware form of the owner-decision-13 definition (an active contract, owned or shared, at
-    any location, overdue or used up; never suspended or frozen on that date). It covers a past date a since-ended
-    contract covered and an auto-renewing contract past its end date."""
+def _member_pricing(
+    session: Db, client_id: UUID | None, on: date, players: tuple[UUID, ...] = ()
+) -> tuple[bool, frozenset]:
+    """Whether the rental earns member prices on a local date, and under which membership types: the holder is a
+    member that date, or every listed player is (owner decision: a family books in a parent's name). Membership is
+    memberships' `member_on`, the date-aware form of the owner-decision-13 definition (an active contract, owned or
+    shared, at any location, overdue or used up; never suspended or frozen on that date). It covers a past date a
+    since-ended contract covered and an auto-renewing contract past its end date. One uncovered player with a
+    non-member holder means guest prices."""
     if client_id is None:
         return False, frozenset()
     found = memberships.service.member_on(session, client_id, on)
-    return (True, frozenset({found["membership_type_id"]})) if found else (False, frozenset())
+    if found:
+        return True, frozenset({found["membership_type_id"]})
+    covered = [memberships.service.member_on(session, p, on) for p in dict.fromkeys(players) if p != client_id]
+    if covered and all(covered):
+        return True, frozenset(c["membership_type_id"] for c in covered)
+    return False, frozenset()
 
 
 def _price_for(
@@ -466,6 +477,7 @@ def _price_for(
     client_id: UUID | None,
     grouping: str | None = None,
     status: dict[date, tuple[bool, frozenset]] | None = None,
+    players: tuple[UUID, ...] = (),
 ) -> list[pricing.Line]:
     """The rental price for quote and charge alike: each occurrence at the payer's member status on its own
     local date (a recurring rental that outlives a membership pays the guest price after it). `flat` is one
@@ -477,7 +489,7 @@ def _price_for(
     for occurrence in occurrences:
         on = first if rate.basis == "flat" else occurrence.starts_at.date()
         if on not in status:
-            status[on] = _member_pricing(session, client_id, on)
+            status[on] = _member_pricing(session, client_id, on, players)
         groups.setdefault(status[on], []).append(occurrence)
     lines = [
         line
@@ -809,7 +821,9 @@ def _decide(
 
 def _price_rows(session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking], client_id: UUID) -> _Priced:
     occurrences = _occurrence_inputs(session, rows, _type_resources(session, rtype.id))
-    return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date(), client_id)
+    players = tuple(session.scalars(select(RentalParty.client_id).distinct().where(
+        RentalParty.rental_booking_id.in_([r.id for r in rows]))))  # fmt: skip
+    return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date(), client_id, players)
 
 
 def _check_override(principal: Principal, decision: dict, location_id: UUID) -> None:
@@ -931,8 +945,9 @@ def preview_rental(session: Db, principal: Principal, data: dict) -> dict:
             if o["status"] == "ok"
         ]  # fmt: skip
         if occurrences:
+            players = tuple(UUID(str(p["client_id"])) for p in data.get("parties") or ())
             quote = _Priced(
-                session, rtype, data["charge"], occurrences, occurrences[0].starts_at.date(), data["client_id"]
+                session, rtype, data["charge"], occurrences, occurrences[0].starts_at.date(), data["client_id"], players
             ).quote(_currency(session), rtype.deposit_pct)
     return {
         "occurrences": result["occurrences"], "requested_count": result["requested_count"],

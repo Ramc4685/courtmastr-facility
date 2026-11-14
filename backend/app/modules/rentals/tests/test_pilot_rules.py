@@ -534,7 +534,10 @@ def test_portal_holder_needs_a_birth_date_and_a_first_one_is_flagged_for_staff(c
         record = session.scalars(
             select(AuditEvent).where(AuditEvent.entity_id == me, AuditEvent.action == "clients.client.update")
         ).one()
-    assert record.changes["birth_on"] is True and ok(client.get(f"{API}/clients/{me}", headers=owner), 200)["age_confirmed"] is False
+    assert (
+        record.changes["birth_on"] is True
+        and ok(client.get(f"{API}/clients/{me}", headers=owner), 200)["age_confirmed"] is False
+    )
     # Owner decision 2026-11-13: a self-declared adult books and pays, but is told the first entry code waits for
     # staff to confirm the age once; the date is not trusted for entry until then.
     ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"phone": "217-555-0100"}), 200)
@@ -714,3 +717,43 @@ def test_a_newcomers_first_session_enrolment_feeds_the_queue_and_the_one_notice(
     assert datetime.fromisoformat(mine["earliest_booking_at"]) == datetime.fromisoformat(at(13, SOON))
     with tenant_session(tenant.id) as session:
         assert session.get(Client, kid).earliest_booking_at is None
+
+
+# --- member pricing for families: the holder is a member, or every listed player is covered ----------------------
+
+
+def priced(client, owner, f, holder: str, *players: str) -> tuple[int, int]:
+    """(preview subtotal, charged subtotal) for a 10:00 hour: member $20, guest $24."""
+    payload = body(f, holder, 15, 16, parties=[{"client_id": p} for p in players])
+    preview = ok(client.post(f"{API}/rentals/preview", headers=owner, json=payload), 200)["quote"]["subtotal_minor"]
+    created = ok(rent(client, owner, payload))
+    ok(client.post(f"{API}/rentals/{created['rental']['id']}/cancel", headers=owner, json={}), 200)
+    return preview, created["quote"]["subtotal_minor"]
+
+
+def test_a_member_parent_with_a_child_pays_the_member_price(client, owner, f):
+    parent, kid = family(client, owner, f)
+    join(client, owner, f, parent, DAY - timedelta(days=10))
+    assert priced(client, owner, f, parent, kid) == (2000, 2000)
+
+
+def test_a_non_member_parent_with_a_child_who_holds_a_junior_membership_pays_the_member_price(client, owner, f):
+    parent, kid = family(client, owner, f)
+    join(client, owner, f, kid, DAY - timedelta(days=10))
+    assert priced(client, owner, f, parent, kid) == (2000, 2000)
+    assert priced(client, owner, f, parent) == (2400, 2400)  # the child is not playing: the holder pays as a guest
+
+
+def test_a_child_named_on_a_shared_membership_is_covered(client, owner, f):
+    parent, kid = family(client, owner, f)
+    sharer = new_client(client, owner, f.location)["id"]  # another family member holds the membership
+    contract = join(client, owner, f, sharer, DAY - timedelta(days=10))
+    ok(client.post(f"{API}/membership-contracts/{contract}/shares", headers=owner, json={"client_id": kid}), 201)
+    assert priced(client, owner, f, parent, kid) == (2000, 2000)
+
+
+def test_one_covered_child_and_one_uncovered_friend_pay_the_guest_price(client, owner, f):
+    parent, kid = family(client, owner, f)
+    join(client, owner, f, kid, DAY - timedelta(days=10))
+    friend = new_client(client, owner, f.location)["id"]  # not a member, holds no share
+    assert priced(client, owner, f, parent, kid, friend) == (2400, 2400)

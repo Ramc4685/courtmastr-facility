@@ -21,7 +21,8 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   single or recurring) or `create_booking(hold_minutes=...)` (portal) with source ('rentals',
   'rental_booking', id). `scheduling.service.HOOKS["rentals"]` writes the rental_booking row in each
   occurrence's savepoint, so worker-generated occurrences (series above 50) and extension passes get one too.
-- **Pricing** (RNT-02): member price when the payer is a member, else the amount; per-hour occurrences cut at
+- **Pricing** (RNT-02): member price when the payer is a member (or every listed player is, see "Family member
+  prices"), else the amount; per-hour occurrences cut at
   every band edge and local midnight; first matching `rate` rule by sort_order replaces the unit; every
   matching `discount` rule adds up, capped at the unit; quantity is real elapsed time (DST-safe); a line never
   mixes prices; amount half-up once per line; occurrence shares are a largest-remainder split.
@@ -265,8 +266,13 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   passes the plan's waiver gate as a share-holder does (`_share_holder_documents`): their own acceptance, once per
   purchase, consumed against the purchase (`test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate`).
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
-- **Open question for the owner.** Should a child's own membership earn the member price when a parent (not a
-  member) holds the booking and the child plays? Today the price follows the holder only.
+- **Family member prices (owner decision).** A rental earns the member price on a date when the holder is a
+  member that date, or when every listed player is covered that date: by their own membership, or by a household or
+  shared membership naming them (`member_on` for each person, so shares count). With a non-member holder, a single
+  uncovered player means guest prices for the whole rental. The member rate rules matched are those of the covering
+  membership types. Staff and portal bookings, previews and charges all go through `_member_pricing`; a charge reads
+  the players written on the occurrences, so for a series every player listed on any occurrence must be covered.
+  Open times (no players yet) price the holder alone.
 - **Seam (claude/building-control).** That branch emails the door entry code to the rental holder and, for
   sessions, to every participant, children included. Rentals now never have a child holder, but a child player of a
   session gets the code; the owner should confirm that is wanted before both land.
