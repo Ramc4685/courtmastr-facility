@@ -63,6 +63,11 @@ and rebooked with zero buffers: its resources the newcomer's hold plan touches a
 newcomer's padded range, the others as one piece over the block's whole span. Then the holds are written as usual. A hold has one range per
 booking and resource, so a block cannot keep a hole. Anything else in the way, and nothing is carved.
 
+Known limits of `gives_way` (redesign on a follow-up branch; details in the leagues README): a carved booking that
+is later moved or cancelled does not hand its range back to the block, so that range is free to anyone; a newcomer
+on one half of a parent court keeps the block only around it on the parent, so the sibling half opens for that time;
+two carves at once can end in a false clash (the loser is refused, never double-booked).
+
 ## Assumptions and deviations (ADR 0004 and the data model unless noted)
 
 1. **Preview is a pre-check, not a rolled-back real run**, for creates (any size, synchronous). It reads

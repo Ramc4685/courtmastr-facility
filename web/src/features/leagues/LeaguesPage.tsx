@@ -532,7 +532,7 @@ function LeagueNightDialog({ competition, onClose }: { competition: Competition;
       open
       onClose={onClose}
       title="Hold a league night"
-      description="Rentals cannot book these courts. This league's games take their slots from the hold; the rest stays held."
+      description="Rentals cannot book these courts. This league's games take their slots from the hold. If you move or postpone a game, re-block its old slot."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>

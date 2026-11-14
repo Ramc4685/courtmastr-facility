@@ -462,8 +462,8 @@ def _blocking(session: Db, resource_ids, during: Range, booking_id: UUID) -> lis
 
 def _give_way(session: Db, found: list[dict], plan_ids: set[UUID], during: Range, owner: tuple) -> list[dict]:
     """Blocks held for `owner` (a block whose source is it, such as a league night held for one competition)
-    give way: each is cancelled and rebooked as what remains around `during`, so the newcomer's holds fit and the
-    rest of the night stays held. Holds cannot have holes (one range per booking and resource), hence the split.
+    give way: each is cancelled and rebooked as what remains around `during`, so the newcomer's holds fit and what
+    remains of the block stays held (see the README for its known limits). Holds cannot have holes (one range per booking and resource), hence the split.
     Returns the conflicts left; nothing is carved while any other booking is in the way."""
     ids = {UUID(c["booking_id"]) for c in found}
     blocks = {

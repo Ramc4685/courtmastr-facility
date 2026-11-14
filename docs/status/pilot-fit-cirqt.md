@@ -38,7 +38,7 @@ These are the values the seed uses. Marked items are assumptions.
 | a | A member books and pays for Court 1 online. Overlaps are refused, and the database exclusion constraint is the final arbiter. | pass |
 | b | Volleyball on Court 2 or 3 blocks badminton and pickleball on that court, including the 10-minute changeover. The neighbouring court stays free. | pass |
 | c | A committed league night refuses public rentals on its courts. | pass |
-| c | A night blocked first by staff is used by the league scheduler. | pass. Staff hold the courts as that league's night (Schedule tab, "Hold a league night"); its games take their slots out of the hold and the rest stays held. A plain calendar block still counts as a clash. |
+| c | A night blocked first by staff is used by the league scheduler. | pass for scheduling. Staff hold the courts as that league's night (Schedule tab, "Hold a league night"); its games take their slots out of the hold. A plain calendar block still counts as a clash. Known limits below. |
 | d | Badminton and volleyball leagues record scores and standings. | pass |
 | d | Set-by-set or game scores. | pass. Badminton is best of 3 to 21, win by 2, cap 30; volleyball best of 5 to 25, deciding set to 15. Every set is checked, the score is the sets won, and standings break ties on set ratio, then points ratio. |
 | e | A parent buys a junior membership for a child. The child gets no marketing and does not appear on public pages. | pass |
@@ -76,7 +76,10 @@ These are the values the seed uses. Marked items are assumptions.
 5. **No-shows and overstays for rentals.** There is no mark, no fee and no rule.
 6. **Paying independent coaches.** Payroll computes the commission line, but nothing pays out and there is no revenue split at checkout.
 7. **Utilisation from opening hours.** The report needs per-court availability windows.
-8. ~~**League details.**~~ Closed: league nights the scheduler fills, and set-by-set scoring with set and points ratio in the standings.
+8. ~~**League details.**~~ Closed: league nights the scheduler fills, and set-by-set scoring with set and points ratio in the standings. League nights work for scheduling, with three known limits until a follow-up redesign (leagues README, "League nights: known limits"):
+   - a game that is rescheduled, postponed or cancelled does not give its slot back to the night, so a public booking can take it; staff re-block the old slot;
+   - with a night on a parent court and a game on one half, the sibling half opens for that hour;
+   - two games carved at the same moment can report a false clash; the loser is left unschedulable with the reason, never double-booked.
 
 ## Setting CIRQT up: screens versus API
 

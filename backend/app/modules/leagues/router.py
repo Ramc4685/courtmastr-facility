@@ -400,7 +400,7 @@ def create_game(body: s.GameCreate, ctx: Ctx = Games):
 @staff.post("/competitions/{competition_id}/league-nights", response_model=s.LeagueNightOut, status_code=201)
 def block_league_night(competition_id: UUID, body: s.LeagueNightIn, ctx: Ctx = Games):
     """Hold courts for this competition ahead of its schedule. Rentals clash with the block; the competition's own
-    games take their slots out of it when they are booked, and the rest of the night stays held."""
+    games take their slots out of it when they are booked. A game moved or cancelled later does not give its slot back."""
     return service.block_league_night(ctx.session, ctx.principal, competition_id, body.model_dump())
 
 

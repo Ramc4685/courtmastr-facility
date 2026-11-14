@@ -1,5 +1,5 @@
 """A league night held ahead of the schedule: a block carrying the competition. The competition's games take their
-slots out of it when committed (the block is split around each game) and the rest of the night stays held; other
+slots out of it when committed (the block is split around each game) and what they did not take stays held; other
 bookings and other competitions' games still clash with it. Gated on the game key at the competition's location."""
 
 from app.modules.leagues.tests.test_leagues import WINDOW, generate, get, league, post, run_body, staff
@@ -12,7 +12,7 @@ def night(client, headers, f, competition_id, resources, start=18, end=22):
     })  # fmt: skip
 
 
-def test_the_league_uses_its_blocked_night_and_the_rest_stays_held(client, owner, tenant, f):
+def test_the_league_uses_its_blocked_night_and_what_is_left_stays_held(client, owner, tenant, f):
     comp = league(client, owner, f, teams=4)
     other = league(client, owner, f, teams=2, name="Thursday Futsal")
     held = night(client, owner, f, comp["id"], [f.court, f.court2])

@@ -1052,7 +1052,7 @@ def _place(
 def block_league_night(session: Db, principal: Principal, competition_id: UUID, data: dict) -> dict:
     """Hold courts for a competition ahead of its schedule: a block whose source is the competition. Rentals and
     other competitions' games clash with it as with any block; this competition's games take their slots out of
-    it when booked (`scheduling.service` splits the block around each game), and the rest stays held."""
+    it when booked (`scheduling.service` splits the block around each game). Known limits: leagues README."""
     competition = _competition(session, principal, competition_id, GAMES)
     found = {r.id for r in resources.service.in_location(session, competition.location_id, ids=data["resource_ids"])}
     if found != set(data["resource_ids"]):
