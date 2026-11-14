@@ -104,6 +104,20 @@ PAY-16) wait for the review of these.
   left `initiated` refunds; order dependent, not fixed); `tests/` 4,967 passed, 1,152 skipped or xfailed, 0 failed.
   `make lint typecheck boundaries` clean; `make contract` 1,191 passed, 6 skipped; `make web-check` clean, `make
   web-test` 322 passed (62 files). `make api-diff` still reports the third pass's `booking_number` int4 cap (no allow line).
+- **Fourth verification fixes (sixth pass).** The NOWAIT probe is gone: a payment row goes into the caller's
+  transaction only when that is positively its own (this transaction already holds the receipt counter, or the short
+  insert fails 23503 on the caller's uncommitted client or tender rows); a lock timeout is 409, any other database
+  error stands, and the 23503 path takes its receipt number in its own committed step. The web keeps an attempt's
+  key after an unknown outcome (5xx, network, 409 in progress) in portal and guest checkout and the staff refund
+  dialog. A processor charge or refund with no row is kept `failed` (`unmatched-provider-event`, swept again) and
+  never auto-created; no staff screen for it yet. An `unknown` payment the processor never made is cancelled after
+  30 minutes; an unknown refund is 409 with its row `initiated`. The 1951 migration test runs in a rolled-back
+  transaction instead of downgrading the shared database. Location `sort_order` is int4-bounded and any Postgres
+  22003 overflow is a 422 centrally; the `booking_number` cap is allow-listed.
+- **Checks run (sixth pass).** billing 307, pos 49, programs 69, integrations 174 passed; billing then integrations
+  in one process 472 passed; `tests/` 6,119 collected, 2 failed (log redaction, fixed after; `test_pilot_cirqt` h,
+  a time-of-day failure near midnight). `make lint typecheck boundaries` clean; `make contract` 1,191 passed, 6 skipped; `API_DIFF_BASE=main make api-diff`
+  exit 0; `make web-check` clean, `make web-test` 324 passed (63 files).
 
 ## Not done inside built features
 
