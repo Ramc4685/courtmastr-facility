@@ -25,7 +25,7 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
     for row in session.scalars(select(EntryCode).where(
             EntryCode.client_id == loser_id, EntryCode.status == "active", EntryCode.booking_id.in_(
                 select(EntryCode.booking_id).where(EntryCode.client_id == survivor_id, EntryCode.status == "active"))
-    ).with_for_update()).all():  # fmt: skip
+    ).order_by(EntryCode.booking_id, EntryCode.id).with_for_update()).all():  # fmt: skip
         building._revoke(session, row, "merged")
     for model in (CheckIn, Credential, EntryCode, EntryCodeHold):
         session.execute(update(model).where(model.client_id == loser_id).values(client_id=survivor_id))

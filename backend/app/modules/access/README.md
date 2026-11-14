@@ -431,7 +431,12 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   Each location's codes and its lights run in their own transaction (`control_steps`, `run_control_step`), so one
   failing step is logged and retried next minute without rolling back the others. Two ticks never sync one
   location's codes at once (a tried, transaction-scoped advisory lock: the second skips), and a handler racing the
-  tick on the same booking and person takes the winner's row (the insert runs under a savepoint). A staff override
+  tick on the same booking and person takes the winner's row (the insert runs under a savepoint). One sync of a
+  booking's codes runs at a time (`_lock_booking_codes`, a waited-for advisory lock per booking), and every path
+  that locks codes takes them in one order: bookings ascending, then a booking's codes by id (`ORDER BY booking_id,
+  id`). Without it two connections whose cached plans read one booking's codes in different orders (an index, the
+  heap) each held the code the other wanted and deadlocked. A sync for a booking with no active code at a location
+  with no door returns before doing anything else. A staff override
   locks the zone row, so it serialises with the tick's reconcile. With no
   adapter configured nothing is sent and nothing is counted as failed: each zone and door shows one
   `adapter_not_configured` state on the status line (`sync_state`), instead of a failure row a minute.

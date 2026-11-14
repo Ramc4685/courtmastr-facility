@@ -3,6 +3,7 @@ entry codes per booking (issue, email, reissue, revoke, refusals), the door veri
 lockout, check-in), staff and member unlocks, court lights computed from holds, overrides, the activity log and
 the reconciliation line."""
 
+import threading
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -237,6 +238,65 @@ def test_a_session_code_is_its_persons_and_dies_with_the_enrolment(client, tenan
         statuses = {str(c.client_id): (c.status, c.revoke_reason) for c in codes(b, lesson)}
     assert statuses == {b.person["id"]: ("revoked", "not_entitled"), other["id"]: ("active", None)}
     assert theirs
+
+
+def test_two_syncs_of_one_booking_never_deadlock_whatever_plan_each_connection_picks(client, tenant, owner, b):
+    """Two connections syncing one booking's codes, one reading them through an index and one through a heap scan
+    (a connection's cached plan may differ from another's), must serialise, not deadlock. A third transaction holds
+    the first code so the two queue on it: before the fix the first locked the codes in index order and the second
+    in heap order, and each ended up holding the code the other wanted (the CI deadlock in `sync_booking_code`)."""
+    other = adult(client, owner, b.location)
+    with clock.freeze(at(9)):
+        lesson = book(b, 10, 11, kind="session", resources=[b.court2])
+    seat = scalar(tenant, select(Session.id).where(Session.booking_id == UUID(lesson)))
+    for p in (b.person, other):
+        ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": str(seat), "client_id": p["id"]}))
+    low, high = sorted((UUID(b.person["id"]), UUID(other["id"])))
+    actor = system_principal("tests")
+    with clock.freeze(at(9)):
+        sync(b, lesson)
+        with tenant_session(tenant.id, actor=actor) as session:  # low's code reissued: heap order is high, low
+            row = session.scalar(select(EntryCode).where(EntryCode.client_id == low, EntryCode.status == "active"))
+            building._revoke(session, row, "rescheduled")
+        sync(b, lesson)
+        low_code = next(c.id for c in codes(b, lesson) if c.client_id == low and c.status == "active")
+        with tenant_session(tenant.id, actor=actor) as session:  # and ix_entry_code_open order is low, high
+            session.get(EntryCode, low_code).valid_until_at -= timedelta(minutes=1)
+        errors: list[BaseException] = []
+
+        def run(plan: str) -> None:
+            try:
+                with tenant_session(tenant.id, actor=actor) as session:
+                    session.execute(text("SET LOCAL lock_timeout = '20s'"))
+                    for setting in plan.split():
+                        session.execute(text(f"SET LOCAL {setting} = off"))
+                    building.sync_booking_code(session, UUID(lesson))
+            except BaseException as exc:  # noqa: BLE001 (re-raised by the assert below)
+                errors.append(exc)
+
+        def waiting(n: int) -> None:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if scalar(tenant, text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type IN "
+                                       "('Lock') AND state = 'active' AND datname = current_database()")) >= n:  # fmt: skip
+                    return
+                time.sleep(0.02)
+            raise AssertionError(f"{n} transactions never queued")
+
+        holder = tenant_session(tenant.id, actor=actor)
+        session = holder.__enter__()
+        session.scalar(select(EntryCode).where(EntryCode.id == low_code).with_for_update())
+        by_index = threading.Thread(target=run, args=("enable_seqscan enable_bitmapscan",))
+        by_heap = threading.Thread(target=run, args=("enable_indexscan enable_bitmapscan",))
+        by_index.start()
+        waiting(1)
+        by_heap.start()
+        waiting(2)
+        holder.__exit__(None, None, None)
+        by_index.join(30)
+        by_heap.join(30)
+    assert not errors, errors
+    assert {c.client_id for c in codes(b, lesson) if c.status == "active"} == {low, high}
 
 
 def test_merging_two_records_with_codes_on_one_session_keeps_the_survivors_code(client, tenant, owner, b):
