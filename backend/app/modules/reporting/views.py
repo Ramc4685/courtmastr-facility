@@ -214,7 +214,9 @@ booking_start = _view(
 class_session = _view("rpt_class_session", """session_id location_id booking_id reservation_type_id
     reservation_type_name trainer_resource_id trainer_name session_on start_time capacity booked_count""")  # fmt: skip
 # court use (migration 2011); the builder queries these in SQL text (multiranges), the columns are still the contract
-court = _view("rpt_court", "court_id location_id court_name court_group_id court_group_name sort_order time_zone")
+court = _view(
+    "rpt_court", "court_id location_id court_name court_group_id court_group_name sort_order time_zone archived_at"
+)
 facility_hours = _view("rpt_facility_hours", "location_id weekday opens_time closes_time is_closed")
 closure = _view("rpt_closure", "blackout_id location_id during")
 court_hold = _view("rpt_court_hold", """resource_hold_id location_id court_id booking_id use_kind rental_type_id

@@ -22,13 +22,11 @@ from app.core.errors import ValidationFailed
 from app.modules.reporting.registry import (
     ATTENDANCE,
     FINANCIAL,
-    MAX_ROWS,
     Col,
     RangeParams,
     ReportSpec,
     Scope,
     _key,
-    too_large,
 )
 
 PROGRAM = "program"  # the key of league, class and program use (bookings that are not rentals or blocks)
@@ -197,8 +195,9 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
              ON x.rental_rate_id = r.rental_rate_id AND x.day = z.day
     ),
     day AS (
-        SELECT c.court_id, c.location_id, z.day, z.whole, z.o1, z.o2, z.turn
+        SELECT c.court_id, c.location_id, c.archived_at, z.day, z.whole, z.o1, z.o2, z.turn
         FROM court c JOIN zday z ON z.location_id = c.location_id AND z.in_span
+        WHERE c.archived_at IS NULL OR lower(z.whole) < c.archived_at  -- an archived court keeps its past
     ),
     hold AS MATERIALIZED (
         SELECT h.* FROM rpt_court_hold h JOIN span s ON s.location_id = h.location_id
@@ -209,7 +208,8 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
                (CASE WHEN fh.weekday IS NULL THEN tstzmultirange(d.whole)
                      WHEN fh.is_closed OR fh.opens_time IS NULL OR fh.closes_time IS NULL THEN {EMPTY}
                      ELSE {opening}
-                END) - coalesce(shut.mr, {EMPTY}) AS hours_mr,
+                END) - coalesce(shut.mr, {EMPTY})
+                     - CASE WHEN d.archived_at IS NULL THEN {EMPTY} ELSE tstzmultirange(tstzrange(d.archived_at, NULL)) END AS hours_mr,
                coalesce(pk.mr, {EMPTY}) AS peak_mr
         FROM day d
         LEFT JOIN rpt_facility_hours fh ON fh.location_id = d.location_id AND fh.weekday = extract(isodow FROM d.day)
@@ -278,7 +278,9 @@ def _fits(session: Session, p: CourtParams, scope: Scope, statements: int = 1) -
     _, courts, args = _filters(p, scope)
     spans = [(p.from_on, p.to_on), *(scope.day_ranges or {}).values()]
     days = max((b - a).days + 1 for a, b in spans if a and b)
-    count = session.scalar(text(f"SELECT count(*) FROM rpt_court WHERE {' AND '.join(courts)}"), args) or 0
+    args["start"] = min(a for a, b in spans if a and b)  # courts archived before the range have no days in it
+    live = " AND ".join([*courts, "(archived_at IS NULL OR archived_at >= CAST(:start AS date))"])
+    count = session.scalar(text(f"SELECT count(*) FROM rpt_court WHERE {live}"), args) or 0
     if count * days * statements > MAX_COURT_DAYS:
         raise ValidationFailed(
             f"{count} courts over {days} days is {count * days} court-days, too many for one run "
@@ -288,14 +290,15 @@ def _fits(session: Session, p: CourtParams, scope: Scope, statements: int = 1) -
 
 
 def _run(session: Session, sql: str, args: dict) -> list:
-    """One statement under TIMEOUT, in a savepoint so a stopped run leaves the request's transaction usable."""
+    """One statement under TIMEOUT, in a savepoint so a stopped run leaves the request's transaction usable. Its
+    court-days are capped by MAX_COURT_DAYS; MAX_ROWS applies to the report's rows, after they are added up."""
     try:
         with session.begin_nested():
             session.execute(text(f"SET LOCAL statement_timeout = '{TIMEOUT}'"))
             # under RLS the planner guesses a few rows per tenant and nests loops over sets of thousands; every
             # join here is on keys or local days, so hash joins keep the work linear (README "Cost")
             session.execute(text("SET LOCAL enable_nestloop = off"))
-            found = session.execute(text(sql + f" LIMIT {MAX_ROWS + 1}"), args).all()
+            found = session.execute(text(sql), args).all()
     except OperationalError as error:
         if getattr(error.orig, "sqlstate", None) != "57014":  # query_canceled
             raise
@@ -304,8 +307,6 @@ def _run(session: Session, sql: str, args: dict) -> list:
         ) from None
     session.execute(text("SET LOCAL statement_timeout TO DEFAULT"))
     session.execute(text("SET LOCAL enable_nestloop TO DEFAULT"))
-    if len(found) > MAX_ROWS:
-        raise too_large()
     return list(found)
 
 

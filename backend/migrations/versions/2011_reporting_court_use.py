@@ -20,14 +20,16 @@ _ROOT = """LEFT JOIN resource p ON p.tenant_id = r.tenant_id AND p.id = r.parent
         LEFT JOIN resource gp ON gp.tenant_id = p.tenant_id AND gp.id = p.parent_id"""
 _COURT = "coalesce(gp.id, p.id, r.id)"
 VIEWS = {
-    # resources: active top-level venues and the location's zone
+    # resources: top-level venues and the location's zone; an archived one keeps its past up to when it was archived
+    # (the resource's last change: archiving is the last thing done to it)
     "rpt_court": """
         SELECT r.tenant_id, r.id AS court_id, r.location_id, r.name AS court_name, r.resource_group_id AS court_group_id,
-               g.name AS court_group_name, r.sort_order, l.time_zone
+               g.name AS court_group_name, r.sort_order, l.time_zone,
+               CASE WHEN r.status = 'archived' THEN r.updated_at END AS archived_at
         FROM resource r
         JOIN location l ON l.tenant_id = r.tenant_id AND l.id = r.location_id
         JOIN resource_group g ON g.tenant_id = r.tenant_id AND g.id = r.resource_group_id
-        WHERE r.kind = 'venue' AND r.parent_id IS NULL AND r.status = 'active'""",
+        WHERE r.kind = 'venue' AND r.parent_id IS NULL""",
     # platform: the weekly facility hours (one row per ISO weekday; 24:00 is a midnight close)
     "rpt_facility_hours": """
         SELECT h.tenant_id, h.location_id, h.weekday::int AS weekday, h.opens_time, h.closes_time, h.is_closed

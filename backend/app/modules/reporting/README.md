@@ -141,9 +141,11 @@ Status per feature: `docs/status/15-reporting.md`.
   double count, blackouts are not subtracted, and bookings outside windows can push past 100%. It stays for
   trainers and virtual rooms (trainer hours in `trainer_performance` read the same view); courts use `court_use`.
 - **Court use (`court_use`, `court_use_heatmap`; pilot fit CIRQT scenario i).** Views from migration 2011; one SQL
-  statement per run builds tstzmultiranges per court and local day (`reports/courts.py`).
-  - *Court*: an active top-level venue. Holds on its halves and quarters roll up into it and a minute counts once
-    when any part is held (two halves rented at once is 100%, not 200%).
+  statement (two by sport) builds tstzmultiranges per court and local day (`reports/courts.py`).
+  - *Court*: a top-level venue. Holds on its halves and quarters roll up into it and a minute counts once
+    when any part is held (two halves rented at once is 100%, not 200%). An archived court keeps its history: it
+    counts up to the moment it was archived (its last change; archiving is the last thing done to a court) and
+    drops out after, so past periods do not change when a court is retired (tested).
   - *Available time*: the weekday's facility hours in the location's zone (24:00 closes at midnight; hours past
     midnight are one day ending 24:00 and the next starting 00:00; a weekday with no row is open all day, as in
     scheduling). Whole-location closures (blackouts, scope `all`) are taken out; online-only closures are not.
@@ -187,7 +189,8 @@ Status per feature: `docs/status/15-reporting.md`.
     then 50.00 gives 25.00 peak, not 22.50. Member-only rules and discount rules are not followed in that weight
     (member bookings split at the public band prices' ratio) and the rate's current prices are used. Both splits
     are largest remainder in whole minor units (ties to the earlier item, day, peak first),
-    so the parts always add up to the posted amount, days add up to months to the cent, and a reversal mirrors
+    so the parts always add up to the posted amount, days add up to months to the cent (the cent drift of the
+    earlier per-row rounding of adjustment shares is gone), and a reversal mirrors
     its charge exactly (a cancelled occurrence nets to zero on its day). A charge kept after a cancellation stays
     on the occurrence's day with no rented hours. League fees, memberships and lessons are not court revenue. Per
     available hour and per rented hour divide by those hours, half up to the minor unit.
@@ -210,7 +213,10 @@ Status per feature: `docs/status/15-reporting.md`.
     runs two statements) is refused at once with 422 `report-too-large`, so 40 courts for a year fits and by sport
     about 20. Each statement is stopped after 30 s (`statement_timeout`, in a savepoint) with the same code and
     "took too long". There is no background build: export jobs render a finished run's snapshot, so a larger ask
-    must be split by courts or dates. Scheduled runs build the same way and hit the same limits.
+    must be split by courts or dates. Scheduled runs build the same way and hit the same limits. The 50,000-row
+    snapshot cap (`MAX_ROWS`) counts the report's rows after court-days are added up to the grain, not court-days.
+  - *Isolation*: every `rpt_*` view is listed from the catalogue and read as a tenant with no data: each is empty
+    (`tests/test_view_isolation.py`).
   - *Not built*: a rental-type filter (group by sport instead), detail rows, a reversal of an adjustment (only the
     charge's own reversal and adjustment are followed).
 - **Named reports (RPT-41)**: the map from discovery names to keys and gaps is in `docs/status/15-reporting.md`.

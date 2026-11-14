@@ -10,14 +10,16 @@ hire" costs 40.00 an hour, 50.00 from 17:00 (marked peak) and 30.00 before 10:00
 changeovers either side."""
 
 from datetime import UTC, date, datetime, time
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.core import clock
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
-from app.modules import billing
+from app.modules import billing, resources
+from app.modules.reporting import service
 from app.modules.reporting.reports import courts
 from app.modules.reporting.tests.test_reporting import ran, rows
 from app.modules.scheduling.tests.helpers import API, book, facility, ok
@@ -314,6 +316,27 @@ def test_heatmap_by_hour_and_weekday(client, owner, f):
     assert cells["19:00"]["monday_pct"] == 50.0 and cells["09:00"]["monday_pct"] == 0.0
     assert cells["20:00"]["monday_pct"] == 100.0  # the clinic's 30 minutes, the only available time
     assert cells["10:00"]["tuesday_pct"] is None and run["totals"]["utilization_pct"] == 20.0
+
+
+def test_an_archived_court_keeps_its_history(client, owner, tenant, f):
+    # Court 2 is archived on Tuesday 6 May at noon: Monday keeps its figures (11 h, 1 h played, as above), Tuesday
+    # has its hours up to noon (open 06:00, so 6 h), and from Wednesday it is gone; Court 1 has 16 h each day.
+    with clock.freeze(datetime(2031, 5, 6, 12, 0, tzinfo=ZONE).astimezone(UTC)):  # a sign-in would expire
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            resources.service.archive_resource(session, system_principal("tests"), UUID(f.court2))
+    run, found = report(client, owner, "court_use", f, from_on=MONDAY.isoformat(), to_on="2031-05-07")
+    got = {(r["period_on"], r["label"]): (r["available_hours"], r["played_hours"]) for r in found}
+    assert got[("2031-05-05", "Court 2")] == (11.0, 1.0)
+    assert got[("2031-05-06", "Court 2")] == (6.0, 0.0) and got[("2031-05-06", "Court 1")] == (16.0, 0.0)
+    assert ("2031-05-07", "Court 2") not in got and got[("2031-05-07", "Court 1")] == (16.0, 0.0)
+
+
+def test_the_row_cap_counts_report_rows_not_court_days(client, owner, f, monkeypatch):
+    monkeypatch.setattr(service, "MAX_ROWS", 2)
+    monkeypatch.setattr(courts, "MAX_ROWS", 2, raising=False)
+    three_days = {"from_on": MONDAY.isoformat(), "to_on": "2031-05-07"}  # 2 courts x 3 days = 6 court-days
+    assert ran(client, owner, "court_use", location_ids=[f.location], grain="month", **three_days)["row_count"] == 2
+    refused(client, owner, "court_use", f, **three_days)  # by day: 6 rows
 
 
 def refused(client, owner, key: str, f, **params) -> dict:
