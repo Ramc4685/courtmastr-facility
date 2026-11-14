@@ -463,12 +463,21 @@ to the bookings, the safe default.
   must have no balance due. Access cannot see the booking's own charge (its source is rentals, which access may not
   import; its charges are keyed by rentals' own rows, not the booking), so a paid booking by someone with another
   open balance is refused too. The setting's API description says exactly that.
-- Participants of a shared booking (other than its holder) get no code. A code checks in its own person, so a group
-  entering together uses one code each or one code for the group (the code's owner is the one checked in).
+- A code is personal and never shared: it belongs to one person and checks in only that person. Participants of a
+  shared booking (other than its holder) get no code; the holder lets their party in.
 - A door check-in may consume a membership visit, like any check-in.
 - The status line compares with the last command; the tick also asks `read_zone` and re-sends when it differs.
 - A zone never commanded shows as not in sync until the first tick sends its state.
 - Changing the code window settings re-issues upcoming codes (treated as a reschedule).
+
+### Known limits (building control)
+
+- **League players get no entry code.** League games light their court (`LIT_KINDS` includes `game`), but codes go
+  only to rentals and sessions (`CODE_KINDS`), so at an unmanned building a league player has no code of their own;
+  staff open the door remotely, or someone with a rental or session code lets them in.
+- **A full `alembic downgrade base` can exhaust the lock table** on the shared dev container. The cause is
+  `migrations/env.py`, which runs the whole chain in one transaction, so every table's locks are held at once; it is
+  not this module's migrations. Downgrade a few revisions at a time instead.
 
 ## Deferred (P1 and later)
 

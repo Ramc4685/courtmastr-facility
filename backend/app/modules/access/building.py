@@ -389,8 +389,8 @@ def _email_code(session: Session, row: EntryCode, client) -> bool:
     until = f"{closes:%H:%M}" if closes.date() == opens.date() else f"{closes:%a %d %b %H:%M}"  # past midnight
     body = (
         f"Hello {client.first_name},\n\nYour door code for {location.name} is {code}.\n"
-        f"It opens the door from {opens:%a %d %b %H:%M} to {until} ({location.time_zone}). Share it only "
-        "with the people playing with you. You can also see it, and open the door, from your booking in the app.\n"
+        f"It opens the door from {opens:%a %d %b %H:%M} to {until} ({location.time_zone}). This code is "
+        "personal: do not share it. You can also see it, and open the door, from your booking in the app.\n"
         + (f"If the door does not open, call us on {location.phone}.\n" if location.phone else "")
     )
     tenant_id, code_id = str(session.info["tenant_id"]), str(row.id)

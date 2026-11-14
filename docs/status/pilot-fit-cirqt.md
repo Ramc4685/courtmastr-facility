@@ -103,7 +103,8 @@ Steps that are API-only or easy to miss:
 ## Building control (door code and court lights)
 
 **Update (branch `claude/building-control`).** Built in the access module behind `app/ports/building_control.py`, with a
-simulated adapter only: one code per booking shared by its party (15 minutes before to 10 after, location settings),
+simulated adapter only: a personal code per person on a booking, never shared (a rental's holder, each session
+participant; league players get none; 15 minutes before to 10 after, location settings),
 revoked on cancel and reissued on reschedule, emailed and shown in the portal with the location phone; a device
 verify endpoint and a door check-in; staff remote unlock (`access.door.unlock`) and member "open the door"; lights per
 court computed every minute from holds on the booked time (not the changeover buffer), with overrides and a
