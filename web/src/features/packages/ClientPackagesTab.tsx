@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, todayIn } from '../../lib/format'
+import { AttemptFields, AttemptLock, useAttemptKey } from '../billing/attempt'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { PACKAGE_TONE, PaymentFields, Requirements, StatusBadge, noPayment, paymentBody, paymentReady, useClientNames, useMoney, usePackagePlans, type PackageOut, type PaymentState } from '../memberships/shared'
 import { OpenPostBilledDialog } from './PostBilled'
@@ -31,8 +32,13 @@ export function SellPackageDialog({ client, onClose, onSold }: { client: Pick<Cl
   const plans = usePackagePlans(true).data?.data ?? []
   const locationId = client.home_location_id ?? me?.locations?.[0]?.id ?? ''
   const zone = me?.locations?.find((l) => l.id === locationId)?.time_zone
-  const [form, setForm] = useState({ package_plan_id: '', location_id: locationId, quantity: '', start_on: todayIn(zone), invoice_mode: '', internal_remarks: '', complimentary: false })
-  const [payment, setPayment] = useState<PaymentState>(noPayment())
+  const initial = { package_plan_id: '', location_id: locationId, quantity: '', start_on: todayIn(zone), invoice_mode: '', internal_remarks: '', complimentary: false }
+  // One Idempotency-Key per sale attempt (attempt.tsx): after a lost answer the key and values outlive the dialog,
+  // so Cancel and reopen resumes the same attempt instead of charging again.
+  // shortcut: no "Check what happened": a sale's payment key is not stored under the caller's staff prefix.
+  const attempt = useAttemptKey<{ form: typeof initial; payment: PaymentState }>(`sell-package:${client.id}`)
+  const [form, setForm] = useState(attempt.saved?.form ?? initial)
+  const [payment, setPayment] = useState<PaymentState>(attempt.saved?.payment ?? noPayment())
   const plan = plans.find((p) => p.id === form.package_plan_id)
   const body = {
     client_id: client.id,
@@ -53,7 +59,9 @@ export function SellPackageDialog({ client, onClose, onSold }: { client: Pick<Cl
         ? api.post('/api/v1/client-packages/complimentary', { body: { ...body, internal_remarks: form.internal_remarks || null } })
         : api.post('/api/v1/client-packages', {
             body: { ...body, internal_remarks: form.internal_remarks || null, invoice_mode: (form.invoice_mode || null) as 'single', payment: paymentBody(payment) },
+            idempotencyKey: attempt.key,
           }),
+    onSettled: (_data, error) => attempt.settle(error, { form, payment }),
     onSuccess: (sold) => {
       void qc.invalidateQueries({ queryKey: ['client-packages'] })
       void qc.invalidateQueries({ queryKey: ['package-series'] })
@@ -80,12 +88,13 @@ export function SellPackageDialog({ client, onClose, onSold }: { client: Pick<Cl
             Cancel
           </Button>
           <Button onClick={() => sell.mutate()} loading={sell.isPending} disabled={!q || (!free && !paymentReady(payment)) || (q.is_member_required && !q.is_member)}>
-            {form.complimentary ? 'Grant package' : 'Sell package'}
+            {attempt.locked ? 'Try again' : form.complimentary ? 'Grant package' : 'Sell package'}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Package plan" value={form.package_plan_id} placeholder="Choose a plan" error={errors.package_plan_id} onChange={(e) => setForm({ ...form, package_plan_id: e.target.value, quantity: '' })} options={plans.map((p) => ({ value: p.id, label: `${p.name} · ${sessionsText(p)}` }))} />
           <Select label="Location" value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })} options={(me?.locations ?? []).map((l) => ({ value: l.id, label: l.name }))} />
@@ -130,7 +139,7 @@ export function SellPackageDialog({ client, onClose, onSold }: { client: Pick<Cl
             {saleError(sell.error)}
           </p>
         )}
-      </div>
+      </AttemptFields>
     </Dialog>
   )
 }

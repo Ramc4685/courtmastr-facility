@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError, api, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Input, Select } from '../../components/Field'
 import { useToast } from '../../components/Toast'
 import { formatMoney, parseMoney, toMoneyInput, TENDER_LABEL, PAYMENT_STATUS } from './money'
-import { attemptFailed, checkStaffAttempt, keepsAttemptKey } from './attempt'
+import { attemptFailed, checkStaffAttempt, isDecline, keepsAttemptKey, useAttemptKey } from './attempt'
 import { PaymentAuthentication, PaymentMethodField } from './PaymentMethodField'
 import { FormDialog, MoneyInput, StatusBadge, useCurrency, useTenderTypes } from './shared'
 
@@ -32,7 +32,15 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
   const tenders = useTenderTypes()
   const methods = useQuery({ queryKey: ['billing', 'client-methods', clientId], queryFn: () => api.get('/api/v1/clients/{client_id}/payment-methods', { path: { client_id: clientId } }) })
   const enabled = (tenders.data ?? []).filter((t) => t.is_enabled)
-  const [rows, setRows] = useState<Row[] | null>(null)
+  // While a row's outcome is unknown, the rows (their keys and values) outlive the dialog (attempt.tsx), so Cancel
+  // and reopen resumes those attempts: a fresh key there would charge the card again.
+  const held = useAttemptKey<Row[]>(`take-payment:${clientId}:${invoiceId ?? 'account'}`)
+  const [rows, setRows] = useState<Row[] | null>(held.saved ?? null)
+  const anyUnknown = Boolean(rows?.some((r) => r.unknown))
+  useEffect(() => {
+    if (anyUnknown) held.settle(new Error('outcome unknown'), rows ?? undefined)
+    else if (held.locked) held.settle(null)
+  }, [rows, anyUnknown]) // eslint-disable-line react-hooks/exhaustive-deps -- held's callbacks are stable
   const [busy, setBusy] = useState(false)
   const current = rows ?? (enabled[0] ? [newRow(enabled[0].id, toMoneyInput(Math.max(balanceMinor, 0)))] : [])
   const usable = (methods.data ?? []).filter((m) => m.status === 'active')
@@ -105,7 +113,7 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
         if (failed || result.status === 'requires_action') break
       } catch (e) {
         // The one rule (attempt.tsx): an unknown outcome locks the row to its key; while locked only a decline frees it.
-        const unknown = keepsAttemptKey(e) || (Boolean(row.unknown) && !(e instanceof ApiError && e.status === 402))
+        const unknown = keepsAttemptKey(e) || (Boolean(row.unknown) && !isDecline(e))
         next[i] = { ...row, error: e instanceof Error ? e.message : 'The payment could not be taken.', unknown, idem: unknown ? row.idem : crypto.randomUUID() }
         break
       }

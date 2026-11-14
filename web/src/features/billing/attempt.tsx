@@ -60,7 +60,7 @@ export function useAttemptKey<V = unknown>(scope?: string, check?: AttemptCheck)
   const settle = useCallback(
     (error: Error | null, values?: V) => {
       if (keepsAttemptKey(error)) {
-        if (scope) held.set(scope, { key: state.current.key, values: held.get(scope)?.values ?? values })
+        if (scope) held.set(scope, { key: state.current.key, values: values ?? held.get(scope)?.values })
         setLocked(true)
       } else if (error === null || !state.current.locked || isDecline(error)) {
         fresh() // a success or a decline is final; a refusal while locked is not an answer about the first attempt
