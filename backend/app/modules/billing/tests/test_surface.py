@@ -887,9 +887,11 @@ def test_webhook_events_for_methods_and_accounts(shop):
         account.has_card = False
         webhooks.apply_event(session, "account", account.provider_account_ref)
         assert account.has_card is True
-        for nothing in (("payment", "fake_pay_unknown"), ("refund", "fake_ref_unknown"), ("method", "pm_unknown"),
-                        ("account", "acct_unknown"), ("other", "x"), ("payment", None)):  # fmt: skip
+        for nothing in (("method", "pm_unknown"), ("account", "acct_unknown"), ("other", "x"), ("payment", None)):
             webhooks.apply_event(session, *nothing)  # events about objects we do not hold are ignored
+        for money in (("payment", "fake_pay_unknown"), ("refund", "fake_ref_unknown")):
+            with pytest.raises(webhooks.Unmatched):  # money with no row of ours is kept for an operator
+                webhooks.apply_event(session, *money)
 
 
 # --- client portal -----------------------------------------------------------------------------------------
