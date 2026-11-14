@@ -189,6 +189,7 @@ class BuildingControl(BaseModel):
     none elsewhere (get_settings)."""
 
     adapter: Literal["simulated", "none"] | None = None
+    command_timeout_seconds: float = 5.0  # per push or revoke at one door: the caller holds the code's row lock
 
 
 class Imports(BaseModel):

@@ -282,8 +282,11 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   revoked); a revoke sets `revoke_due` (migration 1978) until every door confirms, and the tick retries it until
   then. Each of these writes one `command_failed` row, not one per retry. Pushes and revokes run only after the
   transaction that issued or revoked the code commits (`jobs.controller_call`, called at once from the after-commit
-  hook), each in its own short transaction holding that code's row lock: a rolled-back code never reaches a keypad,
-  no transaction waits on a controller, and a push and a revoke of one code reach it in commit order (a push that
+  hook), each in its own transaction holding that code's row lock (FOR NO KEY UPDATE) while it calls the controller:
+  a rolled-back code never reaches a keypad, the transaction that issued or revoked the code never waits on a
+  controller, each push or revoke at a door is bounded by `building_control.command_timeout_seconds` (default 5 s,
+  the adapter must give up past it), a door verify of the code never waits on that lock (its `building_event` insert
+  takes only KEY SHARE), and a push and a revoke of one code reach it in commit order (a push that
   finds its code revoked or already pushed does nothing). The tick syncs each booking under its own savepoint: one
   that fails is logged with its booking id, its queued emails and controller calls are dropped, and the rest of the
   location's issues and revokes still commit; it is retried next minute. Issue and revoke publish

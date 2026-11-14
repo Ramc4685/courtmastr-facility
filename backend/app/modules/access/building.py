@@ -423,8 +423,9 @@ def _pushes_codes() -> bool:
 
 def _after_commit(session: Session, row: EntryCode, op: Literal["push", "revoke"], quiet: bool) -> None:
     """Controller calls run after the caller's transaction commits (a rolled-back code never reaches a keypad, and
-    no transaction waits on a controller), each in a short one of its own (`jobs.controller_call`, run at once)
-    holding that code's row lock, so a push and a revoke of one code reach the controller in commit order."""
+    the issuing transaction never waits on a controller), each in a short one of its own (`jobs.controller_call`,
+    run at once) holding that code's row lock for at most `command_timeout_seconds` per door, so a push and a revoke
+    of one code reach the controller in commit order."""
     tenant_id, code_id = str(session.info["tenant_id"]), str(row.id)
 
     def call() -> None:
@@ -439,8 +440,10 @@ def _after_commit(session: Session, row: EntryCode, op: Literal["push", "revoke"
 
 
 def controller_call(session: Session, entry_code_id: str, op: str, quiet: bool) -> None:
-    """Internal (after commit, `_after_commit`): push or revoke one code under its row lock."""
-    row = session.scalar(select(EntryCode).where(EntryCode.id == UUID(entry_code_id)).with_for_update())
+    """Internal (after commit, `_after_commit`): push or revoke one code under its row lock. FOR NO KEY UPDATE, not
+    FOR UPDATE: a door verify of this code inserts a `building_event` naming it (KEY SHARE) and must not wait on the
+    controller."""
+    row = session.scalar(select(EntryCode).where(EntryCode.id == UUID(entry_code_id)).with_for_update(key_share=True))
     if row is not None:
         (_push_now if op == "push" else _revoke_now)(session, row, quiet)
 
@@ -459,10 +462,11 @@ def _push_now(session: Session, row: EntryCode, quiet: bool) -> None:
     if controller is None or row.status != "active" or row.pushed_at is not None or row.valid_until_at <= clock.now():
         return
     code, failed = _plain(row, session.info["tenant_id"]), False
+    timeout = get_settings().building_control.command_timeout_seconds  # bounds how long the row lock is held
     for door in _doors(session, row.location_id):
         try:
             controller.push_code(*_site(door), door.device_ref,
-                                 TimedCode(str(row.id), code, row.valid_from_at, row.valid_until_at))  # fmt: skip
+                                 TimedCode(str(row.id), code, row.valid_from_at, row.valid_until_at), timeout=timeout)  # fmt: skip
         except BuildingControlError:
             failed = True
     if failed:
@@ -487,10 +491,10 @@ def _send_revoke(session: Session, row: EntryCode) -> bool:
     controller = building_control.current()
     if controller is None or not controller.supports_code_push:
         return True
-    ok = True
+    ok, timeout = True, get_settings().building_control.command_timeout_seconds
     for door in _doors(session, row.location_id):
         try:
-            controller.revoke_code(*_site(door), door.device_ref, str(row.id))
+            controller.revoke_code(*_site(door), door.device_ref, str(row.id), timeout=timeout)
         except BuildingControlError:
             ok = False
     return ok

@@ -1337,6 +1337,38 @@ def test_a_failed_revoke_is_retried_by_the_tick_until_the_controller_confirms(b,
         assert details_of(b, "command_failed") == ["revoke_code"]  # one row, not one per retry
 
 
+def test_a_door_verify_never_waits_on_a_slow_controller_call_and_a_hung_one_is_bounded(client, b, sim, monkeypatch):
+    import threading
+
+    with clock.freeze(at(9.8)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        [row] = codes(b, booking)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            session.get(EntryCode, row.id).pushed_at = None  # due again: the next controller call pushes it
+        sim.calls.clear()
+        monkeypatch.setattr(sim, "hang_seconds", 1.5)  # slow, inside the timeout
+        sim.fail("push_code", kind="hang")
+        thread = threading.Thread(target=jobs.controller_call.fn, args=(str(b.tenant.id), str(row.id), "push", False))
+        thread.start()
+        while not any(c[0] == "push_code" for c in sim.calls):
+            time.sleep(0.01)
+        began = time.monotonic()
+        assert verify(client, b, clear(b, row))["result"] == "allow"
+        assert time.monotonic() - began < 1.0  # not behind the 1.5 s controller call
+        thread.join()
+        assert codes(b, booking)[0].pushed_at is not None
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            session.get(EntryCode, row.id).pushed_at = None
+        monkeypatch.setattr(get_settings().building_control, "command_timeout_seconds", 0.2)
+        monkeypatch.setattr(sim, "hang_seconds", 30.0)  # hung: gives up at the timeout
+        sim.fail("push_code", kind="hang")
+        began = time.monotonic()
+        jobs.controller_call.fn(str(b.tenant.id), str(row.id), "push", False)
+        assert time.monotonic() - began < 2.0 and codes(b, booking)[0].pushed_at is None
+        assert details_of(b, "command_failed") == ["push_code"]
+
+
 def test_a_partly_pushed_code_is_revoked_at_every_door(client, owner, b, sim):
     ok(client.post(f"{API}/door-devices", headers=owner,
                    json={"location_id": b.location, "name": "Lobby", "device_ref": "door-lobby"}))  # fmt: skip
