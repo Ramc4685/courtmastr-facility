@@ -3797,6 +3797,206 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/coach-earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Coach Earnings
+         * @description Filters: staff_payee_id, location_id, kind, earned_on (with [gte] and [lte]). Own reach: your own lines.
+         */
+        get: operations["listCoachEarnings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Coach Payouts
+         * @description Filters: staff_payee_id, location_id, status. Own reach: your own statements.
+         */
+        get: operations["listCoachPayouts"];
+        put?: never;
+        /**
+         * Create Coach Payouts
+         * @description One draft per independent coach with unpaid earnings up to the period's end. Moves no money.
+         */
+        post: operations["createCoachPayouts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts/{coach_payout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Coach Payout */
+        get: operations["getCoachPayout"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Coach Payout
+         * @description A draft only; its lines go back to unpaid. Errors: invalid-state-transition.
+         */
+        delete: operations["deleteCoachPayout"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts/{coach_payout_id}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Coach Payout Adjustment
+         * @description A draft only. Errors: invalid-state-transition, own-pay.
+         */
+        post: operations["addCoachPayoutAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts/{coach_payout_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Coach Payout
+         * @description Step-up required. Errors: invalid-state-transition, step-up-required.
+         */
+        post: operations["approveCoachPayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts/{coach_payout_id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Coach Payout Document */
+        get: operations["getCoachPayoutDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts/{coach_payout_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Coach Payout Lines */
+        get: operations["listCoachPayoutLines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-payouts/{coach_payout_id}/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Coach Payout Paid
+         * @description Records how the facility paid; the software transfers nothing. Paid is final. Step-up required.
+         */
+        post: operations["markCoachPayoutPaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-share-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Coach Share Rules
+         * @description Filters: staff_payee_id, reservation_type_id.
+         */
+        get: operations["listCoachShareRules"];
+        /**
+         * Put Coach Share Rule
+         * @description Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with.
+         */
+        put: operations["putCoachShareRule"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coach-share-rules/{coach_share_rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Coach Share Rule */
+        delete: operations["deleteCoachShareRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections-report": {
         parameters: {
             query?: never;
@@ -15602,6 +15802,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff-payees/{staff_payee_id}/engagements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Coach Engagements
+         * @description Effective-dated: the latest row on or before a day is in force; none means a staff coach (employee).
+         */
+        get: operations["listCoachEngagements"];
+        put?: never;
+        /**
+         * Set Coach Engagement
+         * @description A row for the same date is replaced. Errors: own-pay below Admin.
+         */
+        post: operations["setCoachEngagement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff-payees/{staff_payee_id}/pay-rates": {
         parameters: {
             query?: never;
@@ -15691,6 +15915,26 @@ export interface paths {
          */
         get: operations["listStaffPayeeSessions"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/tax-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Coach Tax Form
+         * @description Whether a tax form is on file, and since when. Tax identifiers are never stored.
+         */
+        put: operations["setCoachTaxForm"];
         post?: never;
         delete?: never;
         options?: never;
@@ -21946,6 +22190,300 @@ export interface components {
         ClockOut: {
             /** Password */
             password: string;
+        };
+        /** CoachAdjustmentCreate */
+        CoachAdjustmentCreate: {
+            /**
+             * Amount Minor
+             * @description Positive raises the coach's share
+             */
+            amount_minor: number;
+            /** Reason */
+            reason: string;
+        };
+        /** CoachEarningOut */
+        CoachEarningOut: {
+            /** Coach Payout Id */
+            coach_payout_id: string | null;
+            /** Coach Share Minor */
+            coach_share_minor: number;
+            /**
+             * Coach Share Pct
+             * @description Null unless you may read share rules
+             */
+            coach_share_pct: string | null;
+            /**
+             * Court Fee Minor
+             * @description Null unless you may read share rules
+             */
+            court_fee_minor: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Earned On
+             * Format: date
+             */
+            earned_on: string;
+            /** Facility Share Minor */
+            facility_share_minor: number;
+            /** Gross Minor */
+            gross_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "lesson" | "reversal" | "adjustment";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Reason */
+            reason: string | null;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /** Reverses Coach Earning Id */
+            reverses_coach_earning_id: string | null;
+            /** Source Id */
+            source_id: string | null;
+            /** Source Type */
+            source_type: ("enrollment" | "booking") | null;
+            /**
+             * Staff Payee Id
+             * Format: uuid
+             */
+            staff_payee_id: string;
+        };
+        /** CoachEngagementOut */
+        CoachEngagementOut: {
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Engagement
+             * @enum {string}
+             */
+            engagement: "employee" | "independent";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Staff Payee Id
+             * Format: uuid
+             */
+            staff_payee_id: string;
+        };
+        /** CoachEngagementWrite */
+        CoachEngagementWrite: {
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Engagement
+             * @description employee: a staff coach on payroll; independent: revenue share
+             * @enum {string}
+             */
+            engagement: "employee" | "independent";
+        };
+        /** CoachPayoutCreate */
+        CoachPayoutCreate: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Period Ends On
+             * Format: date
+             */
+            period_ends_on: string;
+            /**
+             * Period Starts On
+             * Format: date
+             */
+            period_starts_on: string;
+            /**
+             * Staff Payee Id
+             * @description One coach; omit for every independent coach here
+             */
+            staff_payee_id?: string | null;
+        };
+        /** CoachPayoutList */
+        CoachPayoutList: {
+            /** Data */
+            data: components["schemas"]["CoachPayoutOut"][];
+        };
+        /** CoachPayoutOut */
+        CoachPayoutOut: {
+            /** Adjustment Minor */
+            adjustment_minor: number;
+            /** Approved At */
+            approved_at: string | null;
+            /** Coach Name */
+            coach_name: string;
+            /** Coach Share Minor */
+            coach_share_minor: number;
+            /** Facility Share Minor */
+            facility_share_minor: number;
+            /** Gross Minor */
+            gross_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Count */
+            line_count: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Notice
+             * @description The software moves no money; this is a record of what is owed and paid
+             */
+            notice: string;
+            /** Paid At */
+            paid_at: string | null;
+            /** Paid On */
+            paid_on: string | null;
+            /** Payment Method */
+            payment_method: ("bank_transfer" | "cheque" | "other") | null;
+            /** Payment Reference */
+            payment_reference: string | null;
+            /**
+             * Period Ends On
+             * Format: date
+             */
+            period_ends_on: string;
+            /**
+             * Period Starts On
+             * Format: date
+             */
+            period_starts_on: string;
+            /**
+             * Staff Payee Id
+             * Format: uuid
+             */
+            staff_payee_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "paid";
+            /** Tax Form On File On */
+            tax_form_on_file_on: string | null;
+        };
+        /** CoachPayoutPaid */
+        CoachPayoutPaid: {
+            /**
+             * Paid On
+             * Format: date
+             */
+            paid_on: string;
+            /**
+             * Payment Method
+             * @enum {string}
+             */
+            payment_method: "bank_transfer" | "cheque" | "other";
+            /**
+             * Payment Reference
+             * @description Transfer or cheque reference, staff-typed
+             */
+            payment_reference?: string | null;
+        };
+        /** CoachShareRuleOut */
+        CoachShareRuleOut: {
+            /** Coach Share Pct */
+            coach_share_pct: string;
+            /**
+             * Court Fee Applies
+             * @enum {string}
+             */
+            court_fee_applies: "before_split" | "after_split";
+            /**
+             * Court Fee Basis
+             * @enum {string}
+             */
+            court_fee_basis: "session" | "hour";
+            /** Court Fee Minor */
+            court_fee_minor: number;
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /** Staff Payee Id */
+            staff_payee_id: string | null;
+        };
+        /** CoachShareRuleWrite */
+        CoachShareRuleWrite: {
+            /** Coach Share Pct */
+            coach_share_pct: number | string;
+            /**
+             * Court Fee Applies
+             * @default before_split
+             * @enum {string}
+             */
+            court_fee_applies: "before_split" | "after_split";
+            /**
+             * Court Fee Basis
+             * @default session
+             * @enum {string}
+             */
+            court_fee_basis: "session" | "hour";
+            /**
+             * Court Fee Minor
+             * @default 0
+             */
+            court_fee_minor: number;
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Reservation Type Id
+             * @description One lesson or program type; null for all
+             */
+            reservation_type_id?: string | null;
+            /**
+             * Staff Payee Id
+             * @description One coach; null for every independent coach
+             */
+            staff_payee_id?: string | null;
+        };
+        /** CoachTaxFormWrite */
+        CoachTaxFormWrite: {
+            /**
+             * Tax Form On File On
+             * @description When a tax form (for example a W-9) was received; null when none is on file. Never a tax id.
+             */
+            tax_form_on_file_on: string | null;
         };
         /** CollectionsProfileIn */
         CollectionsProfileIn: {
@@ -30712,6 +31250,24 @@ export interface components {
         Page_ClientListItem_: {
             /** Data */
             data: components["schemas"]["ClientListItem"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CoachEarningOut] */
+        Page_CoachEarningOut_: {
+            /** Data */
+            data: components["schemas"]["CoachEarningOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CoachPayoutOut] */
+        Page_CoachPayoutOut_: {
+            /** Data */
+            data: components["schemas"]["CoachPayoutOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CoachShareRuleOut] */
+        Page_CoachShareRuleOut_: {
+            /** Data */
+            data: components["schemas"]["CoachShareRuleOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[CollectionsReportRow] */
@@ -41715,6 +42271,8 @@ export interface components {
             resource_id: string | null;
             /** Staff User Id */
             staff_user_id: string | null;
+            /** Tax Form On File On */
+            tax_form_on_file_on?: string | null;
         };
         /** StaffPayeeUpdate */
         StaffPayeeUpdate: {
@@ -53821,6 +54379,486 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Timeline"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCoachEarnings: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CoachEarningOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCoachPayouts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CoachPayoutOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCoachPayouts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachPayoutCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayoutList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCoachPayout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCoachPayout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addCoachPayoutAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachAdjustmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approveCoachPayout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCoachPayoutDocument: {
+        parameters: {
+            query?: {
+                format?: "pdf" | "csv";
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCoachPayoutLines: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachEarningOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    markCoachPayoutPaid: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachPayoutPaid"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachPayoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCoachShareRules: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CoachShareRuleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putCoachShareRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachShareRuleWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachShareRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCoachShareRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coach_share_rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -83573,6 +84611,78 @@ export interface operations {
             };
         };
     };
+    listCoachEngagements: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachEngagementOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setCoachEngagement: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachEngagementWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachEngagementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPayRates: {
         parameters: {
             query?: never;
@@ -83813,6 +84923,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrainerSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setCoachTaxForm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachTaxFormWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffPayeeOut"];
                 };
             };
             /** @description Validation Error */

@@ -93,6 +93,8 @@ import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/Sales
 import { PosSetupPage } from '../features/pos/SetupPage'
 import { AssessmentSetupPage } from '../features/assessments/AssessmentSetupPage'
 import { ClockPage } from '../features/staff/ClockPage'
+import { CoachSharePage } from '../features/staff/CoachSharePage'
+import { MyEarningsPage } from '../features/staff/MyEarningsPage'
 import { PayeesPage } from '../features/staff/PayeesPage'
 import { PayrollPage } from '../features/staff/PayrollPage'
 import { ShiftsPage } from '../features/staff/ShiftsPage'
@@ -223,6 +225,8 @@ export function AppRoutes() {
           <Route path="shifts" element={<RequirePermission permission="staff.shift.manage"><ShiftsPage /></RequirePermission>} />
           <Route path="payees" element={<RequirePermission permission="resources.resource.manage"><PayeesPage /></RequirePermission>} />
           <Route path="payroll" element={<RequirePermission permission="staff.payroll_run.create"><PayrollPage /></RequirePermission>} />
+          <Route path="coach-share" element={<RequirePermission permission="staff.coach_payout.create"><CoachSharePage /></RequirePermission>} />
+          <Route path="my-earnings" element={<RequirePermission permission="staff.coach_payout.read"><MyEarningsPage /></RequirePermission>} />
           <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
         <Route path="assessments/setup" element={<RequirePermission permission="assessments.definition.manage"><AssessmentSetupPage /></RequirePermission>} />
