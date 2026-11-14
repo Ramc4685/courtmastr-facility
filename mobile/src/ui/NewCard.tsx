@@ -27,6 +27,10 @@ export function keepsAttemptKey(error: unknown): boolean {
   return error.status === 0 || error.status >= 500 || (error.status === 409 && (error.code === 'request-in-progress' || error.code === 'idempotency-key-reused'));
 }
 
+/** A definite decline (409 `payment-failed` from the portal checkout, 402 `payment-declined` at a till): no money
+ * moved, so the attempt is over whatever the status. Mirrors web/src/features/billing/attempt.tsx. */
+export const isDecline = (error: unknown) => error instanceof ApiError && (error.code === 'payment-failed' || error.code === 'payment-declined');
+
 // shortcut: in memory only, so restarting the app frees the form; the server still refuses the key with other values.
 const held = new Map<string, string>();
 
@@ -41,7 +45,7 @@ export function useAttemptKey(scope = 'buy') {
       if (keepsAttemptKey(error)) {
         held.set(scope, key);
         setLocked(true);
-      } else if (error === null || error === undefined || !held.has(scope) || (error instanceof ApiError && error.status === 402)) {
+      } else if (error === null || error === undefined || !held.has(scope) || isDecline(error)) {
         held.delete(scope);
         setLocked(false);
         setKey(Crypto.randomUUID());

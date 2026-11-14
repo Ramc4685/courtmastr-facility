@@ -13,6 +13,10 @@ export function keepsAttemptKey(error: unknown): boolean {
   return error.status >= 500 || (error.status === 409 && (error.code === 'request-in-progress' || error.code === 'idempotency-key-reused'))
 }
 
+/** A definite decline: no money moved, so the attempt is over whatever the status (402 at the till, 409
+ * `payment-failed` on portal, guest and mobile checkouts). */
+export const isDecline = (error: unknown) => error instanceof ApiError && (error.code === 'payment-declined' || error.code === 'payment-failed')
+
 type Outcome = Schemas['AttemptOut']
 /** Asks the server what became of the attempt sent with `key` (404: it recorded none). */
 export type AttemptCheck = (key: string) => Promise<Outcome>
@@ -20,10 +24,11 @@ export type AttemptCheck = (key: string) => Promise<Outcome>
 export const checkStaffAttempt: AttemptCheck = (key) => api.get('/api/v1/payment-attempts/{key}', { path: { key } })
 export const checkPortalAttempt: AttemptCheck = (key) => api.get('/api/v1/portal/payment-attempts/{key}', { path: { key } })
 
-// An attempt whose outcome is unknown outlives its dialog: closing and reopening must not hand out a fresh key.
+// An attempt whose outcome is unknown outlives its dialog: closing and reopening must not hand out a fresh key, nor
+// other values (the server refuses the key with other values: 409 idempotency-key-reused). So both are held.
 // shortcut: in memory only, so a page reload frees the form; the server's idempotency-key-reused still refuses
 // a reused key with other values before any charge.
-const held = new Map<string, string>()
+const held = new Map<string, { key: string; values?: unknown }>()
 
 /** A final state in which no money moved: only then may a locked form change (and get a fresh key). */
 export const attemptFailed = (status: string) => status === 'failed' || status === 'cancelled' || status === 'voided'
@@ -35,9 +40,11 @@ const said: Record<string, string> ={ succeeded: 'went through', processing: 'is
  * only "try again" (the same request) and "check what happened" until the server reports a final state for that
  * key: a 2xx answer or a decline frees it with a fresh key; `check` frees it only when no money moved (declined,
  * cancelled), and otherwise leaves "try again" to replay what did go through. A change mints a new key
- * (`restart`, refused while locked). `scope` names the form so the lock survives a remount. */
-export function useAttemptKey(scope?: string, check?: AttemptCheck) {
-  const [key, setKey] = useState(() => (scope && held.get(scope)) || crypto.randomUUID())
+ * (`restart`, refused while locked). `scope` names the form so the lock survives a remount; pass the form's values
+ * to `settle` and start the form from `saved`, so a reopened form sends what the held key was used for. */
+export function useAttemptKey<V = unknown>(scope?: string, check?: AttemptCheck) {
+  const [saved] = useState(() => (scope ? (held.get(scope)?.values as V | undefined) : undefined))
+  const [key, setKey] = useState(() => (scope && held.get(scope)?.key) || crypto.randomUUID())
   const [locked, setLocked] = useState(() => Boolean(scope && held.has(scope)))
   const [checking, setChecking] = useState(false)
   const [note, setNote] = useState<string | null>(null)
@@ -48,13 +55,14 @@ export function useAttemptKey(scope?: string, check?: AttemptCheck) {
     setLocked(false)
     setKey(crypto.randomUUID())
   }, [scope])
-  /** Call with the request's error, or null after an answer that is final for the attempt (the server's 2xx). */
+  /** Call with the request's error, or null after an answer that is final for the attempt (the server's 2xx), and
+   * the values the request was sent with. */
   const settle = useCallback(
-    (error: Error | null) => {
+    (error: Error | null, values?: V) => {
       if (keepsAttemptKey(error)) {
-        if (scope) held.set(scope, state.current.key)
+        if (scope) held.set(scope, { key: state.current.key, values: held.get(scope)?.values ?? values })
         setLocked(true)
-      } else if (error === null || !state.current.locked || (error instanceof ApiError && error.status === 402)) {
+      } else if (error === null || !state.current.locked || isDecline(error)) {
         fresh() // a success or a decline is final; a refusal while locked is not an answer about the first attempt
       }
     },
@@ -84,10 +92,11 @@ export function useAttemptKey(scope?: string, check?: AttemptCheck) {
       setChecking(false)
     }
   }, [check, fresh])
-  return { key, locked, settle, restart, verify: check ? verify : undefined, checking, note }
+  return { key, locked, settle, restart, verify: check ? verify : undefined, checking, note, saved }
 }
 
-export type Attempt = ReturnType<typeof useAttemptKey>
+// What the lock notice and the fieldset read; any form's values type fits.
+export type Attempt = Pick<ReturnType<typeof useAttemptKey>, 'locked' | 'note' | 'verify' | 'checking'>
 
 /** The notice a locked form shows, with "Check what happened" when the surface can ask the server. */
 export function AttemptLock({ attempt }: { attempt: Attempt }) {

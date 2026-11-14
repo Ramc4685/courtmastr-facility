@@ -91,4 +91,31 @@ describe('refund dialogs (S3)', { timeout: 20_000 }, () => {
     expect(posts[0]?.headers['idempotency-key']).toBeTruthy()
     expect(posts[1]?.headers['idempotency-key']).toBe(posts[0]?.headers['idempotency-key'])
   })
+
+  it('reopens a locked refund with the key and the values that key was sent with', async () => {
+    const posts: Call[] = []
+    mockFetch({
+      'POST /api/v1/payments/p9/refunds': (call) => {
+        posts.push(call)
+        return posts.length === 1 ? lost : { status: 201, body: done }
+      },
+    })
+    const p9 = { ...payment, id: 'p9', receipt_number: 9 } as Schemas['PaymentDetail']
+    const first = wrap(<RefundDialog payment={p9} onClose={() => undefined} />)
+    let dialog = await screen.findByRole('dialog', { name: 'Refund payment #9' })
+    await userEvent.clear(within(dialog).getByRole('textbox', { name: /Amount/ }))
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /Amount/ }), '5')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /Reason/ }), 'Duplicate')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Refund' }))
+    expect(await within(dialog).findByText(/stays as it was/)).toBeInTheDocument()
+    first.unmount() // Cancel, then open the refund again
+    wrap(<RefundDialog payment={p9} onClose={() => undefined} />)
+    dialog = await screen.findByRole('dialog', { name: 'Refund payment #9' })
+    expect(within(dialog).getByRole('textbox', { name: /Reason/ })).toHaveValue('Duplicate')
+    expect(within(dialog).getByRole('textbox', { name: /Amount/ })).toBeDisabled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again' }))
+    await vi.waitFor(() => expect(posts).toHaveLength(2))
+    expect(posts[1]?.headers['idempotency-key']).toBe(posts[0]?.headers['idempotency-key'])
+    expect(posts[1]?.body).toEqual(posts[0]?.body) // not the defaults: the server would refuse those (key reused)
+  })
 })

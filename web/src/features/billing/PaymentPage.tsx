@@ -25,15 +25,17 @@ export function RefundDialog({ payment, onClose }: { payment: Payment; onClose: 
   const toast = useToast()
   const currency = useCurrency()
   const refundable = payment.unapplied_minor
-  const [amount, setAmount] = useState(toMoneyInput(refundable))
-  const [method, setMethod] = useState<'original' | 'external'>(PROCESSED.has(payment.tender_kind) ? 'original' : 'external')
-  const [reason, setReason] = useState('')
-  const [comments, setComments] = useState('')
+  type Values = { amount: string; method: 'original' | 'external'; reason: string; comments: string }
+  // a retry replays the refund, never pays twice; a reopened locked dialog sends the values its key was used for
+  const attempt = useAttemptKey<Values>(`refund:${payment.id}`, checkStaffAttempt)
+  const [amount, setAmount] = useState(attempt.saved?.amount ?? toMoneyInput(refundable))
+  const [method, setMethod] = useState<'original' | 'external'>(attempt.saved?.method ?? (PROCESSED.has(payment.tender_kind) ? 'original' : 'external'))
+  const [reason, setReason] = useState(attempt.saved?.reason ?? '')
+  const [comments, setComments] = useState(attempt.saved?.comments ?? '')
   const [tried, setTried] = useState(false)
-  const attempt = useAttemptKey(`refund:${payment.id}`, checkStaffAttempt) // a retry replays the refund, never pays twice
   const m = useMutation({
     mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null }, idempotencyKey: attempt.key }),
-    onSettled: (_data, error) => attempt.settle(error),
+    onSettled: (_data, error) => attempt.settle(error, { amount, method, reason, comments }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
       const outcome = refundOutcome([r], currency)

@@ -27,8 +27,15 @@ describe('useAttemptKey (S1)', () => {
     await first.unmount();
     const again = await renderHook(() => useAttemptKey('t1'));
     expect(again.result.current).toMatchObject({ key, locked: true });
-    await act(async () => again.result.current.settle(err(402)));
+    await act(async () => again.result.current.settle(err(402, 'payment-declined')));
     expect(again.result.current.locked).toBe(false);
     expect(again.result.current.key).not.toBe(key);
+  });
+
+  it('frees the form on the portal checkout decline (409 payment-failed), not only on a 402', async () => {
+    const { result } = await renderHook(() => useAttemptKey('t2'));
+    await act(async () => result.current.settle(err(503)));
+    await act(async () => result.current.settle(err(409, 'payment-failed')));
+    expect(result.current.locked).toBe(false);
   });
 });

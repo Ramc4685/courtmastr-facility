@@ -56,6 +56,19 @@ describe('useAttemptKey', () => {
     expect(renderHook(() => useAttemptKey(scope)).result.current.locked).toBe(false)
   })
 
+  it('frees a locked form on a definite decline whatever its status, and keeps the values with the key', () => {
+    const scope = `form-${Math.random()}`
+    const first = renderHook(() => useAttemptKey<{ amount: string }>(scope))
+    act(() => first.result.current.settle(problem(503), { amount: '12.00' }))
+    first.unmount()
+    const again = renderHook(() => useAttemptKey<{ amount: string }>(scope))
+    expect([again.result.current.locked, again.result.current.saved]).toEqual([true, { amount: '12.00' }])
+    act(() => again.result.current.settle(problem(409, 'payment-failed'))) // portal, guest and mobile declines
+    expect(again.result.current.locked).toBe(false)
+    again.unmount()
+    expect(renderHook(() => useAttemptKey(scope)).result.current.saved).toBeUndefined()
+  })
+
   it('frees the form only when the server says no money moved', async () => {
     const answers = [() => outcome(false, 'initiated'), () => { throw problem(404, 'not-found') }, () => outcome(true, 'succeeded'), () => outcome(true, 'failed')]
     const check: AttemptCheck = vi.fn(async () => {

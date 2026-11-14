@@ -382,12 +382,13 @@ export function RefundCreditDialog({ clientId, max, onClose }: { clientId: strin
   const qc = useQueryClient()
   const toast = useToast()
   const currency = useCurrency()
-  const [amount, setAmount] = useState('')
-  const [reason, setReason] = useState('')
-  const attempt = useAttemptKey(`credit-refund:${clientId}`, checkStaffAttempt) // a retry replays the plan, never pays twice
+  // a retry replays the plan, never pays twice; a reopened locked dialog sends the values its key was used for
+  const attempt = useAttemptKey<{ amount: string; reason: string }>(`credit-refund:${clientId}`, checkStaffAttempt)
+  const [amount, setAmount] = useState(attempt.saved?.amount ?? '')
+  const [reason, setReason] = useState(attempt.saved?.reason ?? '')
   const m = useMutation({
     mutationFn: () => api.post('/api/v1/clients/{client_id}/account-credit/refund', { path: { client_id: clientId }, body: { amount_minor: parseMoney(amount) ?? 0, reason: reason.trim() }, idempotencyKey: attempt.key }),
-    onSettled: (_data, error) => attempt.settle(error),
+    onSettled: (_data, error) => attempt.settle(error, { amount, reason }),
     onSuccess: (batch) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
       const outcome = refundOutcome(batch.refunds, currency)
