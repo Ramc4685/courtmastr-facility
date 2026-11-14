@@ -177,11 +177,13 @@ def search_portal_rental_availability(
     ctx: Client, client_id: UUID, rental_type_id: UUID, on: Annotated[date, Query(alias="on")],
     length_min: int | None = None, resource_id: UUID | None = None, from_time: time | None = None,
     to_time: time | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 200, cursor: str | None = None,
+    player_client_ids: Annotated[list[UUID] | None, Query()] = None,
 ):  # fmt: skip
-    """The open times priced for the client who will hold the rental: member prices, as the checkout charges."""
+    """The open times priced for the client who will hold the rental and the players they will name (people the
+    holder may act for), exactly as the checkout charges them."""
     slots = service.portal_availability(ctx.session, ctx.principal, client_id, rental_type_id, on,
                                         length_min=length_min, resource_id=resource_id, from_time=from_time,
-                                        to_time=to_time)  # fmt: skip
+                                        to_time=to_time, player_client_ids=player_client_ids or [])  # fmt: skip
     return service.slot_page(slots, limit, cursor)
 
 

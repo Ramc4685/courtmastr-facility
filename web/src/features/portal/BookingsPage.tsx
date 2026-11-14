@@ -155,11 +155,12 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const [bandValue, setBandValue] = useState('any')
   const band = BANDS.find((b) => b.value === bandValue)
   // The whole day for the chosen court and band, page by page: never silently cut off (the server pages by court).
+  // Priced with the ticked players, as the checkout charges them; ticking or unticking someone re-quotes.
   const slots = useInfiniteQuery({
-    queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes, court, bandValue],
+    queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes, court, bandValue, players],
     queryFn: ({ pageParam }) =>
       api.get('/api/v1/portal/rental-availability', {
-        query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, resource_id: court || undefined, from_time: band?.from_time, to_time: band?.to_time, cursor: pageParam },
+        query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, resource_id: court || undefined, from_time: band?.from_time, to_time: band?.to_time, player_client_ids: players.length ? players : undefined, cursor: pageParam },
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => (last.page.has_more ? (last.page.next_cursor ?? undefined) : undefined),

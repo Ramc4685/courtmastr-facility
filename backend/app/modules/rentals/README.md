@@ -272,9 +272,11 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   minors rule's `clients.households.guardian_ids`; owner: "a child can be on the parent's membership too"). An
   unrelated member listed as a player never lowers a guest holder's price, at the desk or online. With a non-member
   holder, a single uncovered or unrelated player means guest prices for the whole rental. The member rate rules
-  matched are those of the covering membership types. Staff and portal bookings, previews and charges all go
-  through `_member_pricing`; a charge reads the players written on the occurrences, so for a series every player
-  listed on any occurrence must qualify. Open times (no players yet) price the holder alone.
+  matched are those of the covering membership types. Staff and portal bookings, previews, open times and charges
+  all go through `_member_pricing`; a charge reads the players written on the occurrences, so for a series every
+  player listed on any occurrence must qualify. Portal open times take the players the holder will name
+  (`player_client_ids`, people the holder may act for, else 404) and quote what the checkout charges; the booking
+  screen re-quotes when a player is ticked or unticked, and the checkout shows the final price before payment.
   **Owner question (open):** a non-member parent booking with their covered child pays the member price, $15 not
   $18 off-peak, $25 not $30 at peak and $40 not $48 for volleyball, so one child membership stands in for the
   parent's own $10 membership. Confirm that is intended.

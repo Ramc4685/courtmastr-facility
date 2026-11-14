@@ -140772,7 +140772,7 @@
     },
     "/api/v1/portal/rental-availability": {
       "get": {
-        "description": "The open times priced for the client who will hold the rental: member prices, as the checkout charges.",
+        "description": "The open times priced for the client who will hold the rental and the players they will name (people the\nholder may act for), exactly as the checkout charges them.",
         "operationId": "searchPortalRentalAvailability",
         "parameters": [
           {
@@ -140898,6 +140898,26 @@
                 }
               ],
               "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "player_client_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Player Client Ids"
             }
           },
           {

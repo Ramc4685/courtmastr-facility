@@ -245,6 +245,11 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
     expect(within(dialog).getByRole('note')).toHaveTextContent('Children cannot hold a court booking on their own.')
     expect(within(dialog).getByRole('checkbox', { name: 'Kit' })).toBeChecked()
+    const quotes = () => calls.filter((c) => c.url.includes('/portal/rental-availability')).map((c) => c.url)
+    await vi.waitFor(() => expect(quotes().at(-1)).toContain('player_client_ids=c2')) // priced with the ticked child
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Kit' }))
+    await vi.waitFor(() => expect(quotes().at(-1)).not.toContain('player_client_ids')) // unticked: re-quoted
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Kit' }))
     await userEvent.click(await within(dialog).findByRole('button', { name: /Court 3.*member price/ }))
     expect(holds[0]?.body).toMatchObject({ client_id: 'c1', player_client_ids: ['c2'] })
     expect(calls.find((c) => c.url.includes('/portal/rental-availability'))?.url).toContain('client_id=c1')

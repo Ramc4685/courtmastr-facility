@@ -10732,7 +10732,8 @@ export interface paths {
         };
         /**
          * Search Portal Rental Availability
-         * @description The open times priced for the client who will hold the rental: member prices, as the checkout charges.
+         * @description The open times priced for the client who will hold the rental and the players they will name (people the
+         *     holder may act for), exactly as the checkout charges them.
          */
         get: operations["searchPortalRentalAvailability"];
         put?: never;
@@ -71332,6 +71333,7 @@ export interface operations {
                 to_time?: string | null;
                 limit?: number;
                 cursor?: string | null;
+                player_client_ids?: string[] | null;
             };
             header?: {
                 /** @description Optional; keys live 24 hours. */

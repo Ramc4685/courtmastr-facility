@@ -1445,6 +1445,7 @@ def search_availability(
     client_id: UUID | None = None,
     from_time: time | None = None,
     to_time: time | None = None,
+    players: tuple[UUID, ...] = (),
 ) -> list[dict]:
     """Advisory slots (RNT-06): free ranges of the type's resources on a local date, snapped to the grid,
     with room for the type's buffers, priced with the online rate for `client_id` (anonymous: the guest
@@ -1486,7 +1487,7 @@ def search_availability(
                 if max(earliest, band_from) <= cursor < band_to and (latest is None or cursor < latest):
                     finish = cursor + timedelta(minutes=length)
                     occurrence = pricing.Occurrence(0, cursor, finish, (column["resource_id"],))
-                    lines = _price_for(session, rate, [occurrence], client_id, status=member_status)
+                    lines = _price_for(session, rate, [occurrence], client_id, status=member_status, players=players)
                     slots.append(
                         {
                             "starts_at": cursor, "ends_at": finish, "resource_id": column["resource_id"],
@@ -1531,9 +1532,27 @@ def _portal_client(session: Db, principal: Principal, client_id: UUID) -> UUID:
     return client_id
 
 
-def portal_availability(session: Db, principal: Principal, client_id: UUID, type_id: UUID, on: date, **kw) -> list:
-    """The open times priced for the client who will hold the rental (member prices), as the checkout charges."""
-    return search_availability(session, type_id, on, client_id=_portal_client(session, principal, client_id), **kw)
+def _portal_players(session: Db, principal: Principal, client_id: UUID, ids) -> tuple[UUID, ...]:
+    """The players a portal holder names: people the signed-in identity may act for (else 404), active, never
+    the holder. The availability quote and the checkout read the same list, so quote and charge agree."""
+    players = []
+    for player in dict.fromkeys(ids or ()):
+        if player == client_id:
+            continue
+        if clients.households.can_act_for(session, principal.identity_id, player) is None:
+            raise NotFound()
+        clients.service.require_active(session, player, pointer="/player_client_ids")
+        players.append(player)
+    return tuple(players)
+
+
+def portal_availability(
+    session: Db, principal: Principal, client_id: UUID, type_id: UUID, on: date, *, player_client_ids=(), **kw
+) -> list:
+    """The open times priced for the holder and the players they will name, as the checkout charges."""
+    holder = _portal_client(session, principal, client_id)
+    players = _portal_players(session, principal, holder, player_client_ids)
+    return search_availability(session, type_id, on, client_id=holder, players=players, **kw)
 
 
 def _portal_rental(
@@ -1588,14 +1607,10 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         raise ValidationFailed("This resource is not offered for this rental type.", pointer="/resource_id")
     _check_online_slot(session, rtype, data["starts_at"], data["ends_at"])
     clients.service.require_active(session, client_id)
-    players = []
-    for player in dict.fromkeys(data.get("player_client_ids") or ()):
-        if player == client_id:
-            continue
-        if clients.households.can_act_for(session, principal.identity_id, player) is None:
-            raise NotFound()
-        clients.service.require_active(session, player, pointer="/player_client_ids")
-        players.append({"client_id": player, "is_charged": False})
+    players = [
+        {"client_id": p, "is_charged": False}
+        for p in _portal_players(session, principal, client_id, data.get("player_client_ids"))
+    ]
     _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids", online=True)
     plan = data.get("rental_plan_purchase_id")
     _share_holder_documents(session, plan, client_id, online=True)

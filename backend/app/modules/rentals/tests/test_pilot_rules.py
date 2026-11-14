@@ -773,3 +773,31 @@ def test_a_covered_child_and_a_covered_friend_who_is_not_the_holders_ward_pay_th
     for who in (kid, friend):
         join(client, owner, f, who, DAY - timedelta(days=10))
     assert priced(client, owner, f, parent, kid, friend) == (2400, 2400)
+
+
+def test_the_portal_quotes_the_named_players_exactly_as_the_checkout_charges(client, owner, tenant, f):
+    """A non-member parent whose child holds a membership: the open times quote the guest price alone and the
+    member price with the child named, and each checkout charges what was quoted."""
+    me, portal = portal_client(client, owner, tenant, f)
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    parent_of = next(
+        t for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200) if t["code"] == "parent_of"
+    )
+    ok(client.post(f"{API}/clients/{me}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+    join(client, owner, f, kid, DAY - timedelta(days=10))
+    query = f"rental_type_id={f.rtype}&on={DAY.date()}&length_min=60&resource_id={f.court}&client_id={me}"
+
+    def quoted(hour: int, extra: str = "") -> int:
+        slots = ok(client.get(f"{API}/portal/rental-availability?{query}{extra}", headers=portal), 200)
+        return starting(slots["data"], hour)["price_minor"]
+
+    alone_quote, kid_quote = quoted(15), quoted(16, f"&player_client_ids={kid}")  # quoted before the time is held
+    alone = ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)))
+    with_kid = ok(client.post(f"{API}/portal/rentals", headers=portal,
+                              json=online(f, me, 16, 17) | {"player_client_ids": [kid]}))  # fmt: skip
+    assert (alone_quote, alone["quote"]["subtotal_minor"]) == (2400, 2400)
+    assert (kid_quote, with_kid["quote"]["subtotal_minor"]) == (2000, 2000)
+    stranger = new_client(client, owner, f.location)["id"]
+    assert client.get(f"{API}/portal/rental-availability?{query}&player_client_ids={stranger}",
+                      headers=portal).status_code == 404  # fmt: skip
