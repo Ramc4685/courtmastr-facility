@@ -1182,10 +1182,14 @@ def refund(
         _finish_refund(session, row, payment, "succeeded")
         return row
     account = session.get(ProviderAccount, payment.provider_account_id)
-    result = payment_provider.get(account.provider).refund(
-        account_ref=account.provider_account_ref, provider_payment_ref=payment.provider_payment_ref,
-        amount_minor=amount_minor, idempotency_key=_refund_provider_key(session, row),
-    )  # fmt: skip
+    try:
+        result = payment_provider.get(account.provider).refund(
+            account_ref=account.provider_account_ref, provider_payment_ref=payment.provider_payment_ref,
+            amount_minor=amount_minor, idempotency_key=_refund_provider_key(session, row),
+        )  # fmt: skip
+    except payment_provider.ProviderUnavailable as error:  # the row stays `initiated`: a retry or the sweep finishes it
+        raise Conflict("The processor has not answered yet. Try again in a moment.",
+                       code="request-in-progress") from error  # fmt: skip
     row.provider_refund_ref, row.failure_message = result.provider_refund_ref or None, result.failure_message
     # a declined refund leaves the items paid; the row keeps only what was released, for a later failure
     released = _release_for_refund(session, payment, release) if result.outcome != "failed" else []

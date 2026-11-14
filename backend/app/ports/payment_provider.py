@@ -95,6 +95,11 @@ class ProviderEvent:
     event_type: str
 
 
+class ProviderUnavailable(Exception):
+    """No usable answer: a timeout, a connection failure, a 5xx, a 409 (the same key's first call is still in
+    flight) or a 429 (rate limited). The outcome of the call is not known."""
+
+
 class WebhookRejected(Exception):
     """The signature is missing, wrong or too old."""
 

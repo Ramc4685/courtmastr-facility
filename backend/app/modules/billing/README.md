@@ -277,6 +277,11 @@ and record a failed attempt ("payload missing").
   id only; an operator finds it in `inbound_webhook_event` and refunds it at the processor. It is not auto-created:
   the event names no payer, location, tender or allocation, so a row would put unattributed money on the books.
   Not built: a staff screen for these events (the failed-jobs list is CLI only).
+- **An outcome the processor did not give is never final.** Stripe 409 (the same key in flight), 429 and 5xx
+  are `ProviderUnavailable` (`app.ports.payment_provider`). A payment is then `unknown`: the sweep asks the
+  processor by key (`find_payment`) and, finding nothing after 30 minutes, cancels it like an `initiated` one, so
+  the key stops answering 503. A refund stays `initiated` and the request is 409 `request-in-progress` (never a
+  500); the same key or the sweep's `find_refund` finishes it.
 - **A processed refund has a pre-provider row (PAY-05, Phase 9 orphans).** `refund(method="original")` commits
   a `refund` row as `initiated` with its `idempotency_key` (migration 1801) in a short transaction before it
   locks the payment and calls the processor. It has **no fallback**: a row the short transaction cannot commit

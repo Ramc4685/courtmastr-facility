@@ -901,3 +901,32 @@ def test_a_refund_while_spend_credit_holds_the_payment_commits_its_row_first(sho
         assert session.scalars(select(Refund.status)).all() == ["succeeded"]
         assert _provider_refunded(session, paid) == payment.refunded_minor == 400
         assert_books_agree(session)
+
+
+def test_a_refund_whose_processor_answer_is_unknown_is_409_and_its_key_replays_once(shop, monkeypatch):
+    """Stripe 409 (same key in flight), 429 or a timeout: the refund row stays `initiated` (the sweep's
+    find_refund resolves it), the caller gets a retryable 409 `request-in-progress`, never a 500; the same key
+    then refunds once."""
+    from app.ports.payment_provider import ProviderUnavailable
+
+    ready(shop)
+    with work(shop.tenant) as session:
+        payment_id = card(session, shop, 1000).id
+    fake = payment_provider.get("fake")
+    real, calls = fake.refund, []
+
+    def unavailable(**kwargs):
+        calls.append(kwargs["idempotency_key"])
+        raise ProviderUnavailable("Stripe answered 429")
+
+    monkeypatch.setattr(fake, "refund", unavailable)
+    with pytest.raises(Conflict) as refused, work(shop.tenant) as session:
+        svc.refund(session, payment_id, amount_minor=400, reason="Overcharged", idempotency_key="r-1")
+    assert refused.value.code == "request-in-progress"
+    with work(shop.tenant) as session:
+        assert session.scalars(select(Refund.status)).all() == ["initiated"]
+    monkeypatch.setattr(fake, "refund", lambda **kwargs: calls.append(kwargs["idempotency_key"]) or real(**kwargs))
+    with work(shop.tenant) as session:
+        done = svc.refund(session, payment_id, amount_minor=400, reason="Overcharged", idempotency_key="r-1")
+        assert done.status == "succeeded"
+    assert len(set(calls)) == 1  # one processor key for both calls: the processor refunds once

@@ -162,7 +162,10 @@ def reconcile(session: Session) -> dict:
     for payment_id in unsettled:
         payment = service.confirm_payment(session, payment_id)
         counts["payments"] += 1
-        if payment.status == "initiated" and payment.received_at < now - ABANDON_AFTER:
+        # `unknown` with no processor object (a 429, a timeout before the processor saw the call): find_payment
+        # found nothing by the key, so after the window it is cancelled like an `initiated` one, freeing the key.
+        never_seen = payment.status == "initiated" or (payment.status == "unknown" and not payment.provider_payment_ref)
+        if never_seen and payment.received_at < now - ABANDON_AFTER:
             service._apply_state(session, payment, PaymentState(provider_payment_ref="", outcome="cancelled"))
             counts["cancelled"] += 1
     for refund_id in session.scalars(select(Refund.id).where(Refund.status == "pending")).all():

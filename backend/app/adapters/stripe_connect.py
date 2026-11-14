@@ -27,6 +27,7 @@ from app.ports.payment_provider import (
     MethodState,
     PaymentState,
     ProviderEvent,
+    ProviderUnavailable,
     RefundState,
     SetupState,
     WebhookRejected,
@@ -77,11 +78,6 @@ def _test_account_details(email: str, country: str) -> dict:
             datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())},
         "settings": {"payments": {"statement_descriptor": "FACILITY TEST"}},
     }  # fmt: skip
-
-
-class ProviderUnavailable(Exception):
-    """No usable answer: a timeout, a connection failure, a 5xx, a 409 (the same key's first call is still in
-    flight) or a 429 (rate limited). The outcome of the call is not known."""
 
 
 def _flatten(params: dict, prefix: str = "") -> list[tuple[str, str]]:

@@ -1081,3 +1081,25 @@ def test_a_payment_for_a_client_created_in_the_same_transaction_does_not_hold_th
         paid = card(session, shop, 500, idempotency_key="guest-1", client_id=guest.id)
         assert paid.status == "succeeded"
     assert len(numbers) == 1 and paid.receipt_number < numbers[0]
+
+
+def test_an_unknown_payment_the_processor_never_created_is_abandoned_and_its_key_freed(shop, monkeypatch):
+    """A 429 (or a timeout before the processor saw the call) leaves the payment `unknown` with no processor
+    object: after the abandon window the sweep, finding nothing by the key, cancels it, so the key stops
+    answering `unknown` and the payer can start again."""
+    from app.ports.payment_provider import PaymentState
+
+    ready(shop)
+    fake = payment_provider.get("fake")
+    monkeypatch.setattr(fake, "create_payment", lambda **_: PaymentState("", "unknown"))
+    with work(shop.tenant) as session:
+        assert card(session, shop, 500, idempotency_key="rate-limited").status == "unknown"
+    monkeypatch.setattr(fake, "find_payment", lambda **_: None)
+    with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
+        webhooks.reconcile(session)  # inside the window: still unknown, the processor may yet show it
+    with work(shop.tenant) as session:
+        assert session.scalar(select(Payment.status)) == "unknown"
+    with clock.freeze(clock.now() + timedelta(minutes=40)), work(shop.tenant) as session:
+        webhooks.reconcile(session)
+    with work(shop.tenant) as session:
+        assert card(session, shop, 500, idempotency_key="rate-limited").status == "cancelled"
