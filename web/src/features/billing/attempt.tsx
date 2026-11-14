@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
+import { dropHeld, getHeld, setHeld } from '../../lib/heldAttempts'
 
 /** Whether a failed money request's outcome is unknown (network loss, 5xx, another request still at work, or the
  * key already used for other values), so the retry must carry the same Idempotency-Key: the server then replays the
@@ -25,10 +26,10 @@ export const checkStaffAttempt: AttemptCheck = (key) => api.get('/api/v1/payment
 export const checkPortalAttempt: AttemptCheck = (key) => api.get('/api/v1/portal/payment-attempts/{key}', { path: { key } })
 
 // An attempt whose outcome is unknown outlives its dialog: closing and reopening must not hand out a fresh key, nor
-// other values (the server refuses the key with other values: 409 idempotency-key-reused). So both are held.
+// other values (the server refuses the key with other values: 409 idempotency-key-reused). So both are held, in
+// memory and per signed-in identity (lib/heldAttempts), until the attempt settles.
 // shortcut: in memory only, so a page reload frees the form; the server's idempotency-key-reused still refuses
 // a reused key with other values before any charge.
-const held = new Map<string, { key: string; values?: unknown }>()
 
 /** A final state in which no money moved: only then may a locked form change (and get a fresh key). */
 export const attemptFailed = (status: string) => status === 'failed' || status === 'cancelled' || status === 'voided'
@@ -43,15 +44,15 @@ const said: Record<string, string> ={ succeeded: 'went through', processing: 'is
  * (`restart`, refused while locked). `scope` names the form so the lock survives a remount; pass the form's values
  * to `settle` and start the form from `saved`, so a reopened form sends what the held key was used for. */
 export function useAttemptKey<V = unknown>(scope?: string, check?: AttemptCheck) {
-  const [saved] = useState(() => (scope ? (held.get(scope)?.values as V | undefined) : undefined))
-  const [key, setKey] = useState(() => (scope && held.get(scope)?.key) || crypto.randomUUID())
-  const [locked, setLocked] = useState(() => Boolean(scope && held.has(scope)))
+  const [saved] = useState(() => (scope ? (getHeld(scope)?.values as V | undefined) : undefined))
+  const [key, setKey] = useState(() => (scope && getHeld(scope)?.key) || crypto.randomUUID())
+  const [locked, setLocked] = useState(() => Boolean(scope && getHeld(scope)))
   const [checking, setChecking] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const state = useRef({ key, locked })
   state.current = { key, locked }
   const fresh = useCallback(() => {
-    if (scope) held.delete(scope)
+    if (scope) dropHeld(scope) // settled: the held request (and any processor token in it) goes
     setLocked(false)
     setKey(crypto.randomUUID())
   }, [scope])
@@ -60,7 +61,7 @@ export function useAttemptKey<V = unknown>(scope?: string, check?: AttemptCheck)
   const settle = useCallback(
     (error: Error | null, values?: V) => {
       if (keepsAttemptKey(error)) {
-        if (scope) held.set(scope, { key: state.current.key, values: values ?? held.get(scope)?.values })
+        if (scope) setHeld(scope, { key: state.current.key, values: values ?? getHeld(scope)?.values })
         setLocked(true)
       } else if (error === null || !state.current.locked || isDecline(error)) {
         fresh() // a success or a decline is final; a refusal while locked is not an answer about the first attempt

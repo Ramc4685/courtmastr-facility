@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError, setCsrfToken, setUnauthenticatedHandler, type Schemas } from '../api/client'
+import { clearHeldAttempts, heldOwner } from './heldAttempts'
 
 export type Me = Schemas['Me']
 type Challenge = Schemas['MfaChallengeOut']
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setUnauthenticatedHandler(() => {
       setCsrfToken(null)
+      clearHeldAttempts()
       qc.setQueryData(SESSION_KEY, null)
       // Back to the value already rendered (null) in the same tick: no re-render comes, so release by hand.
       release()
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCsrfToken(csrf)
       qc.removeQueries(notSession)
       const next = await api.get('/api/v1/me')
+      clearHeldAttempts(next.principal.identity_id) // a new session never resumes someone's held payment form
       await new Promise<void>((resolve) => {
         qc.setQueryData(SESSION_KEY, next)
         // Structural sharing keeps the old object when nothing changed, and then no re-render is coming.
@@ -93,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.post('/api/v1/auth/sign-out')
     } finally {
       setCsrfToken(null)
+      clearHeldAttempts()
       qc.setQueryData(SESSION_KEY, null)
       qc.removeQueries(notSession)
       release()
@@ -100,6 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc, release])
 
   const me = session.data
+  // A restored or changed session (another tab signed someone else in): held attempts belong to their identity.
+  const identity = me?.principal.identity_id ?? null
+  if (heldOwner() !== identity) clearHeldAttempts(identity)
   const keys = useMemo(() => new Set((me?.permissions ?? []).map((p) => p.key)), [me])
   const can = useCallback((key: string) => keys.has(key), [keys])
 

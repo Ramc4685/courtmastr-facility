@@ -2,6 +2,7 @@ import { act, render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../api/client'
+import { clearHeldAttempts } from '../../lib/heldAttempts'
 import { AttemptFields, AttemptLock, keepsAttemptKey, useAttemptKey, type AttemptCheck } from './attempt'
 
 const problem = (status: number, code = 'x') => new ApiError({ status, code, title: 't', type: 'about:blank' } as never)
@@ -67,6 +68,22 @@ describe('useAttemptKey', () => {
     expect(again.result.current.locked).toBe(false)
     again.unmount()
     expect(renderHook(() => useAttemptKey(scope)).result.current.saved).toBeUndefined()
+  })
+
+  it('never hands a held attempt to another signed-in person, and forgets the request once it settles', () => {
+    const scope = `desk-${Math.random()}`
+    clearHeldAttempts('staff-a')
+    const mine = renderHook(() => useAttemptKey<{ token: string }>(scope))
+    act(() => mine.result.current.settle(problem(503), { token: 'tok_card_ok' }))
+    mine.unmount()
+    clearHeldAttempts('staff-b') // the next person signs in at the same browser
+    const theirs = renderHook(() => useAttemptKey<{ token: string }>(scope))
+    expect([theirs.result.current.locked, theirs.result.current.saved]).toEqual([false, undefined])
+    act(() => theirs.result.current.settle(problem(503), { token: 'tok_card_ok' }))
+    act(() => theirs.result.current.settle(null)) // settled: the held request and its token are dropped
+    theirs.unmount()
+    expect(renderHook(() => useAttemptKey(scope)).result.current.saved).toBeUndefined()
+    clearHeldAttempts()
   })
 
   it('frees the form only when the server says no money moved', async () => {
