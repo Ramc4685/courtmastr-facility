@@ -119,6 +119,21 @@ PAY-16) wait for the review of these.
   a time-of-day failure near midnight). `make lint typecheck boundaries` clean; `make contract` 1,191 passed, 6 skipped; `API_DIFF_BASE=main make api-diff`
   exit 0; `make web-check` clean, `make web-test` 324 passed (63 files).
 
+- **Seventh pass (S5b, S5c, merge).** S5b: `GET /unmatched-provider-events` (`billing.history.read`, keyset,
+  `include=total`; Billing set-up, Processor tab) lists processor charges and refunds with no row once the sweep
+  gave up: provider, kind, reference, time. No amount (the stored event has none; see the billing README known
+  limits). Read through the kernel's `inbound_webhooks.given_up()` as fh_platform, filtered to the session's tenant;
+  location-scoped callers see only their locations' provider accounts. S5c left as is (guest checkout stays on the
+  own-row path; why in the README). The portal attempt lookup answers its own `PortalAttemptOut`. Merged main
+  (`aeaa3ff`): 1801 now revises 1985, one head 1807; downgrade to base and upgrade proven on the rebuilt empty test
+  database (on the seeded dev database the downgrade stops at main's 0101 `ck_enrollment_target`, and a second
+  `make seed` fails in main's clients seed: both outside this branch).
+- **Checks run (seventh pass).** billing then integrations in one process 489 passed; pos 49; programs 69;
+  memberships 163; packages 73; `tests/` 4,999 passed, 1,151 skipped, 5 xfailed. `make lint typecheck boundaries`
+  clean; `make contract` 1,199 passed, 6 skipped; `API_DIFF_BASE=main make api-diff` exit 0 (two warnings: bulk
+  `due_on` and `is_autopay` moved under `params`); `make web-check` clean, `make web-test` 370 passed (67 files);
+  mobile lint and typecheck clean, 60 tests passed (10 suites; jest did not exit by itself afterwards).
+
 ## Not done inside built features
 
 - The refund dialog does not offer release-then-refund yet; the API does.
