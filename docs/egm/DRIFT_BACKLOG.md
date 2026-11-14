@@ -684,3 +684,12 @@ Re-run for reporting after court use (migration 2011). Court-use README text mat
 - [ ] [contract] openapi-programs.yaml:6232, 6377, 6440 declare `entitlement-required`, `report-not-implemented` and `version-conflict` that the code never raises (`service.py` `update_saved` has no version check); README:213 lists only the inline run
 - [ ] [wording] docs/status/15-reporting.md:4 says 29 `rpt_*` views; `views.py` defines 57 (migration 2011 added 8)
 - [x] [stale-not-built] The "Registered keys with no route" decision lists `reporting.dashboard.read`; `GET /dashboards/management` is now served (`router.py:144`, `dashboard.py:77`). Entry above is stale, drop the key from it.
+
+### clients (+6, refresh 2026-11-14) — [evidence](drift/clients.md)
+
+- [ ] [undocumented] README:4 omits migrations `1983_clients_age_confirmation` and `1985_clients_age_confirmed_at_source`.
+- [ ] [contract] The three age routes (`GET /client-age-reviews`, `POST /client-age-reviews/confirmations`, `POST /clients/{id}/age-confirmation`; `clients/router.py:78,87,95`), the `confirm_age` field (`schemas.py:82`) and the `age_confirmed` / `age_confirmation_reset` fields (`schemas.py:110,113`) have no operation in `docs/api/`.
+- [ ] [contract] `GET /clients/{id}/photo` is not in the contract (`openapi-people.yaml:292-323`); the contract single `GET /client-notes/{id}/attachment` signed URL (`:1762`) is served as list/create/get-bytes/delete under `/attachments` (`router.py:564-583`).
+- [ ] [contract] `assignClientMemberNumber` is `PUT` in the contract (`openapi-people.yaml:429`), `POST` in code (`router.py:130`).
+- [ ] [contract] `updateClientLocationSettings` is `PATCH` in the contract (`openapi-people.yaml:929`), `PUT` in code (`router.py:255`).
+- [ ] [contract] `GET /clients/{id}/timeline` (`router.py:497`) has no operation in `openapi-people.yaml`.

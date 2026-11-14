@@ -26,8 +26,10 @@ def seed(session: Session) -> None:
     actor = session.info["actor"]
     locations = {location.slug: location.id for location in session.scalars(select(Location))}
     existing = {}
-    for client in session.scalars(select(Client).order_by(Client.created_at.desc())):
-        existing[client.primary_email] = client  # oldest wins: Mia shares her parent's address (FAM-02)
+    # Oldest wins: Mia shares her parent's address (FAM-02). By UUIDv7 id, not created_at: one seed transaction
+    # gives Morgan and Mia the same created_at, so a re-run could pick Mia and try to age-confirm a child.
+    for client in session.scalars(select(Client).order_by(Client.id.desc())):
+        existing[client.primary_email] = client
     for first_name, last_name, slug, phone, member_number in CLIENTS:
         email = "member@" + DOMAIN if last_name == "Member" else f"{first_name.lower()}.{last_name.lower()}@{DOMAIN}"
         if email not in existing:

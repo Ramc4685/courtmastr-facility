@@ -75,7 +75,8 @@ def seed(session: Session) -> None:
            recurrence={"pattern": "weekly", "range_type": "count", "occurrence_limit": 4})  # fmt: skip
     rental("Reyes", "Court 3", monday + timedelta(days=3), "18:00", 90, {"decision": "unbilled"})
     purchase = service.sell_plan(session, actor, {"rental_plan_id": plan.id, "client_id": people["Okafor"]})
-    rental("Okafor", "Court 2", monday + timedelta(days=4), "07:00", 120, {"decision": "plan", "rental_plan_purchase_id": purchase["id"]})  # fmt: skip
+    # Never before today: the plan starts on the sale date, so on a weekend this week's Friday is already invalid.
+    rental("Okafor", "Court 2", max(monday + timedelta(days=4), today), "07:00", 120, {"decision": "plan", "rental_plan_purchase_id": purchase["id"]})  # fmt: skip
     _lockers(session, actor, location, today, people)
 
 
