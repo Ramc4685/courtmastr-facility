@@ -8304,7 +8304,7 @@ components:
         reservation_type_id: {type: [string, 'null'], format: uuid}
         effective_from_on: {type: string, format: date}
         coach_share_pct: {type: string, description: 'Decimal 0 to 100'}
-        court_fee_minor: {type: integer, minimum: 0}
+        court_fee_minor: {type: integer, minimum: 0, maximum: 2147483647}
         court_fee_basis: {type: string, enum: [session, hour]}
         court_fee_applies: {type: string, enum: [before_split, after_split]}
     CoachPayoutCreate:
@@ -8319,7 +8319,7 @@ components:
       type: object
       required: [amount_minor, reason]
       properties:
-        amount_minor: {type: integer, description: Positive raises the coach's share; the gross is unchanged.}
+        amount_minor: {type: integer, minimum: -2147483647, maximum: 2147483647, description: Positive raises the coach's share; the gross is unchanged.}
         reason: {type: string, maxLength: 500}
     CoachPayoutPaid:
       type: object

@@ -14,6 +14,7 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Note = Annotated[str, StringConstraints(max_length=2000)]
 Minor = Annotated[int, Field(ge=0, le=10**10)]
+_INT4 = 2**31 - 1  # the coach share tables keep money in integer (int4) columns
 Pct = Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
 Password = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 Basis = Literal["invoiced", "paid"]
@@ -484,7 +485,7 @@ class CoachShareRuleWrite(In):
     reservation_type_id: UUID | None = Field(None, description="One lesson or program type; null for all")
     effective_from_on: date
     coach_share_pct: Pct
-    court_fee_minor: Minor = 0
+    court_fee_minor: Annotated[int, Field(ge=0, le=_INT4)] = 0
     court_fee_basis: Literal["session", "hour"] = "session"
     court_fee_applies: Literal["before_split", "after_split"] = "before_split"
 
@@ -544,7 +545,7 @@ class CoachPayoutCreate(In):
 
 
 class CoachAdjustmentCreate(In):
-    amount_minor: Annotated[int, Field(ge=-(10**10), le=10**10, description="Positive raises the coach's share")]
+    amount_minor: Annotated[int, Field(ge=-_INT4, le=_INT4, description="Positive raises the coach's share")]
     reason: Reason
 
 

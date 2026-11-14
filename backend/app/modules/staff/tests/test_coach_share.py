@@ -267,6 +267,9 @@ def test_payout_statement_flow_adjustment_step_up_and_paid_is_final(client, tena
                     client.post(f"{url}/paid", headers=owner, json={"paid_on": "2031-06-02", "payment_method": "cheque"}),
                     client.delete(url, headers=owner)):  # fmt: skip
         assert (attempt.status_code, attempt.json()["code"]) == (409, "invalid-state-transition")
+    huge = client.post(f"{API}/coach-payouts/{payout['id']}/adjustments", headers=owner,
+                       json={"amount_minor": 10**10, "reason": "Typo"})  # fmt: skip
+    assert huge.status_code == 422  # beyond the int4 money columns: refused, not a database error
     card = client.post(f"{url}/paid", headers=owner, json={"paid_on": "2031-06-02", "payment_method": "other",
                                                            "payment_reference": "4111 1111 1111 1111"})  # fmt: skip
     assert card.status_code == 422
@@ -383,6 +386,8 @@ def test_share_rules_validate_and_keep_their_history(client, tenant, owner, coac
         client.put(url, headers=owner, json={"effective_from_on": "2031-07-01", "coach_share_pct": "101"}).status_code
         == 422
     )
+    huge = {"effective_from_on": "2031-07-01", "coach_share_pct": "50", "court_fee_minor": 10**10}
+    assert client.put(url, headers=owner, json=huge).status_code == 422
     unknown = client.put(url, headers=owner, json={"reservation_type_id": c.payee["id"], "effective_from_on": "2031-07-01",
                                                    "coach_share_pct": "50"})  # fmt: skip
     assert unknown.status_code == 422
