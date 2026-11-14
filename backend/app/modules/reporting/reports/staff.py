@@ -6,7 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
-from sqlalchemy import false, func, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.reporting import views as v
@@ -202,6 +202,43 @@ def _trainer_performance(session: Session, p: TrainerParams, scope: Scope) -> di
     return {"rows": rows, "totals": totals, "details": details}
 
 
+# --- coach revenue share: the split by coach, and what is still owed at a date --------------------------------
+
+_SPLIT = ("gross_minor", "facility_share_minor", "coach_share_minor")
+
+
+def _coach_rows(session: Session, where: list, scope: Scope) -> dict:
+    e = v.coach_earning.c
+    details, coaches = [], {}
+    for r in session.execute(_loc(
+        select(e.staff_payee_id, e.coach_name, e.earned_on, e.kind, e.description, e.payout_status, e.paid_on,
+               *(getattr(e, m) for m in _SPLIT))
+        .where(*where, *_own(e.coach_resource_id, scope))
+        .order_by(e.coach_name, e.earned_on, e.coach_earning_id), v.coach_earning, scope,
+    )):  # fmt: skip
+        d = dict(r._mapping)
+        d["group_key"] = _key(d.pop("staff_payee_id"))
+        row = coaches.setdefault(d["group_key"], {"group_key": d["group_key"], "coach": d["coach_name"],
+                                                  "line_count": 0} | dict.fromkeys(_SPLIT, 0))  # fmt: skip
+        row["line_count"] += 1
+        for m in _SPLIT:
+            row[m] += int(d[m])
+        details.append(d)
+    rows = list(coaches.values())
+    return {"rows": rows, "totals": {"line_count": len(details)} | {m: sum(r[m] for r in rows) for m in _SPLIT},
+            "details": details}  # fmt: skip
+
+
+def _coach_revenue_split(session: Session, p: RangeParams, scope: Scope) -> dict:
+    return _coach_rows(session, [_between(v.coach_earning.c.earned_on, p, scope)], scope)
+
+
+def _coach_liability(session: Session, p: RangeParams, scope: Scope) -> dict:
+    """Owed at the end of the period: lines earned by then that no statement had paid by then."""
+    e = v.coach_earning.c
+    return _coach_rows(session, [e.earned_on <= p.to_on, or_(e.paid_on.is_(None), e.paid_on > p.to_on)], scope)
+
+
 # --- the specs -----------------------------------------------------------------------------------------------
 
 _TIME_TOTALS = (Col("entry_count", "Entries", "count"), Col("open_count", "Still open", "count"),
@@ -217,6 +254,11 @@ _TRAINER_FIGURES = (
     Col("package_count", "Packages sold", "count"), Col("package_sales_minor", "Package sales", "money"),
     Col("session_value_minor", "Session value delivered", "money"),
 )  # fmt: skip
+
+_COACH_SPLIT = (Col("gross_minor", "Gross", "money"), Col("facility_share_minor", "Facility share", "money"),
+                Col("coach_share_minor", "Coach share", "money"))  # fmt: skip
+_COACH_DETAIL = (Col("earned_on", "Date", "date"), Col("kind", "Kind"), Col("description", "Description"),
+                 *_COACH_SPLIT, Col("payout_status", "Payout"), Col("paid_on", "Paid on", "date"))  # fmt: skip
 
 SPECS = (
     ReportSpec(
@@ -259,5 +301,22 @@ SPECS = (
          Col("reservation_type_name", "Class or service"), Col("participant_count", "Participants", "count"),
          Col("attended", "Attended", "count"), Col("no_show", "No-shows", "count")),
         ("STF-11", "RPT-40"), own_reach=True,
+    ),
+    ReportSpec(
+        "coach_revenue_split", "Coach revenue split",
+        "Independent coaches' lesson revenue earned in the dates chosen, per coach: the gross, the facility's share "
+        "and the coach's share, with refunds and corrections as reversing lines. The coach's share is a cost owed to "
+        "the coach, not less revenue: revenue reports still show the full lesson price. Coaches see only their own.",
+        "payroll", PAYROLL, "earned_date", RangeParams,
+        (Col("coach", "Coach"), *_COACH_SPLIT), (Col("line_count", "Lines", "count"), *_COACH_SPLIT),
+        _coach_revenue_split, _COACH_DETAIL, ("COACH-SHARE",), own_reach=True,
+    ),
+    ReportSpec(
+        "coach_liability", "Unpaid coach earnings",
+        "What the facility owed independent coaches at the end of the dates chosen: every earning line up to that "
+        "day that no payout statement had marked paid by then. Recording a payout moves no money.",
+        "payroll", PAYROLL, "as_of_date", RangeParams,
+        (Col("coach", "Coach"), *_COACH_SPLIT), (Col("line_count", "Lines", "count"), *_COACH_SPLIT),
+        _coach_liability, _COACH_DETAIL, ("COACH-SHARE",), own_reach=True,
     ),
 )  # fmt: skip

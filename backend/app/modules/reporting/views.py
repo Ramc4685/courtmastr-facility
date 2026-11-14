@@ -214,6 +214,11 @@ booking_start = _view(
 class_session = _view("rpt_class_session", """session_id location_id booking_id reservation_type_id
     reservation_type_name trainer_resource_id trainer_name session_on start_time capacity booked_count""")  # fmt: skip
 
+# coach revenue share (migration 2031): earning lines with the payout that gathered them
+coach_earning = _view("rpt_coach_earning", """coach_earning_id location_id staff_payee_id coach_name coach_resource_id
+    kind earned_on description gross_minor facility_share_minor coach_share_minor coach_payout_id payout_status
+    paid_on""")  # fmt: skip
+
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
        time_entry,
        league_game, league_team, locker,
@@ -222,4 +227,5 @@ ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_
        client, client_task, check_in, group_roster, group_waitlist, campaign,  # chip C
        campaign_message, return_line, product_stock, equipment_item, equipment_loan, rental_plan_sale,
        time_entry_pay, pay_statement, pay_line, trainer_package_sale, assessment_value, game_official,  # chip D
-       league_roster, device, resource_hold, availability, booking_start, class_session)  # fmt: skip
+       league_roster, device, resource_hold, availability, booking_start, class_session,
+       coach_earning)  # fmt: skip
