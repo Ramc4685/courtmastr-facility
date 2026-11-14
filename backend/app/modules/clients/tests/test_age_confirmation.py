@@ -393,12 +393,41 @@ def test_staff_at_the_booking_location_told_confirm_without_moving_the_home(clie
 
 
 def test_moving_the_home_location_is_not_a_way_to_gain_the_right_to_confirm(client, owner, tenant, f):
+    """An unconfirmed client (dated or not) moves only for staff who could confirm them where they are now."""
     there = other_location(client, owner)
     who = self_declared(client, owner, tenant, f)
-    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[there])[0])
-    assert confirm(client, desk, who).status_code == 404
-    moved = client.patch(f"{API}/clients/{who}", headers=desk, json={"home_location_id": there})
-    assert (moved.status_code, moved.json()["code"]) == (403, "age-check-pending")
+    away = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[there])[0])
+    assert confirm(client, away, who).status_code == 404
+
+    def refused(headers, body):
+        moved = client.patch(f"{API}/clients/{who}", headers=headers, json=body)
+        assert (moved.status_code, moved.json()["code"]) == (403, "age-check-pending")
+        assert ADULT not in moved.text and "1991" not in moved.text  # names nothing private
+
+    refused(away, {"home_location_id": there})
+    refused(away, {"home_location_id": there, "birth_on": "1991-01-01"})  # move and a new date in one request
     assert staff_view(client, owner, who)["home_location_id"] == f.location
+    dateless = new_client(client, owner, f.location)["id"]
+    moved = client.patch(f"{API}/clients/{dateless}", headers=away, json={"home_location_id": there})
+    assert (moved.status_code, moved.json()["code"]) == (403, "age-check-pending")  # no date is unconfirmed too
+    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location, there])[0])
+    ok(client.patch(f"{API}/clients/{dateless}", headers=desk, json={"home_location_id": there}), 200)  # key here
+    ok(client.patch(f"{API}/clients/{dateless}", headers=away, json={"birth_on": ADULT}), 200)
+    assert ok(confirm(client, away, dateless), 200)["age_confirmed"] is True  # their home now: allowed
     ok(confirm(client, owner, who), 200)
-    ok(client.patch(f"{API}/clients/{who}", headers=desk, json={"home_location_id": there}), 200)  # confirmed: free
+    ok(client.patch(f"{API}/clients/{who}", headers=away, json={"home_location_id": there}), 200)  # confirmed: free
+
+
+def test_bulk_confirm_and_import_never_move_an_unconfirmed_client(client, owner, tenant, f):
+    from app.modules.clients import service
+
+    who = self_declared(client, owner, tenant, f)
+    there = other_location(client, owner)
+    sneaky = {"client_ids": [who], "note": NOTE, "home_location_id": there}
+    assert client.post(BULK, headers=owner, json=sneaky).status_code == 422  # the body has no such field
+    member = staff_view(client, owner, who)
+    with tenant_session(tenant.id, actor=system_principal("import")) as session:
+        session.execute(update(Client).where(Client.id == who).values(member_number="M-MOVE-1"))
+        service.import_client(session, {"member_number": "M-MOVE-1", "first_name": member["first_name"],
+                                        "last_name": member["last_name"], "home_location_id": there})  # fmt: skip
+    assert staff_view(client, owner, who)["home_location_id"] == f.location

@@ -873,15 +873,14 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
     wants_confirm = bool(data.pop("confirm_age", None))
     if wants_confirm:  # the confirm-age gate on the loaded client, before anything is written
         _authorize_confirm(principal, client)
-    moving = data.get("home_location_id") not in (None, client.home_location_id)
-    if moving and client.birth_on is not None and not _age_confirmed(client) and principal.has(CONFIRM_AGE):
-        # Moving the home location must not become a way to gain the right to confirm: whoever holds the key moves
-        # an unconfirmed client only from a location where they could already confirm it.
+    if data.get("home_location_id") not in (None, client.home_location_id) and not _age_confirmed(client):
+        # A move is never a way to gain the right to confirm: an unconfirmed client (dated or not, whatever else the
+        # request changes) moves only for staff who could confirm them at their current home.
         try:
-            _authorize_confirm(principal, client)
-        except NotFound:
-            raise PermissionDenied("Staff who can reach this client's home location confirm the age first.",
-                                   code="age-check-pending", required=CONFIRM_AGE) from None  # fmt: skip
+            authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+        except (PermissionDenied, NotFound):
+            raise PermissionDenied("An age check is pending; staff at the client's current location move them.",
+                                   code="age-check-pending") from None  # fmt: skip
     confirmed = _age_confirmed(client)
     changes = apply_update(session, client, data, context="staff", actor_staff_id=principal.staff_user_id)
     if wants_confirm:
