@@ -49,7 +49,7 @@ def create_bulk_action(session: Session, principal: Principal, data: dict, idemp
     authorize(principal, KEYS[action], location_id=location_id)
     service._location_in_scope(session, principal, location_id)
     request_hash = hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
-    key = service._staff_key(principal, idempotency_key)
+    key = service.staff_key(principal, idempotency_key)
     if key:
         existing = _by_key(session, key)
         if existing is not None:

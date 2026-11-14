@@ -187,7 +187,7 @@ def take_payment_at_desk(session: Session, principal: Principal, data: dict, ide
     data = dict(data)
     allocations = [(row["charge_id"], row["amount_minor"]) for row in data.pop("allocations", None) or []]
     payment = take_payment(
-        session, **data, allocations=allocations or None, idempotency_key=_staff_key(principal, idempotency_key)
+        session, **data, allocations=allocations or None, idempotency_key=staff_key(principal, idempotency_key)
     )
     return _payment_detail(session, payment)
 
@@ -237,7 +237,7 @@ def create_refund(
     authorize(principal, "billing.refund.create", location_id=payment.location_id)
     if data.get("release_allocation_ids"):  # the composite takes money off items first: the unpay gate too
         authorize(principal, "billing.payment.reallocate", location_id=payment.location_id)
-    return refund(session, payment_id, **data, idempotency_key=_staff_key(principal, idempotency_key))
+    return refund(session, payment_id, **data, idempotency_key=staff_key(principal, idempotency_key))
 
 
 def attempt_outcome(session: Session, key: str, heads: Sequence[str]) -> dict | None:
@@ -285,7 +285,7 @@ def get_attempt(session: Session, principal: Principal, key: str) -> dict:
     return found
 
 
-def _staff_key(principal: Principal, idempotency_key: str | None) -> str | None:
+def staff_key(principal: Principal, idempotency_key: str | None) -> str | None:
     """A caller's Idempotency-Key is only unique to that caller (the HTTP layer scopes it the same way), so
     two people who happen to send the same key must never be handed each other's payment or refund."""
     return f"staff:{principal.actor_id}:{idempotency_key}" if idempotency_key else None

@@ -727,6 +727,7 @@ def sell_package(session: Session, principal: Principal, data: dict, idempotency
     sold_by = data.get("sold_by_staff_user_id")
     if sold_by and not platform.service.staff_user_exists(session, sold_by):
         raise ValidationFailed("Unknown staff user.", pointer="/sold_by_staff_user_id")
+    idempotency_key = billing.service.staff_key(principal, idempotency_key)  # this caller's, as staff payments
     # Each attempt raises a fresh invoice: the payment key is bound to the whole sale instead (take_payment `sale`).
     ref = repr(("packages", sorted((k, v) for k, v in data.items() if k != "payment")))
     if data.get("payment") and (replayed := _replayed_sale(session, data, idempotency_key, ref)) is not None:

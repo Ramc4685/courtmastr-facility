@@ -875,7 +875,8 @@ def _staff_sale_world(w, client, owner):
         from app.modules.billing.tests.test_money import provider_payments
 
         packages = scalar(w.tenant, select(func.count()).select_from(ClientPackage))
-        return packages, len(invoices(w.tenant, UUID(w.person["id"]))), provider_payments(w, key)
+        paid = provider_payments(w, billing.service.staff_key(SYSTEM, key))
+        return packages, len(invoices(w.tenant, UUID(w.person["id"]))), paid
 
     return sell, counts
 
@@ -927,13 +928,15 @@ def test_a_staff_sale_that_died_after_the_charge_and_was_swept_takes_that_paymen
     with clock.freeze(clock.now() + timedelta(minutes=10)), tx(w.tenant) as session:
         billing.webhooks.reconcile(session)
     with tx(w.tenant) as session:
-        assert billing.service.find_payment(session, key).status == "succeeded"  # settled, paying for nothing
+        assert (
+            billing.service.find_payment(session, billing.service.staff_key(SYSTEM, key)).status == "succeeded"
+        )  # settled, paying for nothing
     with pytest.raises(Conflict) as reused:
         sell(key, package_plan_id=UUID(other_plan["id"]))
     assert (reused.value.code, counts(key)) == ("idempotency-key-reused", (0, 0, 1))
     sold = sell(key)
     assert (sold["payment_status"], counts(key)) == ("succeeded", (1, 1, 1))
     with tx(w.tenant) as session:
-        payment = billing.service.find_payment(session, key)
+        payment = billing.service.find_payment(session, billing.service.staff_key(SYSTEM, key))
         assert (payment.id, payment.unapplied_minor) == (sold["payment_id"], 0)
         assert [row[2] for row in billing.service.paid_sources(session, payment.id)] == [sold["id"]]

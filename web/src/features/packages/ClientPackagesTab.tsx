@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, todayIn } from '../../lib/format'
-import { AttemptFields, AttemptLock, useAttemptKey } from '../billing/attempt'
+import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from '../billing/attempt'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { PACKAGE_TONE, PaymentFields, Requirements, StatusBadge, noPayment, paymentBody, paymentReady, useClientNames, useMoney, usePackagePlans, type PackageOut, type PaymentState } from '../memberships/shared'
 import { OpenPostBilledDialog } from './PostBilled'
@@ -35,8 +35,7 @@ export function SellPackageDialog({ client, onClose, onSold }: { client: Pick<Cl
   const initial = { package_plan_id: '', location_id: locationId, quantity: '', start_on: todayIn(zone), invoice_mode: '', internal_remarks: '', complimentary: false }
   // One Idempotency-Key per sale attempt (attempt.tsx): after a lost answer the key and values outlive the dialog,
   // so Cancel and reopen resumes the same attempt instead of charging again.
-  // shortcut: no "Check what happened": a sale's payment key is not stored under the caller's staff prefix.
-  const attempt = useAttemptKey<{ form: typeof initial; payment: PaymentState }>(`sell-package:${client.id}`)
+  const attempt = useAttemptKey<{ form: typeof initial; payment: PaymentState }>(`sell-package:${client.id}`, checkStaffAttempt)
   const [form, setForm] = useState(attempt.saved?.form ?? initial)
   const [payment, setPayment] = useState<PaymentState>(attempt.saved?.payment ?? noPayment())
   const plan = plans.find((p) => p.id === form.package_plan_id)

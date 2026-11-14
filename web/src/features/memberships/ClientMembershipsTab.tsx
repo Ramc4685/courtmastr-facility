@@ -10,7 +10,7 @@ import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { addDays, formatDate, formatDateTime, todayIn, toMinor } from '../../lib/format'
 import { useLocationZone } from '../../lib/locationDate'
-import { AttemptFields, AttemptLock, keepsAttemptKey, useAttemptKey } from '../billing/attempt'
+import { AttemptFields, AttemptLock, checkStaffAttempt, keepsAttemptKey, useAttemptKey } from '../billing/attempt'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import {
   CONTRACT_TONE,
@@ -43,8 +43,7 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
   const today = todayIn(useLocationZone(locationId))
   // One Idempotency-Key per sale attempt (attempt.tsx): after a lost answer the key and values outlive the dialog,
   // so Cancel and reopen resumes the same attempt instead of charging again.
-  // shortcut: no "Check what happened": a sale's payment key is not stored under the caller's staff prefix.
-  const attempt = useAttemptKey<{ form: typeof initial; change: typeof initialChange; payment: PaymentState }>(`sell-membership:${client.id}:${replacing?.id ?? 'new'}`)
+  const attempt = useAttemptKey<{ form: typeof initial; change: typeof initialChange; payment: PaymentState }>(`sell-membership:${client.id}:${replacing?.id ?? 'new'}`, checkStaffAttempt)
   const initial = {
     membership_plan_id: '',
     location_id: locationId,

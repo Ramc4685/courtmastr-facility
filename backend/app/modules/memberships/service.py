@@ -649,6 +649,7 @@ def sell_contract(session: Session, principal: Principal, data: dict, idempotenc
     is due now billed onto one invoice and, optionally, a payment. A contract that starts today and has no open
     document gate is active in this transaction. A retry with the Idempotency-Key of a sale that went through
     returns that sale and sells nothing new."""
+    idempotency_key = billing.service.staff_key(principal, idempotency_key)  # this caller's, as staff payments
     if data.get("payment") and (replayed := _replayed_sale(session, principal, data, idempotency_key)) is not None:
         return replayed
     contract, invoice = _sell(session, principal, data, "staff")
