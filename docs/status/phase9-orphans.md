@@ -134,7 +134,27 @@ PAY-16) wait for the review of these.
   `due_on` and `is_autopay` moved under `params`); `make web-check` clean, `make web-test` 370 passed (67 files);
   mobile lint and typecheck clean, 60 tests passed (10 suites; jest did not exit by itself afterwards).
 
+- **Eighth pass (final risk check).** Take payment and the membership and package sale dialogs use the shared
+  attempt hook: the key and values of an unknown outcome are held across Cancel and reopen (sales now send an
+  Idempotency-Key). A definite decline frees a locked form by its code (`payment-declined`, `payment-failed`), web
+  and mobile. Held attempts are in memory, bound to the signed-in identity, cleared by an explicit sign-out or a
+  different person signing in, kept across a lapsed session, and dropped once the attempt settles. Staff sales bind
+  the payment key to the whole sale body (`take_payment(sale=)`): a same-key retry of a request that died finishes
+  it, a finished one returns the original contract or package (nothing sold twice), another sale or location is
+  409 `idempotency-key-reused`. Only succeeded charges and refunds this app started (`fh_key`) wait as unmatched; the
+  staff copy says to look the reference up in the processor's dashboard. The int4-overflow 422 logs table, column
+  and trace id. A savepoint keeps the outer transaction's receipt-lock marker. The isolation test probes a real
+  attempt stored in tenant B.
+- **Checks run (eighth pass).** billing then integrations 492 passed; memberships, packages, pos 291; platform 244
+  passed, 2 skipped; `tests/` 5,000 passed, 1,151 skipped, 5 xfailed. `make lint typecheck boundaries` clean;
+  `make web-check` clean, `make web-test` 378 passed (68 files); mobile lint and typecheck clean, 61 tests passed
+  (10 suites). No API change, so no regeneration.
+
 ## Not done inside built features
+
+- Staff sale payment keys are stored raw, not under the caller's `staff:<actor>:` prefix, so the sale dialogs offer
+  "Try again" but not "Check what happened"; a declined or still-unknown sale payment under a key is 409 on retry.
+- Portal purchase forms hold their key but not their values across a remount.
 
 - The refund dialog does not offer release-then-refund yet; the API does.
 - A processor reporting a refund as returned after it succeeded is not handled.
