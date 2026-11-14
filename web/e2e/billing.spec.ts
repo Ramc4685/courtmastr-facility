@@ -144,7 +144,8 @@ test('bulk reverse takes one reason for the selected items', async ({ page }) =>
   await scan(page, 'bulk reverse dialog')
   await dialog.getByRole('textbox', { name: 'Reason' }).fill('Entered twice')
   await dialog.getByRole('button', { name: 'Reverse items' }).click()
-  await expect(dialog.getByRole('status')).toContainText('1 done, 0 failed.')
+  // the result table has its own Loading status while its first page arrives
+  await expect(dialog.getByRole('status').filter({ hasText: 'failed.' })).toContainText('1 done, 0 failed.')
   await expect(dialog.getByRole('table', { name: 'Bulk reverse result' })).toContainText('Done')
   await scan(page, 'bulk action status view')
   await dialog.getByRole('button', { name: 'Done' }).click()
