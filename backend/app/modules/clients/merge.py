@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize
-from app.core.errors import Conflict, ValidationFailed
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.modules import platform
 from app.modules.clients import files, households, service
 from app.modules.clients.events import ClientMerged
@@ -208,6 +208,19 @@ def precheck(session: Session, principal: Principal, survivor_id: UUID, loser_id
     }  # fmt: skip
 
 
+def _guard_age_check(principal: Principal, records: list[Client]) -> None:
+    """Like a home move, a merge is never a way to gain the right to confirm: every unconfirmed record, survivor or
+    loser, must be one the caller could confirm at its current home."""
+    for record in records:
+        if service._age_confirmed(record):
+            continue
+        try:
+            authorize(principal, service.CONFIRM_AGE, location_id=record.home_location_id)
+        except (PermissionDenied, NotFound):
+            raise PermissionDenied("An age check is pending; staff at the client's current location merge them.",
+                                   code="age-check-pending") from None  # fmt: skip
+
+
 def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: list[UUID]) -> Client:
     """Merge each loser into the survivor. Blank survivor fields take the first loser's value; every handler
     re-points; the loser becomes a tombstone; one client_merge row per loser; both aggregates audited."""
@@ -215,6 +228,7 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
     if principal.staff_user_id is None:
         raise ValidationFailed("Only a staff user can merge clients.")
     survivor, losers = _load_pair(session, survivor_id, loser_ids)
+    _guard_age_check(principal, [survivor, *losers])
     blockers = _blockers(session, survivor, losers)
     if blockers:
         raise Conflict("These records cannot be merged yet.", code="merge-blocked", blockers=[

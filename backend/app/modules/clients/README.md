@@ -42,6 +42,8 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   (`age_review_location_id`): that location's staff see the person in the queue and confirm without moving them.
   Moving an unconfirmed client's home is refused (`403 age-check-pending`) for a holder of the confirm key who cannot
   confirm at the current home, so a move is never a way to gain the right (chosen over audit-and-block as smaller).
+  A merge follows the same rule in both directions: every unconfirmed record in it, survivor or merged, must be one
+  the caller could confirm at its current home, else `403 age-check-pending`.
 - **Never a child, never without a date.** The single confirm and the confirm flag on an edit refuse a date that
   makes the person a minor (`422 minor-not-confirmed`) and a missing date (`birth-date-required`). Both actions take a
   row lock on the client, so concurrent replays fire `age_confirmed` once.

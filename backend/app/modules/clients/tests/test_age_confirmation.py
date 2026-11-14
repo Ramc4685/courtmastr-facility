@@ -538,3 +538,23 @@ def test_two_concurrent_confirmations_fire_the_event_once(client, owner, tenant,
     racer.join(timeout=15)
     assert (first["confirmed_count"], outcome["second"]["confirmed_count"]) == (1, 0)
     assert confirmed_events(tenant, who) == 1
+
+
+def test_a_merge_is_not_a_way_round_the_home_move_guard(client, owner, tenant, f):
+    """A manager at B, refused the move and the confirm for an unconfirmed client homed at A, may not merge that
+    client with a record at B (either direction) and then confirm it there."""
+    there = other_location(client, owner)
+    who = self_declared(client, owner, tenant, f)
+    manager = login(client, tenant, add_staff(tenant, "manager", location_ids=[there])[0])
+    moved = client.patch(f"{API}/clients/{who}", headers=manager, json={"home_location_id": there})
+    assert (moved.status_code, moved.json()["code"]) == (403, "age-check-pending")
+    assert confirm(client, manager, who).status_code == 404
+    mine = new_client(client, manager, there, birth_on=ADULT)["id"]
+    for survivor, loser in ((mine, who), (who, mine)):
+        merged = client.post(f"{API}/clients/{survivor}/merge", headers=manager, json={"merged_client_ids": [loser]})
+        assert (merged.status_code, merged.json()["code"]) == (403, "age-check-pending")
+    assert staff_view(client, owner, who)["merged_into_id"] is None
+    assert confirm(client, manager, who).status_code == 404
+    ok(confirm(client, owner, who), 200)  # once confirmed at A, the merge is no longer a way to gain anything
+    merge_ok = client.post(f"{API}/clients/{mine}/merge", headers=manager, json={"merged_client_ids": [who]})
+    assert merge_ok.status_code == 200
