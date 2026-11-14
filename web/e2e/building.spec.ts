@@ -44,7 +44,8 @@ test('a member sees the door code on their booking and the page passes the scan'
   await expect(page.getByRole('heading', { level: 1, name: /^Hello/ })).toBeVisible()
   await page.goto('/portal/bookings')
   await expect(page.getByRole('heading', { level: 2, name: 'Door codes' })).toBeVisible()
-  await expect(page.getByLabel('Door code 4 8 1 5 1 6 2 3')).toBeVisible()
+  await expect(page.getByText('48151623', { exact: true })).toBeVisible()
+  await expect(page.getByText('4 8 1 5 1 6 2 3', { exact: true })).toBeAttached() // what a screen reader reads
   await expect(page.getByRole('button', { name: 'Open the door' })).toBeVisible()
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })

@@ -33,7 +33,12 @@ function LiveRow({ code, digits, zone }: { code: Code; digits: string; zone?: st
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-2">
       <div>
-        <p className="font-mono text-2xl tracking-widest" aria-label={`Door code ${digits.split('').join(' ')}`}>{digits}</p>
+        <p>
+          <span className="text-sm text-muted">Door code </span>
+          {/* read digit by digit, then the booking's window, in one pass */}
+          <span className="sr-only">{digits.split('').join(' ')}</span>
+          <span aria-hidden="true" className="font-mono text-2xl tracking-widest">{digits}</span>
+        </p>
         <p className="text-sm text-muted">
           Works {formatDateTime(code.valid_from_at, zone)} to {formatDateTime(code.valid_until_at, zone)}.{call}
         </p>
