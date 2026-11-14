@@ -332,6 +332,30 @@ def test_approve_gathers_a_reversal_that_arrived_after_the_draft_and_refuses_a_n
     assert ok(client.get(f"{API}/coach-payouts/{negative['id']}", headers=owner), 200)["status"] == "draft"
 
 
+def test_a_refused_negative_approve_leaves_the_draft_showing_its_true_total(client, tenant, owner, coached):
+    """Lesson A ($7) is paid; the draft holds lesson B (+$7); both are undone: approve finds -$7 and refuses, and the
+    draft then says -$7, not a stale +$7."""
+    c = coached
+    _mark(client, tenant, c, "attended")
+    body = {"location_id": c.f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-31"}
+    [first] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    ok(client.post(f"{API}/coach-payouts/{first['id']}/approve", headers=owner), 200)
+    ok(client.post(f"{API}/coach-payouts/{first['id']}/paid", headers=owner,
+                   json={"paid_on": "2031-06-01", "payment_method": "cheque"}), 200)  # fmt: skip
+    [(seat, place)] = _lessons(client, owner, c, c.pack["id"], (17,))
+    _attend(client, tenant, seat, place, "attended")
+    [draft] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    assert draft["coach_share_minor"] == 700
+    _mark(client, tenant, c, "excused")
+    _attend(client, tenant, seat, place, "excused")
+    url = f"{API}/coach-payouts/{draft['id']}"
+    refused = client.post(f"{url}/approve", headers=owner)
+    assert (refused.status_code, refused.json()["code"]) == (409, "payout-negative")
+    assert "later end date" in refused.json()["detail"] and "positive adjustment" in refused.json()["detail"]
+    now = ok(client.get(url, headers=owner), 200)
+    assert (now["status"], now["line_count"], now["coach_share_minor"]) == ("draft", 3, -700)
+
+
 def test_a_draft_made_after_a_later_dated_reversal_holds_it_so_approve_agrees(client, tenant, owner, coached):
     """Lesson 5 May +$7, undone 9 June -$7: the May draft is $0, as its approval will be, not $7."""
     c = coached

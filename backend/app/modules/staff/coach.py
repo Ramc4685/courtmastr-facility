@@ -494,18 +494,26 @@ def add_adjustment(session: Session, principal: Principal, payout_id: UUID, data
     return payout_view(session, payout)
 
 
-def _not_negative(payout: CoachPayout) -> None:
+def _not_negative(payout: CoachPayout, *, persist: bool = False) -> None:
     if payout.coach_share_minor < 0:
-        raise Conflict("This statement's total is below zero: it stays a draft until later earnings cover it.",
-                       code="payout-negative")  # fmt: skip
+        raise Conflict(
+            "This statement's total is below zero, so it stays a draft. Later earnings do not join it (they fall "
+            "outside its period): discard it and draw a new one with a later end date, or add a positive adjustment "
+            "with a reason.", code="payout-negative", persist=persist,
+        )  # fmt: skip
 
 
 def approve_payout(session: Session, principal: Principal, payout_id: UUID) -> dict:
     """Approve a draft after bringing it up to date: lines that reached the ledger since it was drafted (a reversal
-    of a lesson on it, say) are gathered first. A statement whose total is below zero is refused and stays a draft."""
+    of a lesson on it, say) are gathered first. A statement whose total is below zero is refused and stays a draft;
+    the gathered lines are kept (the error commits), so the draft shows its true total."""
     payout = _draft(session, principal, payout_id, PAYOUT_APPROVE)
     _gather(session, payout)
-    _not_negative(payout)
+    if payout.coach_share_minor < 0:
+        audit.record(session, PAYOUT_APPROVE, payout, location_id=payout.location_id,
+                     changes=audit.diff(payout) | {"refused": "payout-negative"})  # fmt: skip
+        session.flush()
+        _not_negative(payout, persist=True)
     payout.status, payout.approved_at, payout.approved_by_staff_user_id = (
         "approved",
         clock.now(),

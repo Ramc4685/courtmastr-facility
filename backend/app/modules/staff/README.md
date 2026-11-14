@@ -208,8 +208,10 @@ the screen, the statement and the API say so. Paid is final; a later refund land
 reversing line. A draft gathers lines earned by the period end and, whatever its date, any reversal of a line it
 holds (repeated until nothing is left), so a draft and its approval agree. Approve gathers again first, for lines that
 reached the ledger since the draft, so a stale draft never pays an undone lesson. A statement whose total is below zero is refused
-(`409 payout-negative`) and stays a draft until later earnings cover it: carrying it forward would need a new
-line kind, and leaving it draft is the smaller change. PDF and CSV per statement. A coach reads their own lines and statements (`own` reach on
+(`409 payout-negative`) and stays a draft; the lines approve gathered are kept, so the draft shows its true negative
+total. Later earnings never join it on their own (they fall after its period end). The way out is to discard it and
+draw a new one with a later end date, so later earnings cover the reversals, or to add a positive adjustment with a
+reason. Carrying a negative balance forward would need a new line kind; there is no reopen. PDF and CSV per statement. A coach reads their own lines and statements (`own` reach on
 `staff.coach_payout.read`); another coach's statement is 404. Seam for Stripe Connect: `mark_paid` is the one
 place a transfer would be started and its reference recorded.
 
@@ -233,7 +235,7 @@ earnings, so lesson revenue posts in full and the facility books each payout as 
 
 **Assumptions** (coach share fix round): a lesson's value rounds down (see Valuation), so a package's lessons
 never exceed its net; a lesson with no rule is written at a zero coach share rather than skipped; a negative
-statement stays draft rather than carrying forward; the ledger holds no client text, and no client label is shown
+statement stays draft rather than carrying forward (discard and redraw later, or adjust); the ledger holds no client text, and no client label is shown
 on a coach's lines or statements.
 
 **Tax** (document only): 1099 or other reporting is the facility's job; the product offers the yearly coach share

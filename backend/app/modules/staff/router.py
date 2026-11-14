@@ -445,7 +445,8 @@ def add_coach_payout_adjustment(coach_payout_id: UUID, body: s.CoachAdjustmentCr
 @router.post("/coach-payouts/{coach_payout_id}/approve", response_model=s.CoachPayoutOut)
 def approve_coach_payout(coach_payout_id: UUID, ctx: Ctx = PayoutApprove):
     """Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,
-    payout-negative (the total is below zero: it stays a draft), step-up-required."""
+    payout-negative (the total is below zero: it stays a draft showing that total; discard and redraw with a later
+    end date, or add a positive adjustment), step-up-required."""
     return coach.approve_payout(ctx.session, ctx.principal, coach_payout_id)
 
 
