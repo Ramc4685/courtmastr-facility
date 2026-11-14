@@ -179,10 +179,10 @@ routes need the pay-rate keys, which coaches do not hold.
 client-neutral description ("Lesson with Ana R."; a minor or a client without a birth date is "Junior lesson",
 no name), gross, facility share and coach share (integer minor units, half-up once, the two shares always sum
 to the gross, a coach share never below zero). `handlers.py` listens to `packages.credit.consumed`,
-`packages.credit.restored`, `billing.charge.reversed` and `billing.charge.adjusted` and calls the internal
+`packages.credit.restored`, `billing.charge.reversed`, `billing.charge.voided` and `billing.charge.adjusted` and calls the internal
 `coach.reconcile_source`/`reconcile_package`. Each reconcile compares the live line with what the lesson is worth
-now: a credit given back (cancellation, excused, a no-show the policy forgives) or a refund (which starts with
-reversing the package charge) writes a reversing line dated the location's today; a new value writes a new line.
+now: a credit given back (cancellation, excused, a no-show the policy forgives) a refund (which starts with
+reversing the package charge) or a voided package charge writes a reversing line dated the location's today; a new value writes a new line.
 Replaying an event changes nothing; a per-source advisory lock serialises concurrent events.
 
 **Payout statements** (`coach_payout`, `coach_payout_line`). A draft per coach, or for every independent coach at

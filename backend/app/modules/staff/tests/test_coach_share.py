@@ -95,11 +95,43 @@ def coached(client, tenant, owner):
 
 
 def _mark(client, tenant, c, status: str):
+    _attend(client, tenant, c.seat, c.place["id"], status)
+
+
+def _attend(client, tenant, seat: str, place_id: str, status: str):
     with clock.freeze(DAY + timedelta(days=1)):
         owner = login(client, tenant)
-        ok(client.put(f"{API}/sessions/{c.seat}/attendance", headers=owner,
-                      json={"marks": [{"enrollment_id": c.place["id"], "status": status}]}), 200)  # fmt: skip
+        ok(client.put(f"{API}/sessions/{seat}/attendance", headers=owner,
+                      json={"marks": [{"enrollment_id": place_id, "status": status}]}), 200)  # fmt: skip
     deliver_events()
+
+
+def _lessons(client, owner, c, pack_id: str, hours) -> list[tuple[str, str]]:
+    """More one-hour lessons on the coach's column, each paid from `pack_id`: (session id, enrolment id)."""
+    made = []
+    for hour in hours:
+        seat = ok(book(client, owner, c.f, [c.f.coach], at(hour), at(hour + 1), kind="session",
+                       session={"capacity": 2, "allows_free_booking": False}))["booking"]["session"]["id"]  # fmt: skip
+        place = ok(client.post(f"{API}/enrollments", headers=owner,
+                               json={"session_id": seat, "client_id": c.person["id"], "client_package_id": pack_id}))  # fmt: skip
+        made.append((seat, place["id"]))
+    return made
+
+
+def test_a_voided_package_charge_reverses_every_lesson_it_paid_for(client, tenant, owner, coached):
+    """$500 for ten lessons on an uninvoiced charge, three taught at 70%: $105 owed until the charge is voided."""
+    c = coached
+    plan = package_plan(client, owner, tenant, reservation_type_id=c.f.type, fee_minor=50000)
+    pack = ok(client.post(f"{API}/client-packages", headers=owner, json={
+        "client_id": c.person["id"], "location_id": c.f.location, "package_plan_id": plan["id"],
+        "invoice_mode": "deferred"}))  # fmt: skip
+    for seat, place in _lessons(client, owner, c, pack["id"], (17, 19, 21)):
+        _attend(client, tenant, seat, place, "attended")
+    assert sum(x[3] for x in _lines(tenant, c.payee["id"])) == 10500
+    ok(client.post(f"{API}/charges/{pack['charge_id']}/void", headers=owner | {"Idempotency-Key": "void-charge-1"},
+                   json={"reason": "Sold in error"}), 200)  # fmt: skip
+    deliver_events()
+    assert sum(x[3] for x in _lines(tenant, c.payee["id"])) == 0
 
 
 def test_the_ledger_follows_the_lesson_money_and_replays_change_nothing(client, tenant, owner, coached):

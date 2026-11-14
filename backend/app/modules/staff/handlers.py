@@ -32,6 +32,12 @@ def revalue_on_charge_reversed(session, payload: dict) -> None:
     _package_charge(session, payload)
 
 
+@handles("billing.charge.voided")
+def revalue_on_charge_voided(session, payload: dict) -> None:
+    """A voided package charge leaves the package with no revenue: the lessons it paid for are reversed."""
+    _package_charge(session, payload)
+
+
 @handles("billing.charge.adjusted")
 def revalue_on_charge_adjusted(session, payload: dict) -> None:
     _package_charge(session, payload)
