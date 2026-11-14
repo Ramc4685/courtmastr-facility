@@ -454,7 +454,9 @@ def _member_pricing(
     session: Db, client_id: UUID | None, on: date, players: tuple[UUID, ...] = ()
 ) -> tuple[bool, frozenset]:
     """Whether the rental earns member prices on a local date, and under which membership types: the holder is a
-    member that date, or every listed player is (owner decision: a family books in a parent's name). Membership is
+    member that date, or every listed player is a covered member that date AND has the holder as a guardian (the
+    minors rule's `guardian_ids`; owner: "a child can be on the parent's membership too"). An unrelated member
+    listed as a player never lowers a guest holder's price. Membership is
     memberships' `member_on`, the date-aware form of the owner-decision-13 definition (an active contract, owned or
     shared, at any location, overdue or used up; never suspended or frozen on that date). It covers a past date a
     since-ended contract covered and an auto-renewing contract past its end date. One uncovered player with a
@@ -464,8 +466,11 @@ def _member_pricing(
     found = memberships.service.member_on(session, client_id, on)
     if found:
         return True, frozenset({found["membership_type_id"]})
-    covered = [memberships.service.member_on(session, p, on) for p in dict.fromkeys(players) if p != client_id]
-    if covered and all(covered):
+    others = [p for p in dict.fromkeys(players) if p != client_id]
+    if not others or any(client_id not in clients.households.guardian_ids(session, p) for p in others):
+        return False, frozenset()
+    covered = [memberships.service.member_on(session, p, on) for p in others]
+    if all(covered):
         return True, frozenset(c["membership_type_id"] for c in covered)
     return False, frozenset()
 

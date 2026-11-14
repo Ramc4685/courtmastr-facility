@@ -757,3 +757,19 @@ def test_one_covered_child_and_one_uncovered_friend_pay_the_guest_price(client, 
     join(client, owner, f, kid, DAY - timedelta(days=10))
     friend = new_client(client, owner, f.location)["id"]  # not a member, holds no share
     assert priced(client, owner, f, parent, kid, friend) == (2400, 2400)
+
+
+def test_an_unrelated_member_listed_by_a_guest_holder_never_lowers_the_price(client, owner, f):
+    """The family rule needs the holder to be each player's guardian: listing any member at the desk is not enough."""
+    guest = new_client(client, owner, f.location, first_name="Gus")["id"]
+    stranger = new_client(client, owner, f.location, first_name="Stan")["id"]
+    join(client, owner, f, stranger, DAY - timedelta(days=10))
+    assert priced(client, owner, f, guest, stranger) == (2400, 2400)
+
+
+def test_a_covered_child_and_a_covered_friend_who_is_not_the_holders_ward_pay_the_guest_price(client, owner, f):
+    parent, kid = family(client, owner, f)
+    friend = new_client(client, owner, f.location, first_name="Fay")["id"]
+    for who in (kid, friend):
+        join(client, owner, f, who, DAY - timedelta(days=10))
+    assert priced(client, owner, f, parent, kid, friend) == (2400, 2400)
