@@ -990,8 +990,10 @@ def _short(session: Session, step):
 
 def _receipt_number(session: Session) -> int:
     """The next receipt number; marks this transaction as holding the counter (held to its end)."""
-    # the innermost transaction: a ROLLBACK TO a savepoint at or above it releases the lock (_forget_receipt_lock)
-    session.info["billing_receipt_holder"] = session.get_nested_transaction() or session.get_transaction()
+    # the innermost transaction: a ROLLBACK TO a savepoint at or above it releases the lock (_forget_receipt_lock).
+    # A holder already live in this transaction is outermost and keeps the lock past this savepoint: never replaced.
+    if not _holds_receipt_counter(session):
+        session.info["billing_receipt_holder"] = session.get_nested_transaction() or session.get_transaction()
     return platform.service.next_number(session, "receipt")
 
 

@@ -1047,6 +1047,19 @@ def test_a_receipt_counter_released_by_a_savepoint_rollback_is_not_trusted(shop,
         assert svc._holds_receipt_counter(session)  # released savepoint: the lock stays with the transaction
 
 
+def test_a_savepoint_that_numbers_again_keeps_the_outer_transactions_receipt_lock(shop):
+    """The transaction took the counter first: a savepoint that numbers again and rolls back leaves the lock with
+    the transaction, so the marker must stay too, or the next card waits on its own lock (409)."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)
+        savepoint = session.begin_nested()
+        cash(session, shop, 200)
+        savepoint.rollback()
+        assert svc._holds_receipt_counter(session)  # still held by the transaction, so the card is numbered in place
+        assert card(session, shop, 500, idempotency_key=f"s2-{uuid4().hex}").status == "succeeded"
+
+
 def test_a_first_receipt_while_another_request_creates_the_counter_charges_nothing(shop, monkeypatch):
     """The tenant's counter row is being inserted by another, uncommitted request: 409 before any charge."""
     ready(shop)
