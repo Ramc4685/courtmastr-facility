@@ -9,6 +9,11 @@
 # four added endpoints plus three description edits (no breaking entry). So S1 needs no line here; the contract
 # change is recorded in docs/status/phase8-s1-signin.md and docs/dev/checks.md ("What the diff cannot see").
 
+# Owner decision 2026-11-13 (question 6): third-party analytics dropped (INT-13); the provider value and the
+# anonymous config route are removed with migration 1951. No client depended on them in production.
+POST /api/v1/external-connections removed the enum value `google_analytics` of the request property `provider`
+GET /api/v1/public/analytics-config API path removed without deprecation
+
 # Phase 11 security review: the documents `portal_terms` binding is the only portal terms source, so the old
 # portal-settings `terms_text` / `terms_version` are no longer served or taken (a tenant using them got no
 # recorded acknowledgment); `allows_online_rentals` was never enforced and rentals' `is_online_enabled` is the one
@@ -22,3 +27,14 @@ PUT /api/v1/locations/{location_id}/portal-settings removed the required propert
 GET /api/v1/public/portal-config removed the required property `locations/items/allows_online_rentals` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_text` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_version` from the response with the `200` status
+
+# Owner decision "Staff confirm once" (claude/rentals-pilot): a self-typed birth date is required with a declaration
+# that it is true at public sign-up, guest checkout and for a portal dependant, so every self-service adult has a
+# date the booking rule can read; staff then confirm it once. Web and mobile send both. Remove after merge.
+POST /api/v1/portal/dependents added the new required request property `birth_on_declared`
+POST /api/v1/portal/dependents the request property `birth_on` became required
+POST /api/v1/portal/dependents request property `birth_on` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/public/guest-checkouts added the new required request property `birth_on_declared`
+POST /api/v1/public/portal-signups added the new required request property `birth_on_declared`
+POST /api/v1/public/portal-signups the request property `birth_on` became required
+POST /api/v1/public/portal-signups request property `birth_on` list-of-types was narrowed by removing types `null` from media type `application/json`

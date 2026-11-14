@@ -292,17 +292,11 @@ def _doors(session: Session, location_id: UUID) -> list[DoorDevice]:
         DoorDevice.location_id == location_id, DoorDevice.is_active).order_by(DoorDevice.name, DoorDevice.id)))  # fmt: skip
 
 
-AGE_HELD = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
-
-
 def _age_confirmed(session: Session, client_id: UUID) -> bool:
     """Owner decision 2026-11-13, "staff confirm once": a self-declared birth date books, but no code goes out until
-    staff confirm the person's age once. Seam: `clients.service.is_age_confirmed` lands with claude/rentals-pilot;
-    until then this reads the client's `is_birth_on_unverified` flag when that column exists (README)."""
-    shared = getattr(clients.service, "is_age_confirmed", None)
-    if shared is not None:
-        return bool(shared(session, client_id))
-    return not getattr(clients.service.get(session, client_id), "is_birth_on_unverified", False)
+    staff confirm the person's age once. Read fresh at issue, at the door and on every tick: a later date change or
+    merge unconfirms the person and publishes no reverse event (clients README)."""
+    return clients.service.is_age_confirmed(session, client_id)
 
 
 def _adult_by_date(session: Session, client_id: UUID, location_id: UUID | None) -> bool:
@@ -567,6 +561,14 @@ def recheck_client_codes(session: Session, client_id: UUID) -> None:
             _revoke(session, row, "refused")
 
 
+def resync_client_codes(session: Session, client_id: UUID) -> None:
+    """Internal (a client edited or merged): a confirmation reset publishes no event, so every booking the person
+    holds an active code on is synced again now; an adult no longer confirmed loses the code and is held again."""
+    for booking_id in session.scalars(select(EntryCode.booking_id).where(
+            EntryCode.client_id == client_id, EntryCode.status == "active").distinct()).all():  # fmt: skip
+        sync_booking_code(session, booking_id)
+
+
 def _withhold(session: Session, booking: dict, client_id: UUID, pending: list[UUID]) -> None:
     """A person failing the known-adult rule gets no code, logged once per booking and person for staff (a
     `code_withheld` event: display text only, never read back). Held for an age check (`pending`): an
@@ -591,12 +593,15 @@ def _withhold(session: Session, booking: dict, client_id: UUID, pending: list[UU
                  changes={"reason": "age-not-confirmed", "booking_id": [None, str(booking["id"])]})  # fmt: skip
     _event(session, location_id, "code_withheld", detail=f"age-not-confirmed:booking:{booking['booking_number']}")
     for person in pending:
+        if person == client_id and session.scalar(select(EntryCodeHold.id).where(
+                EntryCodeHold.client_id == person, EntryCodeHold.id != hold).limit(1)):  # fmt: skip
+            continue  # told on their first held booking; the portal shows the same notice per booking
         _email_held(session, location_id, clients.service.get(session, person))
 
 
 def _held_message(session: Session, location_id: UUID) -> str:
     phone = _phone(session, location_id)
-    return AGE_HELD + (f" Questions? Call us on {phone}." if phone else "")
+    return clients.service.with_phone(clients.service.ENTRY_CODE_NOTICE, phone)
 
 
 def _email_held(session: Session, location_id: UUID, client) -> None:

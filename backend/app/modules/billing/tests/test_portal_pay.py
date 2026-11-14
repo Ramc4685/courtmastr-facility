@@ -283,6 +283,20 @@ def test_a_webhook_stored_but_never_processed_is_retried(shop):
     assert stored[0] not in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
 
 
+def test_an_event_whose_payload_is_gone_fails_loudly_and_is_never_marked_processed(shop, caplog):
+    ready(shop)
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", None, "payment.succeeded", {})
+    with platform_engine().begin() as conn:  # routed to the tenant, then emptied (purged or malformed)
+        conn.execute(text("UPDATE inbound_webhook_event SET tenant_id = :t, status = 'received', "
+                          "received_at = now() - interval '10 minutes' WHERE id = :id"),
+                     {"t": shop.tenant.id, "id": stored[0]})  # fmt: skip
+    webhooks.retry_provider_events.fn(str(shop.tenant.id))
+    assert inbound_webhooks.get(stored[0]).status == "failed"
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert inbound_webhooks.get(stored[0]).status == "failed"
+    assert caplog.text.count("has no payload") == 2
+
+
 def test_the_portal_reads_the_processor_without_starting_a_setup(api, shop, member):
     """The app learns the card provider from a read; no SetupIntent is made until a card is actually added."""
     assert member.api("GET", "/portal/payment-methods/processor") == {

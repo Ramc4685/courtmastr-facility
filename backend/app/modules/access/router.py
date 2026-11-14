@@ -17,12 +17,13 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth import Principal, tokens
 from app.core.auth.deps import Ctx, _host_tenant, current_ctx, public_session, request_session, require
 from app.core.db import tenant_session
-from app.core.errors import DomainError, NotFound, Unauthenticated
-from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency, secret_response
+from app.core.errors import Conflict, DomainError, NotFound, Unauthenticated
+from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency, is_secret, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import _redis, rate_limit
 from app.core.settings import get_settings
 from app.modules.access import building, desk, service
+from app.modules.access import kiosk as kiosk_flow
 from app.modules.access import schemas as s
 from app.modules.access.models import DoorDevice, KioskDevice
 
@@ -439,6 +440,8 @@ def kiosk_idempotency(
     scope = f"kiosk:{device.id}:{request.scope['route'].path}"
     stored = begin(device.tenant_id, scope, idempotency_key, request.state.body_hash)
     if stored is not None:
+        if is_secret(request):
+            raise Conflict("This request was already handled; its response is not kept.", code="response-not-stored")
         raise Replay(*stored)
     request.state.idempotency = (scope, idempotency_key)
 
@@ -447,19 +450,32 @@ Device = Annotated[KioskDevice, Depends(kiosk_device)]
 KIOSK_CHECKINS_PER_MINUTE = 30  # one device, one queue: more than this is a script, not a line of people
 
 
+KIOSK_BOOKINGS_PER_MINUTE = 10  # booking attempts from the reservation page, per device
+
+
 def kiosk_rate_limit(device: Device) -> None:
-    """Per device, not per IP: kiosks behind one NAT share an address. Fails open like rate_limit."""
+    _device_limit(device, "kiosk-check-in", KIOSK_CHECKINS_PER_MINUTE)
+
+
+def kiosk_booking_rate_limit(device: Device) -> None:
+    _device_limit(device, "kiosk-book", KIOSK_BOOKINGS_PER_MINUTE)
+
+
+def _device_limit(device: KioskDevice, bucket: str, per_minute: int) -> None:
+    """Per device, not per IP: kiosks behind one NAT share an address. Fails closed, unlike rate_limit: a check-in
+    found by name checks a person in to their places, and booking attempts can probe standing, so neither may run
+    unmetered while Redis is down."""
     if not get_settings().rate_limit.enabled:
         return
-    key = f"rl:kiosk-check-in:{device.id}:{int(clock.now().timestamp() // 60)}"
+    key = f"rl:{bucket}:{device.id}:{int(clock.now().timestamp() // 60)}"
     try:
         pipe = _redis().pipeline()
         pipe.incr(key)
         pipe.expire(key, 60)
         count = pipe.execute()[0]
-    except Exception:  # noqa: BLE001 - a Redis outage must not stop check-in
-        return
-    if count > KIOSK_CHECKINS_PER_MINUTE:
+    except Exception:  # noqa: BLE001 - any Redis failure: refuse, the limit cannot be checked
+        count = per_minute + 1
+    if count > per_minute:
         raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
 
 
@@ -487,7 +503,9 @@ def get_kiosk_config(request: Request, device: Device):
 
 @kiosk.post("/kiosk/lookups", response_model=s.KioskLookupResult, dependencies=[Depends(rate_limit("kiosk-lookup"))])
 def kiosk_lookup(body: s.KioskLookupRequest, request: Request, device: Device):
-    """Find yourself by card or the first letters of your last name: first name and last initial only."""
+    """Find yourself by card or the first letters of your last name: first name and last initial only. A new
+    lookup means the kiosk is back at its start screen, so its visit tokens end."""
+    kiosk_flow.end_visits(_session(request), device)
     return service.kiosk_lookup(_session(request), device, body.model_dump())
 
 
@@ -495,9 +513,29 @@ def kiosk_lookup(body: s.KioskLookupRequest, request: Request, device: Device):
     "/kiosk/check-ins", response_model=s.KioskCheckInResult, status_code=201,
     dependencies=[Depends(kiosk_rate_limit), Depends(kiosk_idempotency)],
 )  # fmt: skip
+@secret_response
 def create_kiosk_check_in(body: s.KioskCheckInCreate, request: Request, device: Device):
-    """Self check-in (CHK-05): admitted or see staff, never amounts or reasons."""
-    return service.kiosk_check_in(_session(request), device, body.model_dump())
+    """Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page and its
+    single-use visit token (so a replayed key is refused, not re-read)."""
+    return kiosk_flow.check_in(_session(request), device, body.model_dump())
+
+
+@kiosk.post(
+    "/kiosk/check-ins/{check_in_id}/attendances", response_model=s.KioskCheckInResult,
+    dependencies=[Depends(kiosk_booking_rate_limit), Depends(kiosk_idempotency)],
+)  # fmt: skip
+@secret_response
+def create_kiosk_attendance(check_in_id: UUID, body: s.KioskAttendanceCreate, request: Request, device: Device):
+    """Book a session from the reservation page, by the portal's rules, spending the visit token. Found by name,
+    free sessions only and every refusal is see-staff. Errors: outside-check-in-window, capacity-full,
+    policy-violation, already-enrolled, no-entitlement, see-staff (past due, or found by name)."""
+    return kiosk_flow.attend(_session(request), device, check_in_id, body.model_dump())
+
+
+@kiosk.post("/kiosk/visits/end", status_code=204)
+def end_kiosk_visit(body: s.KioskVisitEnd, request: Request, device: Device) -> None:
+    """The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's)."""
+    kiosk_flow.end_visits(_session(request), device, body.check_in_id)
 
 
 @kiosk.post("/kiosk/exit", status_code=204, dependencies=[Depends(rate_limit("kiosk-exit"))])

@@ -82,8 +82,9 @@ the notes on the client's sales and loans and keeps the sale records.
   cart and tenders kept.
 - **Client-level discount (POS-10).** Not built: `client.discount_pct` exists in the clients context, but the register
   does not apply it. It uses presets and manual discounts only.
-- **Reports permission.** Reports use `pos.sale.read`. `reporting.pos.run` belongs to the reporting module,
-  which is not built.
+- **Reports permission (owner decisions 2026-11-13, question 14).** `/pos-reports/*` need `reporting.pos.run`
+  (registered by reporting) at the router and in `reports.py`, the same key as the report centre's POS reports.
+  Admin and Manager keep access; Front desk, which holds `pos.sale.read` but not `reporting.pos.run`, loses it.
 - **Receipt footer.** The receipt footer is billing's `receipt_footer` (one setting for both kinds of receipt).
   Location contact details come from the platform location.
 

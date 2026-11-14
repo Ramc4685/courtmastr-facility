@@ -46,6 +46,70 @@ describe('RentalsPage', SCREEN, () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ reason: 'staff', charge_action: 'keep_charge', waive_late_fee: false, scope: { mode: 'following', anchor_booking_id: 'b41' } })
   })
 
+  it('asks a manager for a reason before booking a court in a minor\'s name', async () => {
+    let tries = 0
+    const calls = renderAsStaff(<RentalsPage />, [...ALL, 'rentals.booking.override_minor'], {
+      ...base,
+      'GET /api/v1/rentals': page([]),
+      'POST /api/v1/rentals': () => {
+        tries += 1
+        return tries === 1
+          ? { status: 422, body: { status: 422, code: 'minor-cannot-hold-rental', detail: 'A child cannot hold a court booking. Book it in a parent\'s name and add the child as a player.' } }
+          : { status: 201, body: { rental: null, booking_series_id: null, created_count: 1, conflict_count: 0, results: [], quote: null, invoice_ids: [], status_url: null } }
+      },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'New rental' }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog', { name: 'New rental' })
+    expect(within(dialog).queryByRole('textbox', { name: /Reason to book for a minor/ })).toBeNull()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Book rental' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('A child cannot hold a court booking.')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /Reason to book for a minor/ }), 'Coach supervises')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Book rental' }))
+    await waitFor(() => expect(tries).toBe(2))
+    expect(calls.filter((c) => c.method === 'POST').at(-1)?.body).toMatchObject({ minor_override_reason: 'Coach supervises' })
+  })
+
+  it('names household players and forgets a minor reason when the client changes', async () => {
+    const pat = { id: 'c1', first_name: 'Pat', last_name: 'Lee', preferred_name: null, primary_email: null, phone_mobile: null, home_location_id: 'l1', client_category_id: null, member_number: null, status: 'active', merged_into_id: null, erased_at: null, created_at: '' }
+    const sam = { ...pat, id: 'c2', first_name: 'Sam' }
+    const calls = renderAsStaff(<RentalsPage />, [...ALL, 'rentals.booking.override_minor'], {
+      ...base,
+      'GET /api/v1/rentals': page([rental('x1', 41, { minor_override_reason: 'Coach supervises' })]),
+      'GET /api/v1/clients': (call) => page(call.url.includes('q=pa') ? [pat] : [sam]),
+      'GET /api/v1/clients/c1/relationships': { status: 200, body: [{ id: 'rel1', client_id: 'c1', other_client_id: 'k1', other_client_name: 'Kit Lee', relationship_type_id: 't1', label: 'Parent of', direction: 'outgoing', status: 'active', created_via: 'staff', acting_rights: 'this_for_other', confirmed_at: null, ended_at: null }] },
+      'GET /api/v1/clients/c2/relationships': { status: 200, body: [] },
+      'POST /api/v1/rentals': { status: 422, body: { status: 422, code: 'minor-needs-guardian', detail: 'A child may play only on a booking held by their parent or guardian.' } },
+    })
+    expect(within(await screen.findByRole('table', { name: 'Upcoming rentals' }, { timeout: 5000 })).getByRole('row', { name: /41/ })).toHaveTextContent('Booked for a minor: Coach supervises')
+    await userEvent.click(screen.getByRole('button', { name: 'New rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'New rental' })
+    await userEvent.type(within(dialog).getByRole('combobox', { name: 'Client' }), 'pa')
+    await userEvent.click(await within(dialog).findByRole('option', { name: /Pat Lee/ }))
+    await userEvent.click(await within(dialog).findByRole('checkbox', { name: 'Kit Lee (parent of)' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Book rental' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ client_id: 'c1', parties: [{ client_id: 'k1', is_charged: false }] })
+    await userEvent.type(await within(dialog).findByRole('textbox', { name: /Reason to book for a minor/ }), 'Coach supervises')
+    await userEvent.click(within(dialog).getByRole('button', { name: /Change client, currently Pat Lee/ }))
+    await userEvent.type(within(dialog).getByRole('combobox', { name: 'Client' }), 'sa')
+    await userEvent.click(await within(dialog).findByRole('option', { name: /Sam Lee/ }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Book rental' }))
+    await waitFor(() => expect(calls.filter((c) => c.method === 'POST')).toHaveLength(2))
+    expect(calls.filter((c) => c.method === 'POST')[1]?.body).toMatchObject({ client_id: 'c2', parties: [], minor_override_reason: null })
+  })
+
+  it('warns the desk when a player has no birth date on file', async () => {
+    renderAsStaff(<RentalsPage />, ALL, {
+      ...base,
+      'GET /api/v1/rentals': page([]),
+      'POST /api/v1/rentals/preview': { status: 200, body: { occurrences: [], requested_count: 1, conflict_count: 0, quote: null, birth_on_unknown: ['c7'] } },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'New rental' }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog', { name: 'New rental' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Preview price' }))
+    expect(await within(dialog).findByRole('note')).toHaveTextContent('No birth date on file for a player: they are treated as an adult.')
+  })
+
   it('bills selected rentals from the unbilled queue after a preview', async () => {
     const calls = renderAsStaff(<RentalsPage />, ALL, {
       ...base,

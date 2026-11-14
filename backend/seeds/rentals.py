@@ -33,7 +33,8 @@ def seed(session: Session) -> None:
     }
     category = session.scalar(select(RevenueCategory).where(RevenueCategory.code == "RENTALS"))
     tax = session.scalar(select(Tax).where(Tax.code == "SALES"))
-    people = {c.last_name: c.id for c in session.scalars(select(Client))}
+    # Newest first so the first-seeded adult wins a shared surname (Morgan Member, not the child Mia Member).
+    people = {c.last_name: c.id for c in session.scalars(select(Client).order_by(Client.id.desc()))}
     rtype = service.create_type(session, actor, {
         "location_id": location.id, "name": "Court rental", "revenue_category_id": category.id, "color": "#0e7490",
         "buffer_after_min": 10, "resource_ids": list(courts.values()), "default_length_min": 60, "min_length_min": 60,

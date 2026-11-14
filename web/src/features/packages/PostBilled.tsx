@@ -89,7 +89,8 @@ export function ClosesTab() {
   const money = useMoney()
   const locations = useMe().locations ?? []
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '')
-  const [closingOn, setClosingOn] = useState(todayIn())
+  const zone = locations.find((l) => l.id === locationId)?.time_zone // the server's "up to today" is the location's
+  const [closingOn, setClosingOn] = useState(() => todayIn(zone))
   const [preview, setPreview] = useState<Preview | null>(null)
   const body = { location_id: locationId, closing_on: closingOn }
   const look = useMutation({ mutationFn: () => api.post('/api/v1/post-billed-closes/preview', { body }), onSuccess: setPreview, onError: (e) => toast('error', e.message) })
@@ -123,7 +124,7 @@ export function ClosesTab() {
         }}
       >
         <Select label="Location" value={locationId} onChange={(e) => setLocationId(e.target.value)} options={locations.map((l) => ({ value: l.id, label: l.name }))} />
-        <Input label="Bill usage up to" type="date" required value={closingOn} max={todayIn()} onChange={(e) => setClosingOn(e.target.value)} />
+        <Input label="Bill usage up to" type="date" required value={closingOn} max={todayIn(zone)} onChange={(e) => setClosingOn(e.target.value)} />
         <Button type="submit" variant="secondary" loading={look.isPending}>
           Preview
         </Button>

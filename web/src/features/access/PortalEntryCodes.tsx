@@ -6,10 +6,11 @@ import { formatDateTime } from '../../lib/format'
 type Code = Schemas['PortalEntryCodeOut']
 
 /** Door codes of the household's upcoming bookings, with "Open the door" inside the window (CHK-16). Renders
- * nothing when there are none. `zoneOf` gives a location's time zone. */
-export function PortalEntryCodes({ zoneOf }: { zoneOf: (locationId: string) => string | undefined }) {
+ * nothing when there are none. `zoneOf` gives a location's time zone. `showHeld={false}`: the page already shows
+ * the age-check notice (the same words), so held lines are left out rather than said twice. */
+export function PortalEntryCodes({ zoneOf, showHeld = true }: { zoneOf: (locationId: string) => string | undefined; showHeld?: boolean }) {
   const codes = useQuery({ queryKey: ['portal', 'entry-codes'], queryFn: () => api.get('/api/v1/portal/entry-codes'), refetchInterval: 60_000 })
-  const rows = codes.data?.data ?? []
+  const rows = (codes.data?.data ?? []).filter((c) => showHeld || c.code !== null)
   if (!rows.length) return null
   return (
     <section aria-labelledby="door-codes" className="mb-6 rounded-lg border border-border bg-surface p-4">

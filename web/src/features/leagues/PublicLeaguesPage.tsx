@@ -12,7 +12,7 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { label } from './queries'
-import { List } from './shared'
+import { List, scoreText } from './shared'
 
 type Site = Schemas['PublicLeagueSiteOut']
 const KINDS = ['league', 'tournament', 'ladder']
@@ -151,7 +151,7 @@ function SiteSections({ site }: { site: Site }) {
                   <p className="mt-2 text-sm">
                     {c.is_open ? (c.spots_left !== null && c.spots_left !== undefined ? `${c.spots_left} spots left` : 'Open') : 'Registration closed'}
                   </p>
-                  {c.is_open && <Link className="mt-2 inline-block text-sm text-primary hover:underline" to="/portal/programs">Register in the member portal</Link>}
+                  {c.is_open && <a className="mt-2 inline-block text-sm text-primary hover:underline" href="/portal/programs" target="_top">Register in the member portal</a>}
                 </Card>
               </li>
             ))}
@@ -237,7 +237,7 @@ function PostsSection({ kind, title }: { kind: 'classified' | 'pickup'; title: s
           ))}
         </ul>
       )}
-      <p className="mt-3 text-sm"><Link className="text-primary hover:underline" to="/portal/league-posts">Post or reply in the member portal</Link></p>
+      <p className="mt-3 text-sm"><a className="text-primary hover:underline" href="/portal/league-posts" target="_top">Post or reply in the member portal</a></p>
     </Section>
   )
 }
@@ -257,6 +257,7 @@ function PublicCompetition({ id, embed }: { id: string; embed: boolean }) {
   if (competition.isPending) return <LoadingState />
   if (competition.isError) return <ErrorState error={competition.error} />
   const c = competition.data
+  const bySets = c.scoring_mode === 'sets'
   const statKeys = [...new Set((stats.data ?? []).flatMap((s) => Object.keys(s.stats)))]
   return (
     <>
@@ -270,12 +271,12 @@ function PublicCompetition({ id, embed }: { id: string; embed: boolean }) {
             <table className="w-full text-left text-sm">
               <caption className="sr-only">Standings</caption>
               <thead className="bg-surface-2 text-xs uppercase text-muted">
-                <tr>{['Rank', 'Team', 'GP', 'W', 'L', 'T', 'GD', 'PTS'].map((h) => <th key={h} scope="col" className="px-4 py-2">{h}</th>)}</tr>
+                <tr>{(bySets ? ['Rank', 'Team', 'GP', 'W', 'L', 'Sets won', 'Sets lost', 'PTS'] : ['Rank', 'Team', 'GP', 'W', 'L', 'T', 'GD', 'PTS']).map((h) => <th key={h} scope="col" className="px-4 py-2">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {table.data.map((s) => (
                   <tr key={`${s.division_name}-${s.rank}-${s.team_name}`}>
-                    {[s.rank, s.team_name, s.games_played, s.wins, s.losses, s.ties, s.goal_difference, Number(s.points)].map((v, i) => <td key={i} className="px-4 py-2">{v}</td>)}
+                    {[s.rank, s.team_name, s.games_played, s.wins, s.losses, ...(bySets ? [s.goals_for, s.goals_against] : [s.ties, s.goal_difference]), Number(s.points)].map((v, i) => <td key={i} className="px-4 py-2">{v}</td>)}
                   </tr>
                 ))}
               </tbody>
@@ -291,7 +292,7 @@ function PublicCompetition({ id, embed }: { id: string; embed: boolean }) {
               <li key={g.id} className="flex flex-wrap justify-between gap-2 px-4 py-3 text-sm">
                 <span>{formatDateTime(g.starts_at)}{g.venue ? ` · ${g.venue}` : ''}</span>
                 <span className="font-medium">
-                  {g.home_name ?? 'TBD'} {g.status === 'played' ? `${g.home_score} - ${g.away_score}` : 'vs'} {g.away_name ?? 'TBD'}
+                  {g.home_name ?? 'TBD'} {g.status === 'played' ? scoreText(g) : 'vs'} {g.away_name ?? 'TBD'}
                 </span>
                 {g.status === 'cancelled' && <span className="text-muted">Cancelled</span>}
               </li>
@@ -313,7 +314,7 @@ function PublicCompetition({ id, embed }: { id: string; embed: boolean }) {
                 columns={[
                   { header: 'Round', cell: (s) => s.round_name },
                   { header: 'Home', cell: (s) => <span className={s.winner === 'home' ? 'font-semibold' : ''}>{s.home_name ?? 'TBD'}</span> },
-                  { header: 'Score', cell: (s) => (s.home_score !== null && s.home_score !== undefined ? `${s.home_score} - ${s.away_score}` : '—') },
+                  { header: 'Score', cell: (s) => (s.home_score !== null && s.home_score !== undefined ? scoreText(s) : '—') },
                   { header: 'Away', cell: (s) => <span className={s.winner === 'away' ? 'font-semibold' : ''}>{s.away_name ?? 'TBD'}</span> },
                   { header: 'When', cell: (s) => (s.starts_at ? formatDateTime(s.starts_at) : '—') },
                 ]}
@@ -380,7 +381,7 @@ export function LeagueBoardPage() {
             <li key={`${g.starts_at}-${i}`} className="rounded-lg border border-border bg-surface p-6">
               <p className="text-lg text-muted">{g.starts_at ? formatDateTime(g.starts_at, b.time_zone) : 'Time to be set'}{g.venue ? ` · ${g.venue}` : ''} · {g.competition_name}</p>
               <p className="mt-2 text-3xl font-semibold">
-                {g.home_name ?? 'TBD'} <span className="px-2">{g.status === 'played' ? `${g.home_score} - ${g.away_score}` : 'vs'}</span> {g.away_name ?? 'TBD'}
+                {g.home_name ?? 'TBD'} <span className="px-2">{g.status === 'played' ? scoreText(g) : 'vs'}</span> {g.away_name ?? 'TBD'}
               </p>
               {g.status !== 'scheduled' && g.status !== 'played' && <p className="mt-1 text-lg">{label(g.status)}</p>}
             </li>

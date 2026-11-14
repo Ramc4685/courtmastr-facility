@@ -31,6 +31,8 @@ from app.core.auth import Principal, authorize
 from app.core.auth.permissions import scope_query
 from app.core.errors import Conflict, DomainError, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.pan import contains_card_number
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL, FREE_TEXT_FIELDS
 from app.core.settings import get_settings
 from app.modules import clients, platform
 from app.modules.imports import csvio
@@ -348,6 +350,11 @@ def _process(session: Session, job: ImportJob, kind: Kind, ctx: Context, parsed:
     fail = RowStatus.INVALID if dry else RowStatus.FAILED
     data, errors = parsed[idx]
     problems = [{"field": f, "code": c, "detail": d} for f, c, d in errors]
+    problems += [  # rows skip the request schemas, so free text is checked here (security-baseline 3)
+        {"field": f, "code": CARD_DATA, "detail": CARD_DATA_DETAIL}
+        for f, v in (data or {}).items()
+        if f in FREE_TEXT_FIELDS and isinstance(v, str) and contains_card_number(v)
+    ]
     status, entity_type, entity_id, key = fail, None, None, ""
     if not problems:
         key = data["_row_key"] = _row_key(kind, data)
@@ -436,7 +443,7 @@ def run_chunk(session: Session, job_id: UUID) -> bool:
     _, raw = platform.files.read(session, job.source_file_id)
     headers, records = csvio.read(csvio.decode(raw))
     ctx = Context(job.location_id, job.date_format, platform.service.location_today(session, job.location_id), job.id,
-                  job.submitted_by_staff_user_id)  # fmt: skip
+                  job.submitted_by_staff_user_id, is_dry_run=job.status == JobStatus.VALIDATING)  # fmt: skip
     parsed = [kind.parse(csvio.values(r, headers, job.column_mapping), ctx) if r else None for r in records]
     heads: dict[str, list[int]] = {}
     for i, item in enumerate(parsed):

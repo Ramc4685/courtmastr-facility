@@ -529,6 +529,7 @@ class GuestCheckoutCreate(In):
     payer: GuestPayer
     participants: Annotated[list[GuestParticipant], Field(max_length=4)] = []
     items: Annotated[list[GuestItem], Field(min_length=1, max_length=4)]  # with the per-IP hold cap (checkout)
+    birth_on_declared: Literal[True]  # the payer declares every birth date is true; staff confirm them once
 
 
 class GuestCheckoutConfirm(In):

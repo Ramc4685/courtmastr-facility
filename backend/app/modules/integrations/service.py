@@ -84,7 +84,17 @@ KEY_PERMISSIONS = frozenset({
 # Single keys withheld from a listed context: portal on/off switches and online defaults, a person's decision like
 # engagement's portal settings (which never made the list above); and opening an unmanned building's doors or holding
 # its court lights, which a person at the facility's end of a phone line decides, never an integration.
-KEY_WITHHELD = frozenset({"rentals.portal_setting.manage", "access.door.unlock", "access.lighting.override"})
+# clients.client.confirm_age: a person saw the ID; it releases held entry codes (owner decision 2026-11-13).
+# rentals.booking.override_minor: lifting the minors rule is a person's judgment, with a reason.
+KEY_WITHHELD = frozenset(
+    {
+        "rentals.portal_setting.manage",
+        "clients.client.confirm_age",
+        "rentals.booking.override_minor",
+        "access.door.unlock",
+        "access.lighting.override",
+    }
+)
 
 
 def grantable_to_key(permission: Permission) -> bool:
@@ -710,10 +720,6 @@ def create_external_connection(
         from app.modules.integrations import meetings
 
         meetings.connect_zoom(session, row, data.get("zoom"))
-    elif row.provider == Provider.GOOGLE_ANALYTICS:
-        from app.modules.integrations import analytics
-
-        analytics.connect(row)
     audit.record(session, "integrations.connection.create", row, location_id=location_id, changes=audit.diff(row))
     return row, authorize_url
 

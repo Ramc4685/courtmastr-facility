@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
@@ -12,6 +12,9 @@ import { useScanBurst } from './useScanBurst'
 type Config = Schemas['KioskConfig']
 type Match = Schemas['KioskMatch']
 type Result = Schemas['KioskCheckInResult']
+type Session = Schemas['KioskSession']
+
+const formatTime = (iso: string, timeZone: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone })
 
 /** Self check-in on a paired device (CHK-05). No staff session lives here: the device holds an HttpOnly kiosk
  * cookie set at pairing, and the screen shows first names and alert labels only. */
@@ -56,26 +59,51 @@ function Pair() {
   )
 }
 
+/** Why a booking was refused, in words for the client; anything about their account sends them to the desk. A visit
+ *  found by name gets only see-staff: its page is the same for everyone, and its standing is judged on booking. */
+const BOOK_REFUSAL: Record<string, string> = {
+  'capacity-full': 'That class just filled up.',
+  'already-enrolled': 'You are already booked into that class.',
+  'outside-check-in-window': 'That class is not open for booking here any more.',
+  'policy-violation': 'That class cannot be booked here now.',
+}
+
 function Kiosk({ config }: { config: Config }) {
   const qc = useQueryClient()
   const [name, setName] = useState('')
   const [matches, setMatches] = useState<Match[] | null>(null)
   const [result, setResult] = useState<Result | null>(null)
+  const [view, setView] = useState<'result' | 'reserve' | 'booked'>('result')
+  const [booked, setBooked] = useState<Session | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [exiting, setExiting] = useState(false)
   const [pin, setPin] = useState('')
   const settings = config.settings
   const byName = settings.lookup_method !== 'membership_number'
 
-  const reset = () => {
+  const reset = useCallback(() => {
+    // Back at the start screen: the server forgets this visit, so nobody can act on it from here. The call names the
+    // visit, so landing after a new scan's check-in it cannot end the new visit.
+    if (result?.visit_token) api.post('/api/v1/kiosk/visits/end', { body: { check_in_id: result.check_in_id } }).catch(() => undefined)
     setName('')
     setMatches(null)
     setResult(null)
+    setView('result')
+    setBooked(null)
     setProblem(null)
-  }
-  const fail = (e: unknown) => setProblem(e instanceof ApiError && e.status === 401 ? 'This kiosk was signed out. Ask staff to pair it again.' : 'Something went wrong. Please see the front desk.')
+  }, [result?.visit_token, result?.check_in_id])
+  const fail = (e: unknown) =>
+    setProblem(
+      e instanceof ApiError && e.status === 401
+        ? 'This kiosk was signed out. Ask staff to pair it again.'
+        : e instanceof ApiError && e.code === 'card-code-expired'
+          ? 'That code has expired. Refresh it in the app and scan again.'
+          : e instanceof ApiError && e.code === 'card-invalid'
+            ? 'We could not find you. Please see the front desk.'
+            : 'Something went wrong. Please see the front desk.',
+    )
   const lookup = useMutation({
-    mutationFn: (body: { credential_value?: string; last_name_prefix?: string }) => api.post('/api/v1/kiosk/lookups', { body }),
+    mutationFn: (body: { last_name_prefix: string }) => api.post('/api/v1/kiosk/lookups', { body }),
     onSuccess: (out) => {
       setProblem(out.matches.length ? null : 'We could not find you. Please see the front desk.')
       setMatches(out.matches)
@@ -90,21 +118,34 @@ function Kiosk({ config }: { config: Config }) {
     },
     onError: fail,
   })
+  const book = useMutation({
+    mutationFn: (s: Session) =>
+      api.post('/api/v1/kiosk/check-ins/{check_in_id}/attendances', { path: { check_in_id: result?.check_in_id ?? '' }, body: { target_type: 'session', target_id: s.target_id, visit_token: result?.visit_token ?? '' } }),
+    onSuccess: (out, s) => {
+      setResult(out)
+      setBooked(s)
+      setProblem(null)
+      setView('booked')
+    },
+    onError: (e) => setProblem((e instanceof ApiError && e.code && BOOK_REFUSAL[e.code]) || 'Please see the front desk to book this class.'),
+  })
   const exit = useMutation({
     mutationFn: (staff_pin: string) => api.post('/api/v1/kiosk/exit', { body: { staff_pin } }),
     onSuccess: () => qc.resetQueries({ queryKey: ['kiosk', 'config'] }),
   })
 
+  // Every scan checks in directly; the server decides possession from the value itself, never from how it arrived.
   useScanBurst((value) => {
     reset()
-    if (value.toLowerCase().startsWith('fhq.')) enter.mutate({ card_payload: value })
-    else lookup.mutate({ credential_value: value })
+    enter.mutate({ card_payload: value })
   })
+  // Each screen after check-in returns to the start on its own timeout (CHK-06); a new screen restarts the clock.
   useEffect(() => {
     if (!result) return
-    const timer = window.setTimeout(reset, settings.confirmation_timeout_seconds * 1000)
+    const seconds = view === 'reserve' ? settings.reservation_timeout_seconds : settings.confirmation_timeout_seconds
+    const timer = window.setTimeout(reset, seconds * 1000)
     return () => window.clearTimeout(timer)
-  }, [result, settings.confirmation_timeout_seconds])
+  }, [result, view, problem, reset, settings.confirmation_timeout_seconds, settings.reservation_timeout_seconds])
 
   const search = (e: FormEvent) => {
     e.preventDefault()
@@ -116,16 +157,52 @@ function Kiosk({ config }: { config: Config }) {
       <h1 id="kiosk-heading" className="mb-1">Welcome to {config.location_name}</h1>
       <p className="mb-6 text-muted">{settings.welcome_message || 'Scan your card to check in.'}</p>
       <div aria-live="polite" className="space-y-4">
-        {result ? (
+        {result && view === 'booked' && booked ? (
+          <div className="rounded-lg border border-success p-6">
+            <h2 className="text-2xl font-semibold">You're booked, {result.first_name}!</h2>
+            <p className="mt-2">{booked.title} at {formatTime(booked.starts_at, config.time_zone)}.</p>
+            <Button className="mt-4" variant="secondary" onClick={reset}>Done</Button>
+          </div>
+        ) : result && view === 'reserve' ? (
+          <div>
+            <h2 className="mb-1">Book a class</h2>
+            <p className="mb-3 text-muted">Classes starting soon at {config.location_name}.</p>
+            {result.sessions.length === 0 ? (
+              <p>No classes start soon.</p>
+            ) : (
+              <ul aria-label="Classes starting soon" className="divide-y divide-border rounded border border-border">
+                {result.sessions.map((s) => (
+                  <li key={s.target_id} className="flex items-center justify-between gap-3 p-3">
+                    <span>
+                      <span className="block font-medium">{s.title}</span>
+                      <span className="text-sm text-muted">{formatTime(s.starts_at, config.time_zone)} to {formatTime(s.ends_at, config.time_zone)}</span>
+                    </span>
+                    {s.is_booked ? (
+                      <span className="text-sm font-medium text-success">Booked</span>
+                    ) : s.is_bookable ? (
+                      <Button size="sm" onClick={() => book.mutate(s)} loading={book.isPending && book.variables?.target_id === s.target_id} disabled={book.isPending} aria-label={`Book ${s.title} at ${formatTime(s.starts_at, config.time_zone)}`}>Book</Button>
+                    ) : (
+                      <span className="text-sm text-muted">See the front desk</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button className="mt-3" variant="ghost" onClick={reset} disabled={book.isPending}>Done</Button>
+          </div>
+        ) : result ? (
           <div className={`rounded-lg border p-6 ${result.status === 'admitted' ? 'border-success' : 'border-danger'}`}>
             <p className="text-2xl font-semibold">{result.status === 'admitted' ? `You're checked in, ${result.first_name}!` : `Please see the front desk, ${result.first_name}.`}</p>
-            {result.attended.length > 0 && <p className="mt-2">You are marked present for {result.attended.length === 1 ? 'your class' : `${result.attended.length} classes`}.</p>}
+            {result.attended_count > 0 && <p className="mt-2">You are marked present for {result.attended_count === 1 ? 'your class' : `${result.attended_count} classes`}.</p>}
             {result.displayed_alert_codes.length > 0 && (
               <ul className="mt-3 list-disc pl-5">
                 {result.displayed_alert_codes.map((c) => <li key={c}>{ALERT_LABEL[c] ?? c}</li>)}
               </ul>
             )}
-            <Button className="mt-4" variant="secondary" onClick={reset}>Done</Button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {result.status === 'admitted' && <Button onClick={() => setView('reserve')}>Book a class</Button>}
+              <Button variant="secondary" onClick={reset}>Done</Button>
+            </div>
           </div>
         ) : matches && matches.length > 0 ? (
           <div>

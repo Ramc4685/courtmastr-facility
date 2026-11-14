@@ -383,6 +383,21 @@ def test_opening_balances_post_through_billing_once(client, tenant, owner, locat
     assert counts(tenant)["charge"] == after["charge"] and counts(tenant)["payment"] == after["payment"]
 
 
+def test_a_card_number_in_imported_free_text_is_a_row_error(client, tenant, owner, location_id):
+    """CSV rows skip the request schemas, so the import checks free text itself (security-baseline section 3)."""
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        billing.service.create_revenue_category(session, code="GEN", label="General", tax_ids=[])
+    new_client(client, owner, location_id, member_number="C-1")
+    yesterday = (clock.now().date() - timedelta(days=1)).isoformat()
+    rows = [["client_member_number", "client_email", "amount", "as_of_date", "direction", "description"],
+            ["C-1", "", "10", yesterday, "owed", "Card 4111 1111 1111 1111"],
+            ["C-1", "", "12", yesterday, "owed", "Locker 4006381333931"]]  # fmt: skip
+    job = check(client, owner, start(client, owner, location_id, "balances", to_csv(rows)))
+    found = outcomes(tenant, job)
+    assert found[2] == ("invalid", ["card-data-not-allowed"]) and found[3][0] == "valid"
+    assert "4111" not in str(report(client, owner, job))
+
+
 # --- products ------------------------------------------------------------------------------------------------------
 
 
@@ -852,3 +867,25 @@ def test_every_template_example_row_passes_its_own_check_and_names_match_in_nfc(
     again = run(client, owner, location_id, "clients", [["first_name", "last_name", "email", "city"],
                                                          ["José", "Nfc", "jose@example.com", "Peoria"]])  # fmt: skip
     assert (again["created_count"], again["updated_count"], again["skipped_count"]) == (0, 1, 0)
+
+
+def test_an_import_never_confirms_an_age_and_the_row_report_says_so(client, tenant, owner, location_id):
+    """Owner decision: no import confirms an age, for anyone, under any flag. Imported adults wait in the age-check
+    queue (go-live: its bulk confirm); a row that brought a date says it was imported with the age not confirmed."""
+    rows = [CLIENT_HEADER,
+            ["", "Ada", "AdultNever", "", "", "1980-02-03", "", "", "", ""],
+            ["", "Kit", "ChildNever", "", "", "2016-06-07", "", "", "", ""],
+            ["", "Nod", "NodateNever", "", "", "", "", "", "", ""]]  # fmt: skip
+    job = check(client, owner, start(client, owner, location_id, "clients", to_csv(rows)))
+    ok(client.post(f"{API}/import-jobs/{job['id']}/commits", headers=owner, json={"confirm_ages": True}), 202)
+    drain()
+    assert ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))["created_count"] == 3
+    with tenant_session(tenant.id) as session:
+        confirmed = session.execute(text(
+            "SELECT count(*) FROM client WHERE last_name LIKE '%Never' AND age_confirmed_at IS NOT NULL")).scalar()  # fmt: skip
+    assert confirmed == 0
+    seen = outcomes(tenant, job)
+    assert {n: codes for n, (_, codes) in seen.items()} == {2: ["age-not-confirmed"], 3: ["age-not-confirmed"], 4: []}
+    queue = ok(client.get(f"{API}/client-age-reviews", headers=owner, params={"created_via": "import", "limit": 200}))
+    assert "AdultNever" in {c["last_name"] for c in queue["data"]}  # a child never enters the queue
+    assert "ChildNever" not in {c["last_name"] for c in queue["data"]}

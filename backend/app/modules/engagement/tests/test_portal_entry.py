@@ -35,7 +35,7 @@ def public(tenant) -> dict:
 
 def signup(client, tenant, f, email=None, **extra):
     body = {"location_id": f.location, "email": email or f"n-{uuid4().hex[:8]}@example.com",
-            "first_name": "Nia", "last_name": "Newcomer"} | extra  # fmt: skip
+            "first_name": "Nia", "last_name": "Newcomer", "birth_on": "1990-01-02", "birth_on_declared": True} | extra  # fmt: skip
     return client.post(SIGNUPS, headers=public(tenant), json=body)
 
 

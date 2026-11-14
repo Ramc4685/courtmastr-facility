@@ -104,6 +104,43 @@ games to score.
   location (`staff-candidates`, names only, so a league admin needs no staff read key).
 - **Forfeits:** when either side forfeits or defaults, the other side needs no score, and standings use the
   competition's `forfeit_score_for`.
+- **Set scoring (migration `2001`, pilot CIRQT).** A sport or competition has a `scoring_mode`: `points` (one score
+  per side, the default; every existing competition stays on it) or `sets`, with `sets_best_of` (1, 3 or 5),
+  `set_points_to`, `set_win_by` (default 2), an optional `set_cap` and an optional `deciding_set_points_to`. The sport
+  holds the defaults and a new competition snapshots them, like the points per outcome; staff edit them per
+  competition until a game has a result: then a change of mode or set rules is refused (409 `results-recorded`,
+  naming the count) until those results are cleared. A set at the cap ends only from deuce (30-29 or 30-28, never
+  30-5). A result side may carry `sets` (its points per set); they are checked in order by
+  `domain/sets.py` (a set ends only at a legal score, no set after the match is decided, the match decided), and the
+  side's `score` becomes its sets won, so brackets, ladders, outcomes and player stats work unchanged. A result given
+  as sets won only (no per-set points) is accepted when it is a finished match. A forfeit or default takes no sets;
+  set `forfeit_score_for` to the sets needed. Standings add the metrics `SW` and `SL` (sets won and lost, which are
+  GF and GA in a sets competition), `SR` (set ratio) and `PR` (points ratio over played sets, from the new
+  `set_points_for` and `set_points_against`); a ratio with nothing against it ranks first. A points competition's
+  rows are exactly what they were (golden test `points_standings_golden.json`, written by the old compute). The
+  game views, public schedule, brackets and TV board carry `set_scores` ("21-18, 19-21, 21-15", home side first).
+  There are no seeded presets as rows: the presets (badminton best of 3 to 21, cap 30; volleyball best of 3 or 5 to
+  25, deciding set to 15; pickleball best of 3 to 11) are buttons on the competition screen and values in the CIRQT
+  seed. Not built: match points that depend on the set count (volleyball 3-2 worth 2 and 1), and live set-by-set
+  entry of an unfinished match.
+- **League nights (pilot CIRQT).** `POST /competitions/{id}/league-nights` (game key) books a block whose source is
+  `('leagues', 'competition', id)`. Rentals and other competitions' games clash with it like any block. When this
+  competition's game is booked or moved into it, `scheduling.service` cancels the block and rebooks what remains
+  around the game (`gives_way`), because a hold is one range per booking and resource and cannot have a hole. The
+  exclusion constraint still decides every clash. Only blocks made this way count: a block from the calendar has no
+  purpose and stays a clash, and a location closure (blackout) is not carved. A night is at most 24 hours (422) and
+  cannot be held for a draft or archived competition (409). Assumption: a carved league night becomes several block
+  bookings with the same title.
+- **League nights: known limits** (a redesign is planned on a follow-up branch; until then staff work around them):
+  1. A game that is rescheduled, postponed or cancelled does not give its old slot back to the night. That slot is
+     simply free, so a public booking can take it. Staff re-block the old slot by hand (the dialog says so).
+  2. With the night on a parent court and a game on one half, the carve keeps the night only before and after the
+     game on the parent, so the sibling half is open to bookings for that hour.
+  3. Two games carved at the same moment (in practice a game moved into the night while another carve is under
+     way) can read a piece the other has just replaced. The carve then re-reads the night's current pieces and
+     tries once more; if it still clashes, it fails safe: a committed game is left `unschedulable` with
+     `conflict_note = {"reason": "booking-conflict", "detail": "<court> is already held by booking #..."}`, a move
+     or a single game gets the same 409. It is never booked twice.
 - **Scheduling preferences are soft (LGE-10).** "Prefers" and "cannot play" by date, weekday, time of day or
   court or venue; a priority weighs double, and a "cannot" costs ten times a "prefers". The generator picks
   the best-scoring slot that fits and never leaves a game unscheduled because of a preference.
@@ -125,7 +162,8 @@ games to score.
 - **Game cards (LGE-16, RPT-36)** are PDFs through `core/pdf.py`: one game per card section, no page break per
   game (`core/pdf.py` has no `new_page()`); a run is capped at 31 days and 200 games.
 - **Not routed (P1/P2):** alert settings and portal games (chip C2 and later). Discipline suspensions have no
-  model or route either; the key `leagues.discipline.manage` is registered for them and unused (no phase yet).
+  model, route or permission key (`leagues.discipline.manage` was removed, owner decisions 2026-11-13, question
+  16b; a custom role's stored grant of it is ignored).
 - **Public league site (chip B2, migration `1441`).** Teams, schedules, standings, brackets (once published) and
   results are public as soon as a competition is public; the site switch (`league_site.is_enabled`) governs
   only the extra sections (facility info, news, classes, gallery, sponsors, links, classifieds, pickup games),
@@ -148,12 +186,13 @@ games to score.
   a portal sign-in on both sides and is rate limited per IP and per sender. A pickup game needs a future start.
 - **Images** (photos, sponsor logos) go through `platform.files` and are capped at 900 KB (the API's 1 MiB body
   cap); they are served by our own public routes, published photos and active sponsors only.
-- **Embedding (LGE-21) is not enabled yet.** The proxy (`infra/proxy/Caddyfile`) still refuses all framing
-  (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), so an embedded copy renders blank and the staff screen
-  offers a link to the public site instead of an embed snippet. Turning it on waits for the owner: the proxy
-  should then allow `/leagues/public*` and `/leagues/board/*` only. The web app is ready for that: when framed it
-  renders only those routes and refuses every other screen, because the app is one document and any route could
-  load behind an embeddable path. The second line of defence is the session cookie,
+- **Embedding (LGE-21) is enabled for the public league pages and the TV board only** (owner decision 2026-11-13,
+  question 5). The proxy (`infra/proxy/Caddyfile`, `@embeddable`) drops `X-Frame-Options` and sends
+  `frame-ancestors *` for `/leagues/public`, `/leagues/public/*` and `/leagues/board/*` (and the public schedule page,
+  `/schedule/public/*`, integrations), with a CSP that names no Stripe origin; every other path keeps
+  `X-Frame-Options: DENY` and `frame-ancestors 'none'` (`infra/docker/smoke.sh` checks both). The staff site screen
+  gives an iframe snippet (`?embed=1` drops the page chrome). When framed the web app renders only those routes and
+  refuses every other screen, because the app is one document and any route could load behind an embeddable path. The second line of defence is the session cookie,
   `SameSite=Lax`: a browser does not send it on requests from a frame on another site, so a framed screen has no
   session.
 - **Shortcut: sponsor date windows use today's UTC date**, not a location's zone; a tenant-wide sponsor has no

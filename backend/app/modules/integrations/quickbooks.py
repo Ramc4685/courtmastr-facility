@@ -224,19 +224,6 @@ def update_settings(session: Session, principal: Principal, connection_id: UUID,
     """Merge-patch of the provider settings we use; null removes a key. Unknown keys are refused."""
     row = _load(session, principal, connection_id, "integrations.connection.manage")
     session.refresh(row, with_for_update=True)  # merge over the stored settings, never a stale sync status
-    if row.provider == Provider.GOOGLE_ANALYTICS:
-        from app.modules.integrations import analytics
-
-        if row.status != ConnectionStatus.ACTIVE:
-            raise Conflict("The connection is disconnected", code="invalid-state-transition")
-        merged = {k: v for k, v in (row.settings | settings).items() if v is not None}
-        row.settings = analytics.clean(merged)
-        row.external_account_id = row.settings["measurement_id"]
-        audit.record(
-            session, "integrations.connection.update", row, location_id=row.location_id, changes=audit.diff(row)
-        )
-        session.flush()
-        return row
     unknown = set(settings) - SETTINGS_KEYS
     if unknown:
         raise ValidationFailed(f"Unknown setting {sorted(unknown)[0]}", pointer=f"/settings/{sorted(unknown)[0]}")

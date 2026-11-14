@@ -2,7 +2,7 @@
 codes per booking, the building activity log, and the location settings for code windows and light timing.
 
 Revision ID: 1971
-Revises: 1562
+Revises: 1985
 """
 
 import sqlalchemy as sa
@@ -11,7 +11,7 @@ from alembic import op
 from app.core.db.rls import enable_rls
 
 revision = "1971"
-down_revision = "1562"
+down_revision = "1985"
 
 
 def upgrade() -> None:

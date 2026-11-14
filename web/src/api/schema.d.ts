@@ -2372,6 +2372,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client-age-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Age Reviews
+         * @description Clients whose self-declared birth date waits for staff, people with an online booking first (earliest
+         *     booking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.
+         *     `no_birth_date=true`: the second section, people with no birth date on file who booked; staff enter the date
+         *     through the confirm action.
+         */
+        get: operations["listClientAgeReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-age-reviews/confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Client Ages
+         * @description Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is
+         *     audited and announced once. Unknown or out-of-reach people, children and people with no birth date are skipped
+         *     with a reason, never failing the batch. Errors: step-up-required.
+         */
+        post: operations["confirmClientAges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/client-alerts/{alert_id}": {
         parameters: {
             query?: never;
@@ -3222,6 +3267,27 @@ export interface paths {
          * @description One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.
          */
         post: operations["refundAccountCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/age-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Client Age
+         * @description Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is
+         *     self-service. Clears the flag even when the date is unchanged. Errors: birth-date-required.
+         */
+        post: operations["confirmClientAge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4134,6 +4200,27 @@ export interface paths {
          *     a corrected or removed result swaps them back.
          */
         post: operations["createLadderChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/league-nights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block League Night
+         * @description Hold courts for this competition ahead of its schedule. Rentals clash with the block; the competition's own
+         *     games take their slots out of it when they are booked. A game moved or cancelled later does not give its slot back.
+         */
+        post: operations["blockLeagueNight"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6678,9 +6765,32 @@ export interface paths {
         put?: never;
         /**
          * Create Kiosk Check In
-         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons.
+         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page and its
+         *     single-use visit token (so a replayed key is refused, not re-read).
          */
         post: operations["createKioskCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/check-ins/{check_in_id}/attendances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Attendance
+         * @description Book a session from the reservation page, by the portal's rules, spending the visit token. Found by name,
+         *     free sessions only and every refusal is see-staff. Errors: outside-check-in-window, capacity-full,
+         *     policy-violation, already-enrolled, no-entitlement, see-staff (past due, or found by name).
+         */
+        post: operations["createKioskAttendance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6735,7 +6845,8 @@ export interface paths {
         put?: never;
         /**
          * Kiosk Lookup
-         * @description Find yourself by card or the first letters of your last name: first name and last initial only.
+         * @description Find yourself by card or the first letters of your last name: first name and last initial only. A new
+         *     lookup means the kiosk is back at its start screen, so its visit tokens end.
          */
         post: operations["kioskLookup"];
         delete?: never;
@@ -6758,6 +6869,26 @@ export interface paths {
          * @description Exchange a pairing code for this device's kiosk cookie.
          */
         post: operations["pairKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/visits/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End Kiosk Visit
+         * @description The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's).
+         */
+        post: operations["endKioskVisit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -10836,6 +10967,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/rental-availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Portal Rental Availability
+         * @description The open times priced for the client who will hold the rental and the players they will name (people the
+         *     holder may act for), exactly as the checkout charges them.
+         */
+        get: operations["searchPortalRentalAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/rental-plan-purchases": {
         parameters: {
             query?: never;
@@ -12461,27 +12613,6 @@ export interface paths {
         patch: operations["updatePublicScheduleSettings"];
         trace?: never;
     };
-    "/api/v1/public/analytics-config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Public Analytics Config
-         * @description The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
-         *     X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent.
-         */
-        get: operations["getPublicAnalyticsConfig"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/public/app-config": {
         parameters: {
             query?: never;
@@ -13481,7 +13612,7 @@ export interface paths {
         };
         /**
          * Search Rental Availability
-         * @description Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day.
+         * @description Advisory: the hold insert at checkout decides. The day's slots by court, in keyset pages.
          */
         get: operations["searchRentalAvailability"];
         put?: never;
@@ -17480,6 +17611,48 @@ export interface components {
              */
             status: "connected" | "simulated" | "not_configured";
         };
+        /**
+         * AgeConfirmation
+         * @description Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken.
+         */
+        AgeConfirmation: {
+            /** Birth On */
+            birth_on?: string | null;
+        };
+        /**
+         * AgeConfirmationBatch
+         * @description Staff already know these people (IDs seen at the desk). The note says why; it is kept flag-only.
+         */
+        AgeConfirmationBatch: {
+            /** Client Ids */
+            client_ids: string[];
+            /** Note */
+            note: string;
+        };
+        /** AgeConfirmationBatchOut */
+        AgeConfirmationBatchOut: {
+            /** Client Ids */
+            client_ids: string[];
+            /** Confirmed Count */
+            confirmed_count: number;
+            /** Skipped */
+            skipped: components["schemas"]["AgeConfirmationSkip"][];
+            /** Skipped Client Ids */
+            skipped_client_ids: string[];
+        };
+        /** AgeConfirmationSkip */
+        AgeConfirmationSkip: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "not-found" | "minor" | "no-birth-date";
+        };
         /** AgeGroupOut */
         AgeGroupOut: {
             /**
@@ -17510,6 +17683,37 @@ export interface components {
             name?: string | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /**
+         * AgeReviewItem
+         * @description One client in the staff age-check queue. birth_on is null without clients.client.read_sensitive.
+         */
+        AgeReviewItem: {
+            /** Birth On */
+            birth_on: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created Via */
+            created_via: string;
+            /** Earliest Booking At */
+            earliest_booking_at: string | null;
+            /** First Name */
+            first_name: string;
+            /**
+             * Home Location Id
+             * Format: uuid
+             */
+            home_location_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Name */
+            last_name: string;
         };
         /** AgeingReport */
         AgeingReport: {
@@ -17707,13 +17911,6 @@ export interface components {
             allocations?: components["schemas"]["AllocationIn"][] | null;
             /** Invoice Id */
             invoice_id?: string | null;
-        };
-        /** AnalyticsConfigOut */
-        AnalyticsConfigOut: {
-            /** Linked Domains */
-            linked_domains: string[];
-            /** Measurement Id */
-            measurement_id: string;
         };
         /** ApiKeyCreate */
         ApiKeyCreate: {
@@ -19239,6 +19436,8 @@ export interface components {
             home_name: string | null;
             /** Home Score */
             home_score: number | null;
+            /** Set Scores */
+            set_scores?: string | null;
             /** Starts At */
             starts_at: string | null;
             /** Status */
@@ -21850,6 +22049,20 @@ export interface components {
             address_line1: string | null;
             /** Address Line2 */
             address_line2: string | null;
+            /**
+             * Age Confirmation Reset
+             * @default false
+             */
+            age_confirmation_reset: boolean;
+            /**
+             * Age Confirmed
+             * @default false
+             */
+            age_confirmed: boolean;
+            /** Age Confirmed At */
+            age_confirmed_at?: string | null;
+            /** Age Confirmed By Staff User Id */
+            age_confirmed_by_staff_user_id?: string | null;
             /** Birth On */
             birth_on: string | null;
             /** City */
@@ -21900,6 +22113,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Birth On Unverified
+             * @default false
+             */
+            is_birth_on_unverified: boolean;
             /**
              * Is Sensitive Masked
              * @default false
@@ -22001,6 +22219,8 @@ export interface components {
             client_category_id?: string | null;
             /** Comments */
             comments?: string | null;
+            /** Confirm Age */
+            confirm_age?: boolean | null;
             /** Country Code */
             country_code?: string | null;
             /** Custom Values */
@@ -22234,6 +22454,8 @@ export interface components {
             age_group_id?: string | null;
             /** Color */
             color?: string | null;
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /** Division Label */
             division_label?: string | null;
             /** Ends On */
@@ -22292,8 +22514,18 @@ export interface components {
             revenue_category_id?: string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
             /** Season Id */
             season_id?: string | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Show Players */
             show_players?: boolean | null;
             /**
@@ -22328,6 +22560,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Deciding Set Points To */
+            deciding_set_points_to: number | null;
             /** Division Label */
             division_label: string | null;
             /** Ends On */
@@ -22386,8 +22620,18 @@ export interface components {
             revenue_category_id: string | null;
             /** Rules Text */
             rules_text: string | null;
+            /** Scoring Mode */
+            scoring_mode: string;
             /** Season Id */
             season_id: string | null;
+            /** Set Cap */
+            set_cap: number | null;
+            /** Set Points To */
+            set_points_to: number | null;
+            /** Set Win By */
+            set_win_by: number;
+            /** Sets Best Of */
+            sets_best_of: number | null;
             /** Show Players */
             show_players: boolean;
             /** Shows Roster Publicly */
@@ -22516,6 +22760,8 @@ export interface components {
             age_group_id?: string | null;
             /** Color */
             color?: string | null;
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /** Division Label */
             division_label?: string | null;
             /** Ends On */
@@ -22560,8 +22806,18 @@ export interface components {
             revenue_category_id?: string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
             /** Season Id */
             season_id?: string | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Show Players */
             show_players?: boolean | null;
             /** Standings Columns */
@@ -25326,6 +25582,8 @@ export interface components {
             end_day_offset: number;
             /** End Time */
             end_time: string;
+            /** Minor Override Reason */
+            minor_override_reason?: string | null;
             /**
              * On Conflict
              * @default abort
@@ -25364,7 +25622,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "accounting_file" | "quickbooks_online" | "zoom" | "google_analytics";
+            provider: "accounting_file" | "quickbooks_online" | "zoom";
             /**
              * Return Url
              * @description QuickBooks: where the browser lands after authorising
@@ -25372,7 +25630,7 @@ export interface components {
             return_url?: string | null;
             /**
              * Settings
-             * @description Accounting: `account_map` (posting key -> account) and `default_income_account`. Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)
+             * @description Accounting: `account_map` (posting key -> account) and `default_income_account`
              */
             settings?: {
                 [key: string]: string | {
@@ -26076,6 +26334,10 @@ export interface components {
             round_no: number | null;
             /** Schedule Run Id */
             schedule_run_id: string | null;
+            /** Set Scores */
+            set_scores?: string | null;
+            /** Sets Best Of */
+            sets_best_of?: number | null;
             /** Sport Id */
             sport_id?: string | null;
             /** Starts At */
@@ -26144,6 +26406,8 @@ export interface components {
             participation: "full" | "default" | "forfeit";
             /** Score */
             score?: number | null;
+            /** Sets */
+            sets?: number[] | null;
             /** Sportsmanship */
             sportsmanship?: number | string | null;
             /**
@@ -26167,6 +26431,11 @@ export interface components {
             participation: string;
             /** Score */
             score: number | null;
+            /**
+             * Sets
+             * @default []
+             */
+            sets: number[];
             /** Sportsmanship */
             sportsmanship: string | null;
             /** Went To Overtime */
@@ -26255,6 +26524,11 @@ export interface components {
         };
         /** GuestCheckoutCreate */
         GuestCheckoutCreate: {
+            /**
+             * Birth On Declared
+             * @constant
+             */
+            birth_on_declared: true;
             /** Items */
             items: components["schemas"]["GuestItem"][];
             /**
@@ -27087,6 +27361,25 @@ export interface components {
             /** Passcode */
             passcode: string | null;
         };
+        /**
+         * KioskAttendanceCreate
+         * @description Book a session from the reservation page. Only `session` is built: places already booked and bookings are
+         *     marked by the check-in itself.
+         */
+        KioskAttendanceCreate: {
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Type
+             * @constant
+             */
+            target_type: "session";
+            /** Visit Token */
+            visit_token: string;
+        };
         /** KioskAttendedOut */
         KioskAttendedOut: {
             /** Session Id */
@@ -27105,6 +27398,8 @@ export interface components {
         KioskCheckInResult: {
             /** Attended */
             attended: components["schemas"]["KioskAttendedOut"][];
+            /** Attended Count */
+            attended_count: number;
             /**
              * Check In Id
              * Format: uuid
@@ -27114,11 +27409,15 @@ export interface components {
             displayed_alert_codes: string[];
             /** First Name */
             first_name: string;
+            /** Sessions */
+            sessions: components["schemas"]["KioskSession"][];
             /**
              * Status
              * @enum {string}
              */
             status: "admitted" | "see_staff";
+            /** Visit Token */
+            visit_token?: string | null;
             /** Welcome Message */
             welcome_message: string | null;
         };
@@ -27225,6 +27524,40 @@ export interface components {
             /** Pairing Code */
             pairing_code: string;
         };
+        /**
+         * KioskSession
+         * @description A session on the kiosk reservation page: title and times only, never prices or plan names. Unless the visit
+         *     was identified by possession, the page is the same for every visitor: `is_booked` is false and `is_bookable`
+         *     reflects public facts only; the visitor's standing is judged when a booking is attempted (409 see-staff).
+         */
+        KioskSession: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Bookable */
+            is_bookable: boolean;
+            /** Is Booked */
+            is_booked: boolean;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Type
+             * @constant
+             */
+            target_type: "session";
+            /** Title */
+            title: string;
+        };
         /** KioskSettingsOut */
         KioskSettingsOut: {
             /** Confirmation Timeout Seconds */
@@ -27235,6 +27568,10 @@ export interface components {
             early_window_minutes: number;
             /** Has Exit Pin */
             has_exit_pin: boolean;
+            /** Is Auto Book */
+            is_auto_book: boolean;
+            /** Is Name Search Booking Allowed */
+            is_name_search_booking_allowed: boolean;
             /** Late Window Minutes */
             late_window_minutes: number;
             /**
@@ -27244,6 +27581,10 @@ export interface components {
             location_id: string;
             /** Lookup Method */
             lookup_method: string;
+            /** Reservation Timeout Seconds */
+            reservation_timeout_seconds: number;
+            /** Visible Range Minutes */
+            visible_range_minutes: number;
             /** Welcome Message */
             welcome_message: string | null;
         };
@@ -27257,12 +27598,28 @@ export interface components {
             early_window_minutes?: number | null;
             /** Exit Pin */
             exit_pin?: string | null;
+            /** Is Auto Book */
+            is_auto_book?: boolean | null;
+            /** Is Name Search Booking Allowed */
+            is_name_search_booking_allowed?: boolean | null;
             /** Late Window Minutes */
             late_window_minutes?: number | null;
             /** Lookup Method */
             lookup_method?: ("name" | "membership_number" | "both") | null;
+            /** Reservation Timeout Seconds */
+            reservation_timeout_seconds?: number | null;
+            /** Visible Range Minutes */
+            visible_range_minutes?: number | null;
             /** Welcome Message */
             welcome_message?: string | null;
+        };
+        /** KioskVisitEnd */
+        KioskVisitEnd: {
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
         };
         /** LadderChallengeCreate */
         LadderChallengeCreate: {
@@ -27394,6 +27751,50 @@ export interface components {
             summary?: string | null;
             /** Title */
             title?: string | null;
+        };
+        /** LeagueNightIn */
+        LeagueNightIn: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Notes */
+            notes?: string | null;
+            /** Resource Ids */
+            resource_ids: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** LeagueNightOut */
+        LeagueNightOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string;
         };
         /** LeaguePhotoOut */
         LeaguePhotoOut: {
@@ -27746,6 +28147,16 @@ export interface components {
             points: string;
             /** Rank */
             rank: number;
+            /**
+             * Set Points Against
+             * @default 0
+             */
+            set_points_against: number;
+            /**
+             * Set Points For
+             * @default 0
+             */
+            set_points_for: number;
             /** Sportsmanship Avg */
             sportsmanship_avg: string | null;
             /** Team Name */
@@ -30808,6 +31219,12 @@ export interface components {
             data: components["schemas"]["AgeGroupOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[AgeReviewItem] */
+        Page_AgeReviewItem_: {
+            /** Data */
+            data: components["schemas"]["AgeReviewItem"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ApiKeyOut] */
         Page_ApiKeyOut_: {
             /** Data */
@@ -31424,6 +31841,12 @@ export interface components {
         Page_PortalRentalPlanPurchaseOut_: {
             /** Data */
             data: components["schemas"]["PortalRentalPlanPurchaseOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalRentalSlot] */
+        Page_PortalRentalSlot_: {
+            /** Data */
+            data: components["schemas"]["PortalRentalSlot"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalVideo] */
@@ -33039,6 +33462,8 @@ export interface components {
             address_line1?: string | null;
             /** Address Line2 */
             address_line2?: string | null;
+            /** Age Confirmed */
+            age_confirmed?: boolean | null;
             /**
              * Authority
              * @enum {string}
@@ -33059,6 +33484,8 @@ export interface components {
             custom_values: {
                 [key: string]: unknown;
             };
+            /** Entry Code Notice */
+            entry_code_notice?: string | null;
             /** First Name */
             first_name: string;
             /** Gender */
@@ -33068,6 +33495,13 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Is Adult */
+            is_adult?: boolean | null;
+            /**
+             * Is My Ward
+             * @default false
+             */
+            is_my_ward: boolean;
             /** Last Name */
             last_name: string;
             /** Member Number */
@@ -33353,8 +33787,16 @@ export interface components {
         };
         /** PortalDependentCreate */
         PortalDependentCreate: {
-            /** Birth On */
-            birth_on?: string | null;
+            /**
+             * Birth On
+             * Format: date
+             */
+            birth_on: string;
+            /**
+             * Birth On Declared
+             * @constant
+             */
+            birth_on_declared: true;
             /** Email */
             email?: string | null;
             /** First Name */
@@ -34464,6 +34906,8 @@ export interface components {
         PortalRentalCheckout: {
             /** Amount Due Minor */
             amount_due_minor: number;
+            /** Entry Code Notice */
+            entry_code_notice?: string | null;
             /** Expires At */
             expires_at: string | null;
             /** Invoice Id */
@@ -34504,6 +34948,11 @@ export interface components {
              * Format: date-time
              */
             ends_at: string;
+            /**
+             * Player Client Ids
+             * @default []
+             */
+            player_client_ids: string[];
             /** Rental Plan Purchase Id */
             rental_plan_purchase_id?: string | null;
             /**
@@ -34683,6 +35132,33 @@ export interface components {
             resource_id: string;
             /** Role */
             role: string;
+        };
+        /**
+         * PortalRentalSlot
+         * @description An open time priced for the signed-in client (portal schema, never the public one).
+         */
+        PortalRentalSlot: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Member Price */
+            is_member_price: boolean;
+            /** Price Minor */
+            price_minor: number;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /** PortalRosterEntryCreate */
         PortalRosterEntryCreate: {
@@ -34928,8 +35404,16 @@ export interface components {
          * @description Public self-registration (SSP-05). The answer is the same whether or not the address is known.
          */
         PortalSignupIn: {
-            /** Birth On */
-            birth_on?: string | null;
+            /**
+             * Birth On
+             * Format: date
+             */
+            birth_on: string;
+            /**
+             * Birth On Declared
+             * @constant
+             */
+            birth_on_declared: true;
             /** Email */
             email: string;
             /** First Name */
@@ -37078,6 +37562,8 @@ export interface components {
             round_name: string;
             /** Round No */
             round_no: number;
+            /** Set Scores */
+            set_scores?: string | null;
             /** Side */
             side: string;
             /** Starts At */
@@ -37166,6 +37652,11 @@ export interface components {
             registration_url: string | null;
             /** Rules Text */
             rules_text: string | null;
+            /**
+             * Scoring Mode
+             * @default points
+             */
+            scoring_mode: string;
             /** Season Id */
             season_id: string | null;
             /** Show Players */
@@ -37443,6 +37934,8 @@ export interface components {
             id: string;
             /** Round Label */
             round_label: string | null;
+            /** Set Scores */
+            set_scores?: string | null;
             /** Starts At */
             starts_at: string | null;
             /** Status */
@@ -38872,6 +39365,8 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Minor Override Reason */
+            minor_override_reason?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -38908,6 +39403,11 @@ export interface components {
         };
         /** RentalCreated */
         RentalCreated: {
+            /**
+             * Birth On Unknown
+             * @default []
+             */
+            birth_on_unknown: string[];
             /** Booking Series Id */
             booking_series_id: string | null;
             /** Conflict Count */
@@ -38979,6 +39479,8 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Minor Override Reason */
+            minor_override_reason?: string | null;
             /** Parties */
             parties: components["schemas"]["PartyOut"][];
             /**
@@ -39044,6 +39546,8 @@ export interface components {
             price_minor: number;
             /** Quantity */
             quantity?: number | string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days?: number | null;
             /**
              * Rental Type Id
              * Format: uuid
@@ -39130,6 +39634,8 @@ export interface components {
             price_minor: number;
             /** Quantity */
             quantity: string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days: number;
             /**
              * Rental Type Id
              * Format: uuid
@@ -39188,6 +39694,8 @@ export interface components {
             price_minor?: number | null;
             /** Quantity */
             quantity?: number | string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days?: number | null;
             /** Rental Type Id */
             rental_type_id?: string | null;
             /** Revenue Category Id */
@@ -39234,6 +39742,11 @@ export interface components {
         };
         /** RentalPreview */
         RentalPreview: {
+            /**
+             * Birth On Unknown
+             * @default []
+             */
+            birth_on_unknown: string[];
             /** Conflict Count */
             conflict_count: number;
             /** Occurrences */
@@ -41618,6 +42131,8 @@ export interface components {
         };
         /** SportCreate */
         SportCreate: {
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /**
              * Default Game Length Min
              * @default 60
@@ -41652,6 +42167,16 @@ export interface components {
             points_win?: number | string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Standings Columns */
             standings_columns?: components["schemas"]["StandingsColumn"][] | null;
             /** Standings Sort */
@@ -41661,6 +42186,8 @@ export interface components {
         };
         /** SportOut */
         SportOut: {
+            /** Deciding Set Points To */
+            deciding_set_points_to: number | null;
             /** Default Game Length Min */
             default_game_length_min: number;
             /** Default Team Fee Minor */
@@ -41694,6 +42221,16 @@ export interface components {
             points_win: string;
             /** Rules Text */
             rules_text: string | null;
+            /** Scoring Mode */
+            scoring_mode: string;
+            /** Set Cap */
+            set_cap: number | null;
+            /** Set Points To */
+            set_points_to: number | null;
+            /** Set Win By */
+            set_win_by: number;
+            /** Sets Best Of */
+            sets_best_of: number | null;
             /** Standings Columns */
             standings_columns: {
                 [key: string]: unknown;
@@ -41707,6 +42244,8 @@ export interface components {
         };
         /** SportUpdate */
         SportUpdate: {
+            /** Deciding Set Points To */
+            deciding_set_points_to?: number | null;
             /** Default Game Length Min */
             default_game_length_min?: number | null;
             /** Default Team Fee Minor */
@@ -41735,6 +42274,16 @@ export interface components {
             points_win?: number | string | null;
             /** Rules Text */
             rules_text?: string | null;
+            /** Scoring Mode */
+            scoring_mode?: ("points" | "sets") | null;
+            /** Set Cap */
+            set_cap?: number | null;
+            /** Set Points To */
+            set_points_to?: number | null;
+            /** Set Win By */
+            set_win_by?: number | null;
+            /** Sets Best Of */
+            sets_best_of?: (1 | 3 | 5) | null;
             /** Standings Columns */
             standings_columns?: components["schemas"]["StandingsColumn"][] | null;
             /** Standings Sort */
@@ -42159,7 +42708,7 @@ export interface components {
              * Metric
              * @enum {string}
              */
-            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H" | "SW" | "SL" | "SR" | "PR";
         };
         /** StandingsSort */
         StandingsSort: {
@@ -42173,7 +42722,7 @@ export interface components {
              * Metric
              * @enum {string}
              */
-            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H" | "SW" | "SL" | "SR" | "PR";
         };
         /** StatDefinitionCreate */
         StatDefinitionCreate: {
@@ -50284,6 +50833,85 @@ export interface operations {
             };
         };
     };
+    listClientAgeReviews: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AgeReviewItem_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmClientAges: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgeConfirmationBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeConfirmationBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     updateClientAlert: {
         parameters: {
             query?: never;
@@ -52536,6 +53164,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RefundOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmClientAge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgeConfirmation"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
                 };
             };
             /** @description Validation Error */
@@ -55037,6 +55703,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    blockLeagueNight: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueNightIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueNightOut"];
                 };
             };
             /** @description Validation Error */
@@ -61481,6 +62185,43 @@ export interface operations {
             };
         };
     };
+    createKioskAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskAttendanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskCheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getKioskConfig: {
         parameters: {
             query?: never;
@@ -61586,6 +62327,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["KioskConfig"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    endKioskVisit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskVisitEnd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -71764,6 +72536,49 @@ export interface operations {
             };
         };
     };
+    searchPortalRentalAvailability: {
+        parameters: {
+            query: {
+                client_id: string;
+                rental_type_id: string;
+                on: string;
+                length_min?: number | null;
+                resource_id?: string | null;
+                from_time?: string | null;
+                to_time?: string | null;
+                limit?: number;
+                cursor?: string | null;
+                player_client_ids?: string[] | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalRentalSlot_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalRentalPlanPurchases: {
         parameters: {
             query?: {
@@ -75875,26 +76690,6 @@ export interface operations {
             };
         };
     };
-    getPublicAnalyticsConfig: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AnalyticsConfigOut"];
-                };
-            };
-        };
-    };
     getPublicAppConfig: {
         parameters: {
             query?: never;
@@ -77476,7 +78271,10 @@ export interface operations {
                 on: string;
                 length_min?: number | null;
                 resource_id?: string | null;
+                from_time?: string | null;
+                to_time?: string | null;
                 limit?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;

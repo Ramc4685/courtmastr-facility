@@ -52,8 +52,9 @@ info:
        `is_dry_run` previews. Rejected: synchronous bulk endpoints (timeouts, no partial-failure story).
     8. A denied check-in is `201` with `result: denied`, not a 4xx: it is a logged fact (CHK-01). 4xx is kept for
        malformed or unauthorised requests. Kiosk responses collapse the reason to `admitted | see_staff`.
-    9. Kiosk lookup returns an opaque short-lived `match_token`, never a client id, and records whether the client
-       was identified by possession (scan) or by name; purchases require possession (rbac 10).
+    9. Kiosk lookup returns an opaque short-lived `match_token`, never a client id; a lookup is typed, so it is never
+       identification by possession. Only a verified app-card QR or an active wallet pass is, decided from the
+       value alone; a static card, fob or member number is not, however it arrives (rbac 10).
     10. POS cart is server-side (`pos_sale` draft) so totals, tax and discounts have one implementation and a
         handed-over tablet resumes. Rejected: client-side cart posted whole (duplicates rounding rules in TS).
     11. Split tender: each `POST /pos-sales/{id}/tenders` captures one leg; `complete` requires legs to equal the
@@ -4325,7 +4326,7 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskLookupRequest'}}}
-      x-problem-codes: [validation-failed, rate-limited, lookup-method-disabled]
+      x-problem-codes: [validation-failed, rate-limited, lookup-method-disabled, kiosk-locked-out]
       responses:
         '200':
           description: OK.
@@ -4352,7 +4353,8 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskCheckInCreate'}}}
       x-problem-codes: [validation-failed, request-in-progress, idempotency-key-reused, rate-limited, match-token-expired,
-        second-factor-failed, card-invalid]
+        second-factor-failed, card-invalid, card-code-expired, response-not-stored, kiosk-locked-out,
+        lookup-method-disabled]
       responses:
         '201':
           description: Created.
@@ -4380,7 +4382,7 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskAttendanceCreate'}}}
       x-problem-codes: [not-found, validation-failed, request-in-progress, idempotency-key-reused, rate-limited, outside-check-in-window,
-        capacity-full, no-entitlement]
+        capacity-full, no-entitlement, already-enrolled, policy-violation, see-staff, response-not-stored]
       responses:
         '200':
           description: OK.
@@ -4390,6 +4392,25 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
         '429': {$ref: '#/components/responses/RateLimited'}
+  /kiosk/visits/end:
+    post:
+      operationId: endKioskVisit
+      tags: [access]
+      summary: The kiosk returned to its start screen; that visit's tokens stop working
+      x-priority: P0
+      x-permission: kiosk-device
+      x-features: [CHK-05]
+      security:
+      - {kioskDevice: []}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/KioskVisitEnd'}
+      responses:
+        '204': {description: Ended.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
   /kiosk/exit:
     post:
       operationId: exitKiosk
@@ -4889,7 +4910,8 @@ paths:
       operationId: createKioskPackagePurchase
       tags: [access]
       summary: Buy a package at the kiosk (possession-identified sessions only)
-      description: The setting is P0 and stored; the purchase flow belongs to packages and is scheduled with it. When
+      description: Not built (a first version was dropped in review, 2026-11-13; the access README lists what a future
+        version needs, and the settings below are not stored yet). When
         specified it takes a kiosk-only body (additionalProperties false; plan id and provider token only, never the staff
         ClientPackageSell), and the buyer and payer are the client identified in the kiosk session, never a body field.
       x-priority: P1
@@ -7774,6 +7796,7 @@ components:
         late_window_minutes: {type: integer}
         is_auto_book: {type: boolean}
         is_package_purchase_enabled: {type: boolean}
+        is_name_search_booking_allowed: {type: boolean, description: 'A visit found by name may book free sessions; off, nothing.'}
         is_client_photo_shown: {type: boolean}
         default_view: {type: string, enum: [card, row]}
         welcome_message: {type: [string, 'null']}
@@ -7791,6 +7814,7 @@ components:
         late_window_minutes: {type: integer}
         is_auto_book: {type: boolean}
         is_package_purchase_enabled: {type: boolean}
+        is_name_search_booking_allowed: {type: boolean}
         is_client_photo_shown: {type: boolean}
         default_view: {type: string, enum: [card, row]}
         welcome_message: {type: [string, 'null']}
@@ -7852,7 +7876,7 @@ components:
         last_name_prefix: {type: string}
     KioskMatch:
       type: object
-      description: '`match_token` is opaque, expires in 2 minutes and encodes how the client was identified.'
+      description: '`match_token` is opaque, expires in 2 minutes; a check-in from it is identified by name (`name_search`).'
       required: [match_token, first_name, last_initial, needs_second_factor]
       properties:
         match_token: {type: string}
@@ -7874,8 +7898,11 @@ components:
         value: {type: string}
     KioskCheckInCreate:
       type: object
-      description: '`card_payload` is a signed app-card QR, possibly verified offline and queued; `scanned_at` is then the
-        kiosk clock, and the server re-evaluates.'
+      description: '`card_payload` is a value the kiosk read. Only a verified app-card QR or an active wallet-pass
+        token is identification by possession, decided from the value alone; a card, fob or member number checks in
+        like a name, and so does a `match_token`. Five unknown values within five minutes (here or in a lookup) lock
+        value reads on the device for five minutes, 429 `kiosk-locked-out`. A queued offline scan carries `scanned_at`
+        (the kiosk clock), and the server re-evaluates.'
       properties:
         match_token: {type: string}
         card_payload: {type: string}
@@ -7891,26 +7918,36 @@ components:
         starts_at: {type: string, format: date-time}
         ends_at: {type: string, format: date-time}
         resource_name: {type: [string, 'null']}
-        is_booked: {type: boolean}
-        is_bookable: {type: boolean}
+        is_booked: {type: boolean, description: 'The visitor holds a place. Always false unless the visit was identified by possession (a verified app QR or wallet pass).'}
+        is_bookable: {type: boolean, description: 'Identified by possession: the visitor may book it now. Otherwise public facts only (open to kiosk booking, free booking, cutoff, capacity), the same for every visitor at the location; membership, payment standing and places held are judged when a booking is attempted, and any refusal is 409 see-staff.'}
     KioskCheckInResult:
       type: object
       description: Never carries amounts, reasons or plan names (security-baseline 10).
-      required: [check_in_id, status, first_name, displayed_alert_codes, sessions, attended]
+      required: [check_in_id, status, first_name, displayed_alert_codes, sessions, attended, attended_count]
       properties:
         check_in_id: {type: string, format: uuid}
         status: {type: string, enum: [admitted, see_staff]}
         first_name: {type: string}
-        displayed_alert_codes: {type: array, items: {type: string}}
+        displayed_alert_codes: {type: array, items: {type: string}, description: 'Empty unless the visit was identified by possession (a verified app QR or wallet pass).'}
         sessions: {type: array, items: {$ref: '#/components/schemas/KioskSession'}}
-        attended: {type: array, items: {$ref: '#/components/schemas/CheckInAttendance'}}
+        attended: {type: array, items: {$ref: '#/components/schemas/CheckInAttendance'}, description: 'The places marked present; empty unless the visit was identified by possession.'}
+        attended_count: {type: integer, description: 'How many places the check-in marked present, for every visit.'}
+        visit_token: {type: [string, 'null'], description: 'Single use; the next action on this visit spends it. Null when seeing staff.'}
     KioskAttendanceCreate:
       type: object
-      description: '`session` books the client into an open session against an existing entitlement, then marks attendance.'
-      required: [target_type, target_id]
+      description: '`session` books the client into an open session against an existing entitlement, then marks attendance.
+        A visit found by name books free sessions only (owner decisions 2026-11-13).'
+      required: [target_type, target_id, visit_token]
       properties:
-        target_type: {type: string, enum: [enrollment, booking, session]}
+        target_type: {type: string, enum: [session]}
         target_id: {type: string, format: uuid}
+        visit_token: {type: string, maxLength: 64}
+    KioskVisitEnd:
+      type: object
+      description: Names the visit to end, so a late call from an old screen cannot end a newer visit.
+      required: [check_in_id]
+      properties:
+        check_in_id: {type: string, format: uuid}
     KioskExitRequest:
       type: object
       required: [staff_pin]

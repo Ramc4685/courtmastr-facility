@@ -78,7 +78,7 @@ def test_signer_role_is_derived_not_chosen(client, tenant, owner, location_id, m
     portal = login(client, tenant, parent["primary_email"], audience="client")
     kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json={
         "relationship_type_id": types["parent_of"]["id"], "first_name": "Kit", "last_name": "Pat",
-        "birth_on": born(8)}), 201)  # fmt: skip
+        "birth_on": born(8), "birth_on_declared": True}), 201)  # fmt: skip
     doc = issue(client, owner, kid, location_id, tpl["id"])
     url = f"{API}/portal/client-documents/{doc['id']}/acceptances?client_id={kid['id']}"
     as_client = {"content_sha256": doc["content_sha256"], "signers": [signer("client")]}

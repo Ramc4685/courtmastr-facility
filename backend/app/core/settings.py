@@ -4,10 +4,11 @@ import os
 from functools import cache
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import yaml
 from pydantic import BaseModel
+from sqlalchemy.engine import URL, make_url
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -34,10 +35,13 @@ class Db(BaseModel):
     port: int
     name: str
     pool_size: int = 10
+    # libpq sslmode; FH_DB_SSLMODE overrides. Outside dev and test it must be require, verify-ca or verify-full
+    # (security-baseline V9 wants verify-full; the CA file comes from libpq's own PGSSLROOTCERT).
+    sslmode: str | None = None
 
 
 class Redis(BaseModel):
-    url: str
+    url: str  # FH_REDIS_URL overrides (it may carry a password); outside dev and test it must be rediss://
 
 
 class Email(BaseModel):
@@ -147,6 +151,10 @@ class Retention(BaseModel):
     gdpr_auth_token_days: int = 7
     tenant_export_days: int = 7  # a tenant export bundle stays downloadable this long (IMP-04)
     support_screenshot_days: int = 1  # a screenshot never attached to a support request (ONB-03)
+    message_body_days: int = 90  # message.body_text is nulled after this; the row and its counts stay (2.3)
+    # A processed or ignored inbound provider event keeps its row (deduplication) but its payload, which may hold
+    # provider PII, is emptied after this (ADR 0007 section 9: 90 days; the baseline names no period).
+    inbound_payload_days: int = 90
 
 
 class S3(BaseModel):
@@ -217,8 +225,7 @@ class Settings(BaseModel):
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
-        password = os.environ[f"FH_DB_{role.upper()}_PASSWORD"]
-        return f"postgresql+psycopg://fh_{role}:{password}@{self.db.host}:{self.db.port}/{self.db.name}"
+        return _postgres_url(self.db, f"fh_{role}", os.environ[f"FH_DB_{role.upper()}_PASSWORD"])
 
     @property
     def operator_token(self) -> str:
@@ -247,6 +254,46 @@ def _refuse_example_secrets() -> None:
         )
 
 
+_TLS_SSLMODES = ("require", "verify-ca", "verify-full")
+# The local container stack (infra/docker/compose.stack.yml): every production guard, but its Postgres and Redis
+# certificates are self-signed, so encryption without verification is accepted there and nowhere else.
+STACK_ENV = "stack"
+
+
+def _redis_unverified(url: str) -> bool:
+    """True when the URL's query weakens verification, read the way redis-py reads it (decoded, fragment dropped)
+    and case-folded: ssl_cert_reqs may only say required, ssl_check_hostname only a true value (both default safe)."""
+    for key, values in parse_qs(urlsplit(url).query, keep_blank_values=True).items():
+        key = key.casefold()
+        if key == "ssl_cert_reqs" and any(v.casefold() != "required" for v in values):
+            return True
+        if key == "ssl_check_hostname" and any(v.casefold() not in ("true", "t", "yes", "y", "1") for v in values):
+            return True
+    return False
+
+
+def _postgres_url(db: Db, user: str, password: str) -> str:
+    query = {"sslmode": db.sslmode} if db.sslmode else {}
+    url = URL.create("postgresql+psycopg", user, password, db.host, db.port, db.name, query)
+    return url.render_as_string(hide_password=False)  # URL.create escapes every part
+
+
+def _refuse_plaintext_backends(settings: "Settings") -> None:
+    """security-baseline V9: names, emails and session data cross the network to Postgres and Redis, encrypted
+    and to a verified server (Postgres verify-full with PGSSLROOTCERT; Redis with its CA in ssl_ca_certs)."""
+    # Checked on the URL the engine will parse, so nothing in the name, user or host can add a second sslmode.
+    sslmode = make_url(_postgres_url(settings.db, "fh_app", "")).query.get("sslmode")
+    if settings.env == STACK_ENV:
+        if sslmode not in _TLS_SSLMODES:
+            raise RuntimeError("in the stack, db.sslmode (or FH_DB_SSLMODE) must be require or stricter")
+    elif sslmode != "verify-full":
+        raise RuntimeError("outside dev and test, db.sslmode (or FH_DB_SSLMODE) must be verify-full (PGSSLROOTCERT)")
+    if urlsplit(settings.redis.url).scheme.casefold() != "rediss":
+        raise RuntimeError("outside dev and test, the Redis URL (FH_REDIS_URL) must use TLS: rediss://")
+    if settings.env != STACK_ENV and _redis_unverified(settings.redis.url):
+        raise RuntimeError("outside dev and test, the Redis URL must verify the server's certificate and host name")
+
+
 def _merge(base: dict, over: dict) -> dict:
     for key, value in over.items():
         base[key] = _merge(base[key], value) if isinstance(value, dict) and key in base else value
@@ -263,9 +310,14 @@ def _load_dotenv(path: Path) -> None:
 
 def _lane_overrides(data: dict, env: str) -> None:
     """Parallel checkouts (lanes) share one Postgres and one machine: each gets its own databases and ports
-    through FH_DB_NAME, FH_TEST_DB_NAME, FH_API_PORT and FH_WEB_PORT. Unset means the config file value."""
+    through FH_DB_NAME, FH_TEST_DB_NAME, FH_API_PORT and FH_WEB_PORT. FH_DB_SSLMODE and FH_REDIS_URL (backend TLS,
+    the URL may carry a password) ride the same path. Unset means the config file value."""
     if name := os.environ.get("FH_TEST_DB_NAME" if env == "test" else "FH_DB_NAME"):
         data["db"]["name"] = name
+    if sslmode := os.environ.get("FH_DB_SSLMODE"):
+        data["db"]["sslmode"] = sslmode
+    if redis_url := os.environ.get("FH_REDIS_URL"):
+        data["redis"]["url"] = redis_url
     if port := os.environ.get("FH_API_PORT"):
         data["api"]["port"] = int(port)
     if port := os.environ.get("FH_WEB_PORT"):
@@ -307,6 +359,7 @@ def get_settings() -> Settings:
                            "api.exposed_directly: true if no proxy stands in front of the API")  # fmt: skip
     if env not in ("dev", "test"):
         _refuse_example_secrets()
+        _refuse_plaintext_backends(settings)
     if env not in ("dev", "test") and settings.storage.scanner == "noop":
         raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     if env not in ("dev", "test") and settings.building_control.adapter == "simulated":

@@ -174,6 +174,10 @@ class KioskSettingsOut(Out):
     welcome_message: str | None
     displayed_alert_codes: list[str]
     confirmation_timeout_seconds: int
+    visible_range_minutes: int
+    is_auto_book: bool
+    reservation_timeout_seconds: int
+    is_name_search_booking_allowed: bool
     has_exit_pin: bool
 
 
@@ -184,7 +188,15 @@ class KioskSettingsWrite(In):
     welcome_message: Annotated[str, StringConstraints(max_length=500)] | None = None
     displayed_alert_codes: list[Code] | None = None
     confirmation_timeout_seconds: int | None = Field(None, ge=3, le=300)
+    visible_range_minutes: int | None = Field(None, ge=0, le=1440)
+    is_auto_book: bool | None = None
+    reservation_timeout_seconds: int | None = Field(None, ge=3, le=300)
+    is_name_search_booking_allowed: bool | None = None
     exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
+
+
+class KioskVisitEnd(In):
+    check_in_id: UUID  # only this visit ends, so a late call from an old screen cannot end a newer one
 
 
 class KioskExitRequest(In):
@@ -456,13 +468,39 @@ class KioskAttendedOut(Out):
     session_id: UUID | None
 
 
+class KioskSession(Out):
+    """A session on the kiosk reservation page: title and times only, never prices or plan names. Unless the visit
+    was identified by possession, the page is the same for every visitor: `is_booked` is false and `is_bookable`
+    reflects public facts only; the visitor's standing is judged when a booking is attempted (409 see-staff)."""
+
+    target_type: Literal["session"]
+    target_id: UUID
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    is_booked: bool
+    is_bookable: bool
+
+
 class KioskCheckInResult(Out):
     check_in_id: UUID
     status: Literal["admitted", "see_staff"]
     first_name: str
-    displayed_alert_codes: list[str]
-    attended: list[KioskAttendedOut]
+    displayed_alert_codes: list[str]  # empty unless the visit was identified by possession
+    attended: list[KioskAttendedOut]  # the places marked; empty unless identified by possession
+    attended_count: int  # how many places the check-in marked present, for every visit
     welcome_message: str | None
+    sessions: list[KioskSession]  # the reservation page (CHK-05); empty when the client must see staff
+    visit_token: str | None = None  # single use: the next action on this visit spends it; None when seeing staff
+
+
+class KioskAttendanceCreate(In):
+    """Book a session from the reservation page. Only `session` is built: places already booked and bookings are
+    marked by the check-in itself."""
+
+    target_type: Literal["session"]
+    target_id: UUID
+    visit_token: str = Field(min_length=1, max_length=64)  # from the check-in or the previous booking
 
 
 # --- portal app cards ----------------------------------------------------------------------------------------

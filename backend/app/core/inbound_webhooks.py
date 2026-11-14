@@ -6,16 +6,21 @@ on the global allow-list of overview 3.1. `integrations` owns them once it is bu
 """
 
 import json
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, Index, PrimaryKeyConstraint, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core import clock
 from app.core.db.base import Base
 from app.core.db.platform import platform_engine
 from app.core.ids import new_id
+from app.core.settings import get_settings
+
+log = logging.getLogger("app.inbound_webhooks")
 
 
 class ProviderAccountLookup(Base):
@@ -75,6 +80,11 @@ def record(provider: str, event_id: str, account_ref: str | None, event_type: st
     return None if row_id is None else (row_id, tenant_id)
 
 
+# A failed event is retried by billing's sweep until it has this many attempts, then left `failed` for an
+# operator. Kept here so the purge below never empties an event the sweep would still retry.
+RETRY_ATTEMPTS = 5
+
+
 def finish(row_id: UUID, error: str | None = None) -> None:
     with platform_engine().begin() as conn:
         conn.execute(
@@ -100,6 +110,43 @@ def stale(tenant_id: UUID, before: datetime, max_attempts: int) -> list[UUID]:
                 {"t": tenant_id, "b": before, "m": max_attempts},
             ).scalars()
         )
+
+
+def purge_payloads() -> int:
+    """Retention (security-baseline 2.3): every event last touched more than `retention.inbound_payload_days` ago
+    loses its payload and error text (where personal data sits), whatever its status, attempt count or tenant's
+    state, at most `retention.batch_rows` per call. An unfinished one (received, or failed under the cap) is made
+    terminal in the same statement: `failed` with `attempt_count` at `RETRY_ATTEMPTS`, which `stale()` never
+    returns, so the retry sweep can never pick up an emptied event. Nothing new is written about the event. The row
+    stays so a late redelivery is still a duplicate. Idempotent. Run hourly by the clock (app.scheduler.tick_hour)
+    as fh_platform: the table is global, and ignored events have no tenant."""
+    cfg = get_settings().retention
+    before = clock.now() - timedelta(days=cfg.inbound_payload_days)
+    with platform_engine().begin() as conn:
+        # shortcut: no index covers processed rows by age, so each run scans them; add a partial index on
+        # COALESCE(processed_at, received_at) WHERE payload <> '{}' when this shows up in the slow-query log.
+        unfinished = (
+            conn.execute(
+                text(
+                    "WITH due AS (SELECT id, (status = 'received' OR (status = 'failed' AND attempt_count < :cap)) "
+                    "AS unfinished FROM inbound_webhook_event WHERE "
+                    "(payload <> '{}'::jsonb OR error IS NOT NULL OR status = 'received' "
+                    "OR (status = 'failed' AND attempt_count < :cap)) "
+                    "AND COALESCE(processed_at, received_at) < :before LIMIT :n FOR UPDATE SKIP LOCKED) "
+                    "UPDATE inbound_webhook_event e SET payload = '{}'::jsonb, error = NULL, "
+                    "status = CASE WHEN e.status = 'received' THEN 'failed' ELSE e.status END, "
+                    "attempt_count = CASE WHEN due.unfinished THEN GREATEST(e.attempt_count, :cap) "
+                    "ELSE e.attempt_count END "
+                    "FROM due WHERE e.id = due.id RETURNING due.unfinished"
+                ),
+                {"before": before, "n": cfg.batch_rows, "cap": RETRY_ATTEMPTS},
+            )
+            .scalars()
+            .all()
+        )
+    if made := sum(unfinished):  # never processed: an operator should know these were given up on
+        log.warning("retention made %d unfinished inbound webhook events terminal", made)
+    return len(unfinished)
 
 
 def get(row_id: UUID):
