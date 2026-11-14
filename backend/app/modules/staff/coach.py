@@ -86,7 +86,8 @@ def _refuse_backdated(session: Session, payees, day: date) -> None:
                                  .exists())):  # fmt: skip
             raise ValidationFailed(
                 f"{payee.display_name} already has sessions on or after this date: choose today or a later date.",
-                pointer="/effective_from_on", code="effective-date-has-sessions",
+                pointer="/effective_from_on",
+                code="effective-date-has-sessions",
             )
 
 

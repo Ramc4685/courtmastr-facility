@@ -13,9 +13,9 @@ from app.core import clock
 from app.core.audit import AuditEvent
 from app.core.db.session import tenant_session
 from app.modules.memberships.tests.support import deliver_events, package_plan
+from app.modules.platform.models import StaffUser
 from app.modules.scheduling.tests.helpers import API, DAY, at, book, facility, ok
 from app.modules.staff.domain import share
-from app.modules.platform.models import StaffUser
 from app.modules.staff.models import CoachEarning
 from conftest import add_staff, login, new_client, scalar
 

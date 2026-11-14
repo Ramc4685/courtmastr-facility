@@ -59,4 +59,3 @@ def pick_rule(rules: list, payee_id, reservation_type_id, on: date):
         if found is not None:
             return found
     return None
-
