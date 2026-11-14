@@ -197,8 +197,20 @@ Status per feature: `docs/status/15-reporting.md`.
     played over available minutes summed over the courts and days chosen, and an hour never open is left out.
   - *Gates*: `court_use` shows revenue, so it is in the financial family (`reporting.financial.run`); the heat map
     is attendance. Locations as every report.
-  - *Cost*: a year at four courts (1,460 court-days, 8,760 holds) runs in about 0.8 s by court, 1.4 s by sport and
-    0.8 s for the heat map on a loaded dev laptop; it grows with court-days times holds per day, not with rows.
+  - *Cost* (measured 2026-11-13 on a perf tenant of 40 courts, 87,600 holds, charges and items in one year, on a
+    dev laptop under load average 5 to 9): by court, 4 courts for a month 9.6 s, a year 9.6 to 11.2 s, 40 courts for
+    a year 12.8 s; by sport, 4 courts for a year 17.7 s, 40 courts 27.0 s; heat map, 4 courts for a year 6.6 s, 40
+    courts 11.0 s. Most of a small run is fixed: the statement reads every hold and every rental charge item of the
+    location (hash joins), so cost grows with the location's bookings, not with the courts or days asked for. The
+    target of 2 s for 4 courts for a year is not met. Under RLS the planner guesses a few rows per tenant and
+    nested loops went quadratic (a year at 4 courts did not finish in 300 s), so the statement runs with
+    `enable_nestloop` off, keyed day joins (`rv_day`, `hold_day`) and the revenue view joined on keys only. No index
+    was added: every join is on an existing key, and an index would not shorten a scan of the whole location.
+  - *Limits*: a run over 15,000 court-days (courts times the widest location's days; by sport counts twice, as it
+    runs two statements) is refused at once with 422 `report-too-large`, so 40 courts for a year fits and by sport
+    about 20. Each statement is stopped after 30 s (`statement_timeout`, in a savepoint) with the same code and
+    "took too long". There is no background build: export jobs render a finished run's snapshot, so a larger ask
+    must be split by courts or dates. Scheduled runs build the same way and hit the same limits.
   - *Not built*: a rental-type filter (group by sport instead), detail rows, a reversal of an adjustment (only the
     charge's own reversal and adjustment are followed).
 - **Named reports (RPT-41)**: the map from discovery names to keys and gaps is in `docs/status/15-reporting.md`.

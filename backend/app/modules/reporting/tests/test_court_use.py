@@ -18,6 +18,7 @@ import pytest
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing
+from app.modules.reporting.reports import courts
 from app.modules.reporting.tests.test_reporting import ran, rows
 from app.modules.scheduling.tests.helpers import API, book, facility, ok
 from conftest import add_staff, login, new_client
@@ -313,6 +314,33 @@ def test_heatmap_by_hour_and_weekday(client, owner, f):
     assert cells["19:00"]["monday_pct"] == 50.0 and cells["09:00"]["monday_pct"] == 0.0
     assert cells["20:00"]["monday_pct"] == 100.0  # the clinic's 30 minutes, the only available time
     assert cells["10:00"]["tuesday_pct"] is None and run["totals"]["utilization_pct"] == 20.0
+
+
+def refused(client, owner, key: str, f, **params) -> dict:
+    response = client.post(f"{API}/report-runs", headers=owner, json={
+        "report_key": key, "params": {"location_ids": [f.location], **params}})  # fmt: skip
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "report-too-large"
+    return response.json()
+
+
+def test_an_oversized_ask_is_refused_inline(client, owner, f, monkeypatch):
+    monkeypatch.setattr(courts, "MAX_COURT_DAYS", 3)
+    two_days = {"from_on": MONDAY.isoformat(), "to_on": "2031-05-06"}
+    body = refused(client, owner, "court_use", f, **two_days)  # 2 courts x 2 days = 4 court-days
+    assert "court-days" in body["detail"]
+    refused(client, owner, "court_use_heatmap", f, **two_days)
+    one = {"from_on": MONDAY.isoformat(), "to_on": MONDAY.isoformat()}
+    assert ran(client, owner, "court_use", location_ids=[f.location], **one)["row_count"] == 2
+    two_days["resource_ids"] = [f.court]  # 1 court x 2 days fits
+    assert ran(client, owner, "court_use", location_ids=[f.location], **two_days)["row_count"] == 2
+    refused(client, owner, "court_use", f, group_by="sport", **two_days)  # two statements: 2 x 2 = 4
+
+
+def test_a_run_that_takes_too_long_is_stopped(client, owner, f, monkeypatch):
+    monkeypatch.setattr(courts, "TIMEOUT", "1ms")
+    body = refused(client, owner, "court_use", f, from_on=MONDAY.isoformat(), to_on=MONDAY.isoformat())
+    assert "took too long" in body["detail"]
 
 
 def test_permissions_and_location_scope(client, owner, tenant, f):

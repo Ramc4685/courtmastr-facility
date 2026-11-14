@@ -77,7 +77,7 @@ VIEWS = {
         JOIN rental_booking_charge rbc ON rbc.tenant_id = i.tenant_id AND rbc.id = i.rental_booking_charge_id
         JOIN rental_booking rb ON rb.tenant_id = i.tenant_id AND rb.id = i.rental_booking_id
         JOIN charge c ON c.tenant_id = rbc.tenant_id AND c.status <> 'voided'
-             AND rbc.charge_id IN (c.id, c.reverses_charge_id, c.adjusts_charge_id)
+             AND rbc.charge_id = coalesce(c.reverses_charge_id, c.adjusts_charge_id, c.id)
         LEFT JOIN LATERAL (
             SELECT br.resource_id FROM booking_resource br
             WHERE br.tenant_id = rb.tenant_id AND br.booking_id = rb.booking_id ORDER BY br.sort_order LIMIT 1

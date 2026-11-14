@@ -2,7 +2,7 @@
 changeover, staff blocks and league or program use told apart from rented play, split by the peak window the
 owner configured, and revenue per court-hour. Rules are in the module README ("Court use").
 
-The work is one SQL statement per run over the `rpt_court*` views (migration 2011). Per court and local day it
+The work is one SQL statement (by sport, two) over the `rpt_court*` views (migration 2011). Per court and local day it
 builds multiranges: available time (facility hours of that weekday in the location's zone, minus whole-location
 closures, plus any time played outside them), the peak bands of the rental types the court offers, and the court's
 holds including those of its halves. Multirange union counts a physical minute once and
@@ -15,8 +15,10 @@ from uuid import UUID
 
 from pydantic import Field
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.errors import ValidationFailed
 from app.modules.reporting.registry import (
     ATTENDANCE,
     FINANCIAL,
@@ -31,6 +33,8 @@ from app.modules.reporting.registry import (
 
 PROGRAM = "program"  # the key of league, class and program use (bookings that are not rentals or blocks)
 PROGRAM_LABEL = "League and programs"
+MAX_COURT_DAYS = 15_000  # courts x days per statement x statements: 40 courts for a year (README "Cost")
+TIMEOUT = "30s"  # one statement; past it the run is refused with report-too-large
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -95,8 +99,8 @@ def _split(src: str, group: str, total: str, weight: str, order: str) -> str:
 EMPTY = "tstzmultirange()"
 
 
-def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
-    """The shared CTEs: per court and local day its available, peak and used multiranges, and revenue rows."""
+def _filters(p: CourtParams, scope: Scope) -> tuple[list[str], list[str], dict]:
+    """WHERE terms for the caller's locations, and for the chosen courts and groups."""
     where, args = ["true"], dict[str, object]({"from_on": p.from_on, "to_on": p.to_on})
     if scope.location_ids is not None:
         where.append("location_id = ANY(CAST(:locations AS uuid[]))")
@@ -108,9 +112,15 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
     if p.resource_group_ids:
         courts.append("court_group_id = ANY(CAST(:groups AS uuid[]))")
         args["groups"] = p.resource_group_ids
+    return where, courts, args
+
+
+def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
+    """The shared CTEs: per court and local day its available, peak and used multiranges, and revenue rows."""
+    where, courts, args = _filters(p, scope)
     ranges = scope.day_ranges or {}
     args |= {"o_loc": list(ranges), "o_from": [r[0] for r in ranges.values()], "o_to": [r[1] for r in ranges.values()]}
-    revenue = "(SELECT * FROM rpt_court_revenue WHERE charge_id IN (SELECT charge_id FROM rv_charge))"
+    revenue = "(SELECT * FROM rv_all WHERE charge_id IN (SELECT charge_id FROM rv_charge))"
     items = _split(revenue, "charge_id", "net_minor", "s.item_weight", "q.rental_booking_charge_item_id")
     band, opening = _wall("z", "b.start_time", "b.end_time"), _wall("d", "fh.opens_time", "fh.closes_time")
     near = "tstzrange(CAST(s.from_on - 1 AS timestamp) AT TIME ZONE 'UTC', CAST(s.to_on + 2 AS timestamp) AT TIME ZONE 'UTC')"
@@ -123,8 +133,11 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
              AS o(location_id, from_on, to_on) ON o.location_id = l.location_id
     ),
     court AS (SELECT * FROM rpt_court WHERE {" AND ".join(courts)}),
-    rv_charge AS (  -- the charges paying for play on a chosen court near the span
-        SELECT DISTINCT v.charge_id FROM rpt_court_revenue v JOIN court c ON c.court_id = v.court_id
+    rv_all AS MATERIALIZED (  -- the locations' revenue rows, read once
+        SELECT v.* FROM rpt_court_revenue v WHERE v.location_id IN (SELECT location_id FROM span)
+    ),
+    rv_charge AS MATERIALIZED (  -- the charges paying for play on a chosen court near the span
+        SELECT DISTINCT v.charge_id FROM rv_all v JOIN court c ON c.court_id = v.court_id
         JOIN span s ON s.location_id = c.location_id WHERE v.played && {near}
     ),
     rv_item AS (  -- each charge's net over all its items (any court, any date), so a part never depends on the ask
@@ -132,14 +145,17 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
                x.rental_booking_charge_item_id AS item_id, x.part AS item_minor
         FROM ({items}) x
     ),
+    rv_day AS MATERIALIZED (  -- each item at the local days its occurrence touches (keys for the day joins below)
+        SELECT i.*, c.location_id, c.time_zone, g::date AS day FROM rv_item i JOIN court c ON c.court_id = i.court_id
+        CROSS JOIN {_days("i.played", "c.time_zone")} g
+    ),
     zday0 AS (  -- every local day needed: the span's, and the days of the occurrences it is paid for
         SELECT location_id, time_zone, day, bool_or(in_span) AS in_span,
                tstzrange(day::timestamp AT TIME ZONE time_zone, (day + 1)::timestamp AT TIME ZONE time_zone) AS whole
         FROM (SELECT s.location_id, s.time_zone, g::date AS day, true AS in_span FROM span s
               CROSS JOIN generate_series(s.from_on::timestamp, s.to_on::timestamp, interval '1 day') g
               UNION ALL
-              SELECT c.location_id, c.time_zone, g::date, false FROM rv_item i JOIN court c ON c.court_id = i.court_id
-              CROSS JOIN {_days("i.played", "c.time_zone")} g) d
+              SELECT location_id, time_zone, day, false FROM rv_day) d
         GROUP BY location_id, time_zone, day
     ),
     zday AS (  -- the UTC offset at each end of the day and, on a clock-change day, the minute it changes
@@ -169,21 +185,22 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         JOIN rpt_rate_band b ON b.rental_rate_id = r.rental_rate_id AND b.kind = 'rate' AND b.membership_type_id IS NULL
              AND {_fires("b", "z.day")}
     ),
-    rate_region AS (  -- a rate's day in priced pieces: the first matching band by sort order sets the price, as in
+    rate_region AS MATERIALIZED (  -- a rate's day in priced pieces: the first matching band by sort order sets the price, as in
                       -- rentals pricing, and the base price applies outside every band
         SELECT rental_rate_id, day, unit, mr - coalesce(range_agg(mr) OVER (PARTITION BY rental_rate_id, day
                ORDER BY sort_order, rental_rate_rule_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), {EMPTY}) AS mr
         FROM rate_rule
         UNION ALL
-        SELECT r.rental_rate_id, z.day, r.rate_minor, tstzmultirange(z.whole) - coalesce((SELECT range_agg(x.mr)
-               FROM rate_rule x WHERE x.rental_rate_id = r.rental_rate_id AND x.day = z.day), {EMPTY})
+        SELECT r.rental_rate_id, z.day, r.rate_minor, tstzmultirange(z.whole) - coalesce(x.mr, {EMPTY})
         FROM rv_rate r JOIN zday z ON z.location_id = r.location_id
+        LEFT JOIN (SELECT rental_rate_id, day, range_agg(mr) AS mr FROM rate_rule GROUP BY 1, 2) x
+             ON x.rental_rate_id = r.rental_rate_id AND x.day = z.day
     ),
     day AS (
         SELECT c.court_id, c.location_id, z.day, z.whole, z.o1, z.o2, z.turn
         FROM court c JOIN zday z ON z.location_id = c.location_id AND z.in_span
     ),
-    hold AS (
+    hold AS MATERIALIZED (
         SELECT h.* FROM rpt_court_hold h JOIN span s ON s.location_id = h.location_id
         WHERE h.court_id IN (SELECT court_id FROM court) AND h.during && {near}
     ),
@@ -201,15 +218,17 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         ) shut ON true
         LEFT JOIN court_peak pk ON pk.court_id = d.court_id AND pk.day = d.day
     ),
-    held AS (  -- each hold cut at the local days it touches (an equality join, not days times holds)
+    hold_day AS MATERIALIZED (  -- each hold at the local days it touches
+        SELECT h.*, g::date AS day FROM hold h JOIN court c ON c.court_id = h.court_id
+        CROSS JOIN {_days("h.during", "c.time_zone")} g
+    ),
+    held AS MATERIALIZED (  -- each hold cut at those days (an equality join, not days times holds)
         SELECT h.court_id, z.day,
                coalesce(range_agg(h.played * z.whole) FILTER (WHERE h.use_kind = 'rental'), {EMPTY}) AS rental,
                coalesce(range_agg(h.played * z.whole) FILTER (WHERE h.use_kind = 'program'), {EMPTY}) AS program,
                coalesce(range_agg(h.during * z.whole) FILTER (WHERE h.use_kind = 'block'), {EMPTY}) AS block,
                coalesce(range_agg(h.during * z.whole) FILTER (WHERE h.use_kind <> 'block'), {EMPTY}) AS booked
-        FROM hold h JOIN court c ON c.court_id = h.court_id
-        CROSS JOIN {_days("h.during", "c.time_zone")} g
-        JOIN zday z ON z.location_id = c.location_id AND z.day = g::date AND z.in_span
+        FROM hold_day h JOIN zday z ON z.location_id = h.location_id AND z.day = h.day AND z.in_span
         GROUP BY h.court_id, z.day
     ),
     base AS (  -- each minute in one category: rental, then league or program, then a staff block, then changeover;
@@ -225,9 +244,7 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
     rv_seg0 AS (  -- an item's occurrence cut at local days, at its rate's price bands and at the court's peak bands
         SELECT i.charge_id, i.item_id, i.court_id, coalesce(i.rental_type_id::text, '{PROGRAM}') AS sport,
                i.item_minor, z.day, z.in_span, k.peak, coalesce(rg.unit, 1) AS unit, {_min("k.mr")} AS minutes
-        FROM rv_item i JOIN court c ON c.court_id = i.court_id
-        CROSS JOIN {_days("i.played", "c.time_zone")} g
-        JOIN zday z ON z.location_id = c.location_id AND z.day = g::date
+        FROM rv_day i JOIN zday z ON z.location_id = i.location_id AND z.day = i.day
         LEFT JOIN court_peak pk ON pk.court_id = i.court_id AND pk.day = z.day
         LEFT JOIN rate_region rg ON i.rate_basis = 'per_hour' AND rg.rental_rate_id = i.rental_rate_id AND rg.day = z.day
         CROSS JOIN LATERAL (SELECT tstzmultirange(i.played * z.whole) * coalesce(rg.mr, tstzmultirange(z.whole)) AS mr) pc
@@ -255,8 +272,38 @@ def _measures(played: str, buffer: str) -> str:
     ))  # fmt: skip
 
 
+def _fits(session: Session, p: CourtParams, scope: Scope, statements: int = 1) -> None:
+    """Refuse inline before any work when courts x days (the widest location span) times the statements the run
+    needs is over MAX_COURT_DAYS."""
+    _, courts, args = _filters(p, scope)
+    spans = [(p.from_on, p.to_on), *(scope.day_ranges or {}).values()]
+    days = max((b - a).days + 1 for a, b in spans if a and b)
+    count = session.scalar(text(f"SELECT count(*) FROM rpt_court WHERE {' AND '.join(courts)}"), args) or 0
+    if count * days * statements > MAX_COURT_DAYS:
+        raise ValidationFailed(
+            f"{count} courts over {days} days is {count * days} court-days, too many for one run "
+            f"(at most {MAX_COURT_DAYS // statements}): choose fewer courts or a shorter range",
+            code="report-too-large",
+        )
+
+
 def _run(session: Session, sql: str, args: dict) -> list:
-    found = session.execute(text(sql + f" LIMIT {MAX_ROWS + 1}"), args).all()
+    """One statement under TIMEOUT, in a savepoint so a stopped run leaves the request's transaction usable."""
+    try:
+        with session.begin_nested():
+            session.execute(text(f"SET LOCAL statement_timeout = '{TIMEOUT}'"))
+            # under RLS the planner guesses a few rows per tenant and nests loops over sets of thousands; every
+            # join here is on keys or local days, so hash joins keep the work linear (README "Cost")
+            session.execute(text("SET LOCAL enable_nestloop = off"))
+            found = session.execute(text(sql + f" LIMIT {MAX_ROWS + 1}"), args).all()
+    except OperationalError as error:
+        if getattr(error.orig, "sqlstate", None) != "57014":  # query_canceled
+            raise
+        raise ValidationFailed(
+            "The court use report took too long: choose fewer courts or a shorter range", code="report-too-large"
+        ) from None
+    session.execute(text("SET LOCAL statement_timeout TO DEFAULT"))
+    session.execute(text("SET LOCAL enable_nestloop TO DEFAULT"))
     if len(found) > MAX_ROWS:
         raise too_large()
     return list(found)
@@ -290,7 +337,7 @@ def _sport_days(session: Session, p: CourtParams, scope: Scope) -> list:
     sport_held AS (
         SELECT d.court_id, d.day, coalesce(h.rental_type_id::text, '{PROGRAM}') AS sport,
                range_agg(h.played * d.whole) AS played, range_agg(h.during * d.whole) AS booked
-        FROM day d JOIN hold h ON h.court_id = d.court_id AND h.during && d.whole
+        FROM day d JOIN hold_day h ON h.court_id = d.court_id AND h.day = d.day
         WHERE h.use_kind <> 'block' GROUP BY 1, 2, 3
     )
     SELECT o.sport, max(o.sport_name) AS sport_name, b0.day,
@@ -352,6 +399,7 @@ def _add(into: dict, row, keys) -> None:
 
 
 def _court_use(session: Session, p: CourtUseParams, scope: Scope) -> dict:
+    _fits(session, p, scope, 2 if p.group_by == "sport" else 1)  # by sport also runs the court-days for totals
     total: dict = {}
     groups: dict[tuple, dict] = {}
     if p.group_by == "sport":
@@ -381,6 +429,7 @@ def _heatmap(session: Session, p: CourtParams, scope: Scope) -> dict:
     """Average utilisation per local hour of the day and weekday: played minutes over available minutes, both
     summed over the courts and days in the range. Buckets are real hours from local midnight, so a 25 hour day
     has two 01:00 buckets and a 23 hour day none at 02:00."""
+    _fits(session, p, scope)
     base, args = _base(p, scope)
     sql = f"""{base},
     bucket AS (
