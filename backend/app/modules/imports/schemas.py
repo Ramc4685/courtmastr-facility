@@ -39,6 +39,10 @@ class ImportDryRunCreate(In):
     date_format: Literal["iso", "mdy", "dmy"] | None = None
 
 
+class ImportCommitCreate(In):
+    confirm_ages: bool = False  # clients only: staff vouch for the imported adults' birth dates (default off)
+
+
 class ImportJobOut(Out):
     id: UUID
     kind: str

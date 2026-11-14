@@ -311,3 +311,49 @@ def test_a_self_declared_minor_is_told_a_guardian_books_never_that_a_code_is_com
     adult, adult_portal = portal_client(client, owner, tenant, f, birth_on=ADULT)
     told = ok(client.get(f"{API}/portal/clients/{adult}", headers=adult_portal), 200)["entry_code_notice"]
     assert told.startswith(ENTRY_CODE_NOTICE)
+
+
+# --- existing members at go-live: an adults-only queue and a bulk confirm ------------------------------------------
+
+BULK = f"{API}/client-age-reviews/confirmations"
+NOTE = "known members, IDs seen at the desk"
+
+
+def test_the_queue_lists_adults_only(client, owner, tenant, f):
+    adult = self_declared(client, owner, tenant, f)
+    kid = self_declared(client, owner, tenant, f, birth_on=CHILD)
+    seen = queued(client, owner)
+    assert adult in seen and kid not in seen
+
+
+def test_bulk_confirm_needs_both_keys_a_step_up_a_note_and_at_most_200(client, owner, tenant, f):
+    a, b = self_declared(client, owner, tenant, f), self_declared(client, owner, tenant, f)
+    body = {"client_ids": [a, b], "note": NOTE}
+    assert client.post(BULK, headers=owner, json={"client_ids": [a, b]}).status_code == 422
+    assert client.post(BULK, headers=owner, json=body | {"note": " "}).status_code == 422
+    assert client.post(BULK, headers=owner, json={"client_ids": [str(uuid4()) for _ in range(201)],
+                                                  "note": NOTE}).status_code == 422  # fmt: skip
+    stale = client.post(BULK, headers=login(client, tenant, elevated=False), json=body)
+    assert (stale.status_code, stale.json()["code"]) == (403, "step-up-required")
+    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
+    assert client.post(BULK, headers=desk, json=body).status_code == 403  # confirms one at a time only
+    elsewhere = ok(client.post(f"{API}/locations", headers=owner, json={
+        "name": f"Elsewhere {uuid4().hex[:4]}", "time_zone": "America/Chicago", "country_code": "US"}))["id"]  # fmt: skip
+    away = login(client, tenant, add_staff(tenant, "manager", location_ids=[elsewhere])[0])
+    assert client.post(BULK, headers=away, json=body).status_code == 404
+    assert confirmed_events(tenant, a) == confirmed_events(tenant, b) == 0
+
+
+def test_bulk_confirm_audits_and_announces_each_person_once_with_the_note_flag_only(client, owner, tenant, f):
+    a, b = self_declared(client, owner, tenant, f), self_declared(client, owner, tenant, f)
+    done = ok(client.post(BULK, headers=owner, json={"client_ids": [a, b, a], "note": NOTE}), 200)
+    assert sorted(done["client_ids"]) == sorted([a, b]) and done["confirmed_count"] == 2
+    for who in (a, b):
+        assert staff_view(client, owner, who)["age_confirmed"] is True and confirmed_events(tenant, who) == 1
+        with tenant_session(tenant.id) as session:
+            record = session.scalars(select(AuditEvent).where(
+                AuditEvent.entity_id == who, AuditEvent.action == "clients.client.confirm_age")).one()  # fmt: skip
+        assert record.changes["note"] is True and NOTE not in str(record.changes) and ADULT not in str(record.changes)
+    again = ok(client.post(BULK, headers=owner, json={"client_ids": [a], "note": NOTE}), 200)
+    assert again["confirmed_count"] == 0 and confirmed_events(tenant, a) == 1
+    assert not {a, b} & queued(client, owner)

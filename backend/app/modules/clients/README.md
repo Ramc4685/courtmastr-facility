@@ -41,13 +41,22 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   `service.is_age_confirmed(session, client_id)` (internal). Building-control issues a held entry code on the event
   and treats an unverified or missing date as "hold". No reverse event fires when a changed date unconfirms a client;
   building-control re-reads `is_age_confirmed` when it issues a code.
-- **Queue and notice.** `GET /client-age-reviews` lists unconfirmed clients, people with an online booking first
+- **Queue and notice.** `GET /client-age-reviews` lists unconfirmed adults (children never get entry codes, so they
+  are never listed), people with an online booking first
   (`earliest_booking_at`, kept by `note_unconfirmed_booking`, which the portal rental checkout and portal session
   enrolment call once the booking is written; a declared minor's bookings are ignored); `include=total` is the dashboard count. A newcomer's
   first booking emails the location's alert address (else its email) once, without the birth date. The portal
   identity carries `age_confirmed` and `entry_code_notice` (the notice plus the location phone from
   `platform.service.location_contact`). A declared minor is told instead that a parent or guardian must book and come
   with them (codes are never sent to minors).
+
+- **Go-live for existing members.** Migration 1983 left every existing date unconfirmed. Two ways out, both audited
+  per person and firing `age_confirmed` once each: `POST /client-age-reviews/confirmations` (up to 200 ids and a
+  required note, kept flag-only; key `clients.client.confirm_ages`, `+` step-up, admin and manager, plus
+  `clients.client.confirm_age` at each person's location; the web queue's checkboxes and "Confirm selected"), and a
+  clients import committed with `confirm_ages: true` by staff holding `clients.client.confirm_age` (adults only; off
+  by default; an API key can never start an import). Assumption: front desk confirms one at a time, so the bulk key
+  starts at manager.
 
 ## Integrator notes
 

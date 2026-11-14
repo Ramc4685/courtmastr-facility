@@ -867,3 +867,39 @@ def test_every_template_example_row_passes_its_own_check_and_names_match_in_nfc(
     again = run(client, owner, location_id, "clients", [["first_name", "last_name", "email", "city"],
                                                          ["José", "Nfc", "jose@example.com", "Peoria"]])  # fmt: skip
     assert (again["created_count"], again["updated_count"], again["skipped_count"]) == (0, 1, 0)
+
+
+# --- go-live: a staff-run clients import may confirm the imported adults' ages (owner decision, staff confirm once)
+
+
+def _age_rows(tag: str) -> list[list]:
+    return [CLIENT_HEADER,
+            ["", "Ada", f"Adult{tag}", "", "", "1980-02-03", "", "", "", ""],
+            ["", "Kit", f"Child{tag}", "", "", "2016-06-07", "", "", "", ""]]  # fmt: skip
+
+
+def _ages(tenant, tag: str) -> dict[str, bool]:
+    with tenant_session(tenant.id) as session:
+        rows = session.execute(text("SELECT first_name, is_birth_on_unverified FROM client WHERE last_name LIKE :t"),
+                               {"t": f"%{tag}"})  # fmt: skip
+        return {name: not unverified for name, unverified in rows}
+
+
+def test_a_clients_import_confirms_ages_only_when_staff_with_the_key_ask(client, tenant, owner, location_id):
+    assert run(client, owner, location_id, "clients", _age_rows("Off"))["status"] == "completed"
+    assert _ages(tenant, "Off") == {"Ada": False, "Kit": False}  # default off
+    job = check(client, owner, start(client, owner, location_id, "clients", to_csv(_age_rows("On"))))
+    email, desk_id = add_staff(tenant, "admin")
+    deny = {"grants": [{"permission_key": "clients.client.confirm_age", "is_allowed": False}]}
+    ok(client.put(f"{API}/staff-users/{desk_id}/permission-overrides", headers=owner, json=deny))
+    lacking = client.post(f"{API}/import-jobs/{job['id']}/commits", headers=login(client, tenant, email),
+                          json={"confirm_ages": True})  # fmt: skip
+    assert lacking.status_code in (403, 404) and _ages(tenant, "On") == {}
+    ok(client.post(f"{API}/import-jobs/{job['id']}/commits", headers=owner, json={"confirm_ages": True}), 202)
+    drain()
+    assert _ages(tenant, "On") == {"Ada": True, "Kit": False}  # adults only
+    with tenant_session(tenant.id) as session:
+        fired = session.execute(text(
+            "SELECT count(*) FROM outbox_event e JOIN client c ON c.id = e.aggregate_id "
+            "WHERE e.event_type = 'clients.client.age_confirmed' AND c.last_name = 'AdultOn'")).scalar()  # fmt: skip
+    assert fired == 1

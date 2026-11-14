@@ -809,6 +809,56 @@
         "title": "AgeConfirmation",
         "type": "object"
       },
+      "AgeConfirmationBatch": {
+        "additionalProperties": false,
+        "description": "Staff already know these people (IDs seen at the desk). The note says why; it is kept flag-only.",
+        "properties": {
+          "client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_ids",
+          "note"
+        ],
+        "title": "AgeConfirmationBatch",
+        "type": "object"
+      },
+      "AgeConfirmationBatchOut": {
+        "properties": {
+          "client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "confirmed_count": {
+            "title": "Confirmed Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_ids",
+          "confirmed_count"
+        ],
+        "title": "AgeConfirmationBatchOut",
+        "type": "object"
+      },
       "AgeGroupOut": {
         "properties": {
           "id": {
@@ -29105,6 +29155,18 @@
           }
         },
         "title": "IdentityProviderUpdate",
+        "type": "object"
+      },
+      "ImportCommitCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm_ages": {
+            "default": false,
+            "title": "Confirm Ages",
+            "type": "boolean"
+          }
+        },
+        "title": "ImportCommitCreate",
         "type": "object"
       },
       "ImportDryRunCreate": {
@@ -95742,6 +95804,69 @@
         ]
       }
     },
+    "/api/v1/client-age-reviews/confirmations": {
+      "post": {
+        "description": "Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is\naudited and announced once. Errors: step-up-required, birth-date-required.",
+        "operationId": "confirmClientAges",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgeConfirmationBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeConfirmationBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Client Ages",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
     "/api/v1/client-alerts/{alert_id}": {
       "patch": {
         "operationId": "updateClientAlert",
@@ -116370,7 +116495,7 @@
     },
     "/api/v1/import-jobs/{import_job_id}/commits": {
       "post": {
-        "description": "Import the checked rows; the job moves to completed with a report of rows that failed. Needs every\nlocation (403 all-locations-required) and the keys of the staff commands the type's writes stand for;\n409 check-stale when the file changed after the check.",
+        "description": "Import the checked rows; the job moves to completed with a report of rows that failed. Needs every\nlocation (403 all-locations-required) and the keys of the staff commands the type's writes stand for;\n409 check-stale when the file changed after the check. `confirm_ages` (clients only, staff holding\nclients.client.confirm_age) counts the imported adults' birth dates as confirmed.",
         "operationId": "createImportJobCommit",
         "parameters": [
           {
@@ -116403,6 +116528,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ImportCommitCreate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "content": {

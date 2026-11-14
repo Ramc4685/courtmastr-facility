@@ -2352,6 +2352,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client-age-reviews/confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Client Ages
+         * @description Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is
+         *     audited and announced once. Errors: step-up-required, birth-date-required.
+         */
+        post: operations["confirmClientAges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/client-alerts/{alert_id}": {
         parameters: {
             query?: never;
@@ -6065,7 +6086,8 @@ export interface paths {
          * Create Import Job Commit
          * @description Import the checked rows; the job moves to completed with a report of rows that failed. Needs every
          *     location (403 all-locations-required) and the keys of the staff commands the type's writes stand for;
-         *     409 check-stale when the file changed after the check.
+         *     409 check-stale when the file changed after the check. `confirm_ages` (clients only, staff holding
+         *     clients.client.confirm_age) counts the imported adults' birth dates as confirmed.
          */
         post: operations["createImportJobCommit"];
         delete?: never;
@@ -17299,6 +17321,23 @@ export interface components {
             /** Birth On */
             birth_on?: string | null;
         };
+        /**
+         * AgeConfirmationBatch
+         * @description Staff already know these people (IDs seen at the desk). The note says why; it is kept flag-only.
+         */
+        AgeConfirmationBatch: {
+            /** Client Ids */
+            client_ids: string[];
+            /** Note */
+            note: string;
+        };
+        /** AgeConfirmationBatchOut */
+        AgeConfirmationBatchOut: {
+            /** Client Ids */
+            client_ids: string[];
+            /** Confirmed Count */
+            confirmed_count: number;
+        };
         /** AgeGroupOut */
         AgeGroupOut: {
             /**
@@ -26244,6 +26283,14 @@ export interface components {
             is_enabled?: boolean | null;
             /** Scopes */
             scopes?: string[] | null;
+        };
+        /** ImportCommitCreate */
+        ImportCommitCreate: {
+            /**
+             * Confirm Ages
+             * @default false
+             */
+            confirm_ages: boolean;
         };
         /** ImportDryRunCreate */
         ImportDryRunCreate: {
@@ -49854,6 +49901,42 @@ export interface operations {
             };
         };
     };
+    confirmClientAges: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgeConfirmationBatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeConfirmationBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     updateClientAlert: {
         parameters: {
             query?: never;
@@ -59656,7 +59739,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ImportCommitCreate"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {

@@ -182,3 +182,10 @@ returns nothing: a row holds no personal data.
 
 Deferred: cancelling a running job; restarting a stopped (`failed`) job in place; IMP-02 operator-assisted imports (an operator running a file for a tenant);
 custom fields, tags and notes on client rows; package balances.
+
+## Confirming ages on import (owner decision "Staff confirm once")
+
+A clients commit may send `{"confirm_ages": true}` (default off). It needs a staff session holding
+`clients.client.confirm_age` at the job's location; the imported adults' birth dates then count as confirmed
+(`clients.service.confirm_imported_age`: one audit and one `clients.client.age_confirmed` each). Minors are left
+unconfirmed. A queued job stops if the submitter loses the key.

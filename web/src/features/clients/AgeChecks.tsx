@@ -14,6 +14,9 @@ import { formatDate, formatDateTime, fullName } from '../../lib/format'
 
 /** Only the confirm action confirms an age; any other date change leaves it unconfirmed (clients README). */
 export const CONFIRM_AGE = 'clients.client.confirm_age'
+/** The go-live bulk confirm (needs the confirm key too and a recent step-up; at most 200 at once). */
+export const CONFIRM_AGES = 'clients.client.confirm_ages'
+const MAX_SELECTED = 200
 const QUEUE = ['clients', 'age-reviews'] as const
 
 /** "Age not confirmed" on the client record, with the one-time staff check for holders of the key. */
@@ -67,13 +70,71 @@ const columns: Column<Schemas['AgeReviewItem']>[] = [
   { header: 'Joined', cell: (r) => formatDate(r.created_at.slice(0, 10)) },
 ]
 
-/** The staff queue of self-declared birth dates waiting for the one-time check, people with a booking first. */
+/** The staff queue of self-declared adult birth dates waiting for the one-time check, people with a booking first.
+ * Holders of the bulk key tick people they already know and confirm them together, with a note. */
 export function AgeChecksPage() {
+  const { can } = useAuth()
+  const qc = useQueryClient()
   const paging = useKeysetQuery(QUEUE, (cursor) => api.get('/api/v1/client-age-reviews', { query: { cursor } }))
+  const [chosen, setChosen] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const bulk = can(CONFIRM_AGE) && can(CONFIRM_AGES)
+  const confirm = useMutation({
+    mutationFn: () => api.post('/api/v1/client-age-reviews/confirmations', { body: { client_ids: chosen, note } }),
+    onSuccess: () => {
+      setOpen(false)
+      setChosen([])
+      setNote('')
+      void qc.invalidateQueries({ queryKey: ['clients'] })
+    },
+  })
+  const pick: Column<Schemas['AgeReviewItem']> = {
+    header: 'Select',
+    cell: (r) => (
+      <input
+        type="checkbox"
+        className="h-4 w-4"
+        aria-label={`Select ${fullName(r)}`}
+        checked={chosen.includes(r.id)}
+        disabled={!chosen.includes(r.id) && chosen.length >= MAX_SELECTED}
+        onChange={(e) => setChosen(e.target.checked ? [...chosen, r.id] : chosen.filter((x) => x !== r.id))}
+      />
+    ),
+  }
+  const count = chosen.length === 1 ? '1 person' : `${chosen.length} people`
   return (
     <>
-      <PageHeader title="Age checks" description="Clients who entered their own date of birth. Confirm each once against an ID; people with a booking come first." />
-      <Table caption="Clients waiting for an age check" columns={columns} rowKey={(r) => r.id} paging={paging} empty={<EmptyState title="No one is waiting for an age check" />} />
+      <PageHeader
+        title="Age checks"
+        description="Adults who entered their own date of birth. Confirm each once against an ID; people with a booking come first."
+        actions={
+          bulk && (
+            <Button disabled={chosen.length === 0} onClick={() => setOpen(true)}>
+              Confirm selected{chosen.length ? ` (${chosen.length})` : ''}
+            </Button>
+          )
+        }
+      />
+      <Table caption="Clients waiting for an age check" columns={bulk ? [pick, ...columns] : columns} rowKey={(r) => r.id} paging={paging} empty={<EmptyState title="No one is waiting for an age check" />} />
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Confirm selected ages"
+        description={`This marks the date of birth of ${count} as confirmed, as if each had shown an ID, and releases their entry codes. Use it only for people whose ID staff have already seen. Each one is recorded under your name with this note.`}
+        footer={
+          <Button loading={confirm.isPending} disabled={!note.trim()} onClick={() => confirm.mutate()}>
+            Confirm {count}
+          </Button>
+        }
+      >
+        <Input label="Note" required placeholder="Known members, IDs seen at the desk" value={note} error={fieldErrors(confirm.error).note} onChange={(e) => setNote(e.target.value)} />
+        {confirm.error && !fieldErrors(confirm.error).note && (
+          <p role="alert" className="mt-2 text-danger">
+            {confirm.error.message}
+          </p>
+        )}
+      </Dialog>
     </>
   )
 }

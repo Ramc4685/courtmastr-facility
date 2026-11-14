@@ -393,6 +393,18 @@ class AgeConfirmation(In):
     birth_on: date | None = None
 
 
+class AgeConfirmationBatch(In):
+    """Staff already know these people (IDs seen at the desk). The note says why; it is kept flag-only."""
+
+    client_ids: list[UUID] = Field(min_length=1, max_length=200)
+    note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class AgeConfirmationBatchOut(Out):
+    client_ids: list[UUID]
+    confirmed_count: int  # people confirmed now; anyone already confirmed is left alone
+
+
 class PortalInvite(In):
     email: EmailStr | None = None  # one of the client's addresses; default: the primary
     attach_as_manager: bool = False  # when the address is already another person's login

@@ -216,12 +216,22 @@ def start_dry_run(session: Session, principal: Principal, job_id: UUID, data: di
     return job_view(session, job)
 
 
-def start_commit(session: Session, principal: Principal, job_id: UUID) -> dict:
-    """Import the rows a dry run passed; rows that fail now are reported, never silently dropped."""
+def start_commit(session: Session, principal: Principal, job_id: UUID, data: dict | None = None) -> dict:
+    """Import the rows a dry run passed; rows that fail now are reported, never silently dropped. `confirm_ages`
+    (clients only, a staff user holding the confirm-age key, never an API key) confirms the imported adults."""
     job = _load(session, principal, job_id, RUN)
     require_all_locations(principal)
     for key in KIND_KEYS[job.kind]:
         authorize(principal, key, location_id=job.location_id)
+    confirm_ages = bool((data or {}).get("confirm_ages"))
+    if confirm_ages:
+        if principal.kind != "staff":
+            raise PermissionDenied(
+                "Only a signed-in staff user can confirm ages.", required=clients.service.CONFIRM_AGE
+            )
+        if job.kind != "clients":
+            raise ValidationFailed("Only a clients import can confirm ages.", pointer="/confirm_ages")
+        authorize(principal, clients.service.CONFIRM_AGE, location_id=job.location_id)
     if job.status not in (JobStatus.VALIDATED, JobStatus.NEEDS_REVIEW):
         raise Conflict("Run the check first." if job.status in _CHECKABLE else "This import is already running.")
     if job.progress.get("checked_file_id") != str(job.source_file_id):
@@ -230,9 +240,11 @@ def start_commit(session: Session, principal: Principal, job_id: UUID) -> dict:
         raise Conflict("No row can be imported; fix the file and upload it again.", code="nothing-to-import")
     _reset(session, job)
     job.status, job.started_at = JobStatus.IMPORTING, clock.now()
+    if confirm_ages:
+        job.progress = {"confirm_ages": True}
     session.flush()
     audit.record(session, "imports.import_job.commit", job, location_id=job.location_id,
-                 changes={"status": job.status})  # fmt: skip
+                 changes={"status": job.status, "confirm_ages": confirm_ages})  # fmt: skip
     _enqueue(session, job)
     return job_view(session, job)
 
@@ -443,7 +455,8 @@ def run_chunk(session: Session, job_id: UUID) -> bool:
     _, raw = platform.files.read(session, job.source_file_id)
     headers, records = csvio.read(csvio.decode(raw))
     ctx = Context(job.location_id, job.date_format, platform.service.location_today(session, job.location_id), job.id,
-                  job.submitted_by_staff_user_id)  # fmt: skip
+                  job.submitted_by_staff_user_id,
+                  confirm_ages=job.status == JobStatus.IMPORTING and bool(job.progress.get("confirm_ages")))  # fmt: skip
     parsed = [kind.parse(csvio.values(r, headers, job.column_mapping), ctx) if r else None for r in records]
     heads: dict[str, list[int]] = {}
     for i, item in enumerate(parsed):
@@ -483,6 +496,8 @@ def _submitter_cannot_run(session: Session, job: ImportJob) -> str | None:
         return "The person who started this import is no longer allowed to run imports at every location."
     if job.status == JobStatus.IMPORTING and any(k not in submitter.permissions for k in KIND_KEYS[job.kind]):
         return "The person who started this import is no longer allowed to make these changes."
+    if job.progress.get("confirm_ages") and clients.service.CONFIRM_AGE not in submitter.permissions:
+        return "The person who started this import is no longer allowed to confirm ages."
     return None
 
 

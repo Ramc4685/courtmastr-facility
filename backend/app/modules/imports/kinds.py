@@ -35,6 +35,7 @@ class Context:
     today: date  # at the job's location (overview 3.7)
     job_id: UUID
     submitted_by: UUID | None = None  # the staff user who started the import (audit attribution)
+    confirm_ages: bool = False  # a commit by staff holding clients.client.confirm_age who asked for it
 
 
 @dataclass
@@ -203,6 +204,8 @@ def _apply_client(session: Session, data: dict, ctx: Context) -> Applied:
     client, created = clients.service.import_client(
         session, {k: v for k, v in row.items() if v is not None}, import_job_id=ctx.job_id
     )
+    if ctx.confirm_ages and ctx.submitted_by:
+        clients.service.confirm_imported_age(session, client.id, ctx.submitted_by)
     warnings: Errors = []
     email_marketing = data["email_marketing"]
     if email_marketing and data["email"] and data["email"] != (client.primary_email or "").lower():

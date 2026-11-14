@@ -45,6 +45,8 @@ from app.ports import notifications
 
 _READ = "clients.client.read"
 CONFIRM_AGE = "clients.client.confirm_age"
+CONFIRM_AGES = "clients.client.confirm_ages"  # the bulk confirm (+ step-up); needs CONFIRM_AGE too
+MAX_AGE_CONFIRMATIONS = 200  # per bulk request
 _SENSITIVE = "clients.client.read_sensitive"
 CONSTRAINT_FIELDS.update(
     {
@@ -918,8 +920,9 @@ def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -
     caller's locations. Filter: location_id (the home location). `?include=total` gives the dashboard count."""
     authorize(principal, CONFIRM_AGE)
     stmt = select(Client).where(
-        Client.is_birth_on_unverified, Client.status == "active", Client.merged_into_id.is_(None)
-    )
+        Client.is_birth_on_unverified, Client.status == "active", Client.merged_into_id.is_(None),
+        Client.birth_on <= _adult_born_by(session),  # children never get entry codes: not in the queue
+    )  # fmt: skip
     stmt = scope_query(stmt, principal, Client.home_location_id)
     due = func.coalesce(Client.earliest_booking_at, literal(_NO_BOOKING, DateTime(timezone=True)))
     page = paginate(
@@ -934,6 +937,15 @@ def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -
         for c in page["data"]
     ]  # fmt: skip
     return page
+
+
+def _adult_born_by(session: Session) -> date:
+    """The latest birth date of an adult today (the tenant's minor age), as is_minor counts."""
+    today, years = clock.now().date(), platform.service.minor_age(session)
+    try:
+        return today.replace(year=today.year - years)
+    except ValueError:  # 29 February in a year that has none
+        return today.replace(year=today.year - years, day=28)
 
 
 def _declared_minor(session: Session, client: Client) -> bool:
@@ -976,20 +988,57 @@ def confirm_age(session: Session, principal: Principal, client_id: UUID, data: d
     client = load(session, principal, client_id, CONFIRM_AGE)
     authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
     _require_live(client)
-    confirmed = _age_confirmed(client)
     client.birth_on = data.get("birth_on") or client.birth_on
     if client.birth_on is None:
         raise ValidationFailed("Enter the birth date shown on the ID.", pointer="/birth_on", code="birth-date-required")
-    _mark_age_confirmed(client, principal.staff_user_id)
-    changes = audit.diff(client)  # birth_on is flag-only (PII); who and when by value
+    _confirm(session, client, principal.staff_user_id)
+    session.flush()
+    return client
+
+
+def _confirm(session: Session, client: Client, staff_user_id: UUID | None, **extra) -> bool:
+    """Confirm, audit once (birth_on flag-only, who and when by value) and fire age_confirmed on the transition.
+    Returns whether this was the transition."""
+    confirmed = _age_confirmed(client)
+    _mark_age_confirmed(client, staff_user_id)
+    changes = audit.diff(client) | extra
     client.version += 1
-    client.updated_by_staff_user_id = principal.staff_user_id
+    client.updated_by_staff_user_id = staff_user_id
     audit.record(session, CONFIRM_AGE, client, location_id=client.home_location_id, changes=changes)
     events.publish(session, ClientUpdated(client_id=client.id), client.id)
     if not confirmed:
         events.publish(session, ClientAgeConfirmed(client_id=client.id), client.id)
+    return not confirmed
+
+
+def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
+    """Bulk confirm for people staff already know (go-live: "known members, IDs seen at the desk"): the bulk key
+    (+ step-up) and the confirm key at each person's location; one audit and one event per person; the note is
+    required and kept flag-only. Already-confirmed people are left alone. Any id out of reach is 404."""
+    authorize(principal, CONFIRM_AGES)
+    ids = list(dict.fromkeys(data["client_ids"]))
+    if len(ids) > MAX_AGE_CONFIRMATIONS:
+        raise ValidationFailed(f"Confirm at most {MAX_AGE_CONFIRMATIONS} people at once.", pointer="/client_ids")
+    people = []
+    for client_id in ids:  # every gate before anything is written
+        client = load(session, principal, client_id, CONFIRM_AGE)
+        authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+        _require_live(client)
+        if client.birth_on is None:
+            raise ValidationFailed("A selected person has no birth date.", pointer="/client_ids",
+                                   code="birth-date-required")  # fmt: skip
+        people.append(client)
+    done = [c.id for c in people if not _age_confirmed(c) and _confirm(session, c, principal.staff_user_id, note=True)]
     session.flush()
-    return client
+    return {"client_ids": ids, "confirmed_count": len(done)}
+
+
+def confirm_imported_age(session: Session, client_id: UUID, staff_user_id: UUID) -> None:
+    """Internal (imports, a staff-run import with `confirm_ages`; the commit carries the gate): an imported adult's
+    date counts as confirmed. Minors and dateless rows are left as they are."""
+    client = get(session, client_id)
+    if client.birth_on is not None and not _declared_minor(session, client) and not _age_confirmed(client):
+        _confirm(session, client, staff_user_id, source="import")
 
 
 def disable_client(session: Session, principal: Principal, client_id: UUID) -> Client:

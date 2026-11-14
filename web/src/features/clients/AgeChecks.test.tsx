@@ -57,6 +57,39 @@ describe('age checks', () => {
     expect(screen.getByText('No booking yet')).toBeVisible()
   })
 
+  it('confirms the selected people together after a dialog that says what it does, with a note', async () => {
+    keys.held.add('clients.client.confirm_age')
+    keys.held.add('clients.client.confirm_ages')
+    const row = (id: string, first: string) => ({ id, first_name: first, last_name: 'Member', home_location_id: 'l1', birth_on: '1980-01-02', earliest_booking_at: null, created_via: 'import', created_at: '2026-11-10T00:00:00Z' })
+    const calls = mockFetch({
+      'GET /api/v1/client-age-reviews': { status: 200, body: { data: [row('c1', 'Ana'), row('c2', 'Ben'), row('c3', 'Cy')], page: empty } },
+      'POST /api/v1/client-age-reviews/confirmations': { status: 200, body: { client_ids: ['c1', 'c3'], confirmed_count: 2 } },
+    })
+    show(<AgeChecksPage />)
+    const confirmSelected = screen.getByRole('button', { name: /Confirm selected/ })
+    expect(confirmSelected).toBeDisabled()
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Select Ana Member' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Cy Member' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm selected (2)' }))
+    const dialog = screen.getByRole('dialog', { name: 'Confirm selected ages' })
+    expect(dialog).toHaveTextContent('marks the date of birth of 2 people as confirmed')
+    const go = within(dialog).getByRole('button', { name: 'Confirm 2 people' })
+    expect(go).toBeDisabled()
+    await userEvent.type(within(dialog).getByLabelText(/Note/), 'known members, IDs seen at the desk')
+    await userEvent.click(go)
+    await vi.waitFor(() =>
+      expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ client_ids: ['c1', 'c3'], note: 'known members, IDs seen at the desk' }),
+    )
+  })
+
+  it('offers no selection to staff who confirm one at a time', async () => {
+    keys.held.add('clients.client.confirm_age')
+    mockFetch({ 'GET /api/v1/client-age-reviews': { status: 200, body: { data: [], page: empty } } })
+    show(<AgeChecksPage />)
+    await screen.findByText('No one is waiting for an age check')
+    expect(screen.queryByRole('button', { name: /Confirm selected/ })).toBeNull()
+  })
+
   it('counts the queue on the dashboard only for holders of the key', async () => {
     keys.held.add('clients.client.confirm_age')
     const calls = mockFetch({ 'GET /api/v1/client-age-reviews': { status: 200, body: { data: [], page: { ...empty, total: 3 } } } })

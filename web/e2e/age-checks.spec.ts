@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { PASSWORD, scan } from './a11y'
 
 // Seeded demo data (docs/dev/demo-accounts.md): Mia Member's birth date was typed in, so it waits for the one-time
-// staff age check. The spec opens the confirm dialog but never confirms, so the queue stays as seeded.
+// staff age check. The spec opens the confirm and bulk-confirm dialogs but never confirms, so the queue stays as seeded.
 const OWNER = 'owner@courtside-demo.example.com'
 
 test('age-check queue, the client mark and the confirm dialog pass the axe WCAG 2.1 AA scan', async ({ page }) => {
@@ -18,6 +18,12 @@ test('age-check queue, the client mark and the confirm dialog pass the axe WCAG 
     await expect(page.getByRole('heading', { level: 1, name: 'Age checks' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Mia Member' })).toBeVisible()
     await scan(page, `${colorScheme} queue`)
+    await page.getByRole('checkbox', { name: 'Select Mia Member' }).check()
+    await page.getByRole('button', { name: 'Confirm selected (1)' }).click()
+    await expect(page.getByRole('dialog', { name: 'Confirm selected ages' })).toContainText('releases their entry codes')
+    await scan(page, `${colorScheme} bulk confirm dialog`)
+    await page.keyboard.press('Escape')
+    await page.getByRole('checkbox', { name: 'Select Mia Member' }).uncheck()
     await page.getByRole('link', { name: 'Mia Member' }).click()
     await expect(page.getByText('Age not confirmed')).toBeVisible()
     await page.getByRole('button', { name: 'Confirm age' }).click()

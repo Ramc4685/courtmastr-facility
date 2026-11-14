@@ -82,6 +82,13 @@ def list_client_age_reviews(query: Lists, ctx: Annotated[Ctx, Depends(require(se
     return service.list_age_reviews(ctx.session, ctx.principal, query)
 
 
+@router.post("/client-age-reviews/confirmations", response_model=s.AgeConfirmationBatchOut)
+def confirm_client_ages(body: s.AgeConfirmationBatch, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGES))]):
+    """Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is
+    audited and announced once. Errors: step-up-required, birth-date-required."""
+    return service.confirm_ages(ctx.session, ctx.principal, body.model_dump())
+
+
 @router.post("/clients/{client_id}/age-confirmation", response_model=s.ClientOut)
 def confirm_client_age(
     client_id: UUID, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGE))], body: s.AgeConfirmation | None = None

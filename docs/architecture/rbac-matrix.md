@@ -298,6 +298,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `clients.client.export` | T | X | | Y | - | - | - | - | - | - | IMP-03, RPT-19 |
 | `clients.client.assign_owner` | T | W | | Y | Y | - | - | - | - | - | CLI-17 (default trainer, salesperson) |
 | `clients.client.confirm_age` | L | | | Y | Y | Y | - | - | - | - | Owner decision 2026-11-13: staff confirm a self-declared birth date once (ID seen; nothing kept) |
+| `clients.client.confirm_ages` | L | + | | Y | Y | - | - | - | - | - | Go-live bulk confirm of known members (up to 200, a note each time); needs `clients.client.confirm_age` too |
 | `clients.relationship.manage` | T | | | Y | Y | Y | - | Y | - | - | FAM-01 |
 | `clients.activity.read` | T | | own | Y | Y | Y | own | - | - | - | CLI-09, CLI-20 |
 | `clients.activity.write` | T | | own | Y | Y | Y | own | - | - | - | CLI-09, CLI-20 |

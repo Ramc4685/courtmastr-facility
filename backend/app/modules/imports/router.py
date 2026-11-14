@@ -83,11 +83,13 @@ def create_import_job_dry_run(import_job_id: UUID, body: s.ImportDryRunCreate, c
 
 
 @router.post("/import-jobs/{import_job_id}/commits", response_model=s.ImportJobOut, status_code=202)
-def create_import_job_commit(import_job_id: UUID, ctx: RunEverywhere):
+def create_import_job_commit(import_job_id: UUID, ctx: RunEverywhere, body: s.ImportCommitCreate | None = None):
     """Import the checked rows; the job moves to completed with a report of rows that failed. Needs every
     location (403 all-locations-required) and the keys of the staff commands the type's writes stand for;
-    409 check-stale when the file changed after the check."""
-    return service.start_commit(ctx.session, ctx.principal, import_job_id)
+    409 check-stale when the file changed after the check. `confirm_ages` (clients only, staff holding
+    clients.client.confirm_age) counts the imported adults' birth dates as confirmed."""
+    data = body.model_dump() if body else {}
+    return service.start_commit(ctx.session, ctx.principal, import_job_id, data)
 
 
 @router.get("/import-jobs/{import_job_id}/error-report", response_class=Response)
