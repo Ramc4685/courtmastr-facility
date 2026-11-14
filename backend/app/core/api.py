@@ -383,6 +383,12 @@ def _on_data_error(request: Request, exc: DataError):
         and statement.startswith(("INSERT", "UPDATE"))
         and message in ("integer out of range", "smallint out of range")
     ):
+        words = statement.split()
+        table = words[2] if words[0] == "INSERT" and len(words) > 2 else words[1] if len(words) > 1 else "?"
+        log.warning(  # names only, never the value: an operator can find a column that is too narrow
+            "number out of range on write: table %s column %s constraint %s (trace %s)", table.lower(),
+            getattr(diag, "column_name", None), getattr(diag, "constraint_name", None), context.request_id.get(),
+        )  # fmt: skip
         detail = "A number is out of range."
         return problem(
             request,

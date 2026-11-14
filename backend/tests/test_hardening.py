@@ -464,7 +464,12 @@ def test_only_an_int4_bind_on_the_write_path_is_a_422_any_other_overflow_is_a_50
     """S4: 22003 is the caller's fault only when a request value bound into an INSERT or UPDATE overflows an
     integer column; arithmetic overflow in a query, or any read, is a server fault logged with its trace id."""
     bind = _data_error("INSERT INTO overflow_probe (n) VALUES (:n)", n=2**31)
-    assert _answer(bind, "POST") == (422, "validation-failed")
+    with caplog.at_level("WARNING"):
+        assert _answer(bind, "POST") == (422, "validation-failed")
+    [warned] = [r for r in caplog.records if r.levelname == "WARNING"]  # the 422 is not silent, and carries no value
+    assert "overflow_probe" in warned.getMessage() and "trace" in warned.getMessage()
+    assert str(2**31) not in warned.getMessage()
+    caplog.clear()
     assert _answer(bind, "GET") == (500, "internal-error")  # never on a read
     arithmetic = _data_error("SELECT 9223372036854775807::bigint + 1")
     with caplog.at_level("ERROR"):
