@@ -4111,7 +4111,7 @@ export interface paths {
         /**
          * Block League Night
          * @description Hold courts for this competition ahead of its schedule. Rentals clash with the block; the competition's own
-         *     games take their slots out of it when they are booked, and the rest of the night stays held.
+         *     games take their slots out of it when they are booked. A game moved or cancelled later does not give its slot back.
          */
         post: operations["blockLeagueNight"];
         delete?: never;
