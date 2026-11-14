@@ -497,8 +497,8 @@ class CoachShareRule(TenantOwned, Timestamps, Base):
 
 class CoachEarning(TenantOwned, Base):
     """The immutable earnings ledger of independent coaches: one line per recognised lesson, a reversing line when
-    the money goes back, and manual adjustments. Shares always sum to the gross. No client id: the description is
-    client-neutral (first name and last initial, or "Junior lesson")."""
+    the money goes back, and manual adjustments. Shares always sum to the gross. No client id and no client text:
+    the description is "Lesson" (or "Adjustment"), because an immutable row could never be erased or exported."""
 
     __tablename__ = "coach_earning"
     __table_args__ = tenant_args(

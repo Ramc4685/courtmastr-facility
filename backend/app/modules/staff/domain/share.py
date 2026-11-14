@@ -60,11 +60,3 @@ def pick_rule(rules: list, payee_id, reservation_type_id, on: date):
             return found
     return None
 
-
-def client_label(first_name: str | None, last_name: str | None, is_minor: bool) -> str:
-    """Client-neutral text for a coach's statement: first name and last initial; a minor is never named."""
-    if is_minor:
-        return "Junior lesson"
-    first, last = (first_name or "").strip(), (last_name or "").strip()
-    name = f"{first} {last[:1]}.".strip() if last else first
-    return f"Lesson with {name}" if name else "Lesson"

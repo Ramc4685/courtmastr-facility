@@ -925,9 +925,7 @@ def test_n_the_independent_coach_earns_a_share_and_is_settled_by_payout_statemen
             )
 
         assert split(earned()) == [("lesson", 4500, 1350, 3150), ("lesson", 5000, 1500, 3500)]
-        member = ok(c.get(f"{API}/clients/{w.member}", headers=owner), 200)
-        label = f"Lesson with {member['first_name']} {member['last_name'][0]}."  # first name and last initial only
-        assert {r["description"] for r in earned()} == {label}
+        assert {r["description"] for r in earned()} == {"Lesson"}  # no client text in the immutable ledger
         # A refund of the single lesson starts with reversing its package charge: the line is reversed.
         single = ok(c.get(f"{API}/client-packages/{lessons[0][2]}", headers=owner), 200)
         ok(c.post(f"{API}/charges/{single['charge_id']}/reverse", headers=owner | key(), json={"reason": "Refund"}))

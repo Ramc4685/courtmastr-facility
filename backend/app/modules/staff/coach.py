@@ -20,7 +20,7 @@ from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.modules import billing, clients, packages, platform, programs, scheduling
+from app.modules import billing, packages, platform, programs, scheduling
 from app.modules.staff.domain import share
 from app.modules.staff.models import (
     CoachEarning,
@@ -198,14 +198,12 @@ def _target(session: Session, source_type: str, source_id: UUID) -> dict | None:
         place = programs.service.enrollment_facts(session, source_id)
         if place is None:
             return None
-        seat = scheduling.service.get_session(session, place["session_id"])
-        booking_id, client_id = seat["booking_id"], place["client_id"]
+        booking_id = scheduling.service.get_session(session, place["session_id"])["booking_id"]
     else:
-        booking_id, client_id = source_id, None
+        booking_id = source_id
     view = scheduling.service.booking_views(session, [booking_id]).get(booking_id)
     if view is None:
         return None
-    client_id = client_id or view.get("client_id")
     columns = [r["resource_id"] for r in view["resources"]]
     payee = session.scalar(select(StaffPayee).where(StaffPayee.resource_id.in_(columns)).order_by(StaffPayee.id))
     if payee is None:
@@ -221,15 +219,12 @@ def _target(session: Session, source_type: str, source_id: UUID) -> dict | None:
     number = lessons["lessons"].index((source_type, source_id)) + 1
     gross = share.lesson_value(net.get(package_id, {}).get("net_minor", 0), lessons["sold"], number)
     minutes = int((view["ends_at"] - view["starts_at"]).total_seconds() // 60)
+    # The ledger is immutable and has no client id, so erasure and export could never reach a name: no client text.
     label, pct, fee, facility, coach = "Lesson", None, 0, gross, 0
     if rule is not None:  # no rule: the lesson is still recorded, all the facility's, so the gap shows on the statement
         pct = rule.coach_share_pct
         fee = share.court_fee(rule.court_fee_minor, rule.court_fee_basis, minutes)
         facility, coach = share.split(gross, rule.coach_share_pct, fee, rule.court_fee_applies)
-    if client_id is not None:
-        person = clients.service.get(session, client_id)
-        minor = person.birth_on is None or clients.service.is_minor(person, day, platform.service.minor_age(session))
-        label = share.client_label(person.first_name, person.last_name, minor)
     if rule is None:
         label = f"{label} (no share rule)"
     return {

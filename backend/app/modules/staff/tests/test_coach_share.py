@@ -35,14 +35,11 @@ def test_split_rounds_once_and_always_sums_to_the_gross(gross, pct, fee, applies
     assert (facility_share, coach_share) == expected
 
 
-def test_lesson_value_court_fee_and_labels():
+def test_lesson_value_and_court_fee():
     assert share.lesson_value(22500, 5) == 4500 and share.lesson_value(10000, 3) == 3333
     assert share.lesson_value(0, 5) == 0 and share.lesson_value(5000, 0) == 0  # refunded, or unlimited
     assert share.lesson_value(10000, 10, 11) == 0  # a credit added after the sale is worth nothing to the split
     assert share.court_fee(1200, "session", 90) == 1200 and share.court_fee(1200, "hour", 90) == 1800
-    assert share.client_label("Ana", "Ruiz", False) == "Lesson with Ana R."
-    assert share.client_label("Tom", "Ruiz", True) == "Junior lesson"  # a minor is never named
-    assert share.client_label(None, None, False) == "Lesson"
 
 
 @pytest.mark.parametrize("sold", range(1, 13))
@@ -147,7 +144,8 @@ def test_the_ledger_follows_the_lesson_money_and_replays_change_nothing(client, 
     _mark(client, tenant, c, "attended")
     assert _lines(tenant, c.payee["id"]) == [("lesson", 1000, 300, 700)]
     earning = ok(client.get(f"{API}/coach-earnings", headers=owner), 200)["data"][0]
-    assert earning["description"] == "Lesson with Ana R." and earning["earned_on"] == "2031-05-05"
+    # Client-neutral: the immutable ledger has no client id, so erasure could never reach a name written into it.
+    assert earning["description"] == "Lesson" and earning["earned_on"] == "2031-05-05"
     deliver_events()  # nothing new to deliver; the ledger stays put
     _mark(client, tenant, c, "excused")  # the credit comes back: the earning is reversed
     assert _lines(tenant, c.payee["id"])[-1] == ("reversal", -1000, -300, -700)
@@ -245,7 +243,7 @@ def test_payout_statement_flow_adjustment_step_up_and_paid_is_final(client, tena
                                                            "payment_reference": "4111 1111 1111 1111"})  # fmt: skip
     assert card.status_code == 422
     csv_file = client.get(f"{url}/document?format=csv", headers=owner)
-    assert csv_file.status_code == 200 and "Lesson with Ana R.,0.00" not in csv_file.text and "9.50" in csv_file.text
+    assert csv_file.status_code == 200 and "Ana" not in csv_file.text and "9.50" in csv_file.text
     assert client.get(f"{url}/document", headers=owner).content.startswith(b"%PDF")
     actions = rows(tenant, select(AuditEvent.action, func.count()).where(AuditEvent.entity_id == payout["id"])
                           .group_by(AuditEvent.action))  # fmt: skip

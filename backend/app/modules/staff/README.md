@@ -10,7 +10,7 @@ the time clock, shifts, instructor assignment and payroll runs (build module 12;
 | `domain/pay.py` | Pure pay arithmetic: anchored session rates, comp, floor and flat pay, rate precedence, bonuses, commission, effective-dated rates, shift variance |
 | `service.py` | Staff commands and the synchronous payroll calculation |
 | `coach.py` | Coach revenue share: engagement, share rules, the earnings ledger and payout statements |
-| `domain/share.py` | Pure share arithmetic: lesson value, court fee, the split, rule precedence, the client-neutral label |
+| `domain/share.py` | Pure share arithmetic: lesson value, court fee, the split, rule precedence |
 | `handlers.py` | Subscribers that keep the earnings ledger in step with package credits and charges |
 | `router.py` | Staff routes; no portal routes |
 
@@ -187,8 +187,9 @@ lesson-type rule checks every coach who has ever been independent. Today and lat
   session's local date: billing's revenue date for package money is the sale, but the coach earns per lesson.
 
 **Earnings ledger** (`coach_earning`, append-only: `SELECT, INSERT` only). One line per recognised lesson with a
-client-neutral description ("Lesson with Ana R."; a minor or a client without a birth date is "Junior lesson",
-no name), gross, facility share and coach share (integer minor units, half-up once, the two shares always sum
+description of "Lesson" and no client id or client text (an immutable row could never be erased or exported, so
+a name would outlive the client's erasure; who took the lesson is found from the source booking or enrolment by
+staff allowed to see it), gross, facility share and coach share (integer minor units, half-up once, the two shares always sum
 to the gross, a coach share never below zero). `handlers.py` listens to `packages.credit.consumed`,
 `packages.credit.restored`, `billing.charge.reversed`, `billing.charge.voided` and `billing.charge.adjusted` and calls the internal
 `coach.reconcile_source`/`reconcile_package`. Each reconcile compares the live line with what the lesson is worth
