@@ -40,7 +40,9 @@ test('a member sees the door code on their booking and the page passes the scan'
       },
     }),
   )
-  await signIn(page, '/portal/bookings', MEMBER)
+  await signIn(page, '/portal', MEMBER) // a portal sign-in lands on Home
+  await expect(page.getByRole('heading', { level: 1, name: /^Hello/ })).toBeVisible()
+  await page.goto('/portal/bookings')
   await expect(page.getByRole('heading', { level: 2, name: 'Door codes' })).toBeVisible()
   await expect(page.getByLabel('Door code 4 8 1 5 1 6 2 3')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Open the door' })).toBeVisible()
