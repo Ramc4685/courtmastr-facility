@@ -163,16 +163,16 @@ def test_b_volleyball_on_court_2_or_3_excludes_badminton_and_pickleball_there(cl
 
 @pytest.fixture(scope="module")
 def leagues(client_module, w):
-    """The manager blocks every court on one Tuesday league night; the league manager then generates and commits
-    the badminton schedule (Tuesdays, one game per court) and the volleyball one (Thursdays, the two volleyball
-    venues)."""
+    """The manager holds every court on one Tuesday as the badminton league's night; the league manager then
+    generates and commits the badminton schedule (Tuesdays, one game per court) and the volleyball one (Thursdays,
+    the two volleyball venues)."""
     c = client_module
-    block = c.post(f"{API}/bookings", headers=w.manager, json={
-        "location_id": w.location, "kind": "block", "block_kind": "unavailable", "title": "League night",
-        "resources": [{"resource_id": w.courts[n]} for n in cirqt.COURTS],
+    competitions = {x["name"]: x for x in ok(c.get(f"{API}/competitions", headers=w.league), 200)["data"]}
+    night = f"{API}/competitions/{competitions['Tuesday Badminton League']['id']}/league-nights"
+    block = c.post(night, headers=w.manager, json={
+        "resource_ids": [w.courts[n] for n in cirqt.COURTS],
         "starts_at": at(BLOCKED_TUESDAY, "18:00"), "ends_at": at(BLOCKED_TUESDAY, "22:00"),
     })  # fmt: skip
-    competitions = {x["name"]: x for x in ok(c.get(f"{API}/competitions", headers=w.league), 200)["data"]}
     venues = {v["name"]: v["id"] for v in ok(c.get(f"{API}/league-venues", headers=w.league), 200)["data"]}
     runs = {}
     for name, slots in (
@@ -204,8 +204,8 @@ def test_c_blocked_league_night_and_committed_fixtures_refuse_public_rentals(cli
     badminton = leagues.runs["Tuesday Badminton League"].games
     scheduled = [g for g in badminton if g["status"] == "scheduled"]
     assert scheduled, badminton
-    # The staff block is not the league's own: games the generator put on that night cannot be booked there.
-    assert not [g for g in scheduled if _local_day(g["starts_at"]) == BLOCKED_TUESDAY]
+    # The night is held for this league: its games take their slots out of the hold.
+    assert [g for g in scheduled if _local_day(g["starts_at"]) == BLOCKED_TUESDAY]
     game = scheduled[0]
     court = next(n for n, i in w.courts.items() if i == game["resource_id"])
     starts = datetime.fromisoformat(game["starts_at"].replace("Z", "+00:00")).astimezone(ZONE)
@@ -225,12 +225,6 @@ def test_c_blocked_league_night_and_committed_fixtures_refuse_public_rentals(cli
     assert ok(rent(c, w, w.desk, "Badminton court", "Court 1", v.date(), *hhmm))  # Court 1 is not a volleyball court
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A staff block on the courts is not a league reservation: the generator "
-    "treats it as a clash and leaves those games unschedulable, so a league night cannot be blocked "
-    "first and filled by the league scheduler later",
-)
 def test_c_league_fixtures_use_the_blocked_league_night(w, leagues):
     games = leagues.runs["Tuesday Badminton League"].games
     assert any(g["status"] == "scheduled" and _local_day(g["starts_at"]) == BLOCKED_TUESDAY for g in games)
@@ -241,13 +235,16 @@ def test_c_league_fixtures_use_the_blocked_league_night(w, leagues):
 
 def test_d_badminton_and_volleyball_leagues_score_and_rank(client_module, w, leagues):
     c = client_module
-    for name, score in (("Tuesday Badminton League", (2, 1)), ("Thursday Volleyball League", (3, 1))):
+    for name, sets in (
+        ("Tuesday Badminton League", ([21, 19, 21], [18, 21, 15])),
+        ("Thursday Volleyball League", ([25, 23, 25, 25], [20, 25, 18, 22])),
+    ):
         run = leagues.runs[name]
         teams = ok(c.get(f"{API}/competitions/{run.competition}/teams", headers=w.league), 200)
         assert len(teams if isinstance(teams, list) else teams["data"]) == 6
         game = next(g for g in run.games if g["status"] == "scheduled")
         result = ok(c.put(f"{API}/games/{game['id']}/result", headers=w.league,
-                          json={"home": {"score": score[0]}, "away": {"score": score[1]}}), 200)  # fmt: skip
+                          json={"home": {"sets": sets[0]}, "away": {"sets": sets[1]}}), 200)  # fmt: skip
         assert result["home"]["outcome"] == "win" and result["away"]["outcome"] == "loss"
         standings = ok(c.get(f"{API}/competitions/{run.competition}/standings", headers=w.league), 200)
         rows = standings if isinstance(standings, list) else standings["data"]
@@ -258,15 +255,18 @@ def test_d_badminton_and_volleyball_leagues_score_and_rank(client_module, w, lea
         assert public
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A result is one integer score per side: no games or sets (badminton best of "
-    "three to 21, volleyball sets to 25), so per-game points cannot be entered or validated",
-)
 def test_d_set_by_set_scores(client_module, w, leagues):
-    game = next(g for g in leagues.runs["Tuesday Badminton League"].games if g["status"] == "scheduled")
-    sets = {"home": {"score": 2, "sets": [21, 18, 21]}, "away": {"score": 1, "sets": [19, 21, 15]}}
-    assert client_module.put(f"{API}/games/{game['id']}/result", headers=w.league, json=sets).status_code == 200
+    c = client_module
+    run = leagues.runs["Tuesday Badminton League"]
+    game = [g for g in run.games if g["status"] == "scheduled"][1]  # the first one is scored above
+    url = f"{API}/games/{game['id']}/result"
+    # 21-20 is not a finished set (win by two); 30-29 is, at the cap.
+    bad = c.put(url, headers=w.league, json={"home": {"sets": [21, 21]}, "away": {"sets": [20, 15]}})
+    assert bad.status_code == 422, bad.text
+    result = ok(c.put(url, headers=w.league, json={"home": {"sets": [21, 19, 30]}, "away": {"sets": [18, 21, 29]}}), 200)  # fmt: skip
+    assert (result["home"]["score"], result["away"]["score"]) == (2, 1) and result["home"]["sets"] == [21, 19, 30]
+    public = ok(c.get(f"{API}/public/competitions/{run.competition}/games", headers=w.public), 200)
+    assert next(g for g in public if g["id"] == game["id"])["set_scores"] == "21-18, 19-21, 30-29"
 
 
 # --- e. children ---------------------------------------------------------------------------------------------

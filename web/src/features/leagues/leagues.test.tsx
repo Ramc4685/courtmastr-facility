@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
-import { page, renderAsStaff, SCREEN } from '../scheduling/testing'
+import { page, renderAsStaff, resource, SCREEN } from '../scheduling/testing'
 import { LeaguePage, LeaguesPage } from './LeaguesPage'
 import { PublicLeaguesPage } from './PublicLeaguesPage'
 
@@ -75,6 +75,75 @@ describe('LeaguesPage', SCREEN, () => {
     expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({
       home: { score: 3, participation: 'full', went_to_overtime: false, bonus_points: 0 },
       away: { score: 1, participation: 'full', went_to_overtime: false, bonus_points: 0 },
+    })
+  })
+
+  it('scores a sets competition set by set, ranks by sets and switches the format by preset', async () => {
+    const sets = { ...competition, scoring_mode: 'sets', sets_best_of: 3, set_points_to: 21, set_win_by: 2, set_cap: 30, deciding_set_points_to: null }
+    const calls = renderAsStaff(at('/leagues/c1', <LeaguePage />), ALL, {
+      'GET /api/v1/competitions/c1': { status: 200, body: sets },
+      'GET /api/v1/competitions/c1/teams': { status: 200, body: [] },
+      'GET /api/v1/games': page([{ ...game, sets_best_of: 3, set_scores: null }]),
+      'GET /api/v1/competitions/c1/standings': { status: 200, body: [
+        { id: 's1', rank: 1, team_name: 'Strikers', games_played: 1, wins: 1, losses: 0, ties: 0, goals_for: 2, goals_against: 1, goal_difference: 1, points: '3.00', set_points_for: 61, set_points_against: 54 },
+      ] },
+      'PUT /api/v1/games/g1/result': { status: 200, body: { game_id: 'g1', status: 'played' } },
+      'PATCH /api/v1/competitions/c1': { status: 200, body: sets },
+    })
+    await userEvent.click(await screen.findByRole('tab', { name: 'Schedule & results' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Enter the score of Strikers vs Rovers' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Score: Strikers vs Rovers' })
+    // a set with one side blank is refused, never saved as 21-0
+    await userEvent.type(within(dialog).getByLabelText('Set 1: Strikers'), '21')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save result' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Set 1 needs a score for both sides')
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+    await userEvent.clear(within(dialog).getByLabelText('Set 1: Strikers'))
+    for (const [field, value] of [['Set 1: Strikers', '21'], ['Set 1: Rovers', '18'], ['Set 2: Strikers', '19'], ['Set 2: Rovers', '21'], ['Set 3: Strikers', '21'], ['Set 3: Rovers', '15']] as const) {
+      await userEvent.type(within(dialog).getByLabelText(field), value)
+    }
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save result' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
+    const side = { participation: 'full', went_to_overtime: false, bonus_points: 0 }
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ home: { ...side, sets: [21, 19, 21] }, away: { ...side, sets: [18, 21, 15] } })
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Standings' }))
+    const row = within(await screen.findByRole('table', { name: 'Standings' })).getByRole('row', { name: /Strikers/ })
+    expect(row).toHaveTextContent('2.00')
+    expect(row).toHaveTextContent('1.13')
+    await userEvent.click(screen.getByRole('button', { name: 'Scoring format' }))
+    const format = await screen.findByRole('dialog', { name: 'Scoring format' })
+    await userEvent.click(within(format).getByRole('button', { name: 'Volleyball, best of 5' }))
+    await userEvent.click(within(format).getByRole('button', { name: 'Save format' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+      scoring_mode: 'sets', sets_best_of: 5, set_points_to: 25, set_win_by: 2, set_cap: null, deciding_set_points_to: 15,
+      forfeit_score_for: 3, // best of 3 to best of 5: a forfeit now counts as three sets
+    })
+  })
+
+  it('holds a league night on chosen courts and tells staff to re-block a moved game', async () => {
+    const calls = renderAsStaff(at('/leagues/c1', <LeaguePage />), ALL, {
+      'GET /api/v1/competitions/c1': { status: 200, body: competition },
+      'GET /api/v1/competitions/c1/teams': { status: 200, body: [] },
+      'GET /api/v1/games': page([]),
+      'GET /api/v1/resources': page([resource('r1', 'Court 1'), resource('r2', 'Court 2')]),
+      'POST /api/v1/competitions/c1/league-nights': { status: 201, body: {
+        booking_id: 'b1', competition_id: 'c1', title: 'Wednesday Futsal league night', starts_at: '2031-05-07T23:00:00Z', ends_at: '2031-05-08T03:00:00Z', resource_ids: ['r2'],
+      } },
+    })
+    await userEvent.click(await screen.findByRole('tab', { name: 'Schedule & results' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Hold a league night' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Hold a league night' })
+    expect(dialog).toHaveTextContent('If you move or postpone a game, re-block its old slot.')
+    expect(within(dialog).getByRole('button', { name: 'Hold courts' })).toBeDisabled()
+    await userEvent.type(within(dialog).getByLabelText('From'), '2031-05-07T18:00')
+    await userEvent.type(within(dialog).getByLabelText('Until'), '2031-05-07T22:00')
+    await userEvent.click(await within(dialog).findByLabelText('Court 2'))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Hold courts' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      resource_ids: ['r2'], starts_at: new Date('2031-05-07T18:00').toISOString(), ends_at: new Date('2031-05-07T22:00').toISOString(),
     })
   })
 })

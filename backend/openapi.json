@@ -5544,6 +5544,17 @@
             ],
             "title": "Home Score"
           },
+          "set_scores": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Scores"
+          },
           "starts_at": {
             "anyOf": [
               {
@@ -15235,6 +15246,19 @@
             ],
             "title": "Color"
           },
+          "deciding_set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deciding Set Points To"
+          },
           "division_label": {
             "anyOf": [
               {
@@ -15542,6 +15566,21 @@
             ],
             "title": "Rules Text"
           },
+          "scoring_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "sets"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring Mode"
+          },
           "season_id": {
             "anyOf": [
               {
@@ -15553,6 +15592,61 @@
               }
             ],
             "title": "Season Id"
+          },
+          "set_cap": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Cap"
+          },
+          "set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Points To"
+          },
+          "set_win_by": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Win By"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  3,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
           },
           "show_players": {
             "anyOf": [
@@ -15683,6 +15777,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "deciding_set_points_to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deciding Set Points To"
           },
           "division_label": {
             "anyOf": [
@@ -15870,6 +15975,10 @@
             ],
             "title": "Rules Text"
           },
+          "scoring_mode": {
+            "title": "Scoring Mode",
+            "type": "string"
+          },
           "season_id": {
             "anyOf": [
               {
@@ -15881,6 +15990,43 @@
               }
             ],
             "title": "Season Id"
+          },
+          "set_cap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Cap"
+          },
+          "set_points_to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Points To"
+          },
+          "set_win_by": {
+            "title": "Set Win By",
+            "type": "integer"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
           },
           "show_players": {
             "title": "Show Players",
@@ -15959,6 +16105,12 @@
           "tracks_sportsmanship",
           "standings_columns",
           "standings_sort",
+          "scoring_mode",
+          "sets_best_of",
+          "set_points_to",
+          "set_win_by",
+          "set_cap",
+          "deciding_set_points_to",
           "id",
           "location_id",
           "kind",
@@ -16300,6 +16452,19 @@
             ],
             "title": "Color"
           },
+          "deciding_set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deciding Set Points To"
+          },
           "division_label": {
             "anyOf": [
               {
@@ -16607,6 +16772,21 @@
             ],
             "title": "Rules Text"
           },
+          "scoring_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "sets"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring Mode"
+          },
           "season_id": {
             "anyOf": [
               {
@@ -16618,6 +16798,61 @@
               }
             ],
             "title": "Season Id"
+          },
+          "set_cap": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Cap"
+          },
+          "set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Points To"
+          },
+          "set_win_by": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Win By"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  3,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
           },
           "show_players": {
             "anyOf": [
@@ -27301,6 +27536,28 @@
             ],
             "title": "Schedule Run Id"
           },
+          "set_scores": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Scores"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
+          },
           "sport_id": {
             "anyOf": [
               {
@@ -27581,6 +27838,23 @@
             ],
             "title": "Score"
           },
+          "sets": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 99.0,
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                "maxItems": 5,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets"
+          },
           "sportsmanship": {
             "anyOf": [
               {
@@ -27635,6 +27909,14 @@
               }
             ],
             "title": "Score"
+          },
+          "sets": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Sets",
+            "type": "array"
           },
           "sportsmanship": {
             "anyOf": [
@@ -31440,6 +31722,96 @@
         "title": "LeagueNewsUpdate",
         "type": "object"
       },
+      "LeagueNightIn": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_ids",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "LeagueNightIn",
+        "type": "object"
+      },
+      "LeagueNightOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "competition_id": {
+            "format": "uuid",
+            "title": "Competition Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "competition_id",
+          "title",
+          "starts_at",
+          "ends_at",
+          "resource_ids"
+        ],
+        "title": "LeagueNightOut",
+        "type": "object"
+      },
       "LeaguePhotoOut": {
         "properties": {
           "album": {
@@ -32429,6 +32801,16 @@
           },
           "rank": {
             "title": "Rank",
+            "type": "integer"
+          },
+          "set_points_against": {
+            "default": 0,
+            "title": "Set Points Against",
+            "type": "integer"
+          },
+          "set_points_for": {
+            "default": 0,
+            "title": "Set Points For",
             "type": "integer"
           },
           "sportsmanship_avg": {
@@ -60609,6 +60991,17 @@
             "title": "Round No",
             "type": "integer"
           },
+          "set_scores": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Scores"
+          },
           "side": {
             "title": "Side",
             "type": "string"
@@ -60900,6 +61293,11 @@
               }
             ],
             "title": "Rules Text"
+          },
+          "scoring_mode": {
+            "default": "points",
+            "title": "Scoring Mode",
+            "type": "string"
           },
           "season_id": {
             "anyOf": [
@@ -61765,6 +62163,17 @@
               }
             ],
             "title": "Round Label"
+          },
+          "set_scores": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Scores"
           },
           "starts_at": {
             "anyOf": [
@@ -74767,6 +75176,19 @@
       "SportCreate": {
         "additionalProperties": false,
         "properties": {
+          "deciding_set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deciding Set Points To"
+          },
           "default_game_length_min": {
             "default": 60,
             "exclusiveMinimum": 0.0,
@@ -74946,6 +75368,76 @@
             ],
             "title": "Rules Text"
           },
+          "scoring_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "sets"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring Mode"
+          },
+          "set_cap": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Cap"
+          },
+          "set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Points To"
+          },
+          "set_win_by": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Win By"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  3,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
+          },
           "standings_columns": {
             "anyOf": [
               {
@@ -74998,6 +75490,17 @@
       },
       "SportOut": {
         "properties": {
+          "deciding_set_points_to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deciding Set Points To"
+          },
           "default_game_length_min": {
             "title": "Default Game Length Min",
             "type": "integer"
@@ -75080,6 +75583,47 @@
             ],
             "title": "Rules Text"
           },
+          "scoring_mode": {
+            "title": "Scoring Mode",
+            "type": "string"
+          },
+          "set_cap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Cap"
+          },
+          "set_points_to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Points To"
+          },
+          "set_win_by": {
+            "title": "Set Win By",
+            "type": "integer"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
+          },
           "standings_columns": {
             "items": {
               "additionalProperties": true,
@@ -75113,6 +75657,12 @@
           "tracks_sportsmanship",
           "standings_columns",
           "standings_sort",
+          "scoring_mode",
+          "sets_best_of",
+          "set_points_to",
+          "set_win_by",
+          "set_cap",
+          "deciding_set_points_to",
           "id",
           "name",
           "default_game_length_min",
@@ -75127,6 +75677,19 @@
       "SportUpdate": {
         "additionalProperties": false,
         "properties": {
+          "deciding_set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deciding Set Points To"
+          },
           "default_game_length_min": {
             "anyOf": [
               {
@@ -75324,6 +75887,76 @@
               }
             ],
             "title": "Rules Text"
+          },
+          "scoring_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "points",
+                  "sets"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scoring Mode"
+          },
+          "set_cap": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Cap"
+          },
+          "set_points_to": {
+            "anyOf": [
+              {
+                "maximum": 99.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Points To"
+          },
+          "set_win_by": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Win By"
+          },
+          "sets_best_of": {
+            "anyOf": [
+              {
+                "enum": [
+                  1,
+                  3,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sets Best Of"
           },
           "standings_columns": {
             "anyOf": [
@@ -76553,7 +77186,11 @@
               "FF",
               "BP",
               "SPT",
-              "H2H"
+              "H2H",
+              "SW",
+              "SL",
+              "SR",
+              "PR"
             ],
             "title": "Metric",
             "type": "string"
@@ -76592,7 +77229,11 @@
               "FF",
               "BP",
               "SPT",
-              "H2H"
+              "H2H",
+              "SW",
+              "SL",
+              "SR",
+              "PR"
             ],
             "title": "Metric",
             "type": "string"
@@ -105167,6 +105808,82 @@
           }
         },
         "summary": "Create Ladder Challenge",
+        "tags": [
+          "leagues"
+        ],
+        "x-api-key-scopes": [
+          "leagues.game.manage"
+        ]
+      }
+    },
+    "/api/v1/competitions/{competition_id}/league-nights": {
+      "post": {
+        "description": "Hold courts for this competition ahead of its schedule. Rentals clash with the block; the competition's own\ngames take their slots out of it when they are booked. A game moved or cancelled later does not give its slot back.",
+        "operationId": "blockLeagueNight",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeagueNightIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueNightOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Block League Night",
         "tags": [
           "leagues"
         ],

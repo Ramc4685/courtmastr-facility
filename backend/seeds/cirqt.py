@@ -325,14 +325,19 @@ def _leagues(session, actor, location, courts, category, people) -> None:
         for court in VOLLEYBALL_COURTS:  # each convertible court is its own volleyball venue
             depth.create_venue(session, actor, body(ls.VenueCreate, location_id=location.id, name=f"Volleyball, {court}", resource_ids=[courts[court]]))  # fmt: skip
     adults = iter(a for a in people["adults"] if a.id not in (people["parent"].id, people["member"].id))
-    for sport, league_name, teams, size, fee in (
-        ("Badminton", "Tuesday Badminton League", BADMINTON_TEAMS, 2, 8000),
-        ("Volleyball", "Thursday Volleyball League", VOLLEYBALL_TEAMS, 6, 24000),
+    # Scored set by set; a forfeit counts as the sets needed, and ties on points go to set ratio, then points ratio.
+    by_sets = [{"metric": m} for m in ("PTS", "SR", "PR", "H2H")]
+    badminton = {"scoring_mode": "sets", "sets_best_of": 3, "set_points_to": 21, "set_cap": 30, "forfeit_score_for": 2}
+    volleyball = {"scoring_mode": "sets", "sets_best_of": 5, "set_points_to": 25, "deciding_set_points_to": 15, "forfeit_score_for": 3}  # fmt: skip
+    for sport, league_name, teams, size, fee, scoring in (
+        ("Badminton", "Tuesday Badminton League", BADMINTON_TEAMS, 2, 8000, badminton),
+        ("Volleyball", "Thursday Volleyball League", VOLLEYBALL_TEAMS, 6, 24000, volleyball),
     ):
         league = service.create_competition(session, actor, body(
             ls.CompetitionCreate, location_id=location.id, kind="league", name=league_name, sport_id=sports[sport].id,
             season_id=season.id, starts_on=monday, ends_on=monday + timedelta(weeks=10), is_public=True,
             team_fee_minor=fee, revenue_category_id=category.id, team_fee_text=f"${fee // 100} per team",
+            standings_sort=by_sets, **scoring,
         ))  # fmt: skip
         service.transition_competition(session, actor, league.id, "activate")
         for team_name in teams:

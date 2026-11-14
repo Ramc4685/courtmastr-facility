@@ -1,9 +1,14 @@
 """Standings computation (LGE-06): per-side results folded into one row per team entry, then ranked by the
-competition's ordered tie-breaks. Pure: inputs are plain dicts, so the rule is testable without a database."""
+competition's ordered tie-breaks. Pure: inputs are plain dicts, so the rule is testable without a database.
+
+In a sets competition a side's score is its sets won, so GF and GA are sets won and lost; the rows also carry the
+rally points of the played sets (`set_points_for`, `set_points_against`) for the points ratio. A points
+competition's rows are exactly what they were before set scoring existed (golden test)."""
 
 from decimal import Decimal
 
 _ZERO = Decimal(0)
+_ENDLESS = Decimal("Infinity")  # a ratio with nothing against it ranks above every finite ratio
 _GAVE_UP = ("forfeit", "default")
 
 
@@ -50,6 +55,12 @@ def _points_for(kind: str, scoring: dict) -> Decimal:
     }[kind]])  # fmt: skip
 
 
+def _ratio(won, lost) -> Decimal:
+    if lost:
+        return Decimal(won) / lost
+    return _ENDLESS if won else _ZERO
+
+
 def metric(row: dict, name: str):
     gp = row["games_played"]
     return {
@@ -66,6 +77,10 @@ def metric(row: dict, name: str):
         "BP": row["bonus_points"],
         "WP": Decimal(row["wins"] * 2 + row["ties"]) / (2 * gp) if gp else _ZERO,
         "SPT": row.get("sportsmanship_avg") or _ZERO,
+        "SW": row["goals_for"],
+        "SL": row["goals_against"],
+        "SR": _ratio(row["goals_for"], row["goals_against"]),
+        "PR": _ratio(row.get("set_points_for", 0), row.get("set_points_against", 0)),
     }.get(name, 0)
 
 
@@ -84,7 +99,11 @@ def compute(team_ids: list, games: list[dict], scoring: dict, sort: list[dict], 
     participation, went_to_overtime, bonus_points, sportsmanship}. `adjustments` maps a team id to manual
     points. Returns rows ranked 1..n by `sort` (ordered {metric, direction}; 'H2H' compares the points two
     teams took off each other), then by team id for a stable order."""
+    by_sets = scoring.get("scoring_mode") == "sets"
     rows = {team_id: _blank(team_id) for team_id in team_ids}
+    if by_sets:
+        for blank in rows.values():
+            blank["set_points_for"] = blank["set_points_against"] = 0
     head_to_head: dict[tuple, Decimal] = {}
     for game in games:
         for mine, theirs in ((game["home"], game["away"]), (game["away"], game["home"])):
@@ -101,6 +120,9 @@ def compute(team_ids: list, games: list[dict], scoring: dict, sort: list[dict], 
             score_for, score_against = _scores(kind, mine, theirs, scoring["forfeit_score_for"])
             row["goals_for"] += score_for
             row["goals_against"] += score_against
+            if by_sets and mine["participation"] == theirs["participation"] == "full":
+                row["set_points_for"] += sum(mine.get("set_scores") or ())
+                row["set_points_against"] += sum(theirs.get("set_scores") or ())
             bonus = Decimal(mine.get("bonus_points") or 0)
             earned = _points_for(kind, scoring)
             row["bonus_points"] += bonus
