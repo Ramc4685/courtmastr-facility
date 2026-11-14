@@ -352,6 +352,14 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 - [x] [undocumented] Portal self-service routes for turning off auto-renew on a package and on a series exist (`backend/app/modules/packages/service.py:1236`, `:1248`). The README mentions portal routes only generically (line 11). Docs batch.
 - [ ] [contract] `portalQuoteClientPackage` (POST `/portal/client-packages/quote`, "Preview an online package purchase", `docs/api/openapi-people.yaml` around line 5208) is not served. The generated `backend/openapi.json` has no such path, and `backend/app/modules/packages/router.py` has only the staff `/client-packages/quote` (`:95`). The "Not built" list (lines 42-49) names only `setClientPackageRenewal` as a missing route.
 - [x] [wording] Line 74 says GET operation ids start with get/list. The actual renames go beyond that prefix rule: the spec's `portalListClientPackages`, `portalListClientPackageLedger`, `portalListPackagePlans` and `publicListPackagePlans` are served as `listPortalClientPackages`, `listPortalClientPackageLedger`, `listPortalPackagePlans` and `listPublicPackagePlans` (`backend/openapi.json`). The README doesn't list these renames, unlike the documents README. Fixed in 96dbe58.
+- [ ] [stale-not-built] README 55-56 lists `portalQuoteClientPackage` as not built, but it is served (`backend/app/modules/packages/router.py:224`, `service.py:688`). Docs batch.
+- [ ] [stale-not-built] README 53 lists "coupons" as not built, but the portal buy accepts `coupon_code` (`service.py:1245,1255`). Docs batch.
+- [ ] [contract] `setClientPackageRenewal` is still declared in `docs/api/openapi-people.yaml:5267` but not served; README 54 does not say the contract is ahead. Docs batch.
+- [ ] [contract] The whole post-billed surface (`router.py:118,269-311`) is missing from `docs/api/*.yaml`; the README does not say so.
+- [ ] [undocumented] `packages.post_billed.period_closed` (`events.py:57`) is missing from README 12, and `postbilled.py` from the file table. Docs batch.
+- [ ] [undocumented] Portal buy's terms acknowledgement (`service.py:1240`) and the portal quote's online document rules (`service.py:688-720`) are not in the README. Docs batch.
+- [ ] [undocumented] `reserve_credit(..., defer_renewal)` (`service.py:328`; used at `programs/service.py:97`) is missing from README 26 and the threshold rule at 110-111. Docs batch.
+- [ ] [wording] README 8 says "six tables"; `models.py` has eleven. README 105-106 ("matrix has no override key") contradicts 137 and `service.py:1032`. README 37 ("built in another lane") contradicts 132-133. Docs batch.
 
 ### platform (17 open, 1 closed) — [evidence](drift/platform.md)
 
@@ -553,6 +561,13 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [undocumented] (2026-11-13) export_job.notify_on_complete cannot be set through ExportJobCreate; report_schedule missing from data-model-programs.md
 - [ ] [contract] (2026-11-13) recipients and five /report-schedules* routes not in the contract; about a dozen more shape mismatches (see report)
 - [ ] [stale] (2026-11-13) module docstrings and docs/status/15-reporting.md, docs/status/README.md counts out of date (see report)
+
+### reporting (+4, recheck 2026-11-13 on claude/fix-ci-midnight) — [evidence](drift/reporting.md)
+
+- [ ] [contract] Every reporting operation in the contract declares `apiKey` security (e.g. `openapi-programs.yaml:6217`, `:6362`, `:6425`) while README:36 and `service.py:48-52` refuse keys.
+- [ ] [wording] README:14 names `test_view_columns_match_the_contract`; the test is `test_views_match_their_column_contract_and_run_as_the_invoker` (`tests/test_reporting.py:115`).
+- [ ] [wording] README:89, :122 use "chip A/B/C" with no meaning in the code.
+- [ ] [wording] ADR 0010 line 52 puts specs in `reporting/catalog/<context>.py`; code uses `reporting/reports/<family>.py`.
 
 ## Added on claude/owner-decisions-1 (drift refresh 2026-11-13)
 Re-run for access, billing and programs after the kiosk reservation page. Items already listed above are not repeated.
