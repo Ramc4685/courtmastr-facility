@@ -209,10 +209,13 @@ Status per feature: `docs/status/15-reporting.md`.
     nested loops went quadratic (a year at 4 courts did not finish in 300 s), so the statement runs with
     `enable_nestloop` off, keyed day joins (`rv_day`, `hold_day`) and the revenue view joined on keys only. No index
     was added: every join is on an existing key, and an index would not shorten a scan of the whole location.
-  - *Limits*: a run over 15,000 court-days (courts times the widest location's days; by sport counts twice, as it
-    runs two statements) is refused at once with 422 `report-too-large`, so 40 courts for a year fits and by sport
-    about 20. Each statement is stopped after 30 s (`statement_timeout`, in a savepoint) with the same code and
-    "took too long". There is no background build: export jobs render a finished run's snapshot, so a larger ask
+  - *Limits*: a run over 15,000 court-days (courts times the widest location's days; by sport also courts times
+    rental types plus one times days) is refused with 422 `report-too-large` before any report statement runs, so
+    40 courts for a year fits and by sport, with one rental type, about 13. Every statement is read through a
+    server-side cursor that fetches at most bound + 1 rows, where the bound is the most rows it can return (courts x
+    days; rental types plus one x days; 7 x 24 for the heat map), and one row over is refused with the same code. A
+    SQL `LIMIT` is not used: it steers the planner to a fast-start plan that timed out even on test-sized data. Each statement is stopped after 30 s
+    (`statement_timeout`, in a savepoint) with the same code and "took too long". There is no background build: export jobs render a finished run's snapshot, so a larger ask
     must be split by courts or dates. Scheduled runs build the same way and hit the same limits. The 50,000-row
     snapshot cap (`MAX_ROWS`) counts the report's rows after court-days are added up to the grain, not court-days.
   - *Isolation*: every `rpt_*` view is listed from the catalogue and read as a tenant with no data: each is empty

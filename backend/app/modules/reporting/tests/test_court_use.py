@@ -18,6 +18,7 @@ import pytest
 from app.core import clock
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
+from app.core.errors import ValidationFailed
 from app.modules import billing, resources
 from app.modules.reporting import service
 from app.modules.reporting.reports import courts
@@ -358,6 +359,38 @@ def test_an_oversized_ask_is_refused_inline(client, owner, f, monkeypatch):
     two_days["resource_ids"] = [f.court]  # 1 court x 2 days fits
     assert ran(client, owner, "court_use", location_ids=[f.location], **two_days)["row_count"] == 2
     refused(client, owner, "court_use", f, group_by="sport", **two_days)  # two statements: 2 x 2 = 4
+
+
+def test_an_oversized_ask_runs_no_report_statement(client, owner, f, monkeypatch):
+    def heavy(*_args, **_kwargs):
+        raise AssertionError("the report statement ran")
+
+    monkeypatch.setattr(courts, "_run", heavy)
+    monkeypatch.setattr(courts, "MAX_COURT_DAYS", 3)
+    two_days = {"from_on": MONDAY.isoformat(), "to_on": "2031-05-06"}
+    for key, extra in (("court_use", {}), ("court_use", {"group_by": "sport"}), ("court_use_heatmap", {})):
+        refused(client, owner, key, f, **two_days, **extra)
+
+
+def test_every_statement_is_fetched_under_a_row_bound(client, owner, tenant, f, monkeypatch):
+    real, seen = courts._run, []
+
+    def spy(session, sql, args, bound):
+        seen.append(bound)
+        return real(session, sql, args, bound)
+
+    monkeypatch.setattr(courts, "_run", spy)
+    day = {"location_ids": [f.location], "from_on": MONDAY.isoformat(), "to_on": "2031-05-06"}
+    for group_by in ("court", "court_group", "sport"):
+        ran(client, owner, "court_use", group_by=group_by, **day)
+    ran(client, owner, "court_use_heatmap", **day)
+    # 2 courts x 2 days for each court-day statement; sport is (1 rental type + programs) x 2 days; 7 x 24 cells
+    assert seen == [4, 4, 4, 4, 7 * 24]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert len(real(session, "SELECT g FROM generate_series(1, 5) g", {}, 5)) == 5
+        with pytest.raises(ValidationFailed) as refusal:
+            real(session, "SELECT g FROM generate_series(1, 5) g", {}, 4)  # the fifth row trips the cap
+        assert refusal.value.code == "report-too-large"
 
 
 def test_a_run_that_takes_too_long_is_stopped(client, owner, f, monkeypatch):

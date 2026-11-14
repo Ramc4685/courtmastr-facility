@@ -27,11 +27,12 @@ from app.modules.reporting.registry import (
     ReportSpec,
     Scope,
     _key,
+    too_large,
 )
 
 PROGRAM = "program"  # the key of league, class and program use (bookings that are not rentals or blocks)
 PROGRAM_LABEL = "League and programs"
-MAX_COURT_DAYS = 15_000  # courts x days per statement x statements: 40 courts for a year (README "Cost")
+MAX_COURT_DAYS = 15_000  # court-days one run works through (by sport: x rental types + 1 more): 40 courts for a year
 TIMEOUT = "30s"  # one statement; past it the run is refused with report-too-large
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
@@ -272,33 +273,46 @@ def _measures(played: str, buffer: str) -> str:
     ))  # fmt: skip
 
 
-def _fits(session: Session, p: CourtParams, scope: Scope, statements: int = 1) -> None:
-    """Refuse inline before any work when courts x days (the widest location span) times the statements the run
-    needs is over MAX_COURT_DAYS."""
+def _fits(session: Session, p: CourtParams, scope: Scope, sport: bool = False) -> tuple[int, int]:
+    """Refuse inline, before any report statement runs, when the court-days a run works through are over
+    MAX_COURT_DAYS: courts x days (the widest location span), and by sport also each court x (rental types +
+    programs) x days. Returns the row bounds of the court-day and the sport-day statements."""
     _, courts, args = _filters(p, scope)
     spans = [(p.from_on, p.to_on), *(scope.day_ranges or {}).values()]
     days = max((b - a).days + 1 for a, b in spans if a and b)
     args["start"] = min(a for a, b in spans if a and b)  # courts archived before the range have no days in it
     live = " AND ".join([*courts, "(archived_at IS NULL OR archived_at >= CAST(:start AS date))"])
-    count = session.scalar(text(f"SELECT count(*) FROM rpt_court WHERE {live}"), args) or 0
-    if count * days * statements > MAX_COURT_DAYS:
+    count, types = session.execute(text(f"""
+        SELECT count(*), (SELECT count(DISTINCT t.rental_type_id) FROM rpt_court_rental_type t
+                          WHERE t.court_id IN (SELECT court_id FROM rpt_court WHERE {live}))
+        FROM rpt_court WHERE {live}"""), args).one()  # fmt: skip
+    work = count * days + (count * (types + 1) * days if sport else 0)
+    if work > MAX_COURT_DAYS:
+        what = f" by {types + 1} sports" if sport else ""
         raise ValidationFailed(
-            f"{count} courts over {days} days is {count * days} court-days, too many for one run "
-            f"(at most {MAX_COURT_DAYS // statements}): choose fewer courts or a shorter range",
+            f"{count} courts over {days} days{what} is {work} court-days, too many for one run "
+            f"(at most {MAX_COURT_DAYS}): choose fewer courts or a shorter range",
             code="report-too-large",
         )
+    return count * days, (types + 1) * days
 
 
-def _run(session: Session, sql: str, args: dict) -> list:
-    """One statement under TIMEOUT, in a savepoint so a stopped run leaves the request's transaction usable. Its
-    court-days are capped by MAX_COURT_DAYS; MAX_ROWS applies to the report's rows, after they are added up."""
+def _run(session: Session, sql: str, args: dict, bound: int) -> list:
+    """One statement under TIMEOUT, in a savepoint so a stopped run leaves the request's transaction usable, of
+    which at most bound + 1 rows are fetched: bound is the most rows the statement can return, so one more is refused.
+    MAX_ROWS applies to the report's rows, after they are added up."""
     try:
         with session.begin_nested():
             session.execute(text(f"SET LOCAL statement_timeout = '{TIMEOUT}'"))
             # under RLS the planner guesses a few rows per tenant and nests loops over sets of thousands; every
             # join here is on keys or local days, so hash joins keep the work linear (README "Cost")
             session.execute(text("SET LOCAL enable_nestloop = off"))
-            found = session.execute(text(sql), args).all()
+            # a LIMIT steers the planner to a fast-start plan that is far slower here, so the cap is taken from a
+            # server-side cursor planned for every row; at most bound + 1 rows ever reach memory
+            session.execute(text("SET LOCAL cursor_tuple_fraction = 1"))
+            result = session.execute(text(sql).execution_options(stream_results=True), args)
+            found = result.fetchmany(bound + 1)
+            result.close()
     except OperationalError as error:
         if getattr(error.orig, "sqlstate", None) != "57014":  # query_canceled
             raise
@@ -307,10 +321,13 @@ def _run(session: Session, sql: str, args: dict) -> list:
         ) from None
     session.execute(text("SET LOCAL statement_timeout TO DEFAULT"))
     session.execute(text("SET LOCAL enable_nestloop TO DEFAULT"))
+    session.execute(text("SET LOCAL cursor_tuple_fraction TO DEFAULT"))
+    if len(found) > bound:
+        raise too_large()
     return list(found)
 
 
-def _court_days(session: Session, p: CourtParams, scope: Scope) -> list:
+def _court_days(session: Session, p: CourtParams, scope: Scope, bound: int) -> list:
     base, args = _base(p, scope)
     sql = f"""{base}
     SELECT b0.court_id, c.court_name, c.court_group_id, c.court_group_name, c.sort_order, b0.day,
@@ -322,10 +339,10 @@ def _court_days(session: Session, p: CourtParams, scope: Scope) -> list:
     LEFT JOIN (SELECT court_id, day, sum(net_minor) AS net_minor, sum(peak_minor) AS peak_minor FROM rev
                GROUP BY court_id, day) rv ON rv.court_id = b0.court_id AND rv.day = b0.day
     ORDER BY b0.day, c.sort_order, c.court_name, b0.court_id"""
-    return _run(session, sql, args)
+    return _run(session, sql, args, bound)
 
 
-def _sport_days(session: Session, p: CourtParams, scope: Scope) -> list:
+def _sport_days(session: Session, p: CourtParams, scope: Scope, bound: int) -> list:
     """Per sport (rental type, or league and programs) and day: the play of that sport against the available time
     of the courts that offer it (league and programs: every court). Sports may overlap one another on a court."""
     base, args = _base(p, scope)
@@ -351,7 +368,7 @@ def _sport_days(session: Session, p: CourtParams, scope: Scope) -> list:
     LEFT JOIN (SELECT court_id, day, sport, sum(net_minor) AS net_minor, sum(peak_minor) AS peak_minor FROM rev
                GROUP BY 1, 2, 3) rv ON rv.court_id = o.court_id AND rv.day = b0.day AND rv.sport = o.sport
     GROUP BY o.sport, b0.day ORDER BY b0.day, max(o.sport_name) NULLS LAST, o.sport"""  # fmt: skip
-    return _run(session, sql, args)
+    return _run(session, sql, args, bound)
 
 
 # --- figures -------------------------------------------------------------------------------------------------
@@ -400,21 +417,21 @@ def _add(into: dict, row, keys) -> None:
 
 
 def _court_use(session: Session, p: CourtUseParams, scope: Scope) -> dict:
-    _fits(session, p, scope, 2 if p.group_by == "sport" else 1)  # by sport also runs the court-days for totals
+    court_days, sport_days = _fits(session, p, scope, sport=p.group_by == "sport")
     total: dict = {}
     groups: dict[tuple, dict] = {}
     if p.group_by == "sport":
-        found = _sport_days(session, p, scope)
+        found = _sport_days(session, p, scope, sport_days)
         for x in found:
             kind = "program" if x.sport == PROGRAM else "rental"
             row = groups.setdefault((_period(x.day, p.grain), x.sport), {
                 "label": x.sport_name or PROGRAM_LABEL, "m": {"rental": 0, "program": 0, "blocked": 0}})  # fmt: skip
             _add(row["m"], x, ("available", "peak_available", "played", "peak_played", "outside", "buffer", *_MONEY))
             row["m"][kind] += int(x.played)
-        for x in _court_days(session, p, scope):  # totals stay physical: one minute counts once per court
+        for x in _court_days(session, p, scope, court_days):  # totals stay physical: one minute counts once per court
             _add(total, x, (*_MINUTES, *_MONEY))
     else:
-        for x in _court_days(session, p, scope):
+        for x in _court_days(session, p, scope, court_days):
             key = (x.court_id, x.court_name) if p.group_by == "court" else (x.court_group_id, x.court_group_name)
             row = groups.setdefault((_period(x.day, p.grain), key[0]), {"label": key[1], "m": {}})
             _add(row["m"], x, (*_MINUTES, *_MONEY))
@@ -431,7 +448,7 @@ def _heatmap(session: Session, p: CourtParams, scope: Scope) -> dict:
     summed over the courts and days in the range. Buckets are real hours from local midnight, so a 25 hour day
     has two 01:00 buckets and a 23 hour day none at 02:00."""
     _fits(session, p, scope)
-    base, args = _base(p, scope)
+    base, args = _base(p, scope)  # rows: one per weekday and local hour
     sql = f"""{base},
     bucket AS (
         SELECT b0.day, extract(isodow FROM b0.day)::int AS weekday,
@@ -443,7 +460,7 @@ def _heatmap(session: Session, p: CourtParams, scope: Scope) -> dict:
     SELECT weekday, hour, sum({_min("open_mr * slot")}) AS available, sum({_min("played * open_mr * slot")}) AS played
     FROM bucket GROUP BY weekday, hour ORDER BY hour, weekday"""
     cells: dict[int, dict] = {}
-    for x in _run(session, sql, args):
+    for x in _run(session, sql, args, 7 * 24):
         cells.setdefault(x.hour, {})[x.weekday] = (int(x.available), int(x.played))
     rows, week = [], [0, 0]
     for hour in sorted(cells):
