@@ -213,25 +213,39 @@ export function RevenueChart({ rows, totals, currency }: { rows: Row[]; totals: 
   )
 }
 
-/** Court use: played, changeover and blocked share of available time per row (court, group or sport). Inline SVG, theme colours. */
+/** Court use: played, changeover and blocked share of available time per row (court, group or sport). Inline SVG,
+ * theme colours; changeover and blocked also carry a pattern, each bar its value as text, and a sentence says it all. */
 export function CourtUseChart({ rows, totals }: { rows: Row[]; totals: Record<string, unknown> | null | undefined }) {
   const parts = [
     { key: 'played_hours', label: 'Played', fill: 'rgb(var(--primary))' },
-    { key: 'buffer_hours', label: 'Changeover', fill: 'rgb(var(--primary) / 0.45)' },
-    { key: 'blocked_hours', label: 'Blocked', fill: 'rgb(var(--danger) / 0.6)' },
+    { key: 'buffer_hours', label: 'Changeover', fill: 'url(#court-use-changeover)' },
+    { key: 'blocked_hours', label: 'Blocked', fill: 'url(#court-use-blocked)' },
   ]
   const bars = rows.slice(0, 20).map((r) => ({ label: [r.period_on, r.label].filter(Boolean).join(' '), row: r }))
   const row = 28, labelW = 190, chartW = 400, valueW = 70, top = 22
   const height = top + bars.length * row + 4
-  const share = (r: Row, key: string) => { const a = Number(r.available_hours ?? 0); return a > 0 ? Math.min(1, Number(r[key] ?? 0) / a) : 0 }
+  const share = (r: Row | Record<string, unknown>, key: string) => { const a = Number(r.available_hours ?? 0); return a > 0 ? Math.min(1, Number(r[key] ?? 0) / a) : 0 }
+  const pct = (r: Row | Record<string, unknown>, key: string) => formatCell(share(r, key) * 100, 'pct', '')
+  const busiest = bars.reduce<(typeof bars)[number] | null>((best, b) => (Number(b.row.utilization_pct ?? -1) > Number(best?.row.utilization_pct ?? -1) ? b : best), null)
   const summary = `Utilization ${formatCell(totals?.utilization_pct, 'pct', '')} of ${formatCell(totals?.available_hours, 'number', '')} available hours`
+  const inWords = totals && `In all: played ${pct(totals, 'played_hours')}, changeover ${pct(totals, 'buffer_hours')} and blocked ${pct(totals, 'blocked_hours')} of ${formatCell(totals.available_hours, 'number', '')} available hours.${busiest ? ` Busiest: ${busiest.label} at ${formatCell(busiest.row.utilization_pct, 'pct', '')}.` : ''}`
   return (
     <figure className="rounded-lg border border-border bg-surface p-4 shadow-card">
       <figcaption className="mb-2 text-sm font-medium">{summary}</figcaption>
       <svg role="img" aria-label={summary} viewBox={`0 0 ${labelW + chartW + valueW} ${height}`} className="w-full max-w-3xl text-fg">
+        <defs>
+          <pattern id="court-use-changeover" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="rgb(var(--primary) / 0.25)" />
+            <rect width="3" height="6" fill="rgb(var(--primary) / 0.7)" />
+          </pattern>
+          <pattern id="court-use-blocked" width="6" height="6" patternUnits="userSpaceOnUse">
+            <rect width="6" height="6" fill="rgb(var(--danger) / 0.25)" />
+            <circle cx="3" cy="3" r="1.6" fill="rgb(var(--danger))" />
+          </pattern>
+        </defs>
         {parts.map((p, i) => (
           <g key={p.key} transform={`translate(${labelW + i * 110} 0)`}>
-            <rect width="12" height="12" y="2" rx="2" fill={p.fill} />
+            <rect width="12" height="12" y="2" rx="2" fill={p.fill} stroke="rgb(var(--fg) / 0.4)" />
             <text x="16" y="12" fontSize="11" fill="currentColor">{p.label}</text>
           </g>
         ))}
@@ -247,7 +261,47 @@ export function CourtUseChart({ rows, totals }: { rows: Row[]; totals: Record<st
           )
         })}
       </svg>
+      {inWords && <p className="mt-2 text-sm text-muted">{inWords}</p>}
     </figure>
+  )
+}
+
+const HEAT_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+/** Court use heat map: a table of local hours by weekday, each cell shaded by its utilization and showing it as text
+ * (shade is extra: the number is always there, and an hour a day is never open says so). */
+export function CourtHeatmap({ rows, totals }: { rows: Row[]; totals: Record<string, unknown> | null | undefined }) {
+  const cells = rows.flatMap((r) => HEAT_DAYS.map((d) => ({ hour: String(r.hour), day: d, value: r[`${d}_pct`] as number | null })))
+  const top = cells.reduce<(typeof cells)[number] | null>((best, c) => (c.value != null && c.value > (best?.value ?? -1) ? c : best), null)
+  const caption = `Average utilization by hour and weekday: ${formatCell(totals?.utilization_pct, 'pct', '')} in all.${top ? ` Busiest: ${words(top.day)} ${top.hour} at ${formatCell(top.value, 'pct', '')}.` : ''}`
+  return (
+    <div className="overflow-x-auto rounded-lg border border-border bg-surface p-4 shadow-card">
+      <table className="w-full min-w-[36rem] border-separate border-spacing-0.5 text-center text-xs">
+        <caption className="mb-2 text-left text-sm font-medium">{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col" className="px-2 py-1 text-left">Hour</th>
+            {HEAT_DAYS.map((d) => <th key={d} scope="col" className="px-2 py-1"><abbr title={words(d)}>{words(d).slice(0, 3)}</abbr></th>)}
+            <th scope="col" className="px-2 py-1">All days</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={String(r.hour)}>
+              <th scope="row" className="px-2 py-1 text-left font-medium">{String(r.hour)}</th>
+              {[...HEAT_DAYS.map((d) => `${d}_pct`), 'all_days_pct'].map((k) => {
+                const v = r[k] as number | null
+                return (
+                  <td key={k} className="rounded px-2 py-1 tabular-nums" style={v == null ? undefined : { backgroundColor: `rgb(var(--primary) / ${((v / 100) * 0.4).toFixed(2)})` }}>
+                    {v == null ? <><span aria-hidden="true">—</span><span className="sr-only">not open</span></> : formatCell(v, 'pct', '')}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -290,6 +344,7 @@ function Results({ run, def }: { run: Run; def: Definition }) {
       <Totals def={def} totals={run.totals} />
       {def.key === 'revenue_summary' && !group && !rows.isPending && <RevenueChart rows={data} totals={run.totals} currency={currency} />}
       {def.key === 'court_use' && !rows.isPending && data.length > 0 && <CourtUseChart rows={data} totals={run.totals} />}
+      {def.key === 'court_use_heatmap' && !rows.isPending && data.length > 0 && <CourtHeatmap rows={data} totals={run.totals} />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{group ? `Details: ${group.label}` : `${run.row_count ?? 0} rows`}</h2>
         <div className="flex gap-2 print:hidden">
