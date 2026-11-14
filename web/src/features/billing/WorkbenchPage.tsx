@@ -209,11 +209,14 @@ function RefundsTab() {
 
 export function WorkbenchPage() {
   const { can } = useAuth()
+  // Each tab's location filter starts at the header's working location; switching it there restarts the tab at the
+  // new one (filters and selection reset), so the page never disagrees with the header.
+  const k = useCurrentLocation().locationId ?? 'all'
   const tabs = [
-    { id: 'items', label: 'Billing items', content: <ItemsWorkbench /> },
-    { id: 'carts', label: 'Carts', content: <CartsTab /> },
-    ...(can('billing.invoice.read') ? [{ id: 'invoices', label: 'Invoices', content: <InvoicesWorkbench /> }] : []),
-    ...(can('billing.payment.read') ? [{ id: 'payments', label: 'Payments', content: <PaymentsWorkbench /> }, { id: 'refunds', label: 'Refunds', content: <RefundsTab /> }] : []),
+    { id: 'items', label: 'Billing items', content: <ItemsWorkbench key={k} /> },
+    { id: 'carts', label: 'Carts', content: <CartsTab key={k} /> },
+    ...(can('billing.invoice.read') ? [{ id: 'invoices', label: 'Invoices', content: <InvoicesWorkbench key={k} /> }] : []),
+    ...(can('billing.payment.read') ? [{ id: 'payments', label: 'Payments', content: <PaymentsWorkbench key={k} /> }, { id: 'refunds', label: 'Refunds', content: <RefundsTab /> }] : []),
   ]
   return (
     <>
