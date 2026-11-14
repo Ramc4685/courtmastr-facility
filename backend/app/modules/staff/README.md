@@ -220,6 +220,21 @@ share is a cost owed to the coach, not less revenue: revenue reports and the led
 QuickBooks is unchanged: its daily journal is built from billing's ledger postings, which never include coach
 earnings, so lesson revenue posts in full and the facility books each payout as a contractor expense when it pays.
 
+**Known limits** (documented, behaviour unchanged; the owner will confirm):
+- A partial refund is spread across every lesson of the package, taught or not: $500 for ten lessons, six
+  taught, $200 refunded makes every lesson worth $30, so a 70% coach gets $126 for the six, not $210 (the refund
+  paying for the four untaught lessons first). Which one is wanted is the owner's call.
+- Earnings accrue on invoiced money (`billing.source_totals` `net_minor` of live charges), not on money paid: an
+  unpaid invoice still earns the coach their share until the charge is reversed or voided.
+- Hiding the share percent and court fee from a coach without `staff.pay_rate.read` is nominal: the gross and the
+  coach's share of every line are in their own view, statement PDF and CSV, so the percent can be worked out.
+  It keeps the rule's terms off the screen; it does not keep them secret.
+
+**Assumptions** (coach share fix round): a lesson's value rounds down (see Valuation), so a package's lessons
+never exceed its net; a lesson with no rule is written at a zero coach share rather than skipped; a negative
+statement stays draft rather than carrying forward; the ledger holds no client text, and no client label is shown
+on a coach's lines or statements.
+
 **Tax** (document only): 1099 or other reporting is the facility's job; the product offers the yearly coach share
 through the split report and the "tax form on file" date.
 
