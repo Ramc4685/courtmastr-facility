@@ -181,3 +181,35 @@ def test_staff_approve_pending_request(client, tenant, owner, location_id, mailb
     approved = client.post(f"{API}/client-relationships/{pending['id']}/approve", headers=owner).json()
     assert approved["status"] == "active"
     assert client.post(f"{API}/client-relationships/{pending['id']}/approve", headers=owner).status_code == 409
+
+
+def test_two_first_callers_seed_the_system_relationship_types_once(tenant):
+    """The lazy seed races safely: the second caller waits on the first's rows, then neither raises."""
+    import threading
+
+    from sqlalchemy import func, select
+
+    from app.modules.clients.models import RelationshipType
+
+    errors = []
+
+    def second():
+        try:
+            with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+                clients.households.ensure_relationship_types(session)
+        except Exception as exc:  # noqa: BLE001 - surfaced by the assert below
+            errors.append(exc)
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        clients.households.ensure_relationship_types(session)  # inserted, not yet committed
+        racer = threading.Thread(target=second)
+        racer.start()
+        racer.join(timeout=1.0)  # blocks on the uncommitted rows
+    racer.join(timeout=10)
+    assert not racer.is_alive() and errors == []
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        types = {t.code: t for t in session.scalars(select(RelationshipType))}
+        assert session.scalar(select(func.count()).select_from(RelationshipType)) == len(
+            clients.households.SYSTEM_TYPES
+        )
+        assert types["parent_of"].inverse_type_id == types["child_of"].id
