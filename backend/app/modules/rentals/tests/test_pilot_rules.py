@@ -4,7 +4,7 @@ names the children who play)."""
 
 import base64
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from itertools import groupby
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -279,7 +279,7 @@ def test_open_times_narrow_to_a_court_and_a_time_band(client, owner, tenant, f):
 
 def test_a_membership_that_lapses_after_the_quote_the_charge_wins(client, owner, tenant, f):
     me, portal = portal_client(client, owner, tenant, f)
-    contract = join(client, owner, f, me, datetime.now(UTC))  # active today, so it can be suspended
+    contract = join(client, owner, f, me, datetime.now(ZoneInfo("America/Chicago")))  # active today there
     ten = SOON + timedelta(hours=16)  # 10:00 in Chicago (CST) three days ahead
     query = f"rental_type_id={f.rtype}&on={SOON.date()}&length_min=60&resource_id={f.court}&client_id={me}"
     slots = ok(client.get(f"{API}/portal/rental-availability?{query}", headers=portal), 200)["data"]
