@@ -93,7 +93,7 @@ describe('LeaguesPage', SCREEN, () => {
     await userEvent.click(await screen.findByRole('tab', { name: 'Schedule & results' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Enter the score of Strikers vs Rovers' }))
     const dialog = await screen.findByRole('dialog', { name: 'Score: Strikers vs Rovers' })
-    for (const [field, value] of [['Set 1: Strikers', '21'], ['Set 1: Rovers', '18'], ['Set 2: Strikers', '19'], ['Set 2: Rovers', '21'], ['Set 3: Strikers', '21'], ['Set 3: Rovers', '15']]) {
+    for (const [field, value] of [['Set 1: Strikers', '21'], ['Set 1: Rovers', '18'], ['Set 2: Strikers', '19'], ['Set 2: Rovers', '21'], ['Set 3: Strikers', '21'], ['Set 3: Rovers', '15']] as const) {
       await userEvent.type(within(dialog).getByLabelText(field), value)
     }
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save result' }))

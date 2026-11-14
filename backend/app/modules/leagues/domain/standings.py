@@ -102,8 +102,8 @@ def compute(team_ids: list, games: list[dict], scoring: dict, sort: list[dict], 
     by_sets = scoring.get("scoring_mode") == "sets"
     rows = {team_id: _blank(team_id) for team_id in team_ids}
     if by_sets:
-        for row in rows.values():
-            row["set_points_for"] = row["set_points_against"] = 0
+        for blank in rows.values():
+            blank["set_points_for"] = blank["set_points_against"] = 0
     head_to_head: dict[tuple, Decimal] = {}
     for game in games:
         for mine, theirs in ((game["home"], game["away"]), (game["away"], game["home"])):

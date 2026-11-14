@@ -380,7 +380,9 @@ _BODIES = {
     "postponeGame": {},
     "putGameResult": {"home": {"score": 1}, "away": {"score": 0}},
     "blockLeagueNight": lambda ids: {
-        "resource_ids": [ids.resource_id], "starts_at": "2031-07-09T23:00:00Z", "ends_at": "2031-07-10T01:00:00Z",
+        "resource_ids": [ids.resource_id],
+        "starts_at": "2031-07-09T23:00:00Z",
+        "ends_at": "2031-07-10T01:00:00Z",
     },
     "updateOfficial": {"first_name": "Renamed"},
     "putGameOfficials": lambda ids: {"assignments": [{"official_id": ids.official_id}]},

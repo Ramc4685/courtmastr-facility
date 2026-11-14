@@ -630,15 +630,14 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says
 
 ## Added on claude/league-set-scoring (drift refresh 2026-11-13)
-Leagues re-run after set scoring (migration 2001) and league nights. Items already listed above (alert.send, rate limits, file map, competition_of, YAML departures, single-elimination wording) still hold and are not repeated.
+Leagues re-run after set scoring (migration 2001) and league nights. Items already listed above (alert.send, rate limits, file map, competition_of, YAML departures, single-elimination wording) still hold and are not repeated. An earlier [missing] item (presets, dialogs and seed values) is fixed in the tree and removed.
 
 ### leagues — [evidence](drift/leagues.md)
 
-- [ ] [missing] README:120-122 says set-scoring presets are buttons on the competition screen and values in the CIRQT seed; `web/src` has no preset buttons, set-score dialog or league-night form, and `backend/seeds/cirqt.py` sets no scoring fields.
 - [ ] [wording] README:8 names migrations 1101 and 1441 (16 + 6 tables) but not 1421 (8 more, 30 in all).
-- [ ] [undocumented] Set scoring: problem code `invalid-set-score` (`service.py:1393`), result view `sets` (`service.py:1299`), game view `sets_best_of` (`schemas.py:533`), public competition `scoring_mode` (`schemas.py:916`), sets game card boxes (`depth.py:685`).
-- [ ] [undocumented] League nights: nothing carved while another booking is in the way, block is `unavailable` with no buffers, carved original cancelled with reason `other` (`scheduling/service.py:467-485`, `leagues/service.py:1049-1051`).
-- [ ] [wording] README security table (55-68) has no row for league nights or the B2 surface; `tests/test_site.py` is not cited.
+- [ ] [undocumented] Set scoring: problem code `invalid-set-score` (`service.py:1391`), game view `sets_best_of` (`schemas.py:533`), public competition `scoring_mode` (`schemas.py:916`), sets game card boxes (`depth.py:686`).
+- [ ] [undocumented] League nights: nothing carved while another booking is in the way, block is `unavailable`, carved original cancelled with reason `other` (`scheduling/service.py:467-485`, `leagues/service.py:1049`).
+- [ ] [wording] README security table (55-68) has no row for league nights or the B2 surface; `tests/test_site.py` and `tests/test_set_scoring.py` are not cited.
 
 ## scheduling (refresh 2026-11-13, README with the `gives_way` paragraph; evidence in `drift/scheduling.md`)
 
