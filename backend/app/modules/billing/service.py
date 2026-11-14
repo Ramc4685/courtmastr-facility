@@ -885,6 +885,17 @@ def find_payment(session: Session, idempotency_key: str) -> Payment | None:
     return _payment_by_key(session, idempotency_key)
 
 
+def paid_sources(session: Session, payment_id: UUID) -> list[tuple[str, str, UUID, UUID | None]]:
+    """Internal read: (source_context, source_type, source_id, invoice_id) of each charge the payment's live
+    allocations pay: what a replayed sale's payment was taken for."""
+    rows = session.execute(
+        select(Charge.source_context, Charge.source_type, Charge.source_id, Charge.invoice_id)
+        .join(PaymentAllocation, PaymentAllocation.charge_id == Charge.id)
+        .where(PaymentAllocation.payment_id == payment_id, PaymentAllocation.status != "released")
+    )  # fmt: skip
+    return [tuple(row) for row in rows]
+
+
 def failed_refund_attempts(session: Session, payment_id: UUID, key_prefix: str) -> int:
     """Internal read: how many refunds of the payment under keys starting with `key_prefix` were declined or
     cancelled. A caller with a fixed key per use case appends this as an attempt number, so "try again" after a

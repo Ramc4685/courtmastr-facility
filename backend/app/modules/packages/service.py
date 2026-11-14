@@ -591,7 +591,7 @@ def sell(
     start_on: date | None = None, channel: str = "staff", online: bool = False, sold_by_staff_user_id: UUID | None = None,
     invoice_mode: str | None = None, is_complimentary: bool = False, internal_remarks: str | None = None,
     source_contract_id: UUID | None = None, source_contract_addon_id: UUID | None = None, multiplier: int = 1,
-    payment: dict | None = None, idempotency_key: str | None = None,
+    payment: dict | None = None, idempotency_key: str | None = None, sale: str | None = None,
 ) -> dict:  # fmt: skip
     """Sell (or grant) a package from a plan. Internal: staff sale, portal purchase, POS, complimentary grants
     and membership add-ons all come through here. Returns {"package", "invoice", "payment", "series"}.
@@ -662,9 +662,7 @@ def sell(
             raise ValidationFailed("Nothing is due now, so there is nothing to pay.", pointer="/payment")
         paid = billing.service.take_payment(
             session, client_id=client.id, location_id=location_id, invoice_id=invoice.id,
-            idempotency_key=idempotency_key, origin="portal" if online else "staff", **payment,
-            # each attempt raises a fresh invoice: bind the key to what is sold instead (billing.take_payment `sale`)
-            sale=repr(("packages", package_plan_id, quantity, start_on, invoice_mode, multiplier, internal_remarks)),
+            idempotency_key=idempotency_key, origin="portal" if online else "staff", sale=sale, **payment,
         )  # fmt: skip
     audit.record(
         session, _COMP if is_complimentary else _SELL, package, location_id=location_id,
@@ -729,10 +727,37 @@ def sell_package(session: Session, principal: Principal, data: dict, idempotency
     sold_by = data.get("sold_by_staff_user_id")
     if sold_by and not platform.service.staff_user_exists(session, sold_by):
         raise ValidationFailed("Unknown staff user.", pointer="/sold_by_staff_user_id")
+    # Each attempt raises a fresh invoice: the payment key is bound to the whole sale instead (take_payment `sale`).
+    ref = repr(("packages", sorted((k, v) for k, v in data.items() if k != "payment")))
+    if data.get("payment") and (replayed := _replayed_sale(session, data, idempotency_key, ref)) is not None:
+        return replayed
     sold = sell(
-        session, **{**data, "sold_by_staff_user_id": sold_by or _staff_id(principal)}, idempotency_key=idempotency_key
-    )
+        session, **{**data, "sold_by_staff_user_id": sold_by or _staff_id(principal)}, idempotency_key=idempotency_key,
+        sale=ref,
+    )  # fmt: skip
     return _sale_view(session, sold)
+
+
+def _replayed_sale(session: Session, data: dict, key: str | None, ref: str) -> dict | None:
+    """The sale a finished payment under `key` paid for, or None when the key took no payment yet (or only an
+    `initiated` one, which this sale then finishes). Selling again would add a package the payment does not cover."""
+    prior = billing.service.find_payment(session, key) if key else None
+    if prior is None or prior.status == "initiated":
+        return None
+    payment = billing.service.take_payment(  # the request-hash check only: a finished payment is replayed, never charged
+        session, client_id=data["client_id"], location_id=data["location_id"], idempotency_key=key, sale=ref,
+        **data["payment"],
+    )  # fmt: skip
+    for context, kind, source_id, invoice_id in billing.service.paid_sources(session, payment.id):
+        package = session.get(ClientPackage, source_id) if (context, kind) == ("packages", "client_package") else None
+        if package is not None:
+            return package_view(session, package) | {
+                "invoice_id": invoice_id, "payment_id": payment.id, "payment_status": payment.status,
+            }  # fmt: skip
+    raise Conflict(  # declined, cancelled or still unknown: it paid for nothing, so nothing to return or reuse
+        "This Idempotency-Key already finished a sale. Check what happened to that attempt before selling again.",
+        code="idempotency-key-reused",
+    )  # fmt: skip
 
 
 def grant_complimentary(session: Session, principal: Principal, data: dict) -> dict:

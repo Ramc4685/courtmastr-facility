@@ -647,7 +647,10 @@ def _sale_view(session: Session, contract: MembershipContract, invoice, payment)
 def sell_contract(session: Session, principal: Principal, data: dict, idempotency_key: str | None = None) -> dict:
     """Sell a membership (MEM-07): contract snapshot, full schedule, add-ons, shares, the plan's document, what
     is due now billed onto one invoice and, optionally, a payment. A contract that starts today and has no open
-    document gate is active in this transaction."""
+    document gate is active in this transaction. A retry with the Idempotency-Key of a sale that went through
+    returns that sale and sells nothing new."""
+    if data.get("payment") and (replayed := _replayed_sale(session, principal, data, idempotency_key)) is not None:
+        return replayed
     contract, invoice = _sell(session, principal, data, "staff")
     payment = None
     if data.get("payment"):
@@ -658,6 +661,32 @@ def sell_contract(session: Session, principal: Principal, data: dict, idempotenc
             idempotency_key=idempotency_key, sale=_sale_ref("memberships", data), **data["payment"],
         )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)
+
+
+def _replayed_sale(session: Session, principal: Principal, data: dict, key: str | None) -> dict | None:
+    """The sale a finished payment under `key` paid for, or None when the key took no payment yet (or only an
+    `initiated` one, which this sale then finishes). Selling again would add a contract the payment does not cover."""
+    authorize(principal, _SELL, location_id=data["location_id"])
+    prior = billing.service.find_payment(session, key) if key else None
+    if prior is None or prior.status == "initiated":
+        return None
+    payment = billing.service.take_payment(  # the request-hash check only: a finished payment is replayed, never charged
+        session, client_id=data["client_id"], location_id=data["location_id"], idempotency_key=key,
+        sale=_sale_ref("memberships", data), **data["payment"],
+    )  # fmt: skip
+    for context, kind, source_id, invoice_id in billing.service.paid_sources(session, payment.id):
+        period = (
+            session.get(Period, source_id) if (context, kind) == ("memberships", "billing_schedule_period") else None
+        )
+        if period is not None:
+            contract = session.get(MembershipContract, period.membership_contract_id)
+            return contract_view(session, contract) | {
+                "invoice_id": invoice_id, "payment_id": payment.id, "payment_status": payment.status,
+            }  # fmt: skip
+    raise Conflict(  # declined, cancelled or still unknown: it paid for nothing, so nothing to return or reuse
+        "This Idempotency-Key already finished a sale. Check what happened to that attempt before selling again.",
+        code="idempotency-key-reused",
+    )  # fmt: skip
 
 
 def _sale_ref(context: str, data: dict) -> str:

@@ -17,6 +17,7 @@ from app.modules.memberships.tests.support import (
     SYSTEM,
     as_ids,
     charges,
+    invoices,
     membership_plan,
     ok,
     package_plan,
@@ -141,3 +142,21 @@ def test_a_staff_sale_that_died_is_finished_by_a_same_key_retry_of_the_same_sale
     with tx(w.tenant) as session:
         sold = service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
     assert (sold["payment_status"], _contracts(w), provider_payments(w, key)) == ("succeeded", 1, 1)
+
+
+@pytest.mark.parametrize("tender", [("card", "tok_card_ok"), ("bank_debit", "tok_ach_ok")])
+def test_a_same_key_retry_of_a_finished_staff_sale_returns_it_and_sells_nothing_new(w, shop, tender):
+    """A succeeded or processing payment under the key already paid for a contract: the retry returns that contract
+    and its invoice, never a second contract with an unpaid invoice."""
+    key = f"k-{uuid4().hex}"
+    pay = {"amount_minor": 1000, "tender_kind": tender[0], "method_token": tender[1]}
+    sold = []
+    for _ in range(2):
+        with tx(w.tenant) as session:
+            sold.append(service.sell_contract(session, SYSTEM, as_ids(w, payment=pay), key))
+    first, again = sold
+    assert first["payment_status"] in ("succeeded", "processing")
+    assert [again[k] for k in ("id", "invoice_id", "payment_id")] == [
+        first[k] for k in ("id", "invoice_id", "payment_id")
+    ]
+    assert (_contracts(w), len(invoices(w.tenant, UUID(w.person["id"]))), provider_payments(w, key)) == (1, 1, 1)
