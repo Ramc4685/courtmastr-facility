@@ -135,9 +135,11 @@ games to score.
      simply free, so a public booking can take it. Staff re-block the old slot by hand (the dialog says so).
   2. With the night on a parent court and a game on one half, the carve keeps the night only before and after the
      game on the parent, so the sibling half is open to bookings for that hour.
-  3. Two games carved at the same moment can see each other's half-finished carve and report a clash that is not
-     real. The game is then left `unschedulable` with `conflict_note = {"reason": "booking-conflict", "detail": ...}`
-     naming what was in the way; it is never booked twice.
+  3. Two games carved at the same moment (in practice a game moved into the night while another carve is under
+     way) can read a piece the other has just replaced. The carve then re-reads the night's current pieces and
+     tries once more; if it still clashes, it fails safe: a committed game is left `unschedulable` with
+     `conflict_note = {"reason": "booking-conflict", "detail": "<court> is already held by booking #..."}`, a move
+     or a single game gets the same 409. It is never booked twice.
 - **Scheduling preferences are soft (LGE-10).** "Prefers" and "cannot play" by date, weekday, time of day or
   court or venue; a priority weighs double, and a "cannot" costs ten times a "prefers". The generator picks
   the best-scoring slot that fits and never leaves a game unscheduled because of a preference.

@@ -2,8 +2,21 @@
 slots out of it when committed (the block is split around each game) and what they did not take stays held; other
 bookings and other competitions' games still clash with it. Gated on the game key at the competition's location."""
 
+import threading
+import time
+from datetime import datetime
+from uuid import UUID
+
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+
+from app.core.auth import system_principal
+from app.core.db import tenant_session
+from app.main import app as fastapi_app
+from app.modules import scheduling
 from app.modules.leagues.tests.test_leagues import WINDOW, generate, get, league, post, run_body, staff
 from app.modules.scheduling.tests.helpers import API, book, local
+from conftest import scalar
 
 
 def night(client, headers, f, competition_id, resources, start=18, end=22):
@@ -74,3 +87,42 @@ def test_a_league_night_needs_the_game_key_and_courts_at_the_location(client, ow
     assert bad.status_code == 422 and bad.json()["errors"][0]["pointer"] == "/resource_ids"
     assert night(client, owner, f, comp["id"], [f.court], start=22, end=18).status_code == 422
     assert WINDOW["weekday"] == 3  # 2031-05-07 is a Wednesday, the window's day
+
+
+def test_a_carve_that_meets_a_concurrent_carve_rereads_the_night_and_retries(client, owner, tenant, f):
+    """Known limit 3, made fail safe: while one carve holds the night's row lock, a game moved into the night waits
+    on it. When the first commits, the block the mover read is cancelled; it re-reads the night's current pieces and
+    carves again instead of reporting a clash that is not real. (A new booking waits earlier, on the booking number
+    counter, and so already reads the night afresh; a move takes no number.)"""
+    comp = league(client, owner, f, teams=4)
+    assert night(client, owner, f, comp["id"], [f.court]).status_code == 201
+    teams, codes = comp["teams"], []
+    game = post(client, owner, "/games", {
+        "competition_id": comp["id"], "home_team_id": teams[2]["id"], "away_team_id": teams[3]["id"],
+        "resource_id": f.court2, "starts_at": local(f.zone, 2031, 5, 7, 23),
+    })  # fmt: skip
+    move = {"resource_id": f.court, "starts_at": local(f.zone, 2031, 5, 7, 20)}
+
+    def second_game():
+        with TestClient(fastapi_app) as own:
+            codes.append(own.post(f"{API}/games/{game['id']}/reschedule", headers=owner, json=move).status_code)
+
+    waiting = text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        scheduling.service.create_booking(
+            session, location_id=UUID(f.location), kind="block", block_kind="unavailable",
+            starts_at=datetime.fromisoformat(local(f.zone, 2031, 5, 7, 18)),
+            ends_at=datetime.fromisoformat(local(f.zone, 2031, 5, 7, 19)), resource_ids=[UUID(f.court)],
+            include_linked=False, title="First carve", buffer_before_min=0, buffer_after_min=0,
+            gives_way=("leagues", "competition", UUID(comp["id"])),
+        )  # fmt: skip
+        thread = threading.Thread(target=second_game)
+        thread.start()
+        deadline = time.monotonic() + 10
+        while thread.is_alive() and not scalar(tenant, waiting) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert thread.is_alive(), codes  # the second carve is waiting on the night, not finished before it
+    thread.join(timeout=30)
+    assert codes == [200]
+    # both carves stand: the night is held between them and after the second game
+    assert book(client, owner, f, [f.court], local(f.zone, 2031, 5, 7, 19), local(f.zone, 2031, 5, 7, 20)).status_code == 409

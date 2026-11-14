@@ -61,12 +61,15 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 are confirmed blocks with that source (a league night held for one competition), each is cancelled (reason `other`)
 and rebooked with zero buffers: its resources the newcomer's hold plan touches as the pieces before and after the
 newcomer's padded range, the others as one piece over the block's whole span. Then the holds are written as usual. A hold has one range per
-booking and resource, so a block cannot keep a hole. Anything else in the way, and nothing is carved.
+booking and resource, so a block cannot keep a hole. Anything else in the way, and nothing is carved. If the carve
+still clashes (a concurrent carve cancelled the pieces it read), it re-reads the current pieces and tries once more,
+then raises the usual `booking-conflict`.
 
 Known limits of `gives_way` (redesign on a follow-up branch; details in the leagues README): a carved booking that
 is later moved or cancelled does not hand its range back to the block, so that range is free to anyone; a newcomer
 on one half of a parent court keeps the block only around it on the parent, so the sibling half opens for that time;
-two carves at once can end in a false clash (the loser is refused, never double-booked).
+two carves at once can still end in a false clash after that one retry (the loser is refused, never
+double-booked).
 
 ## Assumptions and deviations (ADR 0004 and the data model unless noted)
 

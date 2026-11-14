@@ -500,6 +500,10 @@ def _write_holds(session: Db, booking: Booking, gives_way: tuple[str, str, UUID]
     found = _blocking(session, resource_ids, during, booking.id)
     if found and gives_way is not None:
         found = _give_way(session, found, set(resource_ids), during, gives_way)
+        if found:  # a concurrent carve may have replaced the pieces read (they were cancelled): re-read, try once more
+            found = _give_way(
+                session, _blocking(session, resource_ids, during, booking.id), set(resource_ids), during, gives_way
+            )
     if found:
         raise _conflict(found)
     try:
