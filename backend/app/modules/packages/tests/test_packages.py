@@ -910,3 +910,30 @@ def test_a_same_key_retry_of_a_finished_staff_sale_returns_it_and_sells_nothing_
         first[k] for k in ("id", "invoice_id", "payment_id")
     ]
     assert counts(key) == (1, 1, 1)
+
+
+def test_a_staff_sale_that_died_after_the_charge_and_was_swept_takes_that_payment(w, client, owner, monkeypatch):
+    """The card was charged, the request died, the sweep settled the payment with nothing to pay: the same-key retry
+    of the same sale sells once and applies that payment to the new invoice, with no second charge."""
+    from app.core import clock
+    from app.modules import billing
+
+    sell, counts = _staff_sale_world(w, client, owner)
+    key, other_plan = f"k-{uuid4().hex}", package_plan(client, owner, w.tenant)
+    with monkeypatch.context() as died:
+        died.setattr(service, "_sale_view", lambda *_: (_ for _ in ()).throw(RuntimeError("died before commit")))
+        with pytest.raises(RuntimeError):
+            sell(key)
+    with clock.freeze(clock.now() + timedelta(minutes=10)), tx(w.tenant) as session:
+        billing.webhooks.reconcile(session)
+    with tx(w.tenant) as session:
+        assert billing.service.find_payment(session, key).status == "succeeded"  # settled, paying for nothing
+    with pytest.raises(Conflict) as reused:
+        sell(key, package_plan_id=UUID(other_plan["id"]))
+    assert (reused.value.code, counts(key)) == ("idempotency-key-reused", (0, 0, 1))
+    sold = sell(key)
+    assert (sold["payment_status"], counts(key)) == ("succeeded", (1, 1, 1))
+    with tx(w.tenant) as session:
+        payment = billing.service.find_payment(session, key)
+        assert (payment.id, payment.unapplied_minor) == (sold["payment_id"], 0)
+        assert [row[2] for row in billing.service.paid_sources(session, payment.id)] == [sold["id"]]

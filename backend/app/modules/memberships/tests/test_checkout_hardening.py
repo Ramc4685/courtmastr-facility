@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import func, select
 
+from app.core import clock
 from app.core.errors import DomainError, ValidationFailed
 from app.modules import billing, platform
 from app.modules.billing.tests.test_money import provider_payments
@@ -160,3 +161,29 @@ def test_a_same_key_retry_of_a_finished_staff_sale_returns_it_and_sells_nothing_
         first[k] for k in ("id", "invoice_id", "payment_id")
     ]
     assert (_contracts(w), len(invoices(w.tenant, UUID(w.person["id"]))), provider_payments(w, key)) == (1, 1, 1)
+
+
+def test_a_staff_sale_that_died_after_the_charge_and_was_swept_takes_that_payment(w, shop, client, owner):
+    """The card was charged, the request died, the sweep settled the payment with nothing to pay: the same-key retry
+    of the same sale sells once and applies that payment to the new invoice, with no second charge."""
+    key = f"k-{uuid4().hex}"
+    card = {"amount_minor": 1000, "tender_kind": "card", "method_token": "tok_card_ok"}
+    other = membership_plan(client, owner, w.tenant)
+    with pytest.raises(RuntimeError), tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+        raise RuntimeError("the request died before commit")
+    with clock.freeze(clock.now() + timedelta(minutes=10)), tx(w.tenant) as session:
+        billing.webhooks.reconcile(session)
+    with tx(w.tenant) as session:
+        assert billing.service.find_payment(session, key).status == "succeeded"  # settled, paying for nothing
+    with pytest.raises(DomainError) as reused, tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card, membership_plan_id=UUID(other["id"])), key)
+    assert (reused.value.code, _contracts(w), provider_payments(w, key)) == ("idempotency-key-reused", 0, 1)
+    with tx(w.tenant) as session:
+        sold = service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+    assert (sold["payment_status"], _contracts(w), provider_payments(w, key)) == ("succeeded", 1, 1)
+    assert len(invoices(w.tenant, UUID(w.person["id"]))) == 1
+    with tx(w.tenant) as session:
+        payment = billing.service.find_payment(session, key)
+        assert (payment.id, payment.unapplied_minor) == (sold["payment_id"], 0)
+        assert [row[3] for row in billing.service.paid_sources(session, payment.id)] == [sold["invoice_id"]]

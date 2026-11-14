@@ -660,12 +660,16 @@ def sell_contract(session: Session, principal: Principal, data: dict, idempotenc
             session, client_id=contract.owner_client_id, location_id=contract.location_id, invoice_id=invoice.id,
             idempotency_key=idempotency_key, sale=_sale_ref("memberships", data), **data["payment"],
         )  # fmt: skip
+        if payment.status in ("succeeded", "processing") and not billing.service.paid_sources(session, payment.id):
+            payment = billing.service.allocate(session, payment.id, invoice_id=invoice.id)  # the earlier charge pays
     return _sale_view(session, contract, invoice, payment)
 
 
 def _replayed_sale(session: Session, principal: Principal, data: dict, key: str | None) -> dict | None:
     """The sale a finished payment under `key` paid for, or None when the key took no payment yet (or only an
-    `initiated` one, which this sale then finishes). Selling again would add a contract the payment does not cover."""
+    `initiated` one, which this sale then finishes, or a settled one that pays for nothing yet: the request died
+    after the charge and the sweep settled it, so this sale is sold and takes that payment). Selling again would
+    add a contract the payment does not cover."""
     authorize(principal, _SELL, location_id=data["location_id"])
     prior = billing.service.find_payment(session, key) if key else None
     if prior is None or prior.status == "initiated":
@@ -674,7 +678,10 @@ def _replayed_sale(session: Session, principal: Principal, data: dict, key: str 
         session, client_id=data["client_id"], location_id=data["location_id"], idempotency_key=key,
         sale=_sale_ref("memberships", data), **data["payment"],
     )  # fmt: skip
-    for context, kind, source_id, invoice_id in billing.service.paid_sources(session, payment.id):
+    sources = billing.service.paid_sources(session, payment.id)
+    if not sources and payment.status in ("succeeded", "processing"):
+        return None
+    for context, kind, source_id, invoice_id in sources:
         period = (
             session.get(Period, source_id) if (context, kind) == ("memberships", "billing_schedule_period") else None
         )

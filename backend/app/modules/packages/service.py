@@ -735,12 +735,18 @@ def sell_package(session: Session, principal: Principal, data: dict, idempotency
         session, **{**data, "sold_by_staff_user_id": sold_by or _staff_id(principal)}, idempotency_key=idempotency_key,
         sale=ref,
     )  # fmt: skip
+    paid = sold["payment"]
+    orphan = paid is not None and paid.status in ("succeeded", "processing")
+    if orphan and not billing.service.paid_sources(session, paid.id):  # the earlier charge pays for this sale
+        sold["payment"] = billing.service.allocate(session, paid.id, invoice_id=sold["invoice"].id)
     return _sale_view(session, sold)
 
 
 def _replayed_sale(session: Session, data: dict, key: str | None, ref: str) -> dict | None:
     """The sale a finished payment under `key` paid for, or None when the key took no payment yet (or only an
-    `initiated` one, which this sale then finishes). Selling again would add a package the payment does not cover."""
+    `initiated` one, which this sale then finishes, or a settled one that pays for nothing yet: the request died
+    after the charge and the sweep settled it, so this sale is sold and takes that payment). Selling again would
+    add a package the payment does not cover."""
     prior = billing.service.find_payment(session, key) if key else None
     if prior is None or prior.status == "initiated":
         return None
@@ -748,7 +754,10 @@ def _replayed_sale(session: Session, data: dict, key: str | None, ref: str) -> d
         session, client_id=data["client_id"], location_id=data["location_id"], idempotency_key=key, sale=ref,
         **data["payment"],
     )  # fmt: skip
-    for context, kind, source_id, invoice_id in billing.service.paid_sources(session, payment.id):
+    sources = billing.service.paid_sources(session, payment.id)
+    if not sources and payment.status in ("succeeded", "processing"):
+        return None
+    for context, kind, source_id, invoice_id in sources:
         package = session.get(ClientPackage, source_id) if (context, kind) == ("packages", "client_package") else None
         if package is not None:
             return package_view(session, package) | {
