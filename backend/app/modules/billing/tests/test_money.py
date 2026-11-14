@@ -1015,6 +1015,38 @@ def test_a_counter_freed_just_after_the_timeout_never_charges_an_uncommitted_pay
     assert all(committed == 1 for committed in seen), seen
 
 
+def test_a_receipt_counter_released_by_a_savepoint_rollback_is_not_trusted(shop, monkeypatch):
+    """S2: ROLLBACK TO SAVEPOINT releases the counter lock the cash leg took but keeps the transaction, so a card
+    after it must not be numbered in the caller's transaction (its row would be uncommitted during the charge);
+    after RELEASE SAVEPOINT the lock is still ours and the card is numbered in place."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)  # the counter row exists
+    fake, committed = payment_provider.get("fake"), []
+    real = fake.create_payment
+
+    def spy(**kwargs):
+        with tenant_session(shop.tenant.id) as other:
+            committed.append(other.scalar(select(func.count()).select_from(Payment)))
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "create_payment", spy)
+    with work(shop.tenant) as session:
+        savepoint = session.begin_nested()
+        cash(session, shop, 200)
+        assert svc._holds_receipt_counter(session)
+        savepoint.rollback()
+        assert not svc._holds_receipt_counter(session)  # the marker outlived the lock; the lock check does not
+        assert card(session, shop, 500, idempotency_key=f"s2-{uuid4().hex}").status == "succeeded"
+    assert committed == [2]  # the card's `initiated` row was committed before the charge
+
+    with work(shop.tenant) as session:
+        savepoint = session.begin_nested()
+        cash(session, shop, 200)
+        savepoint.commit()
+        assert svc._holds_receipt_counter(session)  # released savepoint: the lock stays with the transaction
+
+
 def test_a_first_receipt_while_another_request_creates_the_counter_charges_nothing(shop, monkeypatch):
     """The tenant's counter row is being inserted by another, uncommitted request: 409 before any charge."""
     ready(shop)
@@ -1126,8 +1158,13 @@ def test_a_key_reused_with_other_parameters_is_refused_before_the_processor(shop
         card(session, shop, 500, idempotency_key="s1")
         raise _Died()
     assert calls == [500]
-    for change in ({"amount": 300}, {"token": "tok_other"}, {"client_id": other},
-                   {"allocations": [(bill.id, 500)]}, {"tender_kind": "bank_debit"}):
+    for change in (
+        {"amount": 300},
+        {"token": "tok_other"},
+        {"client_id": other},
+        {"allocations": [(bill.id, 500)]},
+        {"tender_kind": "bank_debit"},
+    ):
         args = {"amount": 500, "token": "tok_card_ok"} | change
         with refused("idempotency-key-reused"), work(shop.tenant) as session:
             card(session, shop, args.pop("amount"), args.pop("token"), idempotency_key="s1", **args)

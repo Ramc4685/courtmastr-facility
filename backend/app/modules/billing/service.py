@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import func, or_, select, text, update
+from sqlalchemy import event, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -920,7 +920,8 @@ def _initiate(session: Session, values: dict, idempotency_key: str) -> Payment:
     A lock held past 500 ms (55P03) is 409 `request-in-progress` before the processor is called; any other
     database error stands. The row is written in the caller's transaction only when that is positively known to
     be the caller's own doing, never guessed:
-    - this transaction already holds the receipt counter (a cash leg before this card, `_receipt_number`): the row
+    - this transaction already holds the receipt counter (a record-only payment earlier in it, `_receipt_number`;
+      not across a rolled-back savepoint, `_forget_receipt_lock`): the row
       is numbered here, as no other transaction can number it first;
     - the short insert fails with 23503: a row the payment references (a guest checkout's new client, a tenant's
       first-use tender rows) is uncommitted, and the caller has just loaded it, so it is the caller's own. The
@@ -974,12 +975,28 @@ def _short(session: Session, step):
 
 def _receipt_number(session: Session) -> int:
     """The next receipt number; marks this transaction as holding the counter (held to its end)."""
-    session.info["billing_receipt_holder"] = session.get_transaction()
+    # the innermost transaction: a ROLLBACK TO a savepoint at or above it releases the lock (_forget_receipt_lock)
+    session.info["billing_receipt_holder"] = session.get_nested_transaction() or session.get_transaction()
     return platform.service.next_number(session, "receipt")
 
 
 def _holds_receipt_counter(session: Session) -> bool:
-    return session.info.get("billing_receipt_holder") is session.get_transaction()
+    holder = session.info.get("billing_receipt_holder")
+    while holder is not None and holder.nested:  # a released savepoint hands the lock to its parent
+        holder = holder.parent
+    return holder is not None and holder is session.get_transaction()
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def _forget_receipt_lock(session: Session, previous_transaction) -> None:
+    """ROLLBACK TO SAVEPOINT keeps the transaction but releases the counter lock taken inside the savepoint, so
+    the marker must go with it (a stale marker would number a card in the caller's uncommitted transaction)."""
+    holder = session.info.get("billing_receipt_holder")
+    while holder is not None:
+        if holder is previous_transaction:
+            session.info.pop("billing_receipt_holder", None)
+            return
+        holder = holder.parent
 
 
 def cancel_payment(session: Session, payment_id: UUID) -> Payment:

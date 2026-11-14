@@ -276,8 +276,10 @@ and record a failed attempt ("payload missing").
 - **The pre-provider payment row never waits on another request.** It is committed in a short transaction that
   waits at most 500 ms for a lock: a longer wait (55P03) is 409 `request-in-progress` before any charge; any other
   database error stands. Nothing is guessed from a probe. The row goes into the caller's transaction only when that
-  is positively the caller's own doing: this transaction already took the receipt counter (`_receipt_number`, a
-  cash leg before a card in one POS sale), or the short insert fails with 23503 because a referenced row is the
+  is positively the caller's own doing: this transaction already took the receipt counter (`_receipt_number`: a
+  record-only payment earlier in the same transaction; POS cash and card legs are separate requests,
+  `pos/sales.py` `add_tender`, so they never share one; the marker is cleared on ROLLBACK TO SAVEPOINT, which
+  releases the lock), or the short insert fails with 23503 because a referenced row is the
   caller's uncommitted insert (a guest checkout's new client in `programs.checkout` / `billing.checkout`, a
   tenant's first-use tender rows). On the 23503 path the receipt number is taken and committed in its own short
   step (a rollback leaves a gap in receipt numbers), so the counter is not held over the charge. On both paths a
