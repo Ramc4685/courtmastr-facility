@@ -55,8 +55,7 @@ def on_session_cancelled(session, payload: dict) -> None:
     building.sync_booking_code(session, UUID(payload["booking_id"]))
 
 
-@handles("programs.enrollment.created")
-def on_enrolled(session, payload: dict) -> None:
+def _sync_seat(session, payload: dict) -> None:
     """A new participant of a session that already has codes gets their own (a whole-group enrollment is caught
     by the minute tick, which syncs every booking inside the horizon)."""
     if "session_id" not in payload:
@@ -68,9 +67,14 @@ def on_enrolled(session, payload: dict) -> None:
     building.sync_booking_code(session, seat["booking_id"])
 
 
+@handles("programs.enrollment.created")
+def on_enrolled(session, payload: dict) -> None:
+    _sync_seat(session, payload)
+
+
 @handles("programs.waitlist.promoted")
 def on_promoted(session, payload: dict) -> None:
-    on_enrolled(session, payload)
+    _sync_seat(session, payload)  # not on_enrolled: a @handles function is its actor, called with a tenant id
 
 
 @handles("programs.enrollment.cancelled")

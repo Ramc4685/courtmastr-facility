@@ -299,6 +299,18 @@ def test_two_syncs_of_one_booking_never_deadlock_whatever_plan_each_connection_p
     assert {c.client_id for c in codes(b, lesson) if c.status == "active"} == {low, high}
 
 
+def test_a_participant_promoted_from_the_waitlist_gets_their_code(client, tenant, owner, b):
+    """`programs.waitlist.promoted` syncs the seat like an enrolment (it used to call the on_enrolled actor with
+    its session as the tenant id and dead-letter)."""
+    with clock.freeze(at(9)):
+        lesson = book(b, 10, 11, kind="session", resources=[b.court2])
+    seat = scalar(tenant, select(Session.id).where(Session.booking_id == UUID(lesson)))
+    ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": str(seat), "client_id": b.person["id"]}))
+    with clock.freeze(at(9)):
+        handlers.on_promoted.fn(str(tenant.id), str(uuid4()), {"session_id": str(seat), "client_id": b.person["id"]})
+    assert [(str(c.client_id), c.status) for c in codes(b, lesson)] == [(b.person["id"], "active")]
+
+
 def test_merging_two_records_with_codes_on_one_session_keeps_the_survivors_code(client, tenant, owner, b):
     """Duplicate records both enrolled on one session each hold a code; the merge revokes the loser's instead of
     tripping uq_entry_code_booking, and the survivor's code keeps working."""
