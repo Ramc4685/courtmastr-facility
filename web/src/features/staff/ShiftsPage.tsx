@@ -7,10 +7,10 @@ import { PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useMe } from '../../lib/auth'
-import { formatDateTime } from '../../lib/format'
-import { fromLocalInput } from '../assessments/queries'
+import { addDays, formatDateTime } from '../../lib/format'
+import { useLocationToday, useLocationZone } from '../../lib/locationDate'
 import { FormDialog, ListTable, LocationSelect, StatusBadge } from '../billing/shared'
-import { today } from '../billing/money'
+import { fromWallInput } from '../scheduling/time'
 import { hours, SHIFT_STATUS, useNames, VARIANCE_STATE } from './shared'
 
 function ShiftDialog({ onClose }: { onClose: () => void }) {
@@ -18,10 +18,11 @@ function ShiftDialog({ onClose }: { onClose: () => void }) {
   const me = useMe()
   const names = useNames()
   const [f, setF] = useState({ staff_user_id: '', location_id: me.primary_location_id ?? '', job_classification_id: '', starts_at: '', ends_at: '', note: '' })
+  const zone = useLocationZone(f.location_id)
   const save = useMutation({
     mutationFn: () =>
       api.post('/api/v1/shifts', {
-        body: { staff_user_id: f.staff_user_id, location_id: f.location_id, job_classification_id: f.job_classification_id || null, starts_at: fromLocalInput(f.starts_at), ends_at: fromLocalInput(f.ends_at), note: f.note.trim() || null },
+        body: { staff_user_id: f.staff_user_id, location_id: f.location_id, job_classification_id: f.job_classification_id || null, starts_at: fromWallInput(f.starts_at, zone), ends_at: fromWallInput(f.ends_at, zone), note: f.note.trim() || null },
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['staff', 'shifts'] })
@@ -64,12 +65,11 @@ function CopyDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-const daysAgo = (n: number) => new Date(new Date(`${today()}T12:00:00`).getTime() - n * 86_400_000).toISOString().slice(0, 10)
-
 /** Published shifts against the hours people clocked, so a manager sees who was short or missing (STF-15). */
 function VariancePanel() {
   const names = useNames()
-  const [range, setRange] = useState({ from: daysAgo(6), to: today() })
+  const today = useLocationToday()
+  const [range, setRange] = useState({ from: addDays(today, -6), to: today })
   const rows = useQuery({ queryKey: ['staff', 'shift-variance', range], queryFn: () => api.get('/api/v1/shifts/variance', { query: { from: range.from, to: range.to } }) })
   return (
     <section aria-labelledby="variance-heading" className="mt-8">
