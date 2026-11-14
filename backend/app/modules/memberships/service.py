@@ -655,9 +655,15 @@ def sell_contract(session: Session, principal: Principal, data: dict, idempotenc
             raise ValidationFailed("Nothing is due now, so there is nothing to pay.", pointer="/payment")
         payment = billing.service.take_payment(
             session, client_id=contract.owner_client_id, location_id=contract.location_id, invoice_id=invoice.id,
-            idempotency_key=idempotency_key, **data["payment"],
+            idempotency_key=idempotency_key, sale=_sale_ref("memberships", data), **data["payment"],
         )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)
+
+
+def _sale_ref(context: str, data: dict) -> str:
+    """What a staff sale sells (the request body without its payment): each attempt raises a fresh invoice, so the
+    payment's Idempotency-Key is bound to this instead (billing.take_payment `sale`)."""
+    return repr((context, sorted((k, v) for k, v in data.items() if k != "payment")))
 
 
 def import_contract(session: Session, data: dict) -> tuple[MembershipContract, bool]:

@@ -753,6 +753,7 @@ def take_payment(
     memo: str | None = None,
     audit_changes: dict | None = None,
     internal_tender: bool = False,
+    sale: str | None = None,
 ) -> Payment:
     """Receive money from one payer in one tender, then allocate it (see allocate()).
 
@@ -776,12 +777,15 @@ def take_payment(
 
     `internal_tender` (internal; only post_opening_balance passes it, no router can) lets a billing-owned tender
     (`system_key` set, never enabled) through; any other caller naming one is refused like a disabled tender.
+
+    `sale` (internal): a caller that raises a fresh invoice on every attempt (a staff sale) names what is being sold
+    instead, so a same-key retry of the same sale is the same attempt and the key cannot pay for another sale.
     """
     # Online checkout (origin "portal" with an invoice_id) raises a fresh invoice on every attempt, so that invoice
     # is not part of what the key was used for; the portal pay route names its invoices through allocations.
     request_hash = str(uuid5(NAMESPACE_URL, repr((
         amount_minor, client_id, tender_kind, tender_type_id, payment_method_id, method_token,
-        None if origin == "portal" else invoice_id, sorted(allocations or []),
+        sale if sale is not None else None if origin == "portal" else invoice_id, sorted(allocations or []),
     ))))  # fmt: skip
     payment = _payment_by_key(session, idempotency_key)
     if payment is not None and payment.request_hash not in (None, request_hash):

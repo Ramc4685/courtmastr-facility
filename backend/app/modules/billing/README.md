@@ -95,7 +95,10 @@ Rules a caller must know:
   debit: allocations provisional, invoice `payment_pending`); `requires_action` (the payer must authenticate;
   `payment.client_secret` is set on that call only); `failed`; `unknown` (never a decline); `cancelled`.
 - **A payment is found again by its `idempotency_key`**, whatever the tender. Make it unique to your use case
-  (`"<context>:<what>:<id>"`): the same key always returns the first payment, whatever the other arguments.
+  (`"<context>:<what>:<id>"`): the same key with the same payer, amount, tender, method and invoice returns the
+  first payment; with any of those changed it is `409 idempotency-key-reused` before the processor is called. A
+  caller that raises a fresh invoice per attempt passes `sale=` (what is sold, e.g. the staff sale body) instead,
+  so its same-key retry is the same attempt and the key cannot pay for another sale.
   Processed tenders need it. Their row is committed as `initiated` before the provider call, so a transaction
   that dies afterwards is finished by a retry with the same key or by `webhooks.reconcile`.
 - **A refund returns unapplied money only.** `reverse()` or `release_allocation()` first, then `refund()`, or

@@ -663,6 +663,8 @@ def sell(
         paid = billing.service.take_payment(
             session, client_id=client.id, location_id=location_id, invoice_id=invoice.id,
             idempotency_key=idempotency_key, origin="portal" if online else "staff", **payment,
+            # each attempt raises a fresh invoice: bind the key to what is sold instead (billing.take_payment `sale`)
+            sale=repr(("packages", package_plan_id, quantity, start_on, invoice_mode, multiplier, internal_remarks)),
         )  # fmt: skip
     audit.record(
         session, _COMP if is_complimentary else _SELL, package, location_id=location_id,

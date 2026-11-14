@@ -12,7 +12,17 @@ from app.modules import billing, platform
 from app.modules.billing.tests.test_money import provider_payments
 from app.modules.memberships import service
 from app.modules.memberships.models import MembershipContract
-from app.modules.memberships.tests.support import API, charges, membership_plan, ok, package_plan, tx, world
+from app.modules.memberships.tests.support import (
+    API,
+    SYSTEM,
+    as_ids,
+    charges,
+    membership_plan,
+    ok,
+    package_plan,
+    tx,
+    world,
+)
 from app.modules.memberships.tests.test_renewal_jobs import _member
 from conftest import add_staff, login, new_client, scalar
 
@@ -114,3 +124,20 @@ def test_a_key_spent_on_a_package_buys_no_membership(w, shop, client, owner):
         shop.buy(key, method_token="tok_card_ok")
     paid = provider_payments(w, _portal(shop, key))
     assert (reused.value.code, _contracts(w), paid) == ("idempotency-key-reused", 0, 1)
+
+
+def test_a_staff_sale_that_died_is_finished_by_a_same_key_retry_of_the_same_sale(w, shop, client, owner):
+    """Each staff attempt raises a fresh invoice, so the payment key is bound to the sale, not the invoice: the same
+    sale retried with the key finishes the first charge; another sale under the key is refused before the processor."""
+    key = f"k-{uuid4().hex}"
+    card = {"amount_minor": 1000, "tender_kind": "card", "method_token": "tok_card_ok"}
+    other = membership_plan(client, owner, w.tenant)  # the same price: only what is sold differs
+    with pytest.raises(RuntimeError), tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+        raise RuntimeError("the request died before commit")
+    with pytest.raises(DomainError) as reused, tx(w.tenant) as session:
+        service.sell_contract(session, SYSTEM, as_ids(w, payment=card, membership_plan_id=UUID(other["id"])), key)
+    assert (reused.value.code, _contracts(w), provider_payments(w, key)) == ("idempotency-key-reused", 0, 1)
+    with tx(w.tenant) as session:
+        sold = service.sell_contract(session, SYSTEM, as_ids(w, payment=card), key)
+    assert (sold["payment_status"], _contracts(w), provider_payments(w, key)) == ("succeeded", 1, 1)

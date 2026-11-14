@@ -854,3 +854,27 @@ def test_portal_quote_previews_an_online_purchase_for_whom_one_may_buy(w, client
         _as(w.tenant, member, service.portal_quote, body | {"package_plan_id": UUID(desk_only["id"])}, None)
     with pytest.raises(NotFound):
         _as(w.tenant, member, service.portal_quote, body, UUID(stranger["id"]))
+
+
+def test_a_staff_sale_that_died_is_finished_by_a_same_key_retry_of_the_same_sale(w, client, owner):
+    """Each staff attempt raises a fresh invoice, so the payment key is bound to the sale, not the invoice: the same
+    sale retried with the key finishes the first charge; another plan under the key is refused before the processor."""
+    from app.modules import billing
+    from app.modules.billing.tests.test_money import provider_payments
+
+    plan, other = package_plan(client, owner, w.tenant), package_plan(client, owner, w.tenant)  # the same price
+    with tx(w.tenant) as session:  # committed tender rows and processor account: the `initiated` row survives
+        billing.service.ensure_defaults(session)
+        billing.service._provider_account(session)
+    key, card = f"k-{uuid4().hex}", {"amount_minor": 10000, "tender_kind": "card", "method_token": "tok_card_ok"}
+    ids = lambda p: {"client_id": UUID(w.person["id"]), "location_id": UUID(w.location_id), "package_plan_id": UUID(p["id"])}  # noqa: E731  # fmt: skip
+    sold = lambda: scalar(w.tenant, select(func.count()).select_from(ClientPackage))  # noqa: E731
+    with pytest.raises(RuntimeError), tx(w.tenant) as session:
+        service.sell(session, **ids(plan), payment=card, idempotency_key=key)
+        raise RuntimeError("the request died before commit")
+    with tx(w.tenant) as session:
+        paid = service.sell(session, **ids(plan), payment=card, idempotency_key=key)["payment"].status
+    assert (paid, sold(), provider_payments(w, key)) == ("succeeded", 1, 1)
+    with pytest.raises(Conflict) as reused, tx(w.tenant) as session:
+        service.sell(session, **ids(other), payment=card, idempotency_key=key)
+    assert (reused.value.code, sold(), provider_payments(w, key)) == ("idempotency-key-reused", 1, 1)
