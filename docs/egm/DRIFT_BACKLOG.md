@@ -675,3 +675,12 @@ Leagues re-run after set scoring (migration 2001) and league nights. Items alrea
 - [ ] [wording] README:51-52 "closure blocks never count"; every block is excluded (`service.py:1038`)
 - [ ] [wording] README:129 `rpt_booking`; reporting has `rpt_booking_start` (`reporting/views.py:212`)
 - [ ] [wording] README:15 "40 operations of tag `scheduling`"; the tag has 46, the router serves 40 at the contract path
+
+### clients (+6, refresh 2026-11-14) — [evidence](drift/clients.md)
+
+- [ ] [undocumented] README:4 omits migrations `1983_clients_age_confirmation` and `1985_clients_age_confirmed_at_source`.
+- [ ] [contract] The three age routes (`GET /client-age-reviews`, `POST /client-age-reviews/confirmations`, `POST /clients/{id}/age-confirmation`; `clients/router.py:78,87,95`), the `confirm_age` field (`schemas.py:82`) and the `age_confirmed` / `age_confirmation_reset` fields (`schemas.py:110,113`) have no operation in `docs/api/`.
+- [ ] [contract] `GET /clients/{id}/photo` is not in the contract (`openapi-people.yaml:292-323`); the contract single `GET /client-notes/{id}/attachment` signed URL (`:1762`) is served as list/create/get-bytes/delete under `/attachments` (`router.py:564-583`).
+- [ ] [contract] `assignClientMemberNumber` is `PUT` in the contract (`openapi-people.yaml:429`), `POST` in code (`router.py:130`).
+- [ ] [contract] `updateClientLocationSettings` is `PATCH` in the contract (`openapi-people.yaml:929`), `PUT` in code (`router.py:255`).
+- [ ] [contract] `GET /clients/{id}/timeline` (`router.py:497`) has no operation in `openapi-people.yaml`.
