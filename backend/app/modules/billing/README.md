@@ -262,13 +262,21 @@ and record a failed attempt ("payload missing").
   model: security-baseline 17.2 asks for hashed at rest and single-use, which a stateless token cannot be. It
   expires after 14 days; a decline does not consume it.
 - **`payment.idempotency_key`** is a column the data model does not list; the pre-provider row needs it.
-- **The pre-provider payment row never waits on another request.** It cannot see rows the caller has not
-  committed and must not wait on the caller's own locks, so it gives up after 500 ms; the caller then probes
-  with NOWAIT (the receipt counter, every row the payment references) who holds them. Another request: 409
-  `request-in-progress` before any charge, so a held lock never leaves a charge without a committed row. The
-  caller's own transaction (a guest checkout's new client, first-use tender rows, the receipt counter after a
-  cash leg in the same transaction): the payment is inserted in the caller's transaction (replay still safe
-  through the provider key, crash recovery not), the one case left, since it cannot commit before those rows.
+- **The pre-provider payment row never waits on another request.** It is committed in a short transaction that
+  waits at most 500 ms for a lock: a longer wait (55P03) is 409 `request-in-progress` before any charge; any other
+  database error stands. Nothing is guessed from a probe. The row goes into the caller's transaction only when that
+  is positively the caller's own doing: this transaction already took the receipt counter (`_receipt_number`, a
+  cash leg before a card in one POS sale), or the short insert fails with 23503 because a referenced row is the
+  caller's uncommitted insert (a guest checkout's new client in `programs.checkout` / `billing.checkout`, a
+  tenant's first-use tender rows). On the 23503 path the receipt number is taken and committed in its own short
+  step (a rollback leaves a gap in receipt numbers), so the counter is not held over the charge. On both paths a
+  request that dies after the charge leaves no row: the provider key is the tenant plus the request's
+  Idempotency-Key, so the same key replays the same charge, and the web keeps the key after an unknown outcome
+  (5xx, network, 409 in progress). The processor's webhook for a charge or refund with no row is kept `failed`
+  (`unmatched-provider-event`, retried by the stale-event sweep in case the row commits late) and logged by event
+  id only; an operator finds it in `inbound_webhook_event` and refunds it at the processor. It is not auto-created:
+  the event names no payer, location, tender or allocation, so a row would put unattributed money on the books.
+  Not built: a staff screen for these events (the failed-jobs list is CLI only).
 - **A processed refund has a pre-provider row (PAY-05, Phase 9 orphans).** `refund(method="original")` commits
   a `refund` row as `initiated` with its `idempotency_key` (migration 1801) in a short transaction before it
   locks the payment and calls the processor. It has **no fallback**: a row the short transaction cannot commit

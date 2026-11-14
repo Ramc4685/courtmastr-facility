@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import func, literal, select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -804,7 +804,7 @@ def take_payment(
     else:
         state = PaymentState(provider_payment_ref="", outcome="succeeded")
         if payment is None:
-            payment = Payment(**values, receipt_number=platform.service.next_number(session, "receipt"))
+            payment = Payment(**values, receipt_number=_receipt_number(session))
             session.add(payment)
     session.flush()
     _apply_state(session, payment, state)
@@ -860,59 +860,69 @@ def _initiate(session: Session, values: dict, idempotency_key: str) -> Payment:
     0003 section 8), and return it locked in the caller's transaction. This is the one place billing opens a
     session: the row must outlive a failure of the request that created it.
 
-    When the short transaction cannot get a lock within 500 ms, the caller probes, without waiting, what it
-    needed (the receipt counter and every row the payment references). Held by another request: 409
-    `request-in-progress` before the processor is called; it never falls back to an uncommitted row that a
-    request dying after the charge would leave for no sweep to find. Held by the caller's own transaction (a
-    guest checkout's new client, a tenant's first-use tender rows, the receipt counter after a cash leg of the
-    same transaction): the short transaction can never commit first, so the row is written here, as the kernel
-    did; replay stays safe through the provider's idempotency key. A same-key twin that committed first is
-    returned.
+    A lock held past 500 ms (55P03) is 409 `request-in-progress` before the processor is called; any other
+    database error stands. The row is written in the caller's transaction only when that is positively known to
+    be the caller's own doing, never guessed:
+    - this transaction already holds the receipt counter (a cash leg before this card, `_receipt_number`): the row
+      is numbered here, as no other transaction can number it first;
+    - the short insert fails with 23503: a row the payment references (a guest checkout's new client, a tenant's
+      first-use tender rows) is uncommitted, and the caller has just loaded it, so it is the caller's own. The
+      receipt number is then taken and committed in a short step of its own (a rollback leaves a gap), so the
+      counter is not held across the charge.
+    On both paths a request that dies after the charge leaves no row; a retry with the same Idempotency-Key
+    replays the same provider charge (`_provider_key`), and the processor's webhook for it is kept as an
+    unmatched event for staff. A same-key twin that committed first is returned.
     """
+    if _holds_receipt_counter(session):
+        payment = Payment(**values, receipt_number=_receipt_number(session))
+        session.add(payment)
+        session.flush()
+        return payment
     try:
-        with tenant_session(session.info["tenant_id"], actor=session.info.get("actor")) as short:
-            short.execute(text("SET LOCAL lock_timeout = '500ms'"))
-            row = Payment(**values, receipt_number=platform.service.next_number(short, "receipt"))
-            short.add(row)
-            short.flush()
-            payment_id = row.id
-    except (IntegrityError, OperationalError) as error:
+        payment_id = _short(session, lambda short: _insert_payment(short, values, _receipt_number(short)))
+    except IntegrityError as error:
         existing = _payment_by_key(session, idempotency_key)  # lost a race to the same key?
         if existing is not None:
             return existing
-        own_row = isinstance(error, IntegrityError) and getattr(error.orig, "sqlstate", None) == "23503"
-        if isinstance(error, IntegrityError) and not own_row:
+        if getattr(error.orig, "sqlstate", None) != "23503":
             raise
-        if not own_row and _held_elsewhere(session, values):
-            raise Conflict(
-                "Another request is taking a payment. Try again in a moment.", code="request-in-progress"
-            ) from error
-        payment = Payment(**values, receipt_number=platform.service.next_number(session, "receipt"))
+        number = _short(session, lambda short: platform.service.next_number(short, "receipt"))
+        payment = Payment(**values, receipt_number=number)
         session.add(payment)
         session.flush()
         return payment
     return _lock(session, Payment, payment_id)
 
 
-def _held_elsewhere(session: Session, values: dict) -> bool:
-    """Whether another transaction holds what a payment row needs (the receipt counter, a referenced row). Probed
-    with NOWAIT in a savepoint that is rolled back, so the caller keeps no lock: rows and locks of the caller's own
-    transaction never conflict with it."""
-    row = values | {"tenant_id": session.info["tenant_id"]}
+def _insert_payment(session: Session, values: dict, receipt_number: int) -> UUID:
+    row = Payment(**values, receipt_number=receipt_number)
+    session.add(row)
+    session.flush()
+    return row.id
+
+
+def _short(session: Session, step):
+    """Run `step` in its own committed transaction, waiting at most 500 ms for a lock: a longer wait is another
+    request at work, 409 `request-in-progress` (retryable); any other database error stands."""
     try:
-        with session.begin_nested() as probe:
-            session.execute(text("SELECT 1 FROM tenant_counter WHERE counter_key = 'receipt' FOR UPDATE NOWAIT"))
-            for fk in Payment.__table__.foreign_key_constraints:
-                keys = {element.column: row.get(element.parent.name) for element in fk.elements}
-                if None not in keys.values():
-                    where = [column == value for column, value in keys.items()]
-                    session.execute(
-                        select(literal(1)).where(*where).with_for_update(read=True, key_share=True, nowait=True)
-                    )
-            probe.rollback()
-    except OperationalError:
-        return True
-    return False
+        with tenant_session(session.info["tenant_id"], actor=session.info.get("actor")) as short:
+            short.execute(text("SET LOCAL lock_timeout = '500ms'"))
+            return step(short)
+    except OperationalError as error:
+        if getattr(error.orig, "sqlstate", None) == "55P03":
+            raise Conflict("Another request is taking a payment. Try again in a moment.",
+                           code="request-in-progress") from error  # fmt: skip
+        raise
+
+
+def _receipt_number(session: Session) -> int:
+    """The next receipt number; marks this transaction as holding the counter (held to its end)."""
+    session.info["billing_receipt_holder"] = session.get_transaction()
+    return platform.service.next_number(session, "receipt")
+
+
+def _holds_receipt_counter(session: Session) -> bool:
+    return session.info.get("billing_receipt_holder") is session.get_transaction()
 
 
 def cancel_payment(session: Session, payment_id: UUID) -> Payment:
