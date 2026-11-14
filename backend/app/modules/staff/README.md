@@ -184,6 +184,9 @@ lesson-type rule checks every coach who has ever been independent. Today and lat
   remainder, under a cent a lesson, stays the facility's). Credits added by hand later are complimentary: the
   lessons past the sold count, in the order their credits were first spent, are worth 0. A credit event
   reconciles the whole package, so a lesson moves into a paid place when an earlier credit comes back.
+  Rounding down is an exception to the half-up rule (ADR 0003, not yet signed off by the owner): with the last
+  lesson absorbing the remainder, places shifting would put one-cent reversals on paid statements. Measured cost
+  of reconciling the whole package: 16 statements per spent credit per credit event.
 - Complimentary packages, unlimited packages and lessons included in a membership (no package credit spent)
   are worth 0 and make no line. Group program fees are not shared in this slice.
 - A lesson is recognised when its credit is spent (attended, or a no-show the package charges), on the

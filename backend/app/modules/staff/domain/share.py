@@ -1,7 +1,8 @@
 """Pure arithmetic for independent coaches' revenue share (staff README "Coach revenue share").
 
-Money is integer minor units; each value is rounded half-up once, and the facility's share is always the gross
-minus the coach's, so the two shares sum to the gross by construction.
+Money is integer minor units. A lesson's value rounds down (an exception to the half-up rule, ADR 0003), so a
+package's lessons never add up to more than its net; the court fee and the split round half-up once, and the
+facility's share is always the gross minus the coach's, so the two shares sum to the gross by construction.
 """
 
 from collections.abc import Sequence
