@@ -277,6 +277,23 @@ def test_the_coach_sees_only_their_own_and_never_a_share_rule(client, tenant, ow
     assert client.get(f"{API}/coach-earnings", headers=login(client, tenant, desk_email)).status_code == 403
 
 
+def test_changing_a_share_rule_or_an_engagement_audits_the_old_and_new_values(client, tenant, owner, coached):
+    """70% to 90% on the same date: the audit row carries both percents, not a bare flag."""
+    c = coached
+    rule = {"staff_payee_id": c.payee["id"], "effective_from_on": "2031-01-01", "coach_share_pct": "90",
+            "court_fee_minor": 500}  # fmt: skip
+    saved = ok(client.put(f"{API}/coach-share-rules", headers=owner, json=rule), 200)
+    [changes] = [r[0] for r in rows(tenant, select(AuditEvent.changes).where(AuditEvent.entity_id == saved["id"])
+                                    .order_by(AuditEvent.occurred_at.desc()).limit(1))]  # fmt: skip
+    assert changes["coach_share_pct"] == ["70.00", "90"] and changes["court_fee_minor"] == [0, 500]
+    assert changes["effective_from_on"] == ["2031-01-01", "2031-01-01"]
+    term = ok(client.post(f"{API}/staff-payees/{c.payee['id']}/engagements", headers=owner,
+                          json={"engagement": "employee", "effective_from_on": "2031-01-01"}))  # fmt: skip
+    [changes] = [r[0] for r in rows(tenant, select(AuditEvent.changes).where(AuditEvent.entity_id == term["id"])
+                                    .order_by(AuditEvent.occurred_at.desc()).limit(1))]  # fmt: skip
+    assert changes["engagement"] == ["independent", "employee"]
+
+
 def test_share_rules_validate_and_keep_their_history(client, tenant, owner, coached):
     c = coached
     url = f"{API}/coach-share-rules"

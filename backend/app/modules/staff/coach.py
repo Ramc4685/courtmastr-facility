@@ -101,9 +101,11 @@ def set_engagement(session: Session, principal: Principal, payee_id: UUID, data:
         row = CoachEngagement(staff_payee_id=payee.id, effective_from_on=data["effective_from_on"], engagement="")
         session.add(row)
     row.engagement = data["engagement"]
+    changes = audit.diff(row)  # before the flush, so a replace logs the old and the new engagement
     session.flush()
+    day = row.effective_from_on.isoformat()
     audit.record(session, PAY_MANAGE, row, location_id=payee.location_id,
-                 changes=audit.diff(row) or {"engagement": [None, row.engagement]})  # fmt: skip
+                 changes={"effective_from_on": [day, day]} | changes)  # fmt: skip
     return row
 
 
@@ -166,8 +168,11 @@ def put_share_rule(session: Session, principal: Principal, data: dict) -> CoachS
         session.add(row)
     for field in ("coach_share_pct", "court_fee_minor", "court_fee_basis", "court_fee_applies"):
         setattr(row, field, data[field])
+    changes = audit.diff(row)  # before the flush: old and new percent, court fee and date (not personal data)
     session.flush()
-    audit.record(session, PAY_MANAGE, row, location_id=location_id, changes=audit.diff(row) or {"rule": True})
+    day = row.effective_from_on.isoformat()
+    audit.record(session, PAY_MANAGE, row, location_id=location_id,
+                 changes={"effective_from_on": [day, day]} | changes)  # fmt: skip
     return row
 
 
