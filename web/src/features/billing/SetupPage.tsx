@@ -10,7 +10,8 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
-import { TENDER_LABEL, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { TENDER_LABEL } from './money'
 import { FormDialog, ListTable, TextArea, useProviderAccounts, useRevenueCategories, useTaxes, useTenderTypes } from './shared'
 
 type Tax = Schemas['TaxOut']
@@ -28,7 +29,8 @@ function useDone(key: string[]) {
 function TaxDialog({ tax, onClose }: { tax: Tax | null; onClose: () => void }) {
   const done = useDone(['billing'])
   const detail = useQuery({ queryKey: ['billing', 'tax', tax?.id], queryFn: () => api.get('/api/v1/taxes/{tax_id}', { path: { tax_id: tax?.id ?? '' } }), enabled: Boolean(tax) })
-  const [form, setForm] = useState({ code: tax?.code ?? '', label: tax?.label ?? '', remarks: tax?.remarks ?? '', rate: '', from: today(), is_active: tax?.is_active ?? true })
+  const today = useLocationToday()
+  const [form, setForm] = useState({ code: tax?.code ?? '', label: tax?.label ?? '', remarks: tax?.remarks ?? '', rate: '', from: today,is_active: tax?.is_active ?? true })
   const save = useMutation({
     mutationFn: () =>
       tax

@@ -491,3 +491,12 @@ def test_portal_rental_defaults_and_stored_method(client, owner, f, tenant):
     assert (
         invoice(client, owner, paid["invoice_id"])["balance_minor"] == billed["balance_minor"]
     )  # a replay moves no money
+
+
+def test_a_rental_may_cross_local_midnight(client, owner, f):
+    """23:00 to 01:00 in Chicago (DAY is 2031-05-05, CDT): legitimate at a 24-hour facility. The evening rate runs to
+    midnight and the standard rate after it, each for its hour."""
+    made = ok(rent(client, owner, f, 28, 30))  # 04:00Z to 06:00Z
+    assert made["rental"]["status"] == "confirmed"
+    assert (made["rental"]["starts_at"], made["rental"]["ends_at"]) == (at(28), at(30))
+    assert made["quote"]["subtotal_minor"] == 5000 + 4000

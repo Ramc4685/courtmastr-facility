@@ -13,7 +13,8 @@ import { useToast } from '../../components/Toast'
 import { useAuth, useCurrentLocation, useMe } from '../../lib/auth'
 import { useDebounced } from '../../lib/useDebounced'
 import { InvoicesTable, PaymentsTable } from './ClientBillingPage'
-import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS } from './money'
 import { ClientName, FormDialog, ListTable, LocationSelect, Money, StatusBadge } from './shared'
 
 type Charge = Schemas['ChargeOut']
@@ -23,7 +24,7 @@ type Scope = { charge_ids: string[]; only_mine: false } | { location_id: string;
 export function BulkInvoiceDialog({ scope, onClose }: { scope: Scope; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const [dueOn, setDueOn] = useState(today())
+  const [dueOn, setDueOn] = useState(useLocationToday('location_id' in scope ? scope.location_id : null))
   const [autopay, setAutopay] = useState(false)
   const run = useMutation({
     mutationFn: (dry: boolean) => api.post('/api/v1/billing-bulk-actions', { body: { action: 'create_invoices', ...scope, due_on: dueOn || null, is_autopay: autopay, is_dry_run: dry } }),

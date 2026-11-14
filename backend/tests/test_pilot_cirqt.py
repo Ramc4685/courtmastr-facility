@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 
+from app.core import clock
 from app.core.db.session import tenant_session
 from app.modules.clients.models import Client
 from app.modules.memberships.models import MembershipPlan
@@ -26,11 +27,22 @@ from seeds import cirqt
 
 API = "/api/v1"
 ZONE = ZoneInfo(cirqt.ZONE)
-TODAY = datetime.now(ZONE).date()
+# One clock for the whole file: core.clock (which the product reads) frozen at noon on CIRQT's real local date. Every
+# scenario builds its times from NOW, TODAY and at(), never from datetime.now(), so the file gives the same result at
+# any hour (a slot "three hours from now" used to run past midnight after about 20:00 in Chicago). The date is the
+# real local one because Postgres stamps created_at with the real time; noon keeps both twelve hours from midnight.
+NOW = datetime.combine(datetime.now(ZONE).date(), time(12), ZONE)
+TODAY = NOW.date()
 MON = TODAY + timedelta(days=7 - TODAY.weekday() + 21)  # a Monday three to four weeks out
 LEAGUE_FROM, LEAGUE_TO = MON + timedelta(days=14), MON + timedelta(days=35)
 BLOCKED_TUESDAY = MON + timedelta(days=15)
 PDAY = MON + timedelta(days=9)  # a Wednesday with nothing booked: the pricing previews
+
+
+@pytest.fixture(scope="module", autouse=True)
+def frozen_clock():
+    with clock.freeze(NOW.astimezone(UTC)):
+        yield
 
 
 def at(day: date, hhmm: str) -> str:
@@ -427,7 +439,7 @@ def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_
     assert (result["reversed_minor"], result["late_fee_minor"]) == (2400, 0)
     balance = ok(c.get(f"{API}/clients/{payer}/account-credit", headers=w.owner), 200)
     assert balance["credit_minor"] == 2400  # paid card money became credit
-    soon = datetime.now(ZONE) + timedelta(hours=3)
+    soon = NOW + timedelta(hours=3)
     start = soon.replace(minute=0, second=0, microsecond=0)
     late = ok(rent(c, w, w.desk, "Pickleball court", "Court 1", start.date(), start.strftime("%H:%M"),
                    (start + timedelta(hours=1)).strftime("%H:%M"), payer))  # fmt: skip

@@ -14,7 +14,8 @@ import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { EditChargeDialog, ReasonDialog, ReverseChargeDialog } from './ChargeDialogs'
-import { CHARGE_STATUS, INVOICE_STATUS, formatMoney, parseMoney, toMoneyInput, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { CHARGE_STATUS, INVOICE_STATUS, formatMoney, parseMoney, toMoneyInput } from './money'
 import { ClientName, Facts, FormDialog, ListTable, Money, PdfButton, StatusBadge, useCurrency, useLocationRef } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
 
@@ -63,7 +64,8 @@ function ScheduleDialog({ invoice, onClose }: { invoice: Invoice; onClose: () =>
   const currency = useCurrency()
   const schedule = useQuery({ queryKey: ['billing', 'schedule', invoice.id], queryFn: () => api.get('/api/v1/invoices/{invoice_id}/payment-schedule', { path: { invoice_id: invoice.id } }) })
   const [rows, setRows] = useState<{ due_on: string; amount: string }[] | null>(null)
-  const [gen, setGen] = useState({ count: '3', every: '1', unit: 'month', start_on: today() })
+  const today = useLocationToday(invoice.location_id)
+  const [gen, setGen] = useState({ count: '3', every: '1', unit: 'month', start_on: today })
   const current = rows ?? schedule.data?.instalments.map((i) => ({ due_on: i.due_on, amount: toMoneyInput(i.amount_minor) })) ?? []
   const sum = current.reduce((s, r) => s + (parseMoney(r.amount) ?? 0), 0)
   const done = () => {
@@ -108,7 +110,7 @@ function ScheduleDialog({ invoice, onClose }: { invoice: Invoice; onClose: () =>
         </div>
       ))}
       <div className="flex items-center justify-between text-sm">
-        <Button size="sm" variant="secondary" onClick={() => setRows([...current, { due_on: today(), amount: toMoneyInput(Math.max(invoice.total_minor - sum, 0)) }])}>
+        <Button size="sm" variant="secondary" onClick={() => setRows([...current, { due_on: today, amount: toMoneyInput(Math.max(invoice.total_minor - sum, 0)) }])}>
           Add instalment
         </Button>
         <span className={sum === invoice.total_minor ? '' : 'font-medium text-danger'}>

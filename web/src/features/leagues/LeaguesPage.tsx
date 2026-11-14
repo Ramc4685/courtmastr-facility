@@ -13,9 +13,11 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, formatMoney, toMinor } from '../../lib/format'
+import { useLocationZone } from '../../lib/locationDate'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { useRevenueCategories } from '../rentals/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
+import { fromWallInput } from '../scheduling/time'
 import { BlankCardButton, FeeSplitDialog, PlayerStatsDialog, LadderTab, PlayerStatsTab, PreferencesDialog, PublishGroupDialog, StaffTab, useCourts, usePlaces } from './depth'
 import { label, STATUS_TONE, useBrackets, useCompetition, useEntries, useGames, useSports, useStandings, type Competition, type Entry, type Game } from './queries'
 import { Alert, CardButton, List, matchup, ScoreDialog, scoreText } from './shared'
@@ -516,10 +518,11 @@ function LeagueNightDialog({ competition, onClose }: { competition: Competition;
   const toast = useToast()
   const courts = useCourts(competition.location_id)
   const [f, setF] = useState({ starts_at: '', ends_at: '', resource_ids: [] as string[] })
+  const zone = useLocationZone(competition.location_id) // the night's hours are the venue's wall time
   const save = useMutation({
     mutationFn: () => api.post('/api/v1/competitions/{competition_id}/league-nights', {
       path: { competition_id: competition.id },
-      body: { resource_ids: f.resource_ids, starts_at: new Date(f.starts_at).toISOString(), ends_at: new Date(f.ends_at).toISOString() },
+      body: { resource_ids: f.resource_ids, starts_at: fromWallInput(f.starts_at, zone), ends_at: fromWallInput(f.ends_at, zone) },
     }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['competition', competition.id] })
