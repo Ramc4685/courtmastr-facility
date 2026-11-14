@@ -1059,12 +1059,17 @@ def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
     return {"client_ids": ids, "confirmed_count": len(done)}
 
 
-def confirm_imported_age(session: Session, client_id: UUID, staff_user_id: UUID) -> None:
-    """Internal (imports, a staff-run import with `confirm_ages`; the commit carries the gate): an imported adult's
-    date counts as confirmed. Minors and dateless rows are left as they are."""
-    client = get(session, client_id)
-    if client.birth_on is not None and not _declared_minor(session, client) and not _age_confirmed(client):
-        _confirm(session, client, staff_user_id, client.home_location_id, source="import")
+def _import_age_refusal(session: Session, client: Client, created: bool, row_date: date | None, stored) -> str | None:
+    """Why an import with `confirm_ages` may not vouch for this row's age; None when it may. The row must supply
+    the date itself, for a client it created or one whose stored date is the same, and the date must be an adult's:
+    an import never confirms a date it did not bring (a self sign-up matched on name and email)."""
+    if row_date is None:
+        return "Imported, age not confirmed: this row has no birth date."
+    if not created and stored != row_date:
+        return "Imported, age not confirmed: the birth date on file differs from this row's."
+    if _declared_minor(session, client):
+        return "Imported, age not confirmed: a child's age is never confirmed (children get no entry code)."
+    return None
 
 
 def disable_client(session: Session, principal: Principal, client_id: UUID) -> Client:
@@ -1363,13 +1368,17 @@ def ensure_member_number(session: Session, client_id: UUID) -> str | None:
     return client.member_number
 
 
-def import_client(session: Session, data: dict, *, import_job_id: UUID | None = None) -> tuple[Client, bool]:
+def import_client(
+    session: Session, data: dict, *, import_job_id: UUID | None = None, confirm_age_by: UUID | None = None
+) -> tuple[Client, bool]:
     """Importer entry point (IMP-01): match on member number, then on a single client with the same primary
     email and names; update that client, else create one (created_via `import`, no verification email).
     A new record that the duplicate rule (`_duplicate_of`) pairs with an existing client is refused with 409
     `possible-duplicate`, so an import never adds a likely duplicate. An update keeps the home location, member
     number and primary email; a new email is added as a secondary address (primary only when there was none).
-    Returns (client, created). Field policy is the staff context; the caller runs it per row in a savepoint."""
+    Returns (client, created). Field policy is the staff context; the caller runs it per row in a savepoint.
+    `confirm_age_by` (a commit with `confirm_ages`; the commit carries the gate) confirms the row's date when the
+    row vouches for it (`_import_age_refusal`); otherwise `client.age_not_confirmed_reason` says why."""
     actor = session.info["actor"]
     match = None
     if data.get("member_number"):
@@ -1392,7 +1401,9 @@ def import_client(session: Session, data: dict, *, import_job_id: UUID | None = 
         other, predicate = _duplicate_of()
         if session.scalar(select(other.id).join(Client, predicate).where(Client.id == client.id).limit(1)):
             raise Conflict("This person looks like a client who already exists.", code="possible-duplicate")
+        _import_confirm(session, client, True, data.get("birth_on"), None, confirm_age_by)
         return client, True
+    stored = match.birth_on
     skip = ("primary_email", "member_number", "home_location_id")
     update = {k: v for k, v in data.items() if k not in skip and v is not None}
     current = client_addresses(session, match.id)
@@ -1406,8 +1417,18 @@ def import_client(session: Session, data: dict, *, import_job_id: UUID | None = 
     if changes:
         audit.record(session, "clients.client.update", match, location_id=match.home_location_id, changes=changes)
         events.publish(session, ClientUpdated(client_id=match.id), match.id)
+    _import_confirm(session, match, False, data.get("birth_on"), stored, confirm_age_by)
     session.flush()
     return match, False
+
+
+def _import_confirm(session: Session, client: Client, created: bool, row_date, stored, by: UUID | None) -> None:
+    if by is None or _age_confirmed(client):
+        return
+    reason = _import_age_refusal(session, client, created, row_date, stored)
+    if reason is None:
+        _confirm(session, client, by, client.home_location_id, source="import")
+    client.age_not_confirmed_reason = reason  # type: ignore[attr-defined]  # read by the import row report
 
 
 def create_self_service(session: Session, data: dict, *, created_via: str, verified_email: bool = False) -> Client:

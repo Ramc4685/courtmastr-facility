@@ -35,7 +35,8 @@ class Context:
     today: date  # at the job's location (overview 3.7)
     job_id: UUID
     submitted_by: UUID | None = None  # the staff user who started the import (audit attribution)
-    confirm_ages: bool = False  # a commit by staff holding clients.client.confirm_age who asked for it
+    confirm_ages_by: UUID | None = None  # the staff user who committed with confirm_ages and still holds both keys
+    confirm_ages_lost: bool = False  # they asked, but no longer hold the keys: rows say the age was not confirmed
 
 
 @dataclass
@@ -202,11 +203,15 @@ def _apply_client(session: Session, data: dict, ctx: Context) -> Applied:
         "postal_code": data["postal_code"], "country_code": data["country_code"],
     }  # fmt: skip
     client, created = clients.service.import_client(
-        session, {k: v for k, v in row.items() if v is not None}, import_job_id=ctx.job_id
-    )
-    if ctx.confirm_ages and ctx.submitted_by:
-        clients.service.confirm_imported_age(session, client.id, ctx.submitted_by)
+        session, {k: v for k, v in row.items() if v is not None}, import_job_id=ctx.job_id,
+        confirm_age_by=ctx.confirm_ages_by,
+    )  # fmt: skip
     warnings: Errors = []
+    if reason := getattr(client, "age_not_confirmed_reason", None):
+        warnings.append(("birth_date", "age-not-confirmed", reason))
+    elif ctx.confirm_ages_lost and data["birth_date"]:
+        warnings.append(("birth_date", "age-not-confirmed", "Imported, age not confirmed: the person who asked for "
+                         "it can no longer confirm ages."))  # fmt: skip
     email_marketing = data["email_marketing"]
     if email_marketing and data["email"] and data["email"] != (client.primary_email or "").lower():
         # The file's address was added as a secondary one; its consent does not carry to the kept primary.

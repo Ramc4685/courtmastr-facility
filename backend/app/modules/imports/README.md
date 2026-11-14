@@ -185,7 +185,10 @@ custom fields, tags and notes on client rows; package balances.
 
 ## Confirming ages on import (owner decision "Staff confirm once")
 
-A clients commit may send `{"confirm_ages": true}` (default off). It needs a staff session holding
-`clients.client.confirm_age` at the job's location; the imported adults' birth dates then count as confirmed
-(`clients.service.confirm_imported_age`: one audit and one `clients.client.age_confirmed` each). Minors are left
-unconfirmed. A queued job stops if the submitter loses the key.
+A clients commit may send `{"confirm_ages": true}` (default off). The person committing needs a staff session with
+`clients.client.confirm_age` and `clients.client.confirm_ages` (`+`, step-up) at the job's location; they vouch for
+the rows and the confirmations are theirs. Every chunk re-checks both keys; if either is gone the rows still import
+and say "Imported, age not confirmed". A row is confirmed only when it supplied the birth date itself, the client was
+created by this import or its stored date is the same, and the date is an adult's; a child, a row with no date and a
+matched client whose stored date differs are reported (`age-not-confirmed`). An import never flips a self sign-up
+matched on name and email alone. One audit and one `clients.client.age_confirmed` per confirmed client.

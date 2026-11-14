@@ -63,8 +63,8 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   per person and firing `age_confirmed` once each: `POST /client-age-reviews/confirmations` (up to 200 ids and a
   required note, kept flag-only; key `clients.client.confirm_ages`, `+` step-up, admin and manager, plus
   `clients.client.confirm_age` at each person's location; the web queue's checkboxes and "Confirm selected"), and a
-  clients import committed with `confirm_ages: true` by staff holding `clients.client.confirm_age` (adults only; off
-  by default; an API key can never start an import). Assumption: front desk confirms one at a time, so the bulk key
+  clients import committed with `confirm_ages: true` by staff holding both age keys (only adult rows that vouch for
+  their own date, imports README; off by default; an API key can never start an import). Assumption: front desk confirms one at a time, so the bulk key
   starts at manager.
 
 ## Integrator notes
