@@ -73,3 +73,5 @@ PATCH /api/v1/divisions/{division_id} the `sort_order/anyOf[subschema #1]` reque
 PATCH /api/v1/divisions/{division_id} the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
 POST /api/v1/sports the `default_team_fee_minor/anyOf[subschema #1]` request property's max was set to `2147483647.00`
 PATCH /api/v1/sports/{sport_id} the `default_team_fee_minor/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+# Phase 9 orphans (3c02d75): booking numbers are int4; a larger one was a 500, now a 422. No storable int4 number is refused.
+POST /api/v1/bookings/{booking_id}/merge the `booking_number` request property's max was set to `2147483647.00`
