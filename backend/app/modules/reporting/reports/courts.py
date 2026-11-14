@@ -53,9 +53,9 @@ def _min(mr: str) -> str:
     return f"(SELECT coalesce(sum(extract(epoch FROM upper(x) - lower(x))), 0)::bigint / 60 FROM unnest({mr}) x)"
 
 
-def _wall(day: str, clock: str) -> str:
+def _wall(day: str, clock: str, zone: str = "c.time_zone") -> str:
     """A local date and wall time (24:00 is the next midnight) as an instant in the court's zone."""
-    return f"((({day})::date + {clock}) AT TIME ZONE c.time_zone)"
+    return f"((({day})::date + {clock}) AT TIME ZONE {zone})"
 
 
 def _fires(band: str, day: str) -> str:
@@ -65,11 +65,23 @@ def _fires(band: str, day: str) -> str:
             f" AND ({band}.ends_on IS NULL OR {day} <= {band}.ends_on)")  # fmt: skip
 
 
-def _peak(court: str, day: str) -> str:
-    """The union of the peak bands of the rental types a court offers, on one local day."""
-    return f"""(SELECT range_agg(tstzrange({_wall(day, "b.start_time")}, {_wall(day, "b.end_time")}))
-        FROM rpt_court_rental_type t JOIN rpt_peak_band b ON b.rental_type_id = t.rental_type_id
-        WHERE t.court_id = {court} AND {_fires("b", day)})"""
+def _days(rng: str, zone: str) -> str:
+    """The local dates a range touches (its upper bound is exclusive), for an equality join on the day."""
+    return (f"generate_series((lower({rng}) AT TIME ZONE {zone})::date::timestamp, "
+            f"((upper({rng}) - interval '1 microsecond') AT TIME ZONE {zone})::date::timestamp, interval '1 day')")  # fmt: skip
+
+
+def _split(src: str, group: str, total: str, weight: str, order: str) -> str:
+    """Largest remainder in SQL: `total` (the same on every row of a `group`) shared over the group's rows in
+    proportion to `weight`, in whole minor units that always sum to the total; the leftover units go to the largest
+    fractions, ties by `order`. A negative total (a reversal) is split as its size, so it mirrors its charge."""
+    return f"""SELECT q.*, (sign(q.{total}) * (q.lo + CASE WHEN row_number() OVER (PARTITION BY {group}
+                   ORDER BY q.raw - q.lo DESC, {order}) <= abs(q.{total}) - sum(q.lo) OVER (PARTITION BY {group})
+                   THEN 1 ELSE 0 END))::bigint AS part
+        FROM (SELECT p.*, floor(p.raw) AS lo FROM (
+            SELECT s.*, CASE WHEN sum({weight}) OVER (PARTITION BY {group}) = 0 THEN 0
+                             ELSE abs(s.{total})::numeric * {weight} / sum({weight}) OVER (PARTITION BY {group}) END AS raw
+            FROM {src} s) p) q"""
 
 
 EMPTY = "tstzmultirange()"
@@ -90,32 +102,60 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         args["groups"] = p.resource_group_ids
     ranges = scope.day_ranges or {}
     args |= {"o_loc": list(ranges), "o_from": [r[0] for r in ranges.values()], "o_to": [r[1] for r in ranges.values()]}
+    revenue = "(SELECT * FROM rpt_court_revenue WHERE charge_id IN (SELECT charge_id FROM rv_charge))"
+    items = _split(revenue, "charge_id", "net_minor", "s.item_weight", "q.rental_booking_charge_item_id")
+    band = f"tstzrange({_wall('z.day', 'b.start_time', 'z.time_zone')}, {_wall('z.day', 'b.end_time', 'z.time_zone')})"
+    opening = f"tstzrange({_wall('d.day', 'fh.opens_time')}, {_wall('d.day', 'fh.closes_time')})"
+    near = "tstzrange(CAST(s.from_on - 1 AS timestamp) AT TIME ZONE 'UTC', CAST(s.to_on + 2 AS timestamp) AT TIME ZONE 'UTC')"
     sql = f"""
     WITH span AS (
-        SELECT l.location_id, coalesce(o.from_on, CAST(:from_on AS date)) AS from_on,
+        SELECT l.location_id, l.time_zone, coalesce(o.from_on, CAST(:from_on AS date)) AS from_on,
                coalesce(o.to_on, CAST(:to_on AS date)) AS to_on
-        FROM (SELECT DISTINCT location_id FROM rpt_court WHERE {" AND ".join(where)}) l
+        FROM (SELECT DISTINCT location_id, time_zone FROM rpt_court WHERE {" AND ".join(where)}) l
         LEFT JOIN unnest(CAST(:o_loc AS uuid[]), CAST(:o_from AS date[]), CAST(:o_to AS date[]))
              AS o(location_id, from_on, to_on) ON o.location_id = l.location_id
     ),
     court AS (SELECT * FROM rpt_court WHERE {" AND ".join(courts)}),
+    rv_charge AS (  -- the charges paying for play on a chosen court near the span
+        SELECT DISTINCT v.charge_id FROM rpt_court_revenue v JOIN court c ON c.court_id = v.court_id
+        JOIN span s ON s.location_id = c.location_id WHERE v.played && {near}
+    ),
+    rv_item AS (  -- each charge's net over all its items (any court, any date), so a part never depends on the ask
+        SELECT x.court_id, x.rental_type_id, x.played, x.charge_id, x.rental_booking_charge_item_id AS item_id,
+               x.part AS item_minor
+        FROM ({items}) x
+    ),
+    zday AS (  -- every local day needed: the span's, and the days of the occurrences it is paid for
+        SELECT location_id, time_zone, day, bool_or(in_span) AS in_span,
+               tstzrange(day::timestamp AT TIME ZONE time_zone, (day + 1)::timestamp AT TIME ZONE time_zone) AS whole
+        FROM (SELECT s.location_id, s.time_zone, g::date AS day, true AS in_span FROM span s
+              CROSS JOIN generate_series(s.from_on::timestamp, s.to_on::timestamp, interval '1 day') g
+              UNION ALL
+              SELECT c.location_id, c.time_zone, g::date, false FROM rv_item i JOIN court c ON c.court_id = i.court_id
+              CROSS JOIN {_days("i.played", "c.time_zone")} g) d
+        GROUP BY location_id, time_zone, day
+    ),
+    court_peak AS (  -- the union of the peak bands of the rental types a court offers, once per court and day
+        SELECT t.court_id, z.day,
+               range_agg({band}) AS mr
+        FROM court c JOIN zday z ON z.location_id = c.location_id
+        JOIN rpt_court_rental_type t ON t.court_id = c.court_id
+        JOIN rpt_peak_band b ON b.rental_type_id = t.rental_type_id AND {_fires("b", "z.day")}
+        GROUP BY t.court_id, z.day
+    ),
     day AS (
-        SELECT c.court_id, c.location_id, c.time_zone, c.has_windows, g::date AS day,
-               tstzrange({_wall("g::date", "time '00:00'")}, {_wall("g::date + 1", "time '00:00'")}) AS whole
-        FROM court c JOIN span s ON s.location_id = c.location_id
-        CROSS JOIN generate_series(s.from_on::timestamp, s.to_on::timestamp, interval '1 day') g
+        SELECT c.court_id, c.location_id, c.time_zone, c.has_windows, z.day, z.whole
+        FROM court c JOIN zday z ON z.location_id = c.location_id AND z.in_span
     ),
     hold AS (
         SELECT h.* FROM rpt_court_hold h JOIN span s ON s.location_id = h.location_id
-        WHERE h.court_id IN (SELECT court_id FROM court)
-          AND h.during && tstzrange(CAST(s.from_on - 1 AS timestamp) AT TIME ZONE 'UTC',
-                                    CAST(s.to_on + 2 AS timestamp) AT TIME ZONE 'UTC')
+        WHERE h.court_id IN (SELECT court_id FROM court) AND h.during && {near}
     ),
     avail AS (
         SELECT d.court_id, d.location_id, d.day, d.whole, d.time_zone,
                ((CASE WHEN fh.weekday IS NULL THEN tstzmultirange(d.whole)
                       WHEN fh.is_closed OR fh.opens_time IS NULL OR fh.closes_time IS NULL THEN {EMPTY}
-                      ELSE tstzmultirange(tstzrange({_wall("d.day", "fh.opens_time")}, {_wall("d.day", "fh.closes_time")}))
+                      ELSE tstzmultirange({opening})
                  END) * (CASE WHEN d.has_windows THEN coalesce(win.mr, {EMPTY}) ELSE tstzmultirange(d.whole) END)
                ) - coalesce(shut.mr, {EMPTY}) AS open_mr,
                coalesce(pk.mr, {EMPTY}) AS peak_mr
@@ -131,16 +171,18 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         LEFT JOIN LATERAL (
             SELECT range_agg(x.during) AS mr FROM rpt_closure x WHERE x.location_id = d.location_id AND x.during && d.whole
         ) shut ON true
-        LEFT JOIN LATERAL (SELECT {_peak("d.court_id", "d.day")} AS mr) pk ON true
+        LEFT JOIN court_peak pk ON pk.court_id = d.court_id AND pk.day = d.day
     ),
-    held AS (
-        SELECT d.court_id, d.day,
-               coalesce(range_agg(h.played * d.whole) FILTER (WHERE h.use_kind = 'rental'), {EMPTY}) AS rental,
-               coalesce(range_agg(h.played * d.whole) FILTER (WHERE h.use_kind = 'program'), {EMPTY}) AS program,
-               coalesce(range_agg(h.during * d.whole) FILTER (WHERE h.use_kind = 'block'), {EMPTY}) AS block,
-               coalesce(range_agg(h.during * d.whole) FILTER (WHERE h.use_kind <> 'block'), {EMPTY}) AS booked
-        FROM day d JOIN hold h ON h.court_id = d.court_id AND h.during && d.whole
-        GROUP BY d.court_id, d.day
+    held AS (  -- each hold cut at the local days it touches (an equality join, not days times holds)
+        SELECT h.court_id, z.day,
+               coalesce(range_agg(h.played * z.whole) FILTER (WHERE h.use_kind = 'rental'), {EMPTY}) AS rental,
+               coalesce(range_agg(h.played * z.whole) FILTER (WHERE h.use_kind = 'program'), {EMPTY}) AS program,
+               coalesce(range_agg(h.during * z.whole) FILTER (WHERE h.use_kind = 'block'), {EMPTY}) AS block,
+               coalesce(range_agg(h.during * z.whole) FILTER (WHERE h.use_kind <> 'block'), {EMPTY}) AS booked
+        FROM hold h JOIN court c ON c.court_id = h.court_id
+        CROSS JOIN {_days("h.during", "c.time_zone")} g
+        JOIN zday z ON z.location_id = c.location_id AND z.day = g::date AND z.in_span
+        GROUP BY h.court_id, z.day
     ),
     base AS (  -- each minute in one category: rental, then league or program, then a staff block, then changeover
         SELECT a.court_id, a.day, a.whole, a.open_mr, a.peak_mr, coalesce(u.rental, {EMPTY}) AS r,
@@ -150,22 +192,20 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
                    - coalesce(u.block, {EMPTY}) AS f
         FROM avail a LEFT JOIN held u ON u.court_id = a.court_id AND u.day = a.day
     ),
-    rev AS (  -- revenue on its revenue date; the peak share follows the booked minutes inside the peak bands
-        SELECT v.court_id, v.revenue_on AS day, coalesce(v.rental_type_id::text, '{PROGRAM}') AS sport, v.net_minor,
-               CASE WHEN {_min("tstzmultirange(v.played)")} = 0 THEN 0
-                    ELSE round(v.net_minor::numeric * {_min("tstzmultirange(v.played) * coalesce(pk.mr, " + EMPTY + ")")}
-                               / {_min("tstzmultirange(v.played)")})::bigint END AS peak_minor
-        FROM rpt_court_revenue v
-        JOIN court c ON c.court_id = v.court_id
-        JOIN span s ON s.location_id = c.location_id
-        LEFT JOIN LATERAL (
-            SELECT range_agg(x.mr) AS mr FROM (
-                SELECT unnest({_peak("v.court_id", "dd::date")}) AS mr
-                FROM generate_series((lower(v.played) AT TIME ZONE c.time_zone)::date::timestamp,
-                                     (upper(v.played) AT TIME ZONE c.time_zone)::date::timestamp, interval '1 day') dd
-            ) x
-        ) pk ON true
-        WHERE v.revenue_on BETWEEN s.from_on AND s.to_on
+    rv_seg AS (  -- an item's occurrence cut at local days and at the court's peak bands
+        SELECT i.charge_id, i.item_id, i.court_id, coalesce(i.rental_type_id::text, '{PROGRAM}') AS sport,
+               i.item_minor, z.day, z.in_span, k.peak, {_min("k.mr")} AS minutes
+        FROM rv_item i JOIN court c ON c.court_id = i.court_id
+        CROSS JOIN {_days("i.played", "c.time_zone")} g
+        JOIN zday z ON z.location_id = c.location_id AND z.day = g::date
+        LEFT JOIN court_peak pk ON pk.court_id = i.court_id AND pk.day = z.day
+        CROSS JOIN LATERAL (VALUES (true, tstzmultirange(i.played * z.whole) * coalesce(pk.mr, {EMPTY})),
+                                   (false, tstzmultirange(i.played * z.whole) - coalesce(pk.mr, {EMPTY}))) k(peak, mr)
+    ),
+    rev AS (  -- each item's part over its segments by rented minutes, dated by the local day it is played
+        SELECT x.court_id, x.day, x.sport, sum(x.part) AS net_minor, coalesce(sum(x.part) FILTER (WHERE x.peak), 0) AS peak_minor
+        FROM ({_split("rv_seg", "item_id, charge_id", "item_minor", "s.minutes", "q.day, q.peak")}) x
+        WHERE x.in_span GROUP BY x.court_id, x.day, x.sport
     )"""
     return sql, args
 

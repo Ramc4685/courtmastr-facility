@@ -5,7 +5,7 @@ so a minute counts once however many parts of the court are held. Holds keep the
 included) and the booked range inside it (`played`), so changeover minutes are told apart from play. The peak
 window of a rental type is read from its price rules: a time band of kind `rate` that charges more than the
 rate's base price (README assumptions). Revenue is each posted rental charge, its reversal or its adjustment,
-split over the courts its items cover.
+with the items (occurrence and court) it pays for.
 
 Revision ID: 2011
 Revises: 1965
@@ -74,14 +74,13 @@ VIEWS = {
         JOIN rental_rate rr ON rr.tenant_id = u.tenant_id AND rr.id = u.rental_rate_id AND rr.is_active
         JOIN rental_type rt ON rt.tenant_id = rr.tenant_id AND rt.id = rr.rental_type_id AND rt.is_active
         WHERE u.kind = 'rate' AND u.start_time IS NOT NULL AND u.amount_minor > rr.amount_minor""",
-    # rentals and billing: net revenue (after discounts, before tax) of each posted rental charge, its reversal and
-    # its adjustment, shared over the items' courts and rounded half away from zero once per item
+    # rentals and billing: each posted rental charge, its reversal and its adjustment with the items it pays for: the
+    # charge's net (after discounts, before tax), and each item's weight in it (its share of the line; equal shares
+    # when the line is free). The report splits the net over the items and their played minutes (largest remainder).
     "rpt_court_revenue": f"""
-        SELECT c.tenant_id, rb.location_id, {_COURT} AS court_id, rb.booking_id, rb.rental_type_id,
+        SELECT c.tenant_id, rb.location_id, {_COURT} AS court_id, rb.booking_id, rb.rental_type_id, rbc.rental_rate_id,
                tstzrange(rb.starts_at, rb.ends_at) AS played, c.id AS charge_id, i.id AS rental_booking_charge_item_id,
-               c.revenue_on,
-               CASE WHEN rbc.amount_minor = 0 THEN 0
-                    ELSE round(c.net_minor::numeric * i.amount_minor / rbc.amount_minor)::bigint END AS net_minor
+               c.net_minor, CASE WHEN rbc.amount_minor = 0 THEN 1 ELSE i.amount_minor END AS item_weight
         FROM rental_booking_charge_item i
         JOIN rental_booking_charge rbc ON rbc.tenant_id = i.tenant_id AND rbc.id = i.rental_booking_charge_id
         JOIN rental_booking rb ON rb.tenant_id = i.tenant_id AND rb.id = i.rental_booking_id

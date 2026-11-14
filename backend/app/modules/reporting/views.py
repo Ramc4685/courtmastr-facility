@@ -224,8 +224,8 @@ court_hold = _view("rpt_court_hold", """resource_hold_id location_id court_id bo
     rental_type_name during played""")  # fmt: skip
 court_rental_type = _view("rpt_court_rental_type", "location_id court_id rental_type_id rental_type_name")
 peak_band = _view("rpt_peak_band", "location_id rental_type_id start_time end_time weekdays starts_on ends_on")
-court_revenue = _view("rpt_court_revenue", """location_id court_id booking_id rental_type_id played charge_id
-    rental_booking_charge_item_id revenue_on net_minor""")  # fmt: skip
+court_revenue = _view("rpt_court_revenue", """location_id court_id booking_id rental_type_id rental_rate_id played
+    charge_id rental_booking_charge_item_id net_minor item_weight""")  # fmt: skip
 
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
        time_entry,

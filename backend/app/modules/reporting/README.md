@@ -163,11 +163,15 @@ Status per feature: `docs/status/15-reporting.md`.
   - *By sport*: one row per active rental type the chosen courts offer, plus "League and programs", each against
     the available time of the courts that offer it (every court for league and programs). Sports can overlap one
     another on a court; the totals are always the physical courts.
-  - *Revenue*: net (after discounts, before tax) of each posted rental charge, its reversal (a cancellation's
-    refund lands on the reversal's revenue date) and its adjustment; voided charges are out. Each charge is
-    shared over the courts its items cover, rounded half up once per item, and dated by its revenue date. The peak
-    share is the booking's minutes inside the court's peak window, so a booking across 18:00 priced at two rates
-    splits by minutes, not by band price. League fees, memberships and lessons are not court revenue. Per
+  - *Revenue*: net (after discounts, before tax) of each posted rental charge, its reversal and its adjustment;
+    voided charges are out. Revenue is dated by the local day the court is played, not by the charge's revenue
+    date: a weekly series billed on one combined line earns on each occurrence, and a booking across midnight or a
+    month end earns on both days. A charge's net is split over the items it pays for (occurrence and court, by
+    their share of the line), then each item's part over its local days and peak and off-peak segments by rented
+    minutes. Both splits are largest remainder in whole minor units (ties to the earlier item, day, peak first),
+    so the parts always add up to the posted amount, days add up to months to the cent, and a reversal mirrors
+    its charge exactly (a cancelled occurrence nets to zero on its day). A charge kept after a cancellation stays
+    on the occurrence's day with no rented hours. League fees, memberships and lessons are not court revenue. Per
     available hour and per rented hour divide by those hours, half up to the minor unit.
   - *Rounding*: hours to 0.01 and percentages to 0.1, half up, from summed minutes, so days, weeks and months
     reconcile to the minute and the cent (tested). Weeks are ISO weeks (Monday).

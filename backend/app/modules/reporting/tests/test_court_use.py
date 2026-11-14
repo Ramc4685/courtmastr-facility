@@ -162,6 +162,12 @@ def test_groups_and_sports(client, owner, f):
 
 def test_a_month_is_the_sum_of_its_days(client, owner, f):
     f.rent(f.court, date(2031, 5, 12), "18:00", "19:00")
+    f.rent(f.court, date(2031, 5, 17), "21:40", "23:59")  # odd minutes late on a Saturday
+    ok(client.post(f"{API}/rentals", headers=owner | {"Idempotency-Key": uuid4().hex}, json={
+        "location_id": f.location, "rental_type_id": f.rtype, "client_id": f.person, "resources": [{"resource_id": f.court}],
+        "starts_at": at(date(2031, 5, 6), "10:00"), "ends_at": at(date(2031, 5, 6), "10:50"),
+        "recurrence": {"pattern": "weekly", "interval_count": 1, "weekdays": [2], "range_type": "count", "occurrence_limit": 3},
+        "charge": {"decision": "bill", "rental_rate_id": f.rate}}))  # 100.00 on one line: 33.34 + 33.33 + 33.33  # fmt: skip
     month = {"from_on": "2031-05-01", "to_on": "2031-05-31"}
     _, days = report(client, owner, "court_use", f, **month)
     _, months = report(client, owner, "court_use", f, grain="month", **month)
@@ -173,9 +179,43 @@ def test_a_month_is_the_sum_of_its_days(client, owner, f):
             assert sum(round(r[k] * 60) for r in daily) == round(monthly[k] * 60), (court, k)
         for k in ("revenue_minor", "peak_revenue_minor"):
             assert sum(r[k] for r in daily) == monthly[k], (court, k)
-    assert by_label(months)["Court 1"]["revenue_minor"] == 12500 + 5000  # the 12 May hour is at the evening rate
+    # the 12 May hour at the evening rate; 21:40-23:59 is 2.32 h at 50.00 = 116.00; the series 100.00
+    assert by_label(months)["Court 1"]["revenue_minor"] == 12500 + 5000 + 11600 + 10000
+    assert [r["revenue_minor"] for r in days if r["label"] == "Court 1" and r["period_on"] in (
+        "2031-05-06", "2031-05-13", "2031-05-20")] == [3334, 3333, 3333]  # fmt: skip
     _, weeks = report(client, owner, "court_use", f, grain="week", **month)
     assert {r["period_on"] for r in weeks} == {"2031-04-28", "2031-05-05", "2031-05-12", "2031-05-19", "2031-05-26"}
+
+
+def test_a_weekly_series_on_one_line_earns_on_each_occurrence(client, owner, f):
+    ok(client.post(f"{API}/rentals", headers=owner | {"Idempotency-Key": uuid4().hex}, json={
+        "location_id": f.location, "rental_type_id": f.rtype, "client_id": f.person, "resources": [{"resource_id": f.court}],
+        "starts_at": at(date(2031, 6, 2), "10:00"), "ends_at": at(date(2031, 6, 2), "11:00"),
+        "recurrence": {"pattern": "weekly", "interval_count": 1, "weekdays": [1], "range_type": "count", "occurrence_limit": 4},
+        "charge": {"decision": "bill", "rental_rate_id": f.rate}}))  # fmt: skip
+    _, weeks = report(client, owner, "court_use", f, from_on="2031-06-02", to_on="2031-06-29", grain="week",
+                      resource_ids=[f.court])  # fmt: skip
+    # One combined line of 4 h at 40.00 = 160.00, so each Monday 10-11 earns 40.00 for its one rented hour.
+    assert [
+        (w["period_on"], w["rental_hours"], w["revenue_minor"], w["revenue_per_sold_hour_minor"]) for w in weeks
+    ] == [(f"2031-06-{d:02d}", 1.0, 4000, 4000) for d in (2, 9, 16, 23)]
+
+
+def test_a_booking_across_midnight_and_a_month_end_earns_on_both_days(client, owner, f):
+    ok(client.put(f"{API}/locations/{f.location}/facility-hours", headers=owner, json={
+        "days": [{"weekday": d} | hours("00:00", "24:00") for d in range(1, 8)]}), 200)  # fmt: skip
+    ok(client.post(f"{API}/rentals", headers=owner | {"Idempotency-Key": uuid4().hex}, json={
+        "location_id": f.location, "rental_type_id": f.rtype, "client_id": f.person, "resources": [{"resource_id": f.court}],
+        "starts_at": at(date(2031, 5, 31), "23:00"), "ends_at": at(date(2031, 6, 1), "01:00"),
+        "charge": {"decision": "bill", "rental_rate_id": f.rate}}))  # fmt: skip
+    window = {"from_on": "2031-05-31", "to_on": "2031-06-01", "resource_ids": [f.court]}
+    _, days = report(client, owner, "court_use", f, **window)
+    _, months = report(client, owner, "court_use", f, grain="month", **window)
+    # 23:00-24:00 at the evening 50.00 and 00:00-01:00 at 40.00: two lines, 90.00, one rented hour on each day.
+    # By rented minutes each line is half on each day: 25.00 + 20.00 = 45.00 a day, the 31st's in the peak band.
+    got = [(r["period_on"], r["rental_hours"], r["revenue_minor"], r["peak_revenue_minor"]) for r in days]
+    assert got == [("2031-05-31", 1.0, 4500, 4500), ("2031-06-01", 1.0, 4500, 0)]
+    assert [(r["period_on"], r["revenue_minor"]) for r in months] == [("2031-05-01", 4500), ("2031-06-01", 4500)]
 
 
 @pytest.mark.parametrize(("day", "expected"), [(date(2031, 3, 9), 23.0), (date(2031, 11, 2), 25.0)])
