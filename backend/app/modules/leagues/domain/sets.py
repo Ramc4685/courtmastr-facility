@@ -11,12 +11,12 @@ def need(best_of: int) -> int:
 
 def complete(a: int, b: int, target: int, win_by: int, cap: int | None) -> bool:
     """A finished set: the winner reached the target with the margin and not a point more than needed, or hit
-    the cap."""
+    the cap from deuce (30-29 in badminton; 30-5 or 30-27 cannot happen)."""
     won, lost = max(a, b), min(a, b)
     if won == lost or (cap is not None and cap > target and won > cap):
         return False
     if cap is not None and cap > target and won == cap:
-        return True
+        return lost >= cap - win_by
     return won == (target if lost <= target - win_by else lost + win_by)
 
 

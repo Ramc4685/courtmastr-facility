@@ -1,6 +1,6 @@
 # Drift report: leagues
 
-State reported: working tree of worktree `Facility Software.agent-a78c88ae21085190a` on 2026-11-13 (branch `claude/league-set-scoring`, uncommitted changes read as they are). Read-only; no tests run. Scope: `backend/app/modules/leagues/README.md` against `backend/app/modules/leagues/` and the leagues operations of `docs/api/openapi-programs.yaml`. Only divergences are listed. This report replaces the earlier one of today.
+State reported: working tree of worktree `Facility Software.agent-a78c88ae21085190a` on 2026-11-13 (branch `claude/league-set-scoring`, uncommitted changes read as they are). Read-only; no tests run. Scope: `backend/app/modules/leagues/README.md` against `backend/app/modules/leagues/` and the leagues operations of `docs/api/openapi-programs.yaml`. Only divergences are listed. This report re-verifies and replaces the earlier one of today: every README line and code file:line below was re-read against the tree (including the uncommitted `domain/sets.py`, which matches README:111-114) and none moved.
 
 ## backend/app/modules/leagues/README.md
 

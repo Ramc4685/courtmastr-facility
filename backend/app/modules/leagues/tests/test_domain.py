@@ -234,6 +234,21 @@ def test_formula_parses_validates_and_evaluates_without_eval():
 
 BADMINTON = {"sets_best_of": 3, "set_points_to": 21, "set_win_by": 2, "set_cap": 30, "deciding_set_points_to": None}
 VOLLEYBALL = {"sets_best_of": 5, "set_points_to": 25, "set_win_by": 2, "set_cap": None, "deciding_set_points_to": 15}
+PICKLEBALL = {"sets_best_of": 3, "set_points_to": 11, "set_win_by": 2, "set_cap": None, "deciding_set_points_to": None}
+
+
+@pytest.mark.parametrize("home, away, legal", [
+    ([25, 25, 25], [20, 20, 20], True), ([25, 20, 25, 20, 15], [20, 25, 20, 25, 13], True),
+    ([25, 20, 25, 20, 16], [20, 25, 20, 25, 14], True), ([25, 20, 25, 20, 15], [20, 25, 20, 25, 14], False),
+    ([25, 20, 25, 20, 25], [20, 25, 20, 25, 10], False),  # the deciding set is to 15
+    ([25, 20, 25, 20, 25], [20, 25, 20, 25, 23], True),  # reached through deuce from 14-14
+])  # fmt: skip
+def test_volleyball_deciding_set_goes_to_fifteen(home, away, legal):
+    if legal:
+        sets.sets_won(VOLLEYBALL, home, away)
+    else:
+        with pytest.raises(ValueError):
+            sets.sets_won(VOLLEYBALL, home, away)
 
 
 @pytest.mark.parametrize("a, b, fmt, legal", [
@@ -241,6 +256,11 @@ VOLLEYBALL = {"sets_best_of": 5, "set_points_to": 25, "set_win_by": 2, "set_cap"
     (29, 27, BADMINTON, True), (30, 29, BADMINTON, True), (30, 28, BADMINTON, True), (31, 29, BADMINTON, False),
     (20, 18, BADMINTON, False), (18, 21, BADMINTON, True), (21, 21, BADMINTON, False), (21, 0, BADMINTON, True),
     (25, 23, VOLLEYBALL, True), (31, 29, VOLLEYBALL, True), (25, 24, VOLLEYBALL, False), (15, 13, VOLLEYBALL, False),
+    # the cap ends a set only from deuce: 30-29 (or 30-28 by the margin), never 30-5 or 30-27
+    (30, 5, BADMINTON, False), (30, 27, BADMINTON, False), (5, 30, BADMINTON, False), (29, 30, BADMINTON, True),
+    (25, 10, VOLLEYBALL, True), (26, 24, VOLLEYBALL, True), (26, 23, VOLLEYBALL, False), (40, 38, VOLLEYBALL, True),
+    (11, 9, PICKLEBALL, True), (11, 10, PICKLEBALL, False), (12, 10, PICKLEBALL, True), (12, 9, PICKLEBALL, False),
+    (11, 0, PICKLEBALL, True), (15, 13, PICKLEBALL, True),
 ])  # fmt: skip
 def test_a_set_is_complete_only_at_a_legal_score(a, b, fmt, legal):
     assert sets.complete(a, b, fmt["set_points_to"], fmt["set_win_by"], fmt["set_cap"]) is legal
