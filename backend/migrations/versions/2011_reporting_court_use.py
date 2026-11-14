@@ -3,18 +3,17 @@
 A court is a top-level venue; holds on its halves and quarters roll up into it (the tree is at most three deep),
 so a minute counts once however many parts of the court are held. Holds keep their ranges (`during`, buffers
 included) and the booked range inside it (`played`), so changeover minutes are told apart from play. The peak
-window of a rental type is read from its price rules: a time band of kind `rate` that charges more than the
-rate's base price (README assumptions). Revenue is each posted rental charge, its reversal or its adjustment,
+window of a rental type is the bands of its price rules the owner marked peak (`is_peak`, migration 2010). Revenue is each posted rental charge, its reversal or its adjustment,
 with the items (occurrence and court) it pays for.
 
 Revision ID: 2011
-Revises: 1965
+Revises: 2010
 """
 
 from alembic import op
 
 revision = "2011"
-down_revision = "1965"
+down_revision = "2010"
 
 # the top-level venue of r: resource_group trees are at most three levels deep (resources.MAX_DEPTH)
 _ROOT = """LEFT JOIN resource p ON p.tenant_id = r.tenant_id AND p.id = r.parent_id
@@ -57,20 +56,22 @@ VIEWS = {
         JOIN rental_type rt ON rt.tenant_id = t.tenant_id AND rt.id = t.rental_type_id AND rt.is_active
         JOIN resource r ON r.tenant_id = t.tenant_id AND r.id = t.resource_id
         {_ROOT}""",
-    # rentals: peak bands, the time-banded rate rules of active rates that charge more than the rate's base price
-    "rpt_peak_band": """
-        SELECT DISTINCT u.tenant_id, rt.location_id, rt.id AS rental_type_id, u.start_time, u.end_time,
-               u.weekdays::int[] AS weekdays, u.starts_on, u.ends_on
+    # rentals: the rules of every rate with their wall-time bands (no times: the whole day). `is_peak` is the
+    # owner's own peak marker; `is_live` says the rate and its type are active (peak counts only those).
+    "rpt_rate_band": """
+        SELECT u.tenant_id, rt.location_id, u.id AS rental_rate_rule_id, rr.id AS rental_rate_id,
+               rt.id AS rental_type_id, u.kind, u.membership_type_id, u.sort_order, u.amount_minor, u.is_peak,
+               rr.is_active AND rt.is_active AS is_live, coalesce(u.start_time, time '00:00') AS start_time,
+               coalesce(u.end_time, time '24:00') AS end_time, u.weekdays::int[] AS weekdays, u.starts_on, u.ends_on
         FROM rental_rate_rule u
-        JOIN rental_rate rr ON rr.tenant_id = u.tenant_id AND rr.id = u.rental_rate_id AND rr.is_active
-        JOIN rental_type rt ON rt.tenant_id = rr.tenant_id AND rt.id = rr.rental_type_id AND rt.is_active
-        WHERE u.kind = 'rate' AND u.start_time IS NOT NULL AND u.amount_minor > rr.amount_minor""",
+        JOIN rental_rate rr ON rr.tenant_id = u.tenant_id AND rr.id = u.rental_rate_id
+        JOIN rental_type rt ON rt.tenant_id = rr.tenant_id AND rt.id = rr.rental_type_id""",
     # rentals and billing: each posted rental charge, its reversal and its adjustment with the items it pays for: the
     # charge's net (after discounts, before tax), and each item's weight in it (its share of the line; equal shares
     # when the line is free). The report splits the net over the items and their played minutes (largest remainder).
     "rpt_court_revenue": f"""
         SELECT c.tenant_id, rb.location_id, {_COURT} AS court_id, rb.booking_id, rb.rental_type_id, rbc.rental_rate_id,
-               tstzrange(rb.starts_at, rb.ends_at) AS played, c.id AS charge_id, i.id AS rental_booking_charge_item_id,
+               rbc.basis AS rate_basis, rr.amount_minor AS rate_minor, tstzrange(rb.starts_at, rb.ends_at) AS played, c.id AS charge_id, i.id AS rental_booking_charge_item_id,
                c.net_minor, CASE WHEN rbc.amount_minor = 0 THEN 1 ELSE i.amount_minor END AS item_weight
         FROM rental_booking_charge_item i
         JOIN rental_booking_charge rbc ON rbc.tenant_id = i.tenant_id AND rbc.id = i.rental_booking_charge_id
@@ -81,6 +82,7 @@ VIEWS = {
             SELECT br.resource_id FROM booking_resource br
             WHERE br.tenant_id = rb.tenant_id AND br.booking_id = rb.booking_id ORDER BY br.sort_order LIMIT 1
         ) pr ON true
+        LEFT JOIN rental_rate rr ON rr.tenant_id = rbc.tenant_id AND rr.id = rbc.rental_rate_id
         JOIN resource r ON r.tenant_id = i.tenant_id AND r.id = coalesce(i.resource_id, pr.resource_id)
         {_ROOT}""",
 }

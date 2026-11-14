@@ -204,7 +204,7 @@ def _rentals(session, actor, location, courts, category, types) -> None:
         })  # fmt: skip
         # Base = guest off-prime, member price = member off-prime. Rules: the first matching rate rule by sort_order
         # wins, so each band has one rule per membership type (member price) before the guest rule.
-        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1]}, prime)]
+        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1], "is_peak": True}, prime)]
         if morning:
             bands.append(("Morning", {"start_time": "06:00", "end_time": MORNING_END}, morning))
         rules = []

@@ -86,11 +86,12 @@ describe('RentalSetupPage', SCREEN, () => {
     await userEvent.click(within(rule).getByRole('checkbox', { name: 'Fri' }))
     await userEvent.type(within(rule).getByLabelText('From time'), '17:00')
     await userEvent.type(within(rule).getByRole('spinbutton', { name: 'Price instead' }), '55')
+    await userEvent.click(within(rule).getByRole('checkbox', { name: /Peak time/ }))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create rate' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
       name: 'Peak', amount_minor: 4000, basis: 'per_hour', multi_resource_mode: 'per_resource', line_grouping: 'combined', is_active: true,
-      rules: [{ kind: 'rate', name: null, sort_order: 0, weekdays: [5], start_time: '17:00', end_time: null, starts_on: null, ends_on: null, amount_minor: 5500 }],
+      rules: [{ kind: 'rate', name: null, sort_order: 0, weekdays: [5], start_time: '17:00', end_time: null, starts_on: null, ends_on: null, is_peak: true, amount_minor: 5500 }],
     })
   })
 })

@@ -429,6 +429,8 @@ def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_
     assert balance["credit_minor"] == 2400  # paid card money became credit
     soon = datetime.now(ZONE) + timedelta(hours=3)
     start = soon.replace(minute=0, second=0, microsecond=0)
+    if start.hour > 21:  # the two hours below would wrap past midnight; tomorrow morning is still inside 24 hours
+        start = (start + timedelta(days=1)).replace(hour=10)
     late = ok(rent(c, w, w.desk, "Pickleball court", "Court 1", start.date(), start.strftime("%H:%M"),
                    (start + timedelta(hours=1)).strftime("%H:%M"), payer))  # fmt: skip
     charged = late["quote"]["subtotal_minor"]
@@ -490,7 +492,16 @@ def test_i_court_use_for_a_24_hour_facility_respects_hours_changeover_and_prime(
         rtype = ok(c.post(f"{API}/rental-types", headers=owner, json={
             "location_id": location, "name": name, "revenue_category_id": category, "slot_granularity_min": 30,
             "resource_ids": [courts[n] for n in names], "buffer_before_min": buffer, "buffer_after_min": buffer}))["id"]  # fmt: skip
-        rules = [{"kind": "rate", "name": "Prime", "start_time": "18:00", "end_time": "22:00", "amount_minor": prime}]
+        rules = [
+            {
+                "kind": "rate",
+                "name": "Prime",
+                "start_time": "18:00",
+                "end_time": "22:00",
+                "amount_minor": prime,
+                "is_peak": True,
+            }
+        ]  # the owner marks prime as peak; the morning band is not
         if morning:
             rules.append(
                 {"kind": "rate", "name": "Morning", "start_time": "06:00", "end_time": "12:00", "amount_minor": morning}
@@ -543,10 +554,10 @@ def test_i_court_use_for_a_24_hour_facility_respects_hours_changeover_and_prime(
         # 90.00 / 22 h = 4.09 an available hour, 90.00 / 4 h = 22.50 a rented hour
         "Court 1": (22.0, 4.0, 18.2, 0.0, 0.0, 4.0, 2.0, 50.0, 11.1, 9000, 6000, 409, 2250),
         # 2.5 h = 11.36%; prime 18-20 = 2 of 4 h; off 0.5 of 18 h = 2.78%; changeover 20 min (inside the hours);
-        # prime share of 95.00 is 120 of 150 minutes = 76.00; 95.00 / 22 = 4.32, 95.00 / 2.5 = 38.00
-        "Court 2": (22.0, 2.5, 11.4, 0.33, 0.0, 4.0, 2.0, 50.0, 2.8, 9500, 7600, 432, 3800),
-        # 2 h = 9.09%; prime 21-22 = 1 of 4 h; off 1 of 18 h = 5.56%; 50.00, prime half of the minutes = 25.00
-        "Court 3": (22.0, 2.0, 9.1, 0.0, 0.0, 4.0, 1.0, 25.0, 5.6, 5000, 2500, 227, 2500),
+        # prime revenue is what prime was billed: 2 x 40.00 = 80.00; 95.00 / 22 = 4.32, 95.00 / 2.5 = 38.00
+        "Court 2": (22.0, 2.5, 11.4, 0.33, 0.0, 4.0, 2.0, 50.0, 2.8, 9500, 8000, 432, 3800),
+        # 2 h = 9.09%; prime 21-22 = 1 of 4 h; off 1 of 18 h = 5.56%; 50.00, of which prime 21-22 billed 30.00
+        "Court 3": (22.0, 2.0, 9.1, 0.0, 0.0, 4.0, 1.0, 25.0, 5.6, 5000, 3000, 227, 2500),
         # the staff block 06:00-08:00 is shown, not counted as use
         "Court 4": (22.0, 0.0, 0.0, 0.0, 2.0, 4.0, 0.0, 0.0, 0.0, 0, 0, 0, None),
     }  # fmt: skip

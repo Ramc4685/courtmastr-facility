@@ -128,8 +128,8 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         JOIN span s ON s.location_id = c.location_id WHERE v.played && {near}
     ),
     rv_item AS (  -- each charge's net over all its items (any court, any date), so a part never depends on the ask
-        SELECT x.court_id, x.rental_type_id, x.played, x.charge_id, x.rental_booking_charge_item_id AS item_id,
-               x.part AS item_minor
+        SELECT x.court_id, x.rental_type_id, x.rental_rate_id, x.rate_basis, x.rate_minor, x.played, x.charge_id,
+               x.rental_booking_charge_item_id AS item_id, x.part AS item_minor
         FROM ({items}) x
     ),
     zday0 AS (  -- every local day needed: the span's, and the days of the occurrences it is paid for
@@ -156,8 +156,28 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
                range_agg({band}) AS mr
         FROM court c JOIN zday z ON z.location_id = c.location_id
         JOIN rpt_court_rental_type t ON t.court_id = c.court_id
-        JOIN rpt_peak_band b ON b.rental_type_id = t.rental_type_id AND {_fires("b", "z.day")}
+        JOIN rpt_rate_band b ON b.rental_type_id = t.rental_type_id AND b.is_peak AND b.is_live AND {_fires("b", "z.day")}
         GROUP BY t.court_id, z.day
+    ),
+    rv_rate AS (  -- the hourly rates the items were priced with
+        SELECT DISTINCT i.rental_rate_id, i.rate_minor, c.location_id FROM rv_item i JOIN court c ON c.court_id = i.court_id
+        WHERE i.rate_basis = 'per_hour' AND i.rental_rate_id IS NOT NULL
+    ),
+    rate_rule AS (  -- each rate's price bands (not member-only ones) on each local day
+        SELECT r.rental_rate_id, z.day, b.sort_order, b.rental_rate_rule_id, b.amount_minor AS unit, {band} AS mr
+        FROM rv_rate r JOIN zday z ON z.location_id = r.location_id
+        JOIN rpt_rate_band b ON b.rental_rate_id = r.rental_rate_id AND b.kind = 'rate' AND b.membership_type_id IS NULL
+             AND {_fires("b", "z.day")}
+    ),
+    rate_region AS (  -- a rate's day in priced pieces: the first matching band by sort order sets the price, as in
+                      -- rentals pricing, and the base price applies outside every band
+        SELECT rental_rate_id, day, unit, mr - coalesce(range_agg(mr) OVER (PARTITION BY rental_rate_id, day
+               ORDER BY sort_order, rental_rate_rule_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), {EMPTY}) AS mr
+        FROM rate_rule
+        UNION ALL
+        SELECT r.rental_rate_id, z.day, r.rate_minor, tstzmultirange(z.whole) - coalesce((SELECT range_agg(x.mr)
+               FROM rate_rule x WHERE x.rental_rate_id = r.rental_rate_id AND x.day = z.day), {EMPTY})
+        FROM rv_rate r JOIN zday z ON z.location_id = r.location_id
     ),
     day AS (
         SELECT c.court_id, c.location_id, z.day, z.whole, z.o1, z.o2, z.turn
@@ -202,19 +222,25 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
                    - coalesce(u.block, {EMPTY}) AS f
         FROM avail a LEFT JOIN held u ON u.court_id = a.court_id AND u.day = a.day
     ),
-    rv_seg AS (  -- an item's occurrence cut at local days and at the court's peak bands
+    rv_seg0 AS (  -- an item's occurrence cut at local days, at its rate's price bands and at the court's peak bands
         SELECT i.charge_id, i.item_id, i.court_id, coalesce(i.rental_type_id::text, '{PROGRAM}') AS sport,
-               i.item_minor, z.day, z.in_span, k.peak, {_min("k.mr")} AS minutes
+               i.item_minor, z.day, z.in_span, k.peak, coalesce(rg.unit, 1) AS unit, {_min("k.mr")} AS minutes
         FROM rv_item i JOIN court c ON c.court_id = i.court_id
         CROSS JOIN {_days("i.played", "c.time_zone")} g
         JOIN zday z ON z.location_id = c.location_id AND z.day = g::date
         LEFT JOIN court_peak pk ON pk.court_id = i.court_id AND pk.day = z.day
-        CROSS JOIN LATERAL (VALUES (true, tstzmultirange(i.played * z.whole) * coalesce(pk.mr, {EMPTY})),
-                                   (false, tstzmultirange(i.played * z.whole) - coalesce(pk.mr, {EMPTY}))) k(peak, mr)
+        LEFT JOIN rate_region rg ON i.rate_basis = 'per_hour' AND rg.rental_rate_id = i.rental_rate_id AND rg.day = z.day
+        CROSS JOIN LATERAL (SELECT tstzmultirange(i.played * z.whole) * coalesce(rg.mr, tstzmultirange(z.whole)) AS mr) pc
+        CROSS JOIN LATERAL (VALUES (true, pc.mr * coalesce(pk.mr, {EMPTY})), (false, pc.mr - coalesce(pk.mr, {EMPTY}))) k(peak, mr)
     ),
-    rev AS (  -- each item's part over its segments by rented minutes, dated by the local day it is played
+    rv_seg AS (  -- weight: minutes at the price billed for them (minutes alone when the rate charges nothing)
+        SELECT s.*, CASE WHEN sum(s.minutes * s.unit) OVER (PARTITION BY s.item_id, s.charge_id) = 0 THEN s.minutes
+                         ELSE s.minutes * s.unit END AS weight
+        FROM rv_seg0 s WHERE s.minutes > 0
+    ),
+    rev AS (  -- each item's part over its segments, dated by the local day it is played
         SELECT x.court_id, x.day, x.sport, sum(x.part) AS net_minor, coalesce(sum(x.part) FILTER (WHERE x.peak), 0) AS peak_minor
-        FROM ({_split("rv_seg", "item_id, charge_id", "item_minor", "s.minutes", "q.day, q.peak")}) x
+        FROM ({_split("rv_seg", "item_id, charge_id", "item_minor", "s.weight", "q.day, q.peak DESC, q.unit")}) x
         WHERE x.in_span GROUP BY x.court_id, x.day, x.sport
     )"""
     return sql, args

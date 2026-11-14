@@ -37545,6 +37545,12 @@ export interface components {
             /** Ends On */
             ends_on?: string | null;
             /**
+             * Is Peak
+             * @description The band is peak time (court-use report), whatever its price
+             * @default false
+             */
+            is_peak: boolean;
+            /**
              * Kind
              * @enum {string}
              */
@@ -37582,6 +37588,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Is Peak */
+            is_peak: boolean;
             /** Kind */
             kind: string;
             /** Membership Type Id */

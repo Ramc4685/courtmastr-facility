@@ -1,11 +1,13 @@
-"""Court use (`court_use`, `court_use_heatmap`): available time from opening hours and closures in the location's
-zone, plus any time played outside them; holds on halves counted once; changeover, blocks and league use apart from rented play;
-peak bands read from the rate rules; revenue per court-hour. Every expected figure is worked out by hand below.
+"""Court use (`court_use`, `court_use_heatmap`): available time from opening hours and closures in the
+location's zone, plus any time played outside them; holds on halves counted once; changeover, blocks and league use
+apart from rented play; peak bands the owner marks on the rate rules; revenue per court-hour. Every expected figure
+is worked out by hand below.
 
 The facility (scheduling test helper): Court 1 with halves 1A and 1B (1A has a quarter) and Court 2, in Chicago.
 Monday 5 May 2031: open 08:00-20:00, closed 08:00-09:00 for cleaning, so each court has 11 hours. Court 2 has its
-own window, Mondays 10:00-14:00, which rentals do not have to keep to, so it does not narrow the hours. "Court hire" costs 40.00 an hour, 50.00 from 17:00 (peak: dearer than the
-base) and 30.00 before 10:00 (cheaper: not peak), with 15-minute changeovers either side."""
+own window, Mondays 10:00-14:00, which rentals do not have to keep to, so it does not narrow the hours. "Court
+hire" costs 40.00 an hour, 50.00 from 17:00 (marked peak) and 30.00 before 10:00 (not peak), with 15-minute
+changeovers either side."""
 
 from datetime import UTC, date, datetime, time
 from uuid import uuid4
@@ -52,7 +54,8 @@ def f(client, owner, tenant):
     }))["id"]  # fmt: skip
     f.rate = ok(client.post(f"{API}/rental-types/{f.rtype}/rates", headers=owner, json={
         "name": "Standard", "amount_minor": 4000, "basis": "per_hour", "rules": [
-            {"kind": "rate", "name": "Evening", "start_time": "17:00", "end_time": "24:00", "amount_minor": 5000},
+            {"kind": "rate", "name": "Evening", "start_time": "17:00", "end_time": "24:00", "amount_minor": 5000,
+             "is_peak": True},
             {"kind": "rate", "name": "Early", "start_time": "06:00", "end_time": "10:00", "amount_minor": 3000},
         ]}))["id"]  # fmt: skip
     f.person = new_client(client, owner, f.location)["id"]
@@ -95,12 +98,12 @@ def test_a_day_per_court_against_opening_hours_and_closures(client, owner, f):
         "peak_available_hours": 3.5, "peak_played_hours": 2.0, "peak_utilization_pct": 57.1,
         "offpeak_utilization_pct": 18.8,
     }  # fmt: skip
-    # Revenue: 40.00 + 40.00 (10-11) + 20.00 + 25.00 (half an hour at each rate) = 125.00; the peak share of the
-    # 16:30 booking is half its minutes, 22.50. Per available hour 125.00 / 11.5 = 10.87; per rented hour 62.50.
+    # Revenue: 40.00 + 40.00 (10-11) + 20.00 + 25.00 (half an hour at each rate) = 125.00; peak revenue is what
+    # the peak half hour was billed, 25.00. Per available hour 125.00 / 11.5 = 10.87; per rented hour 62.50.
     assert (court1["revenue_minor"], court1["peak_revenue_minor"], court1["offpeak_revenue_minor"]) == (
         12500,
-        2250,
-        10250,
+        2500,
+        10000,
     )
     assert (court1["revenue_per_available_hour_minor"], court1["revenue_per_sold_hour_minor"]) == (1087, 6250)
     # Court 2: its window (Mondays 10:00-14:00) does not stop rentals, so it does not narrow the hours: 11 h, peak
@@ -149,6 +152,21 @@ def test_court_windows_do_not_narrow_the_hours_rentals_ignore_them(client, owner
     # Tuesday: open 06:00-22:00 = 16 h, rented 10-12 at the base 40.00 = 12.5%, nothing outside
     assert got["Court 2", "2031-05-06"] == (16.0, 2.0, 0.0, 12.5, 8000, 4000)
     assert got["Court 1", "2031-05-06"] == (16.0, 0.0, 0.0, 0.0, 0, None)  # its 2032 window is not in force
+
+
+def test_peak_is_the_bands_the_owner_marks_whatever_their_price(client, owner, f):
+    ok(client.post(f"{API}/rental-types/{f.rtype}/rates", headers=owner, json={
+        "name": "Other", "amount_minor": 4000, "basis": "per_hour", "rules": [
+            {"kind": "rate", "name": "Weekend", "weekdays": [6, 7], "amount_minor": 6000, "is_peak": True},
+            {"kind": "rate", "name": "Lunch", "start_time": "12:00", "end_time": "14:00", "amount_minor": 4000,
+             "is_peak": True},
+            {"kind": "rate", "name": "Late", "start_time": "21:00", "end_time": "22:00", "amount_minor": 9000},
+        ]}))  # fmt: skip
+    _, found = report(client, owner, "court_use", f, from_on="2031-05-06", to_on="2031-05-10", resource_ids=[f.court])
+    peak = {r["period_on"]: (r["available_hours"], r["peak_available_hours"]) for r in found}
+    # Tuesday 06:00-22:00: lunch 12-14 (priced as the base, still peak) and evening 17-22 = 7 h; the dearer late
+    # band is not marked, so not peak. Saturday: the weekend rule has no times, so the whole open day is peak.
+    assert peak["2031-05-06"] == (16.0, 7.0) and peak["2031-05-10"] == (16.0, 16.0)
 
 
 def test_groups_and_sports(client, owner, f):
@@ -229,17 +247,17 @@ def test_a_booking_across_midnight_and_a_month_end_earns_on_both_days(client, ow
     _, days = report(client, owner, "court_use", f, **window)
     _, months = report(client, owner, "court_use", f, grain="month", **window)
     # 23:00-24:00 at the evening 50.00 and 00:00-01:00 at 40.00: two lines, 90.00, one rented hour on each day.
-    # By rented minutes each line is half on each day: 25.00 + 20.00 = 45.00 a day, the 31st's in the peak band.
+    # Each day earns what its hour was billed: 50.00 on the 31st (all peak) and 40.00 on the 1st.
     got = [(r["period_on"], r["rental_hours"], r["revenue_minor"], r["peak_revenue_minor"]) for r in days]
-    assert got == [("2031-05-31", 1.0, 4500, 4500), ("2031-06-01", 1.0, 4500, 0)]
-    assert [(r["period_on"], r["revenue_minor"]) for r in months] == [("2031-05-01", 4500), ("2031-06-01", 4500)]
+    assert got == [("2031-05-31", 1.0, 5000, 5000), ("2031-06-01", 1.0, 4000, 0)]
+    assert [(r["period_on"], r["revenue_minor"]) for r in months] == [("2031-05-01", 5000), ("2031-06-01", 4000)]
 
 
 def night_bands(client, owner, f, *bands: tuple[str, str]) -> None:
-    """A dearer night rate (so peak) with wall-time bands that a clock change skips or repeats."""
+    """A night rate whose peak bands are wall times that a clock change skips or repeats."""
     ok(client.post(f"{API}/rental-types/{f.rtype}/rates", headers=owner, json={
         "name": "Night", "amount_minor": 4000, "basis": "per_hour", "rules": [
-            {"kind": "rate", "name": f"Night {s}", "start_time": s, "end_time": e, "amount_minor": 5000}
+            {"kind": "rate", "name": f"Night {s}", "start_time": s, "end_time": e, "amount_minor": 5000, "is_peak": True}
             for s, e in bands]}))  # fmt: skip
 
 

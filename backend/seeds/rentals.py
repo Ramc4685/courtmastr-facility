@@ -44,7 +44,7 @@ def seed(session: Session) -> None:
     rate = service.create_rate(session, actor, rtype["id"], {
         "name": "Standard", "amount_minor": 4000, "member_amount_minor": 3200, "basis": "per_hour", "tax_ids": [tax.id],
         "rules": [
-            {"kind": "rate", "name": "Evening peak", "sort_order": 1, "start_time": "17:00", "end_time": "22:00", "amount_minor": 5000},
+            {"kind": "rate", "name": "Evening peak", "sort_order": 1, "start_time": "17:00", "end_time": "22:00", "amount_minor": 5000, "is_peak": True},
             {"kind": "rate", "name": "Weekend", "sort_order": 0, "weekdays": [6, 7], "amount_minor": 5500},
         ],
     })  # fmt: skip

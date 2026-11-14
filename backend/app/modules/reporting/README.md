@@ -166,10 +166,13 @@ Status per feature: `docs/status/15-reporting.md`.
     buffers of rentals and program bookings). Utilization is rented plus league and program minutes inside the
     available time over the available time; blocks and changeover are shown, not counted. Play outside the
     available time is `outside_hours`, never in the ratio.
-  - *Peak*: read from the price rules, nothing hard-coded. A band is peak when it is a time-banded `rate` rule of
-    an active rate that charges more than that rate's base price (a cheaper morning band is not peak), on its
-    weekdays and dates. A court's peak window is the union over the active rental types it offers; no such band
-    means no peak hours.
+  - *Peak*: the bands the owner marks peak on the price rules (`rental_rate_rule.is_peak`, the "Peak time" tick
+    on the rental setup screen), whatever their price: a band priced as the base is still peak if marked, a
+    dearer band is not unless marked. A marked rule with no times makes its whole day peak; weekdays and dates
+    apply. Only active rates of active rental types count. A court's peak window is the union over the active
+    rental types it offers (a sport row uses the same court window); no marked band means no peak hours.
+    Migration 2010 marked the rules the report used to infer (a time-banded rate rule dearer than its base), so
+    existing data kept its meaning.
   - *By sport*: one row per active rental type the chosen courts offer, plus "League and programs", each against
     the available time of the courts that offer it (every court for league and programs). Sports can overlap one
     another on a court; the totals are always the physical courts.
@@ -177,8 +180,13 @@ Status per feature: `docs/status/15-reporting.md`.
     voided charges are out. Revenue is dated by the local day the court is played, not by the charge's revenue
     date: a weekly series billed on one combined line earns on each occurrence, and a booking across midnight or a
     month end earns on both days. A charge's net is split over the items it pays for (occurrence and court, by
-    their share of the line), then each item's part over its local days and peak and off-peak segments by rented
-    minutes. Both splits are largest remainder in whole minor units (ties to the earlier item, day, peak first),
+    their share of the line), then each item's part over its local days, its rate's price bands and the peak and
+    off-peak segments, weighted by minutes times the price the rate charges there (the first matching price rule
+    by sort order, else the base price, as rentals prices it; minutes alone for per-booking and flat rates). So
+    peak revenue is what the peak minutes were billed, not a minutes share of a blended total: 16:30-17:30 at 40.00
+    then 50.00 gives 25.00 peak, not 22.50. Member-only rules and discount rules are not followed in that weight
+    (member bookings split at the public band prices' ratio) and the rate's current prices are used. Both splits
+    are largest remainder in whole minor units (ties to the earlier item, day, peak first),
     so the parts always add up to the posted amount, days add up to months to the cent, and a reversal mirrors
     its charge exactly (a cancelled occurrence nets to zero on its day). A charge kept after a cancellation stays
     on the occurrence's day with no rented hours. League fees, memberships and lessons are not court revenue. Per
@@ -192,7 +200,7 @@ Status per feature: `docs/status/15-reporting.md`.
   - *Cost*: a year at four courts (1,460 court-days, 8,760 holds) runs in about 0.8 s by court, 1.4 s by sport and
     0.8 s for the heat map on a loaded dev laptop; it grows with court-days times holds per day, not with rows.
   - *Not built*: a rental-type filter (group by sport instead), detail rows, a reversal of an adjustment (only the
-    charge's own reversal and adjustment are followed), peak revenue by the band price of each line.
+    charge's own reversal and adjustment are followed).
 - **Named reports (RPT-41)**: the map from discovery names to keys and gaps is in `docs/status/15-reporting.md`.
 - **Renewal candidates (RPT-23)** take the last booked session of the same service (client and reservation
   type) and count distinct clients, not names. **Attrition** counts a contract starting on the first of a month as
