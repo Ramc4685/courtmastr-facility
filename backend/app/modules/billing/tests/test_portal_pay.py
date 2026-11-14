@@ -471,3 +471,23 @@ def test_an_unmatched_event_that_moved_no_money_of_ours_is_ignored_without_a_ret
         conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
                      {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
     assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0
+
+
+def test_the_sweep_ignores_an_unmatched_event_that_moved_no_money_of_ours_too(api, shop):
+    """The worker never ran for an ignorable event (failed intent, outside charge): the stale-event sweep applies the
+    same `expects_row` rule, so it is marked processed and never reaches the staff list."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.failed",
+                                     {"kind": "payment", "object": f"pi_{uuid4().hex}", "account": account_ref,
+                                      "expects_row": False})  # fmt: skip
+    with platform_engine().begin() as conn:  # the enqueue was lost: only the sweep sees it
+        conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "
+                          "WHERE id = :id"), {"id": stored[0]})  # fmt: skip
+    webhooks.retry_provider_events.fn(str(shop.tenant.id))
+    assert inbound_webhooks.get(stored[0]).status == "processed"
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
+                     {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
+    assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0

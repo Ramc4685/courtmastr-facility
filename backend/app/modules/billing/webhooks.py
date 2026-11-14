@@ -172,6 +172,10 @@ def retry_provider_events(session: Session) -> None:
             with session.begin_nested():
                 apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
         except Exception as error:  # noqa: BLE001  (recorded on the event; the next sweep tries again)
+            if isinstance(error, Unmatched) and not row.payload.get("expects_row", True):  # as process_provider_event
+                log.info("webhook %s matches no row and moved no money of ours: ignored", row_id)
+                inbound_webhooks.finish(row_id)
+                continue
             log.warning("webhook %s failed again: %s (%s)", row_id, _code(error), type(error).__name__)
             inbound_webhooks.finish(row_id, error=_event_failure(error))
             continue
