@@ -3893,7 +3893,8 @@ export interface paths {
         put?: never;
         /**
          * Approve Coach Payout
-         * @description Step-up required. Errors: invalid-state-transition, step-up-required.
+         * @description Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,
+         *     payout-negative (the total is below zero: it stays a draft), step-up-required.
          */
         post: operations["approveCoachPayout"];
         delete?: never;
@@ -3970,7 +3971,8 @@ export interface paths {
         get: operations["listCoachShareRules"];
         /**
          * Put Coach Share Rule
-         * @description Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with.
+         * @description Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with. Errors:
+         *     effective-date-has-sessions (dated before today while an affected coach already has sessions from that date).
          */
         put: operations["putCoachShareRule"];
         post?: never;
@@ -15817,7 +15819,8 @@ export interface paths {
         put?: never;
         /**
          * Set Coach Engagement
-         * @description A row for the same date is replaced. Errors: own-pay below Admin.
+         * @description A row for the same date is replaced. Errors: own-pay below Admin, effective-date-has-sessions (dated before today
+         *     while the coach already has sessions from that date).
          */
         post: operations["setCoachEngagement"];
         delete?: never;

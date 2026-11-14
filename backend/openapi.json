@@ -15016,8 +15016,8 @@
         "properties": {
           "amount_minor": {
             "description": "Positive raises the coach's share",
-            "maximum": 10000000000.0,
-            "minimum": -10000000000.0,
+            "maximum": 2147483647.0,
+            "minimum": -2147483647.0,
             "title": "Amount Minor",
             "type": "integer"
           },
@@ -15639,7 +15639,7 @@
           },
           "court_fee_minor": {
             "default": 0,
-            "maximum": 10000000000.0,
+            "maximum": 2147483647.0,
             "minimum": 0.0,
             "title": "Court Fee Minor",
             "type": "integer"
@@ -105531,7 +105531,7 @@
     },
     "/api/v1/coach-payouts/{coach_payout_id}/approve": {
       "post": {
-        "description": "Step-up required. Errors: invalid-state-transition, step-up-required.",
+        "description": "Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,\npayout-negative (the total is below zero: it stays a draft), step-up-required.",
         "operationId": "approveCoachPayout",
         "parameters": [
           {
@@ -105943,7 +105943,7 @@
         ]
       },
       "put": {
-        "description": "Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with.",
+        "description": "Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with. Errors:\neffective-date-has-sessions (dated before today while an affected coach already has sessions from that date).",
         "operationId": "putCoachShareRule",
         "parameters": [
           {
@@ -168170,7 +168170,7 @@
         ]
       },
       "post": {
-        "description": "A row for the same date is replaced. Errors: own-pay below Admin.",
+        "description": "A row for the same date is replaced. Errors: own-pay below Admin, effective-date-has-sessions (dated before today\nwhile the coach already has sessions from that date).",
         "operationId": "setCoachEngagement",
         "parameters": [
           {
