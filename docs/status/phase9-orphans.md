@@ -150,10 +150,24 @@ PAY-16) wait for the review of these.
   `make web-check` clean, `make web-test` 378 passed (68 files); mobile lint and typecheck clean, 61 tests passed
   (10 suites). No API change, so no regeneration.
 
+- **Ninth pass (final fixes, landing).** A staff sale that died after the charge, whose payment the sweep then
+  settled with nothing to pay, is finished by a same-key retry of the same sale: it sells once and allocates that
+  payment to the new invoice through billing (no second charge); a different request under the key stays 409.
+  Staff sale keys are stored under `staff:<actor>:` (`billing.service.staff_key`, now public), so a key shaped like
+  another flow's cannot block it, and both sale dialogs offer "Check what happened". The stale-event sweep applies
+  `expects_row` like the worker. Merged `claude/overnight-integration` (`ad39804`): 1801 now revises 1980, one head
+  1807; downgrade to base and upgrade proven in one pass on the rebuilt empty test database. Key-grantable pin:
+  access 10, billing 37 (both sides withheld one key).
+- **Checks run (ninth pass).** billing and integrations 493 passed; memberships, packages, pos 294; platform, access,
+  reporting 496 passed, 2 skipped; `tests/` 5,066 passed, 1,165 skipped, 4 xfailed. `make lint typecheck
+  boundaries` clean (21 contracts kept); `API_DIFF_BASE=claude/overnight-integration make api-diff` exit 0 (the two
+  bulk `params` warnings); `make web-check` clean, `make web-test` 382 passed (70 files); mobile lint and typecheck
+  clean, 61 tests passed (10 suites).
+
 ## Not done inside built features
 
-- Staff sale payment keys are stored raw, not under the caller's `staff:<actor>:` prefix, so the sale dialogs offer
-  "Try again" but not "Check what happened"; a declined or still-unknown sale payment under a key is 409 on retry.
+- A declined or still-unknown sale payment under a key is 409 on a same-key retry; "Check what happened" frees the
+  form once the answer is final.
 - Portal purchase forms hold their key but not their values across a remount.
 
 - The refund dialog does not offer release-then-refund yet; the API does.
