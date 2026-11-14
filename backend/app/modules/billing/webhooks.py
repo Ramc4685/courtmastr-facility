@@ -7,6 +7,7 @@ same functions the request path uses, so order of arrival does not matter and a 
 """
 
 import logging
+import time
 from datetime import timedelta
 from uuid import UUID
 
@@ -24,6 +25,9 @@ from app.ports.payment_provider import PaymentState, WebhookRejected
 log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(minutes=5)  # leave a request that is still running alone
 RETRY_ATTEMPTS = inbound_webhooks.RETRY_ATTEMPTS  # then left `failed` for an operator
+# The processor can answer before the request that charged has committed its row: look again for a few seconds
+# before calling the event unmatched (the stale-event sweep still retries it later).
+UNMATCHED_RETRY_SEC = (0.5, 1.0, 2.0)
 ABANDON_AFTER = timedelta(minutes=30)  # an `initiated` payment the provider never heard of
 
 
@@ -113,7 +117,15 @@ def process_provider_event(session: Session, row_id: str) -> None:
     if _payload_gone(UUID(row_id), row):
         return
     try:
-        apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
+        for wait in (*UNMATCHED_RETRY_SEC, None):
+            try:
+                with session.begin_nested():
+                    apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
+                break
+            except Unmatched:
+                if wait is None:
+                    raise
+                time.sleep(wait)  # a row committed meanwhile is seen by the next statement (read committed)
     except Unmatched as error:  # no retry storm: the stale-event sweep tries it again, then it waits for an operator
         log.warning("webhook %s unmatched: no local payment or refund", row_id)
         inbound_webhooks.finish(UUID(row_id), error=_event_failure(error))

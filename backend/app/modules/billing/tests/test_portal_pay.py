@@ -284,7 +284,32 @@ def test_a_webhook_stored_but_never_processed_is_retried(shop):
     assert stored[0] not in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
 
 
-def test_a_processor_charge_with_no_local_row_is_kept_for_staff_never_dropped(shop, caplog):
+def test_a_webhook_that_beats_its_row_is_matched_after_a_short_retry_not_warned(shop, caplog, monkeypatch):
+    """S5a: the processor's event can arrive before the charging request commits its row; the handler looks
+    again for a few seconds before calling it unmatched."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        paid = svc.take_payment(session, client_id=shop.client_id, location_id=shop.location_id, amount_minor=600,
+                                tender_kind="card", method_token="tok_card_ok", idempotency_key=f"late-{uuid4().hex}")  # fmt: skip
+        ref, account_ref = paid.provider_payment_ref, svc._provider_account(session).provider_account_ref
+    real, misses, naps = webhooks.apply_event, [1], []
+
+    def late(session, kind, obj, account=None):
+        if misses:  # the first look runs before the request's commit
+            misses.pop()
+            raise webhooks.Unmatched()
+        return real(session, kind, obj, account)
+
+    monkeypatch.setattr(webhooks, "apply_event", late)
+    monkeypatch.setattr(webhooks.time, "sleep", naps.append)
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
+                                     {"kind": "payment", "object": ref, "account": account_ref})  # fmt: skip
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert naps == [webhooks.UNMATCHED_RETRY_SEC[0]] and "unmatched" not in caplog.text
+    assert inbound_webhooks.get(stored[0]).status == "processed"
+
+
+def test_a_processor_charge_with_no_local_row_is_kept_for_staff_never_dropped(shop, caplog, monkeypatch):
     """A request that died after charging on the own-row path leaves a processor charge and no row: its webhook is
     kept `failed` with a fixed reason (retried by the sweep, in case the row commits late), logged by event id
     only, so an operator can find and refund the orphan charge."""
@@ -304,9 +329,11 @@ def test_a_processor_charge_with_no_local_row_is_kept_for_staff_never_dropped(sh
     )
     stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
                                      {"kind": "payment", "object": orphan, "account": account_ref})  # fmt: skip
+    naps = []
+    monkeypatch.setattr(webhooks.time, "sleep", naps.append)
     webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
     kept = inbound_webhooks.get(stored[0])
-    assert kept.status == "failed"
+    assert kept.status == "failed" and naps == list(webhooks.UNMATCHED_RETRY_SEC)  # looked again, then kept
     assert "unmatched" in caplog.text and orphan not in caplog.text
     with platform_engine().begin() as conn:
         conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "

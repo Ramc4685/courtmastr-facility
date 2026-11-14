@@ -516,3 +516,14 @@ and record a failed attempt ("payload missing").
   timeout stays recoverable. An autopay membership always keeps the card; `ask` asks otherwise.
 - **BIL-17 order replaces "portal always autopay".** Plans whose default was `false` became null in 1331,
   so they follow the channel setting; a plan set to `false` explicitly still wins.
+
+## Known limits
+
+- **Orphan charges (Phase 9 S5).** A request that dies after the processor charged, on a path where the payment
+  row is in the caller's transaction (a guest checkout's new payer, a tenant's first-use tender rows, a record-only
+  payment earlier in the same transaction), leaves money at the processor and no row here. The webhook handler
+  looks again for a few seconds (`UNMATCHED_RETRY_SEC`, for a row that commits late), then keeps the event
+  `failed` as `unmatched-provider-event`; the stale-event sweep retries it until `RETRY_ATTEMPTS`. Nothing
+  creates a payment from it: an operator finds it in `inbound_webhook_event` and refunds it at the processor.
+  There is no staff screen for unmatched events yet, and a retry with the same Idempotency-Key replays the
+  same processor charge (it never charges twice) but cannot recover a request whose client never retries.
