@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
-import { useAttemptKey } from '../portal/shared'
+import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from './attempt'
 import { ReasonDialog } from './ChargeDialogs'
 import { HistoryList } from './InvoicePage'
 import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, toMoneyInput } from './money'
@@ -20,7 +20,7 @@ import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton,
 type Payment = Schemas['PaymentDetail']
 const PROCESSED = new Set(['card', 'bank_debit'])
 
-function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => void }) {
+export function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const currency = useCurrency()
@@ -30,7 +30,7 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
   const [reason, setReason] = useState('')
   const [comments, setComments] = useState('')
   const [tried, setTried] = useState(false)
-  const attempt = useAttemptKey() // a retry after an unknown outcome replays the refund instead of paying twice
+  const attempt = useAttemptKey(`refund:${payment.id}`, checkStaffAttempt) // a retry replays the refund, never pays twice
   const m = useMutation({
     mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null }, idempotencyKey: attempt.key }),
     onSettled: (_data, error) => attempt.settle(error),
@@ -46,7 +46,7 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
     <FormDialog
       title={`Refund payment #${payment.receipt_number}`}
       description={`Up to ${formatMoney(refundable, currency)} (the money not applied to any item) can be refunded. To refund money applied to an item, reverse the item first: that moves the money to account credit.`}
-      submitLabel="Refund"
+      submitLabel={attempt.locked ? 'Try again' : 'Refund'}
       danger
       busy={m.isPending}
       error={m.error}
@@ -56,6 +56,8 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
         if (reason.trim()) m.mutate()
       }}
     >
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
       <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => { setAmount(e.target.value); attempt.restart() }} />
       <Select
         label="Refund to"
@@ -68,6 +70,7 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
       />
       <TextArea label="Reason" required value={reason} onChange={setReason} error={tried && !reason.trim() ? 'A reason is required.' : errors.reason} />
       <Input label="Comments" value={comments} onChange={(e) => setComments(e.target.value)} />
+      </AttemptFields>
     </FormDialog>
   )
 }

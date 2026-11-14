@@ -531,6 +531,34 @@ def test_a_credit_refund_retried_after_a_leg_timed_out_pays_the_plan_once(shop, 
         assert_books_agree(session)
 
 
+def test_a_credit_refund_key_reused_with_other_values_is_409_and_never_a_new_refund(shop, monkeypatch):
+    """S3: the web keeps the key after an unknown outcome; a changed amount or reason under it pays nothing."""
+    ready(shop)
+    _three_cards(shop)
+    refund_key = uuid4().hex
+    with work(shop.tenant) as session:
+        made = svc.refund_credit(
+            session, shop.client_id, amount_minor=1000, reason="Leaving", idempotency_key=refund_key
+        )
+    fake = payment_provider.get("fake")
+    calls = []
+    monkeypatch.setattr(fake, "refund", lambda **kw: calls.append(kw))
+    for over in ({"amount_minor": 1200}, {"reason": "Moving"}):
+        with pytest.raises(Conflict) as caught, work(shop.tenant) as session:
+            svc.refund_credit(
+                session,
+                shop.client_id,
+                **({"amount_minor": 1000, "reason": "Leaving"} | over),
+                idempotency_key=refund_key,
+            )
+        assert caught.value.code == "idempotency-key-reused"
+    assert calls == []
+    with work(shop.tenant) as session:
+        assert sorted(session.scalars(select(Refund.id)).all()) == sorted(r.id for r in made)
+        seen = svc.attempt_outcome(session, refund_key, [""])
+        assert seen is not None and seen["settled"] and seen["amount_minor"] == 1000
+
+
 def test_a_credit_refund_whose_legs_all_timed_out_replays_them(shop, monkeypatch):
     ready(shop)
     p1, p2, p3 = _three_cards(shop)

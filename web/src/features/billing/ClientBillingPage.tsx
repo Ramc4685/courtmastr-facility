@@ -15,6 +15,7 @@ import { useAuth, useCurrentLocation } from '../../lib/auth'
 import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
+import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from './attempt'
 import { ClientItemSales, SellItemDialog } from './CatalogPage'
 import { CollectionsTab } from './CollectionsPage'
 import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, today } from './money'
@@ -376,14 +377,16 @@ function CreditTab({ clientId }: { clientId: string }) {
   )
 }
 
-function RefundCreditDialog({ clientId, max, onClose }: { clientId: string; max: number; onClose: () => void }) {
+export function RefundCreditDialog({ clientId, max, onClose }: { clientId: string; max: number; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const currency = useCurrency()
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
+  const attempt = useAttemptKey(`credit-refund:${clientId}`, checkStaffAttempt) // a retry replays the plan, never pays twice
   const m = useMutation({
-    mutationFn: () => api.post('/api/v1/clients/{client_id}/account-credit/refund', { path: { client_id: clientId }, body: { amount_minor: parseMoney(amount) ?? 0, reason: reason.trim() } }),
+    mutationFn: () => api.post('/api/v1/clients/{client_id}/account-credit/refund', { path: { client_id: clientId }, body: { amount_minor: parseMoney(amount) ?? 0, reason: reason.trim() }, idempotencyKey: attempt.key }),
+    onSettled: (_data, error) => attempt.settle(error),
     onSuccess: (batch) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
       const outcome = refundOutcome(batch.refunds, currency)
@@ -393,9 +396,12 @@ function RefundCreditDialog({ clientId, max, onClose }: { clientId: string; max:
   })
   const errors = fieldErrors(m.error)
   return (
-    <FormDialog title="Refund account credit" description={`Up to ${formatMoney(max, currency)}; refunded from the payments holding it, newest first.`} submitLabel="Refund" danger busy={m.isPending} error={m.error} onClose={onClose} onSubmit={() => m.mutate()}>
-      <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => setAmount(e.target.value)} />
-      <TextArea label="Reason" required value={reason} error={errors.reason} onChange={setReason} />
+    <FormDialog title="Refund account credit" description={`Up to ${formatMoney(max, currency)}; refunded from the payments holding it, newest first.`} submitLabel={attempt.locked ? 'Try again' : 'Refund'} danger busy={m.isPending} error={m.error} onClose={onClose} onSubmit={() => m.mutate()}>
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
+        <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => { setAmount(e.target.value); attempt.restart() }} />
+        <TextArea label="Reason" required value={reason} error={errors.reason} onChange={(v) => { setReason(v); attempt.restart() }} />
+      </AttemptFields>
     </FormDialog>
   )
 }
