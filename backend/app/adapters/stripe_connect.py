@@ -158,7 +158,10 @@ class StripeConnectProvider:
             body = encoded.encode()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         status, payload = self._send(method, url, headers, body)
-        if status >= 500 or status in (409, 429):  # the call may still go through: never a decline
+        # The call may still go through, or (an idempotency_error: the key reused with other parameters) the first
+        # call under this key may have paid: never a decline. The sweep asks Stripe what the key did.
+        error_type = (payload.get("error") or {}).get("type") if isinstance(payload, dict) else None
+        if status >= 500 or status in (409, 429) or error_type == "idempotency_error":
             raise ProviderUnavailable(f"Stripe answered {status}")
         return status, payload
 

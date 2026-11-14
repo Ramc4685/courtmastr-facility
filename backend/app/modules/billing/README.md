@@ -262,6 +262,11 @@ and record a failed attempt ("payload missing").
   model: security-baseline 17.2 asks for hashed at rest and single-use, which a stateless token cannot be. It
   expires after 14 days; a decline does not consume it.
 - **`payment.idempotency_key`** is a column the data model does not list; the pre-provider row needs it.
+- **A payment key is bound to its request (Phase 9 orphans, migration 1807).** `payment.request_hash` digests the
+  amount, payer, tender, stored method or method token, invoice and allocations the key was first used with. A
+  reuse with any of them changed is 409 `idempotency-key-reused` before any processor call, whatever the row's
+  status, and the row is not touched. Stripe's own `idempotency_error` (same key, other parameters) is
+  `ProviderUnavailable`, never a decline: the payment stays `unknown` and the sweep asks Stripe by key.
 - **The pre-provider payment row never waits on another request.** It is committed in a short transaction that
   waits at most 500 ms for a lock: a longer wait (55P03) is 409 `request-in-progress` before any charge; any other
   database error stands. Nothing is guessed from a probe. The row goes into the caller's transaction only when that

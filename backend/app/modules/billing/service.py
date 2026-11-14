@@ -732,7 +732,17 @@ def take_payment(
     `internal_tender` (internal; only post_opening_balance passes it, no router can) lets a billing-owned tender
     (`system_key` set, never enabled) through; any other caller naming one is refused like a disabled tender.
     """
+    request_hash = str(uuid5(NAMESPACE_URL, repr((
+        amount_minor, client_id, tender_kind, tender_type_id, payment_method_id, method_token, invoice_id,
+        sorted(allocations or []),
+    ))))  # fmt: skip
     payment = _payment_by_key(session, idempotency_key)
+    if payment is not None and payment.request_hash not in (None, request_hash):
+        # Never reach the processor with this key and other parameters: the first attempt may have paid.
+        raise Conflict(
+            "This Idempotency-Key was used for another amount, payer, payment method or invoice. Check what "
+            "happened to that attempt before changing anything.", code="idempotency-key-reused",
+        )  # fmt: skip
     if payment is not None and payment.status != "initiated":
         return payment
     if amount_minor <= 0:
@@ -757,7 +767,7 @@ def take_payment(
         "amount_minor": amount_minor, "currency": tenant.currency, "origin": origin,
         "external_reference": external_reference, "memo": memo, "received_at": clock.now(),
         "taken_by_staff_user_id": _staff_id(session), "idempotency_key": idempotency_key,
-        "payment_method_id": payment_method_id,
+        "payment_method_id": payment_method_id, "request_hash": request_hash if idempotency_key else None,
     }  # fmt: skip
     if tender.is_processed:
         account = _provider_account(session)

@@ -1103,3 +1103,49 @@ def test_an_unknown_payment_the_processor_never_created_is_abandoned_and_its_key
         webhooks.reconcile(session)
     with work(shop.tenant) as session:
         assert card(session, shop, 500, idempotency_key="rate-limited").status == "cancelled"
+
+
+class _Died(Exception):
+    pass
+
+
+def test_a_key_reused_with_other_parameters_is_refused_before_the_processor(shop, monkeypatch):
+    """S1: the request dies after the charge (the row is committed `initiated`); a retry under the same key with
+    another amount, card, payer or invoice is 409 `idempotency-key-reused` with no processor call and the row
+    untouched. The same request replays the one charge."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)
+        bill = charge(session, shop, 800)
+        other = new_client_row(session, shop)
+    fake = payment_provider.get("fake")
+    calls = []
+    real = fake.create_payment
+    monkeypatch.setattr(fake, "create_payment", lambda **k: calls.append(k["amount_minor"]) or real(**k))
+    with pytest.raises(_Died), work(shop.tenant) as session:
+        card(session, shop, 500, idempotency_key="s1")
+        raise _Died()
+    assert calls == [500]
+    for change in ({"amount": 300}, {"token": "tok_other"}, {"client_id": other},
+                   {"allocations": [(bill.id, 500)]}, {"tender_kind": "bank_debit"}):
+        args = {"amount": 500, "token": "tok_card_ok"} | change
+        with refused("idempotency-key-reused"), work(shop.tenant) as session:
+            card(session, shop, args.pop("amount"), args.pop("token"), idempotency_key="s1", **args)
+    assert calls == [500]
+    with work(shop.tenant) as session:
+        rows = session.execute(select(Payment.status, Payment.amount_minor).order_by(Payment.amount_minor)).all()
+        assert rows == [("succeeded", 100), ("initiated", 500)]
+        replayed = card(session, shop, 500, idempotency_key="s1")
+        assert (replayed.status, replayed.amount_minor) == ("succeeded", 500)
+    assert calls == [500, 500]  # the same provider key: one charge at the processor
+    with refused("idempotency-key-reused"), work(shop.tenant) as session:
+        card(session, shop, 300, idempotency_key="s1")  # a finished attempt is not re-pointed either
+
+
+def new_client_row(session, shop):
+    from app.modules.clients.models import Client
+
+    person = Client(first_name="Other", last_name="Payer", home_location_id=shop.location_id)
+    session.add(person)
+    session.flush()
+    return person.id

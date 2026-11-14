@@ -241,6 +241,8 @@ def test_a_timeout_or_server_error_is_unknown_never_a_decline(stripe, http, fail
     [
         (409, {"error": {"type": "idempotency_error", "message": "A request with this key is still in progress."}}),
         (429, {"error": {"type": "rate_limit_error", "message": "Too many requests."}}),
+        # the same key with other parameters: the first call may have paid, so this is never a decline
+        (400, {"error": {"type": "idempotency_error", "message": "Keys for idempotent requests can only be used with the same parameters they were first used with."}}),
     ],
 )
 def test_an_in_flight_or_rate_limited_answer_is_unknown_never_failed(stripe, http, answer):

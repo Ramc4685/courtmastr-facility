@@ -416,6 +416,9 @@ class Payment(TenantOwned, Timestamps, Base):
     # Not in the data model: the caller's key, so the row inserted before the provider call (ADR 0003
     # section 8) can be found again by a retry or the reconciliation sweep.
     idempotency_key: Mapped[str | None] = mapped_column(info={"audit": "never"})
+    # Digest of what the key was first used for (amount, payer, method, invoice set): a reuse with other values
+    # is 409 `idempotency-key-reused` before the processor is called.
+    request_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})
     card_brand: Mapped[str | None]
     card_last4: Mapped[str | None]
     card_funding: Mapped[str | None]
