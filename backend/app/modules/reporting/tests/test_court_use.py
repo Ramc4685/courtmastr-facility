@@ -1,10 +1,10 @@
-"""Court use (`court_use`, `court_use_heatmap`): available time from opening hours, court windows and closures in
-the location's zone; holds on halves counted once; changeover, blocks and league use apart from rented play;
+"""Court use (`court_use`, `court_use_heatmap`): available time from opening hours and closures in the location's
+zone, plus any time played outside them; holds on halves counted once; changeover, blocks and league use apart from rented play;
 peak bands read from the rate rules; revenue per court-hour. Every expected figure is worked out by hand below.
 
 The facility (scheduling test helper): Court 1 with halves 1A and 1B (1A has a quarter) and Court 2, in Chicago.
-Monday 5 May 2031: open 08:00-20:00, closed 08:00-09:00 for cleaning, so Court 1 has 11 hours. Court 2 has its own
-window, Mondays 10:00-14:00 (4 hours). "Court hire" costs 40.00 an hour, 50.00 from 17:00 (peak: dearer than the
+Monday 5 May 2031: open 08:00-20:00, closed 08:00-09:00 for cleaning, so each court has 11 hours. Court 2 has its
+own window, Mondays 10:00-14:00, which rentals do not have to keep to, so it does not narrow the hours. "Court hire" costs 40.00 an hour, 50.00 from 17:00 (peak: dearer than the
 base) and 30.00 before 10:00 (cheaper: not peak), with 15-minute changeovers either side."""
 
 from datetime import UTC, date, datetime, time
@@ -78,83 +78,100 @@ def by_label(found: list[dict]) -> dict:
     return {r["label"]: r for r in found}
 
 
-def test_a_day_per_court_against_opening_hours_windows_and_closures(client, owner, f):
+def test_a_day_per_court_against_opening_hours_and_closures(client, owner, f):
     run, found = report(client, owner, "court_use", f, from_on=MONDAY.isoformat(), to_on=MONDAY.isoformat())
     court1, court2 = by_label(found)["Court 1"], by_label(found)["Court 2"]
-    # Court 1: 08:00-20:00 less the 08:00-09:00 closure = 11 h; peak 17:00-20:00 = 3 h. Rented 10-11 (both halves,
-    # once) and 16:30-17:30 = 2 h; the clinic 19:00-20:00 = 1 h inside, 20:00-20:30 outside the hours. Changeover:
-    # 09:45-10:00, 11:00-11:15, 16:15-16:30, 17:30-17:45 = 1 h. Block 12-13 = 1 h. Played 3 of 11 h = 27.3%.
-    # Peak played 17:00-17:30 and 19:00-20:00 = 1.5 of 3 h = 50%; off-peak 1.5 of 8 h = 18.75%, half up 18.8%.
-    assert {k: court1[k] for k in ("hours_source", "available_hours", "played_hours", "utilization_pct",
+    # Court 1: 08:00-20:00 less the 08:00-09:00 closure = 11 h, plus the clinic's 20:00-20:30 past closing = 11.5 h;
+    # peak 17:00-20:30 = 3.5 h. Rented 10-11 (both halves, once) and 16:30-17:30 = 2 h; the clinic 19:00-20:30 =
+    # 1.5 h, half an hour of it outside the opening hours. Changeover: 09:45-10:00, 11:00-11:15, 16:15-16:30,
+    # 17:30-17:45 = 1 h. Block 12-13 = 1 h. Played 3.5 of 11.5 h = 30.43%, 30.4%. Peak played 17:00-17:30 and
+    # 19:00-20:30 = 2 of 3.5 h = 57.14%, 57.1%; off-peak 1.5 of 8 h = 18.75%, half up 18.8%.
+    assert {k: court1[k] for k in ("available_hours", "played_hours", "utilization_pct",
                                    "rental_hours", "program_hours", "buffer_hours", "blocked_hours", "outside_hours",
                                    "peak_available_hours", "peak_played_hours", "peak_utilization_pct",
                                    "offpeak_utilization_pct")} == {
-        "hours_source": "Opening hours", "available_hours": 11.0, "played_hours": 3.0, "utilization_pct": 27.3,
-        "rental_hours": 2.0, "program_hours": 1.0, "buffer_hours": 1.0, "blocked_hours": 1.0, "outside_hours": 0.5,
-        "peak_available_hours": 3.0, "peak_played_hours": 1.5, "peak_utilization_pct": 50.0,
+        "available_hours": 11.5, "played_hours": 3.5, "utilization_pct": 30.4,
+        "rental_hours": 2.0, "program_hours": 1.5, "buffer_hours": 1.0, "blocked_hours": 1.0, "outside_hours": 0.5,
+        "peak_available_hours": 3.5, "peak_played_hours": 2.0, "peak_utilization_pct": 57.1,
         "offpeak_utilization_pct": 18.8,
     }  # fmt: skip
     # Revenue: 40.00 + 40.00 (10-11) + 20.00 + 25.00 (half an hour at each rate) = 125.00; the peak share of the
-    # 16:30 booking is half its minutes, 22.50. Per available hour 125.00 / 11 = 11.36; per rented hour 62.50.
+    # 16:30 booking is half its minutes, 22.50. Per available hour 125.00 / 11.5 = 10.87; per rented hour 62.50.
     assert (court1["revenue_minor"], court1["peak_revenue_minor"], court1["offpeak_revenue_minor"]) == (
         12500,
         2250,
         10250,
     )
-    assert (court1["revenue_per_available_hour_minor"], court1["revenue_per_sold_hour_minor"]) == (1136, 6250)
-    # Court 2: its window 10:00-14:00 inside the hours = 4 h, no peak; rented 1 h; changeover 12:45-13:00 inside.
-    assert court2["hours_source"] == "Court windows" and court2["period_on"] == MONDAY.isoformat()
+    assert (court1["revenue_per_available_hour_minor"], court1["revenue_per_sold_hour_minor"]) == (1087, 6250)
+    # Court 2: its window (Mondays 10:00-14:00) does not stop rentals, so it does not narrow the hours: 11 h, peak
+    # 17:00-20:00 = 3 h; rented 13-14 = 9.09%; changeover 12:45-13:00 and 14:00-14:15. Off-peak 1 of 8 h = 12.5%.
     assert (court2["available_hours"], court2["played_hours"], court2["utilization_pct"], court2["buffer_hours"]) == (
-        4.0,
+        11.0,
         1.0,
-        25.0,
-        0.25,
+        9.1,
+        0.5,
     )
     assert (court2["peak_available_hours"], court2["peak_utilization_pct"], court2["offpeak_utilization_pct"]) == (
+        3.0,
         0.0,
-        None,
-        25.0,
+        12.5,
     )
+    # 40.00 / 11 h = 3.64 an available hour
     assert (
         court2["revenue_minor"],
         court2["revenue_per_available_hour_minor"],
         court2["revenue_per_sold_hour_minor"],
-    ) == (4000, 1000, 4000)
-    totals = run["totals"]  # 15 h available, 4 h played (26.67%), 165.00
-    assert (totals["available_hours"], totals["played_hours"], totals["utilization_pct"]) == (15.0, 4.0, 26.7)
+    ) == (4000, 364, 4000)
+    totals = run["totals"]  # 22.5 h available, 4.5 h played (20%), 165.00 over 3 rented hours
+    assert (totals["available_hours"], totals["played_hours"], totals["utilization_pct"]) == (22.5, 4.5, 20.0)
     assert (totals["buffer_hours"], totals["revenue_minor"], totals["revenue_per_sold_hour_minor"]) == (
-        1.25,
+        1.5,
         16500,
         5500,
     )
-    assert totals["offpeak_utilization_pct"] == 20.8  # 2.5 of 12 h
+    assert totals["offpeak_utilization_pct"] == 15.6  # 2.5 of 16 h = 15.625%
+
+
+def test_court_windows_do_not_narrow_the_hours_rentals_ignore_them(client, owner, f):
+    """Rentals are accepted outside a court's windows (README), so play there is rented time with hours under it;
+    a window starting later does not zero a court either."""
+    tuesday = date(2031, 5, 6)
+    f.rent(f.court2, MONDAY, "15:00", "16:00")  # outside Court 2's Monday 10:00-14:00 window
+    f.rent(f.court2, tuesday, "10:00", "12:00")  # Court 2 has no Tuesday window at all
+    ok(client.post(f"{API}/resources/{f.court}/availability-windows", headers=owner, json={
+        "starts_on": "2032-01-05", "weekdays": [2], "start_time": "10:00", "end_time": "11:00"}))  # fmt: skip
+    _, found = report(client, owner, "court_use", f, from_on=MONDAY.isoformat(), to_on=tuesday.isoformat())
+    keys = ("available_hours", "rental_hours", "outside_hours", "utilization_pct", "revenue_minor",
+            "revenue_per_sold_hour_minor")  # fmt: skip
+    got = {(r["label"], r["period_on"]): tuple(r[k] for k in keys) for r in found}
+    # Monday: 11 h, rented 13-14 and 15-16 = 2 h, 18.18%, 80.00 = 40.00 a rented hour (not 80.00 over one hour)
+    assert got["Court 2", "2031-05-05"] == (11.0, 2.0, 0.0, 18.2, 8000, 4000)
+    # Tuesday: open 06:00-22:00 = 16 h, rented 10-12 at the base 40.00 = 12.5%, nothing outside
+    assert got["Court 2", "2031-05-06"] == (16.0, 2.0, 0.0, 12.5, 8000, 4000)
+    assert got["Court 1", "2031-05-06"] == (16.0, 0.0, 0.0, 0.0, 0, None)  # its 2032 window is not in force
 
 
 def test_groups_and_sports(client, owner, f):
     day = {"from_on": MONDAY.isoformat(), "to_on": MONDAY.isoformat()}
     run, [group] = report(client, owner, "court_use", f, group_by="court_group", **day)
-    assert (group["label"], group["hours_source"], group["available_hours"], group["played_hours"]) == (
-        "Courts",
-        "Mixed",
-        15.0,
-        4.0,
-    )
+    assert (group["label"], group["available_hours"], group["played_hours"]) == ("Courts", 22.5, 4.5)
     _, found = report(client, owner, "court_use", f, group_by="sport", **day)
     hire, league = by_label(found)["Court hire"], by_label(found)["League and programs"]
-    # Court hire is offered on both courts (15 h, 3 h peak): rented 3 h = 20%, peak 0.5 of 3 h = 16.7%.
+    # Court hire is offered on both courts (22.5 h, 6.5 h peak): rented 3 h = 13.3%, peak 0.5 of 6.5 h = 7.7%.
     assert (hire["available_hours"], hire["played_hours"], hire["rental_hours"], hire["utilization_pct"]) == (
-        15.0,
+        22.5,
         3.0,
         3.0,
-        20.0,
+        13.3,
     )
-    assert (hire["peak_utilization_pct"], hire["buffer_hours"], hire["revenue_minor"]) == (16.7, 1.25, 16500)
+    assert (hire["peak_utilization_pct"], hire["buffer_hours"], hire["revenue_minor"]) == (7.7, 1.5, 16500)
+    # the clinic: 1.5 of 22.5 h = 6.7%, peak 1.5 of 6.5 h = 23.1%, half an hour past closing
     assert (
         league["available_hours"],
         league["program_hours"],
         league["utilization_pct"],
         league["peak_utilization_pct"],
-    ) == (15.0, 1.0, 6.7, 33.3)
+    ) == (22.5, 1.5, 6.7, 23.1)
     assert league["outside_hours"] == 0.5 and league["revenue_minor"] == 0
     _, [only] = report(client, owner, "court_use", f, resource_ids=[f.court2], **day)
     assert only["label"] == "Court 2"
@@ -222,20 +239,20 @@ def test_a_booking_across_midnight_and_a_month_end_earns_on_both_days(client, ow
 def test_a_24_hour_sunday_across_a_clock_change(client, owner, f, day, expected):
     _, found = report(client, owner, "court_use", f, from_on=day.isoformat(), to_on=day.isoformat())
     court1, court2 = by_label(found)["Court 1"], by_label(found)["Court 2"]
-    assert court1["available_hours"] == expected and court1["hours_source"] == "Opening hours"
-    assert court2["available_hours"] == 0.0 and court2["utilization_pct"] is None  # its window is Mondays only
+    assert court1["available_hours"] == court2["available_hours"] == expected  # Court 2's window does not narrow
 
 
 def test_heatmap_by_hour_and_weekday(client, owner, f):
     run, found = report(client, owner, "court_use_heatmap", f, from_on=MONDAY.isoformat(), to_on=MONDAY.isoformat())
     cells = {r["hour"]: r for r in found}
-    # 08:00 is closed for cleaning and 20:00 is after closing: never open, left out.
-    assert list(cells) == [f"{h:02d}:00" for h in range(9, 20)]
+    # 08:00 is closed for cleaning: never open, left out; 20:00 has the clinic's half hour past closing.
+    assert list(cells) == [f"{h:02d}:00" for h in range(9, 21)]
     assert cells["10:00"]["monday_pct"] == 50.0  # Court 1 played, Court 2 open and idle
     assert cells["13:00"]["monday_pct"] == 50.0  # the reverse
-    assert cells["17:00"]["monday_pct"] == 50.0  # Court 1 alone, half an hour of play
-    assert cells["19:00"]["monday_pct"] == 100.0 and cells["09:00"]["monday_pct"] == 0.0
-    assert cells["10:00"]["tuesday_pct"] is None and run["totals"]["utilization_pct"] == 26.7
+    assert cells["17:00"]["monday_pct"] == 25.0  # half an hour of play on Court 1 of two court-hours
+    assert cells["19:00"]["monday_pct"] == 50.0 and cells["09:00"]["monday_pct"] == 0.0
+    assert cells["20:00"]["monday_pct"] == 100.0  # the clinic's 30 minutes, the only available time
+    assert cells["10:00"]["tuesday_pct"] is None and run["totals"]["utilization_pct"] == 20.0
 
 
 def test_permissions_and_location_scope(client, owner, tenant, f):
@@ -243,7 +260,7 @@ def test_permissions_and_location_scope(client, owner, tenant, f):
     day = {"location_ids": [f.location], "from_on": MONDAY.isoformat(), "to_on": MONDAY.isoformat()}
     response = client.post(f"{API}/report-runs", headers=desk, json={"report_key": "court_use", "params": day})
     assert response.status_code == 403  # revenue: the financial family
-    assert ran(client, desk, "court_use_heatmap", **day)["row_count"] == 11
+    assert ran(client, desk, "court_use_heatmap", **day)["row_count"] == 12
     north = ok(client.post(f"{API}/locations", headers=owner, json={
         "name": "North", "time_zone": "America/New_York", "country_code": "US"}))["id"]  # fmt: skip
     assert (

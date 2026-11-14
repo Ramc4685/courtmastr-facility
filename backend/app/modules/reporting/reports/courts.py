@@ -3,9 +3,9 @@ changeover, staff blocks and league or program use told apart from rented play, 
 owner configured, and revenue per court-hour. Rules are in the module README ("Court use").
 
 The work is one SQL statement per run over the `rpt_court*` views (migration 2011). Per court and local day it
-builds multiranges: available time (facility hours of that weekday in the location's zone, narrowed by the
-court's own windows when it has any, minus whole-location closures), the peak bands of the rental types the court
-offers, and the court's holds including those of its halves. Multirange union counts a physical minute once and
+builds multiranges: available time (facility hours of that weekday in the location's zone, minus whole-location
+closures, plus any time played outside them), the peak bands of the rental types the court offers, and the court's
+holds including those of its halves. Multirange union counts a physical minute once and
 the zone conversion makes a 23 or 25 hour day come out right. Python only adds the court-days up to the grain."""
 
 from datetime import date, timedelta
@@ -31,7 +31,6 @@ from app.modules.reporting.registry import (
 
 PROGRAM = "program"  # the key of league, class and program use (bookings that are not rentals or blocks)
 PROGRAM_LABEL = "League and programs"
-SOURCES = {True: "Court windows", False: "Opening hours"}
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -105,7 +104,7 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
     revenue = "(SELECT * FROM rpt_court_revenue WHERE charge_id IN (SELECT charge_id FROM rv_charge))"
     items = _split(revenue, "charge_id", "net_minor", "s.item_weight", "q.rental_booking_charge_item_id")
     band = f"tstzrange({_wall('z.day', 'b.start_time', 'z.time_zone')}, {_wall('z.day', 'b.end_time', 'z.time_zone')})"
-    opening = f"tstzrange({_wall('d.day', 'fh.opens_time')}, {_wall('d.day', 'fh.closes_time')})"
+    opening = f"tstzrange({_wall('d.day', 'fh.opens_time', 'd.time_zone')}, {_wall('d.day', 'fh.closes_time', 'd.time_zone')})"
     near = "tstzrange(CAST(s.from_on - 1 AS timestamp) AT TIME ZONE 'UTC', CAST(s.to_on + 2 AS timestamp) AT TIME ZONE 'UTC')"
     sql = f"""
     WITH span AS (
@@ -144,30 +143,22 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         GROUP BY t.court_id, z.day
     ),
     day AS (
-        SELECT c.court_id, c.location_id, c.time_zone, c.has_windows, z.day, z.whole
+        SELECT c.court_id, c.location_id, z.time_zone, z.day, z.whole
         FROM court c JOIN zday z ON z.location_id = c.location_id AND z.in_span
     ),
     hold AS (
         SELECT h.* FROM rpt_court_hold h JOIN span s ON s.location_id = h.location_id
         WHERE h.court_id IN (SELECT court_id FROM court) AND h.during && {near}
     ),
-    avail AS (
-        SELECT d.court_id, d.location_id, d.day, d.whole, d.time_zone,
-               ((CASE WHEN fh.weekday IS NULL THEN tstzmultirange(d.whole)
-                      WHEN fh.is_closed OR fh.opens_time IS NULL OR fh.closes_time IS NULL THEN {EMPTY}
-                      ELSE tstzmultirange({opening})
-                 END) * (CASE WHEN d.has_windows THEN coalesce(win.mr, {EMPTY}) ELSE tstzmultirange(d.whole) END)
-               ) - coalesce(shut.mr, {EMPTY}) AS open_mr,
+    avail AS (  -- opening hours less whole-location closures (court windows do not bind rentals: README)
+        SELECT d.court_id, d.day, d.whole,
+               (CASE WHEN fh.weekday IS NULL THEN tstzmultirange(d.whole)
+                     WHEN fh.is_closed OR fh.opens_time IS NULL OR fh.closes_time IS NULL THEN {EMPTY}
+                     ELSE tstzmultirange({opening})
+                END) - coalesce(shut.mr, {EMPTY}) AS hours_mr,
                coalesce(pk.mr, {EMPTY}) AS peak_mr
         FROM day d
-        JOIN court c ON c.court_id = d.court_id
         LEFT JOIN rpt_facility_hours fh ON fh.location_id = d.location_id AND fh.weekday = extract(isodow FROM d.day)
-        LEFT JOIN LATERAL (
-            SELECT range_agg(tstzrange({_wall("d.day", "w.start_time")}, {_wall("d.day", "w.end_time")})) AS mr
-            FROM rpt_court_window w
-            WHERE w.court_id = d.court_id AND d.day >= w.starts_on AND (w.ends_on IS NULL OR d.day <= w.ends_on)
-              AND extract(isodow FROM d.day)::int = ANY(w.weekdays) AND ((d.day - w.starts_on) / 7) % w.interval_weeks = 0
-        ) win ON true
         LEFT JOIN LATERAL (
             SELECT range_agg(x.during) AS mr FROM rpt_closure x WHERE x.location_id = d.location_id AND x.during && d.whole
         ) shut ON true
@@ -184,8 +175,10 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
         JOIN zday z ON z.location_id = c.location_id AND z.day = g::date AND z.in_span
         GROUP BY h.court_id, z.day
     ),
-    base AS (  -- each minute in one category: rental, then league or program, then a staff block, then changeover
-        SELECT a.court_id, a.day, a.whole, a.open_mr, a.peak_mr, coalesce(u.rental, {EMPTY}) AS r,
+    base AS (  -- each minute in one category: rental, then league or program, then a staff block, then changeover;
+               -- available is the opening hours plus any time played outside them, so play always has hours
+        SELECT a.court_id, a.day, a.whole, a.hours_mr, a.peak_mr, coalesce(u.rental, {EMPTY}) AS r,
+               a.hours_mr + coalesce(u.rental, {EMPTY}) + coalesce(u.program, {EMPTY}) AS open_mr,
                coalesce(u.program, {EMPTY}) - coalesce(u.rental, {EMPTY}) AS g,
                coalesce(u.block, {EMPTY}) - coalesce(u.rental, {EMPTY}) - coalesce(u.program, {EMPTY}) AS b,
                coalesce(u.booked, {EMPTY}) - coalesce(u.rental, {EMPTY}) - coalesce(u.program, {EMPTY})
@@ -211,11 +204,11 @@ def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
 
 
 def _measures(played: str, buffer: str) -> str:
-    """Minutes columns of one court-day (`b0`): play and changeover inside the available time, play outside it."""
+    """Minutes columns of one court-day (`b0`): play and changeover in the available time, play outside the hours."""
     return ", ".join((
         f"{_min('b0.open_mr')} AS available", f"{_min('b0.open_mr * b0.peak_mr')} AS peak_available",
         f"{_min(f'({played}) * b0.open_mr')} AS played", f"{_min(f'({played}) * b0.open_mr * b0.peak_mr')} AS peak_played",
-        f"{_min(f'({played}) - b0.open_mr')} AS outside", f"{_min(f'({buffer}) * b0.open_mr')} AS buffer",
+        f"{_min(f'({played}) - b0.hours_mr')} AS outside", f"{_min(f'({buffer}) * b0.open_mr')} AS buffer",
     ))  # fmt: skip
 
 
@@ -229,7 +222,7 @@ def _run(session: Session, sql: str, args: dict) -> list:
 def _court_days(session: Session, p: CourtParams, scope: Scope) -> list:
     base, args = _base(p, scope)
     sql = f"""{base}
-    SELECT b0.court_id, c.court_name, c.court_group_id, c.court_group_name, c.sort_order, c.has_windows, b0.day,
+    SELECT b0.court_id, c.court_name, c.court_group_id, c.court_group_name, c.sort_order, b0.day,
            {_measures("b0.r + b0.g", "b0.f")},
            {_min("b0.r * b0.open_mr")} AS rental, {_min("b0.g * b0.open_mr")} AS program,
            {_min("b0.b * b0.open_mr")} AS blocked,
@@ -331,16 +324,12 @@ def _court_use(session: Session, p: CourtUseParams, scope: Scope) -> dict:
     else:
         for x in _court_days(session, p, scope):
             key = (x.court_id, x.court_name) if p.group_by == "court" else (x.court_group_id, x.court_group_name)
-            row = groups.setdefault((_period(x.day, p.grain), key[0]), {"label": key[1], "sources": set(), "m": {}})
-            row["sources"].add(SOURCES[x.has_windows])
+            row = groups.setdefault((_period(x.day, p.grain), key[0]), {"label": key[1], "m": {}})
             _add(row["m"], x, (*_MINUTES, *_MONEY))
             _add(total, x, (*_MINUTES, *_MONEY))
     rows = []
     for (period, key), g in groups.items():
-        sources = g.get("sources")
-        source = (sources.pop() if len(sources) == 1 else "Mixed") if sources else None
-        rows.append({"group_key": _key(period, key), "period_on": period, "label": g["label"], "hours_source": source}
-                    | _figures(g["m"]))  # fmt: skip
+        rows.append({"group_key": _key(period, key), "period_on": period, "label": g["label"]} | _figures(g["m"]))
     totals = _figures(total) if total else _figures(dict.fromkeys((*_MINUTES, *_MONEY), 0))
     return {"rows": rows, "totals": totals, "details": None}
 
@@ -384,7 +373,7 @@ _USE = (
     Col("available_hours", "Available hours", "number"), Col("played_hours", "Played hours", "number"),
     Col("utilization_pct", "Utilization", "pct"), Col("rental_hours", "Rented hours", "number"),
     Col("program_hours", "League and program hours", "number"), Col("buffer_hours", "Changeover hours", "number"),
-    Col("blocked_hours", "Blocked hours", "number"), Col("outside_hours", "Played outside hours", "number"),
+    Col("blocked_hours", "Blocked hours", "number"), Col("outside_hours", "Played outside opening hours", "number"),
     Col("peak_available_hours", "Peak available hours", "number"), Col("peak_played_hours", "Peak played hours", "number"),
     Col("peak_utilization_pct", "Peak utilization", "pct"), Col("offpeak_utilization_pct", "Off-peak utilization", "pct"),
     Col("revenue_minor", "Revenue", "money"), Col("peak_revenue_minor", "Peak revenue", "money"),
@@ -398,12 +387,12 @@ SPECS = (
     ReportSpec(
         "court_use", "Court use",
         "Per court, court group or sport and day, week or month: played hours against the hours the court could be "
-        "booked (opening hours, or the court's own windows inside them, less closures), with changeover, staff "
+        "booked (opening hours less closures, plus any time played outside them), with changeover, staff "
         "blocks and league or program use shown apart, peak and off-peak, and net rental revenue (after discounts, "
         "before tax) per available and rented hour. A court's halves count as the court.",
         "operations", FINANCIAL, "booking_date", CourtUseParams,
         (Col("period_on", "Period", "date"), Col("label", "Court, group or sport"),
-         Col("hours_source", "Hours from"), *_USE), _USE, _court_use, None, ("RPT-40",),
+         *_USE), _USE, _court_use, None, ("RPT-40",),
     ),
     ReportSpec(
         "court_use_heatmap", "Court use by hour",

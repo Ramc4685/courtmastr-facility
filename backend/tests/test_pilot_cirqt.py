@@ -524,7 +524,6 @@ def test_i_court_use_for_a_24_hour_facility_respects_hours_changeover_and_prime(
     run, found = _report(c, owner, location, "court_use", from_on=day.isoformat(), to_on=day.isoformat())
     by = {r["label"]: r for r in found}
     pick = (
-        "hours_source",
         "available_hours",
         "played_hours",
         "utilization_pct",
@@ -542,14 +541,14 @@ def test_i_court_use_for_a_24_hour_facility_respects_hours_changeover_and_prime(
     expected = {
         # 4 h of 22 = 18.18%; prime 2 of 4 h = 50%; off-prime 2 of 18 h = 11.1%; 90.00, prime 60.00;
         # 90.00 / 22 h = 4.09 an available hour, 90.00 / 4 h = 22.50 a rented hour
-        "Court 1": ("Opening hours", 22.0, 4.0, 18.2, 0.0, 0.0, 4.0, 2.0, 50.0, 11.1, 9000, 6000, 409, 2250),
+        "Court 1": (22.0, 4.0, 18.2, 0.0, 0.0, 4.0, 2.0, 50.0, 11.1, 9000, 6000, 409, 2250),
         # 2.5 h = 11.36%; prime 18-20 = 2 of 4 h; off 0.5 of 18 h = 2.78%; changeover 20 min (inside the hours);
         # prime share of 95.00 is 120 of 150 minutes = 76.00; 95.00 / 22 = 4.32, 95.00 / 2.5 = 38.00
-        "Court 2": ("Opening hours", 22.0, 2.5, 11.4, 0.33, 0.0, 4.0, 2.0, 50.0, 2.8, 9500, 7600, 432, 3800),
+        "Court 2": (22.0, 2.5, 11.4, 0.33, 0.0, 4.0, 2.0, 50.0, 2.8, 9500, 7600, 432, 3800),
         # 2 h = 9.09%; prime 21-22 = 1 of 4 h; off 1 of 18 h = 5.56%; 50.00, prime half of the minutes = 25.00
-        "Court 3": ("Opening hours", 22.0, 2.0, 9.1, 0.0, 0.0, 4.0, 1.0, 25.0, 5.6, 5000, 2500, 227, 2500),
+        "Court 3": (22.0, 2.0, 9.1, 0.0, 0.0, 4.0, 1.0, 25.0, 5.6, 5000, 2500, 227, 2500),
         # the staff block 06:00-08:00 is shown, not counted as use
-        "Court 4": ("Opening hours", 22.0, 0.0, 0.0, 0.0, 2.0, 4.0, 0.0, 0.0, 0.0, 0, 0, 0, None),
+        "Court 4": (22.0, 0.0, 0.0, 0.0, 2.0, 4.0, 0.0, 0.0, 0.0, 0, 0, 0, None),
     }  # fmt: skip
     assert {name: tuple(by[name][k] for k in pick) for name in cirqt.COURTS} == expected
     # 8.5 h of 88 = 9.66%; prime 5 of 16 h = 31.25%, half up 31.3%; 235.00 = 2.67 an available hour, 27.65 a rented one

@@ -214,10 +214,7 @@ booking_start = _view(
 class_session = _view("rpt_class_session", """session_id location_id booking_id reservation_type_id
     reservation_type_name trainer_resource_id trainer_name session_on start_time capacity booked_count""")  # fmt: skip
 # court use (migration 2011); the builder queries these in SQL text (multiranges), the columns are still the contract
-court = _view("rpt_court", """court_id location_id court_name court_group_id court_group_name sort_order time_zone
-    has_windows""")  # fmt: skip
-court_window = _view("rpt_court_window", """availability_window_id location_id court_id starts_on ends_on weekdays
-    interval_weeks start_time end_time""")  # fmt: skip
+court = _view("rpt_court", "court_id location_id court_name court_group_id court_group_name sort_order time_zone")
 facility_hours = _view("rpt_facility_hours", "location_id weekday opens_time closes_time is_closed")
 closure = _view("rpt_closure", "blackout_id location_id during")
 court_hold = _view("rpt_court_hold", """resource_hold_id location_id court_id booking_id use_kind rental_type_id
@@ -236,4 +233,4 @@ ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_
        campaign_message, return_line, product_stock, equipment_item, equipment_loan, rental_plan_sale,
        time_entry_pay, pay_statement, pay_line, trainer_package_sale, assessment_value, game_official,  # chip D
        league_roster, device, resource_hold, availability, booking_start, class_session,
-       court, court_window, facility_hours, closure, court_hold, court_rental_type, peak_band, court_revenue)  # fmt: skip
+       court, facility_hours, closure, court_hold, court_rental_type, peak_band, court_revenue)  # fmt: skip

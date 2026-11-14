@@ -21,23 +21,14 @@ _ROOT = """LEFT JOIN resource p ON p.tenant_id = r.tenant_id AND p.id = r.parent
         LEFT JOIN resource gp ON gp.tenant_id = p.tenant_id AND gp.id = p.parent_id"""
 _COURT = "coalesce(gp.id, p.id, r.id)"
 VIEWS = {
-    # resources: active top-level venues, the location's zone, and whether the court has its own windows
+    # resources: active top-level venues and the location's zone
     "rpt_court": """
         SELECT r.tenant_id, r.id AS court_id, r.location_id, r.name AS court_name, r.resource_group_id AS court_group_id,
-               g.name AS court_group_name, r.sort_order, l.time_zone,
-               EXISTS (SELECT 1 FROM availability_window w
-                       WHERE w.tenant_id = r.tenant_id AND w.resource_id = r.id AND w.is_active) AS has_windows
+               g.name AS court_group_name, r.sort_order, l.time_zone
         FROM resource r
         JOIN location l ON l.tenant_id = r.tenant_id AND l.id = r.location_id
         JOIN resource_group g ON g.tenant_id = r.tenant_id AND g.id = r.resource_group_id
         WHERE r.kind = 'venue' AND r.parent_id IS NULL AND r.status = 'active'""",
-    # resources: active availability windows of top-level venues, with their wall times
-    "rpt_court_window": """
-        SELECT w.tenant_id, w.id AS availability_window_id, w.location_id, w.resource_id AS court_id, w.starts_on,
-               w.ends_on, w.weekdays::int[] AS weekdays, w.interval_weeks::int AS interval_weeks, w.start_time, w.end_time
-        FROM availability_window w
-        JOIN resource r ON r.tenant_id = w.tenant_id AND r.id = w.resource_id
-        WHERE w.is_active AND r.kind = 'venue' AND r.parent_id IS NULL""",
     # platform: the weekly facility hours (one row per ISO weekday; 24:00 is a midnight close)
     "rpt_facility_hours": """
         SELECT h.tenant_id, h.location_id, h.weekday::int AS weekday, h.opens_time, h.closes_time, h.is_closed

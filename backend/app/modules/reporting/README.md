@@ -146,11 +146,18 @@ Status per feature: `docs/status/15-reporting.md`.
     when any part is held (two halves rented at once is 100%, not 200%).
   - *Available time*: the weekday's facility hours in the location's zone (24:00 closes at midnight; hours past
     midnight are one day ending 24:00 and the next starting 00:00; a weekday with no row is open all day, as in
-    scheduling). A court with active availability windows is narrowed to them (no window that day: zero hours).
-    Whole-location closures (blackouts, scope `all`) are taken out; online-only closures are not. There is no
-    holiday calendar: a holiday is a closure. Facility hours hold one span a day, so split shifts are court
-    windows. `hours_source` says which applied: "Opening hours" or "Court windows" ("Mixed" on a group row).
+    scheduling). Whole-location closures (blackouts, scope `all`) are taken out; online-only closures are not.
+    There is no holiday calendar: a holiday is a closure. Any time rented or played outside that (past closing,
+    during a closure) is added back, so play always has hours under it: no revenue without hours, utilization
+    never over 100% and never empty on a day with play. `outside_hours` still shows that play.
     A 23 or 25 hour day comes out at 23 or 25 hours because wall times are converted in the zone per day.
+  - *Court windows do not narrow the hours* (rule found and chosen, 2026-11-13). Availability windows are
+    advisory: scheduling neither refuses nor warns on a staff booking outside them (scheduling README rule 9:
+    "the calendar shades them"), staff rentals accept any time, and only the free-time search behind online
+    rentals and slot offers keeps to them (`scheduling.free_ranges`). A window narrows a court only where
+    bookings are prevented outside it, which is nowhere a staff member books, so the report ignores windows:
+    an expired or future-dated window cannot zero a court. Open question for the owner (not changed here):
+    should staff rentals refuse or warn outside a court's windows?
   - *Used time*, confirmed holds only, each minute in one category in this order: rented (rentals), league and
     programs (sessions and games), blocked (staff blocks of any kind, maintenance included), changeover (the
     buffers of rentals and program bookings). Utilization is rented plus league and program minutes inside the
