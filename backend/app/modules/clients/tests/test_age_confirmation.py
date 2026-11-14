@@ -477,3 +477,64 @@ def test_bulk_confirm_and_import_never_move_an_unconfirmed_client(client, owner,
         service.import_client(session, {"member_number": "M-MOVE-1", "first_name": member["first_name"],
                                         "last_name": member["last_name"], "home_location_id": there})  # fmt: skip
     assert staff_view(client, owner, who)["home_location_id"] == f.location
+
+
+# --- review findings: children and dateless people are never confirmed; replays fire the event once -------------
+
+
+def test_the_single_confirm_refuses_a_child(client, owner, tenant, f):
+    kid = self_declared(client, owner, tenant, f, birth_on=CHILD)
+    refused = confirm(client, owner, kid)
+    assert (refused.status_code, refused.json()["code"]) == (422, "minor-not-confirmed")
+    adult = self_declared(client, owner, tenant, f)
+    refused = confirm(client, owner, adult, birth_on=CHILD)  # nor a "correction" to a child's date
+    assert (refused.status_code, refused.json()["code"]) == (422, "minor-not-confirmed")
+    flag = client.patch(f"{API}/clients/{kid}", headers=owner, json={"confirm_age": True})
+    assert (flag.status_code, flag.json()["code"]) == (422, "minor-not-confirmed")
+    assert staff_view(client, owner, kid)["age_confirmed"] is False
+    assert confirmed_events(tenant, kid) == confirmed_events(tenant, adult) == 0
+
+
+def test_bulk_confirm_skips_a_child_and_a_dateless_person_with_a_reason(client, owner, tenant, f):
+    adult = self_declared(client, owner, tenant, f)
+    kid = self_declared(client, owner, tenant, f, birth_on=CHILD)
+    dateless = self_declared(client, owner, tenant, f, birth_on=None)
+    unknown = str(uuid4())
+    done = ok(client.post(BULK, headers=owner, json={"client_ids": [kid, adult, dateless, unknown], "note": NOTE}), 200)
+    assert done["confirmed_count"] == 1
+    assert sorted(done["skipped_client_ids"]) == sorted([kid, dateless, unknown])
+    assert {s["client_id"]: s["reason"] for s in done["skipped"]} == {
+        kid: "minor", dateless: "no-birth-date", unknown: "not-found"}  # fmt: skip
+    for who in (kid, dateless):
+        assert staff_view(client, owner, who)["age_confirmed"] is False and confirmed_events(tenant, who) == 0
+    assert staff_view(client, owner, adult)["age_confirmed"] is True and confirmed_events(tenant, adult) == 1
+
+
+def test_bulk_confirm_of_only_a_child_confirms_nobody(client, owner, tenant, f):
+    kid = self_declared(client, owner, tenant, f, birth_on=CHILD)
+    done = ok(client.post(BULK, headers=owner, json={"client_ids": [kid], "note": NOTE}), 200)
+    assert (done["confirmed_count"], done["skipped_client_ids"]) == (0, [kid])
+
+
+def test_two_concurrent_confirmations_fire_the_event_once(client, owner, tenant, f):
+    """The second call waits on the first's row lock, then sees the person confirmed: one age_confirmed event."""
+    import threading
+
+    from app.modules.clients import service
+
+    who = self_declared(client, owner, tenant, f)
+    system = system_principal("tests")
+    outcome = {}
+
+    def second() -> None:
+        with tenant_session(tenant.id, actor=system) as session:
+            outcome["second"] = service.confirm_ages(session, system, {"client_ids": [who], "note": NOTE})
+
+    with tenant_session(tenant.id, actor=system) as session:
+        first = service.confirm_ages(session, system, {"client_ids": [who], "note": NOTE})
+        racer = threading.Thread(target=second)
+        racer.start()
+        racer.join(timeout=1.5)  # blocked on the row lock until this transaction commits
+    racer.join(timeout=15)
+    assert (first["confirmed_count"], outcome["second"]["confirmed_count"]) == (1, 0)
+    assert confirmed_events(tenant, who) == 1

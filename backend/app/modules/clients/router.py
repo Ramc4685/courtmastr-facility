@@ -85,7 +85,8 @@ def list_client_age_reviews(query: Lists, ctx: Annotated[Ctx, Depends(require(se
 @router.post("/client-age-reviews/confirmations", response_model=s.AgeConfirmationBatchOut)
 def confirm_client_ages(body: s.AgeConfirmationBatch, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGES))]):
     """Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is
-    audited and announced once. Errors: step-up-required, birth-date-required."""
+    audited and announced once. Unknown or out-of-reach people, children and people with no birth date are skipped
+    with a reason, never failing the batch. Errors: step-up-required."""
     return service.confirm_ages(ctx.session, ctx.principal, body.model_dump())
 
 

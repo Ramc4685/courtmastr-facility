@@ -400,10 +400,16 @@ class AgeConfirmationBatch(In):
     note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
+class AgeConfirmationSkip(Out):
+    client_id: UUID
+    reason: Literal["not-found", "minor", "no-birth-date"]  # not-found: unknown, or out of the caller's reach
+
+
 class AgeConfirmationBatchOut(Out):
     client_ids: list[UUID]
     confirmed_count: int  # people confirmed now; anyone already confirmed is left alone
-    skipped_client_ids: list[UUID]  # not confirmed: unknown, or homed where the caller may not confirm ages
+    skipped_client_ids: list[UUID]  # not confirmed: the ids in `skipped`
+    skipped: list[AgeConfirmationSkip]
 
 
 class PortalInvite(In):

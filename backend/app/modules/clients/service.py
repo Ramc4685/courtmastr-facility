@@ -873,6 +873,7 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
     wants_confirm = bool(data.pop("confirm_age", None))
     if wants_confirm:  # the confirm-age gate on the loaded client, before anything is written
         _authorize_confirm(principal, client)
+        _lock(session, client)
     if data.get("home_location_id") not in (None, client.home_location_id) and not _age_confirmed(client):
         # A move is never a way to gain the right to confirm: an unconfirmed client (dated or not, whatever else the
         # request changes) moves only for staff who could confirm them at their current home.
@@ -887,6 +888,7 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
         if client.birth_on is None:
             raise ValidationFailed("Enter the birth date shown on the ID.", pointer="/birth_on",
                                    code="birth-date-required")  # fmt: skip
+        _refuse_minor(session, client)
         if not changes:
             client.version += 1
             client.updated_by_staff_user_id = principal.staff_user_id
@@ -1014,13 +1016,26 @@ def confirm_age(session: Session, principal: Principal, client_id: UUID, data: d
     Errors: birth-date-required (no date on file and none sent)."""
     client = load(session, principal, client_id, CONFIRM_AGE)
     location_id = _authorize_confirm(principal, client)
+    _lock(session, client)
     _require_live(client)
     client.birth_on = data.get("birth_on") or client.birth_on
     if client.birth_on is None:
         raise ValidationFailed("Enter the birth date shown on the ID.", pointer="/birth_on", code="birth-date-required")
+    _refuse_minor(session, client)
     _confirm(session, client, principal.staff_user_id, location_id)
     session.flush()
     return client
+
+
+def _lock(session: Session, client: Client) -> None:
+    """Row lock and fresh state, so concurrent confirmations of one person fire age_confirmed once."""
+    session.refresh(client, with_for_update=True)
+
+
+def _refuse_minor(session: Session, client: Client) -> None:
+    if _declared_minor(session, client):  # a child never gets an entry code, so is never age-confirmed
+        raise ValidationFailed("A child is not age-confirmed; a guardian books for them.", pointer="/birth_on",
+                               code="minor-not-confirmed")  # fmt: skip
 
 
 def _confirm(session: Session, client: Client, staff_user_id: UUID | None, location_id: UUID, **extra) -> bool:
@@ -1042,7 +1057,9 @@ def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
     """Bulk confirm for people staff already know (go-live: "known members, IDs seen at the desk"): the bulk key
     (+ step-up) and the confirm key at each person's HOME location (never the location a booking told); one audit
     and one event per person; the note is required and kept flag-only. Already-confirmed people are left alone.
-    Anyone out of reach (unknown, or homed where the caller may not confirm) is skipped and reported, not confirmed."""
+    Anyone out of reach (unknown, or homed where the caller may not confirm: `not-found`), a child (`minor`) or
+    anyone with no birth date (`no-birth-date`) is skipped with that reason, never confirmed and never failing the
+    batch; dateless people are resolved one at a time through the confirm action, which takes the date."""
     authorize(principal, CONFIRM_AGES)
     ids = list(dict.fromkeys(data["client_ids"]))
     if len(ids) > MAX_AGE_CONFIRMATIONS:
@@ -1053,18 +1070,22 @@ def confirm_ages(session: Session, principal: Principal, data: dict) -> dict:
             client = load(session, principal, client_id, CONFIRM_AGE)
             authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
         except (PermissionDenied, NotFound):
-            skipped.append(client_id)  # unknown and out of reach answer the same
+            skipped.append({"client_id": client_id, "reason": "not-found"})  # unknown and out of reach alike
             continue
-        where = client.home_location_id
         _require_live(client)
-        if client.birth_on is None:
-            raise ValidationFailed("A selected person has no birth date.", pointer="/client_ids",
-                                   code="birth-date-required")  # fmt: skip
-        people.append((client, where))
-    done = [c.id for c, where in people
-            if not _age_confirmed(c) and _confirm(session, c, principal.staff_user_id, where, note=True)]  # fmt: skip
+        people.append(client)
+    done = []
+    for client in sorted(people, key=lambda c: c.id):  # one lock order, so two batches cannot deadlock
+        _lock(session, client)
+        reason = "no-birth-date" if client.birth_on is None else "minor" if _declared_minor(session, client) else None
+        if reason:
+            skipped.append({"client_id": client.id, "reason": reason})
+        elif not _age_confirmed(client) and _confirm(session, client, principal.staff_user_id,
+                                                     client.home_location_id, note=True):  # fmt: skip
+            done.append(client.id)
     session.flush()
-    return {"client_ids": ids, "confirmed_count": len(done), "skipped_client_ids": skipped}
+    return {"client_ids": ids, "confirmed_count": len(done),
+            "skipped_client_ids": [s["client_id"] for s in skipped], "skipped": skipped}  # fmt: skip
 
 
 def disable_client(session: Session, principal: Principal, client_id: UUID) -> Client:

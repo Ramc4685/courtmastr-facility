@@ -2364,7 +2364,8 @@ export interface paths {
         /**
          * Confirm Client Ages
          * @description Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is
-         *     audited and announced once. Errors: step-up-required, birth-date-required.
+         *     audited and announced once. Unknown or out-of-reach people, children and people with no birth date are skipped
+         *     with a reason, never failing the batch. Errors: step-up-required.
          */
         post: operations["confirmClientAges"];
         delete?: never;
@@ -17357,8 +17358,23 @@ export interface components {
             client_ids: string[];
             /** Confirmed Count */
             confirmed_count: number;
+            /** Skipped */
+            skipped: components["schemas"]["AgeConfirmationSkip"][];
             /** Skipped Client Ids */
             skipped_client_ids: string[];
+        };
+        /** AgeConfirmationSkip */
+        AgeConfirmationSkip: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "not-found" | "minor" | "no-birth-date";
         };
         /** AgeGroupOut */
         AgeGroupOut: {

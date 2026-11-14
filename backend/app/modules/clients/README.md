@@ -42,6 +42,9 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   (`age_review_location_id`): that location's staff see the person in the queue and confirm without moving them.
   Moving an unconfirmed client's home is refused (`403 age-check-pending`) for a holder of the confirm key who cannot
   confirm at the current home, so a move is never a way to gain the right (chosen over audit-and-block as smaller).
+- **Never a child, never without a date.** The single confirm and the confirm flag on an edit refuse a date that
+  makes the person a minor (`422 minor-not-confirmed`) and a missing date (`birth-date-required`). Both actions take a
+  row lock on the client, so concurrent replays fire `age_confirmed` once.
 - **One wording.** `ENTRY_CODE_NOTICE` and `with_phone` ("Questions? Call us on X.") are shared with building
   control's held-code message.
 - **Self-service needs a declared date.** Sign-up, guest checkout and portal dependants require `birth_on` and
@@ -63,8 +66,9 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   confirms an age (owner decision): imported adults wait in the queue, and their rows say "Imported, age not
   confirmed". The way out is `POST /client-age-reviews/confirmations`: up to 200 ids and a required note, kept
   flag-only; key `clients.client.confirm_ages`, `+` step-up, admin and manager, plus `clients.client.confirm_age` at
-  each person's HOME location (not the location a booking told). Anyone outside that reach is skipped and listed in
-  `skipped_client_ids`, never confirmed. Each confirmed person is audited once and fires `age_confirmed` once. To
+  each person's HOME location (not the location a booking told). Anyone outside that reach (`not-found`), a child
+  (`minor`) or anyone with no birth date (`no-birth-date`) is skipped, never confirmed and never failing the batch:
+  listed in `skipped_client_ids`, with the reason in `skipped`. Each confirmed person is audited once and fires `age_confirmed` once. To
   pick a freshly imported batch, filter the queue with `created_via=import` and `created_at[gte]=<when the import
   ran>`; the web queue has "Imported only" and "Joined on or after" for this, with checkboxes and "Confirm selected".
   Assumption: the front desk confirms one at a time, so the bulk key starts at manager.

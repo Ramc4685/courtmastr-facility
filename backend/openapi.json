@@ -851,6 +851,13 @@
             "title": "Confirmed Count",
             "type": "integer"
           },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/AgeConfirmationSkip"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
           "skipped_client_ids": {
             "items": {
               "format": "uuid",
@@ -863,9 +870,34 @@
         "required": [
           "client_ids",
           "confirmed_count",
-          "skipped_client_ids"
+          "skipped_client_ids",
+          "skipped"
         ],
         "title": "AgeConfirmationBatchOut",
+        "type": "object"
+      },
+      "AgeConfirmationSkip": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "not-found",
+              "minor",
+              "no-birth-date"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "reason"
+        ],
+        "title": "AgeConfirmationSkip",
         "type": "object"
       },
       "AgeGroupOut": {
@@ -96449,7 +96481,7 @@
     },
     "/api/v1/client-age-reviews/confirmations": {
       "post": {
-        "description": "Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is\naudited and announced once. Errors: step-up-required, birth-date-required.",
+        "description": "Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is\naudited and announced once. Unknown or out-of-reach people, children and people with no birth date are skipped\nwith a reason, never failing the batch. Errors: step-up-required.",
         "operationId": "confirmClientAges",
         "parameters": [
           {
