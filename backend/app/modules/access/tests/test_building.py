@@ -405,8 +405,6 @@ def holds(f) -> list[tuple[str, str, str]]:
         return [(str(h.booking_id), str(h.client_id), h.reason) for h in session.scalars(select(EntryCodeHold))]
 
 
-
-
 def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(client, tenant, owner, b, mailbox):
     """Owner decision 2026-11-13, "staff confirm once": a self-declared adult books, but each code is held (one
     `code_withheld` row and one `entry_code_hold` per booking, a held line on the portal) and the person is told
