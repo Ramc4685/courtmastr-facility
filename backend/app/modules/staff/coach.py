@@ -12,7 +12,7 @@ from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, pdf
@@ -383,6 +383,25 @@ def _total(payout: CoachPayout, lines: list[CoachEarning]) -> None:
     payout.adjustment_minor = sum(e.coach_share_minor for e in lines if e.kind == "adjustment")
 
 
+def _unpaid(session: Session, payout: CoachPayout) -> list[CoachEarning]:
+    """The coach's lines at the location on no statement yet: earned up to the period's end, plus any reversal of a
+    line this statement already holds (whatever its date), so a statement never pays a lesson that was undone."""
+    held = select(CoachPayoutLine.coach_earning_id).where(CoachPayoutLine.coach_payout_id == payout.id)
+    return list(session.scalars(
+        select(CoachEarning).where(
+            CoachEarning.staff_payee_id == payout.staff_payee_id, CoachEarning.location_id == payout.location_id,
+            or_(CoachEarning.earned_on <= payout.period_ends_on, CoachEarning.reverses_coach_earning_id.in_(held)),
+            CoachEarning.id.not_in(select(CoachPayoutLine.coach_earning_id)),
+        ).order_by(CoachEarning.earned_on, CoachEarning.id)
+    ))  # fmt: skip
+
+
+def _gather(session: Session, payout: CoachPayout) -> None:
+    session.add_all(CoachPayoutLine(coach_payout_id=payout.id, coach_earning_id=e.id) for e in _unpaid(session, payout))
+    session.flush()
+    _total(payout, _lines(session, payout.id))
+
+
 def create_payouts(session: Session, principal: Principal, data: dict) -> dict:
     """Gather every unpaid earning line up to the period's end into one draft statement per independent coach (one
     coach, or all of them at the location). Lines from before the period that were never paid are included, so
@@ -398,26 +417,18 @@ def create_payouts(session: Session, principal: Principal, data: dict) -> dict:
     payees = select(StaffPayee).where(StaffPayee.location_id == location_id, StaffPayee.kind == "trainer")
     if data.get("staff_payee_id"):
         payees = payees.where(StaffPayee.id == data["staff_payee_id"])
-    gathered = select(CoachPayoutLine.coach_earning_id)
     made = []
     for payee in session.scalars(payees.order_by(StaffPayee.display_name, StaffPayee.id)):
-        lines = list(session.scalars(
-            select(CoachEarning).where(
-                CoachEarning.staff_payee_id == payee.id, CoachEarning.location_id == location_id,
-                CoachEarning.earned_on <= data["period_ends_on"], CoachEarning.id.not_in(gathered),
-            ).order_by(CoachEarning.earned_on, CoachEarning.id)
-        ))  # fmt: skip
-        if not lines:
-            continue
         payout = CoachPayout(
             location_id=location_id, staff_payee_id=payee.id, period_starts_on=data["period_starts_on"],
             period_ends_on=data["period_ends_on"], created_by_staff_user_id=principal.staff_user_id,
         )  # fmt: skip
-        _total(payout, lines)
+        if not _unpaid(session, payout):
+            continue
+        _total(payout, [])
         session.add(payout)
         session.flush()
-        session.add_all(CoachPayoutLine(coach_payout_id=payout.id, coach_earning_id=e.id) for e in lines)
-        session.flush()
+        _gather(session, payout)
         audit.record(session, PAYOUT_CREATE, payout, location_id=location_id, changes={
             "status": [None, "draft"], "coach_share_minor": [None, payout.coach_share_minor],
             "gross_minor": [None, payout.gross_minor]})  # fmt: skip
@@ -467,8 +478,18 @@ def add_adjustment(session: Session, principal: Principal, payout_id: UUID, data
     return payout_view(session, payout)
 
 
+def _not_negative(payout: CoachPayout) -> None:
+    if payout.coach_share_minor < 0:
+        raise Conflict("This statement's total is below zero: it stays a draft until later earnings cover it.",
+                       code="payout-negative")  # fmt: skip
+
+
 def approve_payout(session: Session, principal: Principal, payout_id: UUID) -> dict:
+    """Approve a draft after bringing it up to date: lines that reached the ledger since it was drafted (a reversal
+    of a lesson on it, say) are gathered first. A statement whose total is below zero is refused and stays a draft."""
     payout = _draft(session, principal, payout_id, PAYOUT_APPROVE)
+    _gather(session, payout)
+    _not_negative(payout)
     payout.status, payout.approved_at, payout.approved_by_staff_user_id = (
         "approved",
         clock.now(),
@@ -485,6 +506,7 @@ def mark_paid(session: Session, principal: Principal, payout_id: UUID, data: dic
     payout = _payout(session, principal, payout_id, PAYOUT_PAY, lock=True)
     if payout.status != "approved":
         raise Conflict("Only an approved statement is marked paid.", code="invalid-state-transition")
+    _not_negative(payout)
     payout.status, payout.paid_at, payout.paid_by_staff_user_id = "paid", clock.now(), principal.staff_user_id
     payout.paid_on, payout.payment_method = data["paid_on"], data["payment_method"]
     payout.payment_reference = data.get("payment_reference")

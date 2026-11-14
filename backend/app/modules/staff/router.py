@@ -369,7 +369,8 @@ def list_coach_engagements(staff_payee_id: UUID, ctx: Ctx = PayRead):
 
 @router.post("/staff-payees/{staff_payee_id}/engagements", response_model=s.CoachEngagementOut, status_code=201)
 def set_coach_engagement(staff_payee_id: UUID, body: s.CoachEngagementWrite, ctx: Ctx = PayManage):
-    """A row for the same date is replaced. Errors: own-pay below Admin."""
+    """A row for the same date is replaced. Errors: own-pay below Admin, effective-date-has-sessions (dated before today
+    while the coach already has sessions from that date)."""
     return coach.set_engagement(ctx.session, ctx.principal, staff_payee_id, body.model_dump())
 
 
@@ -387,7 +388,8 @@ def list_coach_share_rules(query: Lists, ctx: Ctx = PayRead):
 
 @router.put("/coach-share-rules", response_model=s.CoachShareRuleOut)
 def put_coach_share_rule(body: s.CoachShareRuleWrite, ctx: Ctx = PayManage):
-    """Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with."""
+    """Upsert by coach, lesson type and effective date. Earning lines keep the share they were made with. Errors:
+    effective-date-has-sessions (dated before today while an affected coach already has sessions from that date)."""
     return coach.put_share_rule(ctx.session, ctx.principal, body.model_dump())
 
 
@@ -440,7 +442,8 @@ def add_coach_payout_adjustment(coach_payout_id: UUID, body: s.CoachAdjustmentCr
 
 @router.post("/coach-payouts/{coach_payout_id}/approve", response_model=s.CoachPayoutOut)
 def approve_coach_payout(coach_payout_id: UUID, ctx: Ctx = PayoutApprove):
-    """Step-up required. Errors: invalid-state-transition, step-up-required."""
+    """Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,
+    payout-negative (the total is below zero: it stays a draft), step-up-required."""
     return coach.approve_payout(ctx.session, ctx.principal, coach_payout_id)
 
 

@@ -253,6 +253,31 @@ def test_payout_statement_flow_adjustment_step_up_and_paid_is_final(client, tena
                              "staff.coach_payout.read": 2}  # fmt: skip
 
 
+def test_approve_gathers_a_reversal_that_arrived_after_the_draft_and_refuses_a_negative_total(
+    client, tenant, owner, coached
+):
+    c = coached
+    _mark(client, tenant, c, "attended")
+    body = {"location_id": c.f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-31"}
+    [stale] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    assert stale["coach_share_minor"] == 700
+    _mark(client, tenant, c, "excused")  # the lesson is undone after the draft was made
+    approved = ok(client.post(f"{API}/coach-payouts/{stale['id']}/approve", headers=owner), 200)
+    assert (approved["line_count"], approved["gross_minor"], approved["coach_share_minor"]) == (2, 0, 0)
+    # Taught again and paid; then undone once more: the next statement holds only the -$7 reversal.
+    _mark(client, tenant, c, "attended")
+    [paid] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    ok(client.post(f"{API}/coach-payouts/{paid['id']}/approve", headers=owner), 200)
+    ok(client.post(f"{API}/coach-payouts/{paid['id']}/paid", headers=owner,
+                   json={"paid_on": "2031-06-01", "payment_method": "cheque"}), 200)  # fmt: skip
+    _mark(client, tenant, c, "excused")
+    [negative] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    assert negative["coach_share_minor"] == -700
+    refused = client.post(f"{API}/coach-payouts/{negative['id']}/approve", headers=owner)
+    assert (refused.status_code, refused.json()["code"]) == (409, "payout-negative")
+    assert ok(client.get(f"{API}/coach-payouts/{negative['id']}", headers=owner), 200)["status"] == "draft"
+
+
 def test_adjust_approve_and_mark_paid_lock_the_statement_row(client, tenant, owner, coached):
     """Without the lock an adjustment can land on a statement approved a moment before, and paid can run twice."""
     c = coached
