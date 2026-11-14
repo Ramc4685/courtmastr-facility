@@ -6,6 +6,22 @@ export function formatMoney(minor: number, currency = 'USD'): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(minor / 100)
 }
 
+type RefundLeg = { amount_minor: number; status: string; failure_message?: string | null }
+
+/** What a refund actually did, for a toast: a declined or still-pending leg is never announced as success. */
+export function refundOutcome(legs: RefundLeg[], currency = 'USD'): { tone: 'success' | 'error'; message: string } {
+  const total = (statuses: string[]) => legs.filter((l) => statuses.includes(l.status)).reduce((sum, l) => sum + l.amount_minor, 0)
+  const pending = total(['pending', 'initiated'])
+  const declined = total(['failed', 'cancelled'])
+  const parts = [`Refunded ${formatMoney(total(['succeeded']), currency)}.`]
+  if (pending) parts.push(`${formatMoney(pending, currency)} is with the processor and settles shortly.`)
+  if (declined) {
+    const why = legs.find((l) => l.failure_message && ['failed', 'cancelled'].includes(l.status))?.failure_message
+    parts.push(`${formatMoney(declined, currency)} was not refunded${why ? ` (${why})` : ''}; it stays as account credit.`)
+  }
+  return { tone: declined ? 'error' : 'success', message: parts.join(' ') }
+}
+
 /** "12", "12.5", "1,234.56" -> minor units, without going through floating point. null when not money. */
 export function parseMoney(text: string): number | null {
   const clean = text.replace(/[,\s$]/g, '')

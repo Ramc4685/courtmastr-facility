@@ -7,6 +7,7 @@ import { Checkbox, Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { ErrorState, LoadingState } from '../../components/States'
 import { formatDate, formatMoney } from '../../lib/format'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { clientName, CouponField, NewCardField, useAttemptKey } from '../portal/shared'
 import { FORM_STATE, answersOf, formError, isShown, totalOf, type PublicForm, type PublicFormItem } from './forms'
 
@@ -100,7 +101,7 @@ function FormFill({ form, portal }: { form: PublicForm; portal: boolean }) {
   const [registrant, setRegistrant] = useState('')
   const [card, setCard] = useState('')
   const [coupon, setCoupon] = useState('')
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(portal ? `portal-form:${form.id}` : undefined, portal ? checkPortalAttempt : undefined)
   // Anonymous visitors have no portal session, so the household list loads only inside the portal.
   const clients = useQuery({ queryKey: ['portal', 'clients'], queryFn: () => api.get('/api/v1/portal/clients'), enabled: portal })
   const household = clients.data?.data ?? []
@@ -153,6 +154,8 @@ function FormFill({ form, portal }: { form: PublicForm; portal: boolean }) {
       }}
     >
       {form.state === 'full_waitlist' && <p className="rounded border border-warning/40 bg-warning/10 px-3 py-2">This event is full. Registering puts you on the wait list.</p>}
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt} className="space-y-5">
       {portal && household.length > 1 && (
         <Select
           label="Registering"
@@ -193,6 +196,7 @@ function FormFill({ form, portal }: { form: PublicForm; portal: boolean }) {
           <NewCardField value={card} onChange={setCard} />
         </>
       )}
+      </AttemptFields>
       {submit.error && (
         <p role="alert" className="text-danger">
           {formError(submit.error)}
@@ -207,7 +211,7 @@ function FormFill({ form, portal }: { form: PublicForm; portal: boolean }) {
         </p>
       ) : (
         <Button type="submit" loading={submit.isPending} disabled={portal && total > 0 && !card}>
-          {total > 0 ? `Register and pay ${formatMoney(total)}` : 'Register'}
+          {attempt.locked ? 'Try again' : total > 0 ? `Register and pay ${formatMoney(total)}` : 'Register'}
         </Button>
       )}
     </form>

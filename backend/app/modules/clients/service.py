@@ -1472,6 +1472,14 @@ def link_identity(session: Session, client_id: UUID, identity_id: UUID, *, is_pr
         session.flush()
 
 
+def client_ids_in_scope(principal: Principal):
+    """Internal: a subquery of the client ids whose home location the staff member reaches, or None when they
+    reach every location (filter with `column.in_(...)` only when it is not None)."""
+    if principal.kind == "system" or principal.location_ids is None:
+        return None
+    return select(Client.id).where(Client.home_location_id.in_(principal.location_ids))
+
+
 def client_ids_for_identity(session: Session, identity_id: UUID) -> list[UUID]:
     """The clients a signed-in client principal holds direct access to (ADR 0009 section 8: can_act_for's first
     clause), its own record first."""

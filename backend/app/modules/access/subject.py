@@ -1,7 +1,9 @@
 """access's side of a client merge (CLI-13) and of a data subject request (security-baseline 4.2). A merge moves
 check-ins and credentials to the survivor and keeps the stricter of the two access modes (a ban survives); open
 kiosk match tokens of the merged client are dropped. Erasure keeps the check-in log (visit history, counted
-visits), revokes every credential, which wipes app-card secrets, and drops the access mode and match tokens."""
+visits), revokes every credential, which wipes app-card secrets, and drops the access mode and match tokens. Entry
+codes and held codes (`entry_code_hold`) follow the merge; erasure revokes live codes, unlinks every code and deletes
+the person's holds, and scrubs their id from building event text, so the log no longer leads to them."""
 
 from uuid import UUID
 
@@ -9,14 +11,23 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.modules import clients, platform
-from app.modules.access import service
-from app.modules.access.models import CheckIn, ClientAccess, Credential, KioskMatch
+from app.modules.access import building, service
+from app.modules.access.models import CheckIn, ClientAccess, Credential, EntryCode, EntryCodeHold, KioskMatch
 
 _STRICT = ("always_deny", "normal", "always_admit")
 
 
 def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
-    for model in (CheckIn, Credential):
+    # a hold the survivor already has for the same booking wins (one hold per booking and person)
+    session.execute(delete(EntryCodeHold).where(EntryCodeHold.client_id == loser_id, EntryCodeHold.booking_id.in_(
+        select(EntryCodeHold.booking_id).where(EntryCodeHold.client_id == survivor_id))))  # fmt: skip
+    # likewise a live code: the loser's is revoked where the survivor already holds one (uq_entry_code_booking)
+    for row in session.scalars(select(EntryCode).where(
+            EntryCode.client_id == loser_id, EntryCode.status == "active", EntryCode.booking_id.in_(
+                select(EntryCode.booking_id).where(EntryCode.client_id == survivor_id, EntryCode.status == "active"))
+    ).with_for_update()).all():  # fmt: skip
+        building._revoke(session, row, "merged")
+    for model in (CheckIn, Credential, EntryCode, EntryCodeHold):
         session.execute(update(model).where(model.client_id == loser_id).values(client_id=survivor_id))
     session.execute(delete(KioskMatch).where(KioskMatch.client_id == loser_id))
     loser_id, survivor_id = UUID(str(loser_id)), UUID(str(survivor_id))
@@ -47,6 +58,8 @@ def _export(session: Session, client_id: UUID) -> dict:
         ],
         "credentials": [{"kind": r.kind, "status": r.status, "issued_at": r.issued_at.isoformat()} for r in cards],
         "access_mode": service.access_mode(session, client_id),
+        "entry_codes": building.export_client_codes(session, client_id),
+        "entry_code_holds": building.export_client_holds(session, client_id),
     }  # fmt: skip
 
 
@@ -59,9 +72,14 @@ def _erase(session: Session, client_id: UUID) -> dict:
     kept = len(session.scalars(select(CheckIn.id).where(CheckIn.client_id == client_id)).all())
     session.execute(delete(ClientAccess).where(ClientAccess.client_id == client_id))
     session.execute(delete(KioskMatch).where(KioskMatch.client_id == client_id))
-    return {"retained_check_ins": kept, "revoked_credentials": revoked}
+    codes = building.erase_client_codes(session, client_id)
+    return {"retained_check_ins": kept, "revoked_credentials": revoked, "revoked_entry_codes": codes}
 
 
-_TABLES = ("check_in", "credential", "client_access", "kiosk_match")
+_TABLES = ("check_in", "credential", "client_access", "kiosk_match", "entry_code", "entry_code_hold")
 clients.merge.register_merge_handler("access", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("access", tables=_TABLES, export=_export, erase=_erase)
+# events first: a spent code goes only once no building event names it
+platform.retention.register_purge("building_event", building.purge_building_events)
+platform.retention.register_purge("entry_code", building.purge_spent_codes)
+platform.retention.register_purge("entry_code_hold", building.purge_old_holds)

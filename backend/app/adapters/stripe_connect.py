@@ -27,6 +27,7 @@ from app.ports.payment_provider import (
     MethodState,
     PaymentState,
     ProviderEvent,
+    ProviderUnavailable,
     RefundState,
     SetupState,
     WebhookRejected,
@@ -77,10 +78,6 @@ def _test_account_details(email: str, country: str) -> dict:
             datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())},
         "settings": {"payments": {"statement_descriptor": "FACILITY TEST"}},
     }  # fmt: skip
-
-
-class ProviderUnavailable(Exception):
-    """No usable answer: a timeout, a connection failure or a 5xx. The outcome of the call is not known."""
 
 
 def _flatten(params: dict, prefix: str = "") -> list[tuple[str, str]]:
@@ -161,7 +158,10 @@ class StripeConnectProvider:
             body = encoded.encode()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         status, payload = self._send(method, url, headers, body)
-        if status >= 500:
+        # The call may still go through, or (an idempotency_error: the key reused with other parameters) the first
+        # call under this key may have paid: never a decline. The sweep asks Stripe what the key did.
+        error_type = (payload.get("error") or {}).get("type") if isinstance(payload, dict) else None
+        if status >= 500 or status in (409, 429) or error_type == "idempotency_error":
             raise ProviderUnavailable(f"Stripe answered {status}")
         return status, payload
 
@@ -400,7 +400,10 @@ class StripeConnectProvider:
             event = json.loads(body)
             event_type, account = event["type"], event.get("account")
             kind = next((kind for prefix, kind in _EVENT_KINDS if event_type.startswith(prefix)), "other")
-            object_ref = account if kind == "account" else event["data"]["object"].get("id")
-            return ProviderEvent(event["id"], account, kind, object_ref, event_type)
+            obj = event["data"]["object"]
+            object_ref = account if kind == "account" else obj.get("id")
+            ours = kind in ("payment", "refund") and bool((obj.get("metadata") or {}).get("fh_key"))
+            expects_row = ours and obj.get("status") == "succeeded"
+            return ProviderEvent(event["id"], account, kind, object_ref, event_type, expects_row)
         except (ValueError, KeyError, TypeError, AttributeError) as error:
             raise WebhookRejected("malformed event") from error

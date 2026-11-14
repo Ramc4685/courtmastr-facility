@@ -676,20 +676,20 @@ Leagues re-run after set scoring (migration 2001) and league nights. Items alrea
 - [ ] [wording] README:129 `rpt_booking`; reporting has `rpt_booking_start` (`reporting/views.py:212`)
 - [ ] [wording] README:15 "40 operations of tag `scheduling`"; the tag has 46, the router serves 40 at the contract path
 
-## Added on claude/coach-share (drift refresh 2026-11-13; evidence in `drift/<module>.md`)
+## Added on claude/court-use-report (drift refresh 2026-11-13, reporting)
+Re-run for reporting after court use (migration 2011). Court-use README text matches the code (rechecked 2026-11-13 after annotation-only edits to courts.py). Items already listed under "reporting" above are not repeated.
 
-Refreshed for staff, billing, integrations, packages, platform, programs and reporting. Most items in the last
-six were already listed above and were re-verified, not re-derived. New items from this branch:
+### reporting (+3) — [evidence](drift/reporting.md)
 
-- [x] [contract] staff: a coach saw `coach_share_pct` and `court_fee_minor` on their own earning lines, which
-  reveals their share rule. Fixed on this branch: both are null unless the caller holds `staff.pay_rate.read`.
-- [ ] [wording] staff README says "twelve tables"; `models.py` now has 17 (coach share added five).
-- [ ] [undocumented] staff README file table omits `events.py` and `permissions.py`; `DELETE /coach-payouts/{id}`
-  (discard a draft) is in the contract and code but not the README prose.
-- [ ] [contract] staff tag description in `openapi-money.yaml` omits coach share, instructor assignment, shift
-  copy and variance; five staff routes (membership-type pay rates, trainer sessions, instructor, my-shifts,
-  variance) have no contract operation; `listPayRates`, `getTimeSummary`, `exportPayrollRun`, `clockIn` shapes differ.
-- [ ] [undocumented] packages README: `session_credit_facts` now also returns `client_package_id` and
-  `sessions_granted_count`, and `consumed_sources` is new (both internal, for the coach ledger).
-- [ ] [undocumented] programs README: `enrollment_facts` (internal, for the coach ledger) is new.
-- [ ] [undocumented] billing README: `source_totals` now returns `net_minor` (before tax).
+- [ ] [contract] openapi-programs.yaml:6232, 6377, 6440 declare `entitlement-required`, `report-not-implemented` and `version-conflict` that the code never raises (`service.py` `update_saved` has no version check); README:213 lists only the inline run
+- [ ] [wording] docs/status/15-reporting.md:4 says 29 `rpt_*` views; `views.py` defines 57 (migration 2011 added 8)
+- [x] [stale-not-built] The "Registered keys with no route" decision lists `reporting.dashboard.read`; `GET /dashboards/management` is now served (`router.py:144`, `dashboard.py:77`). Entry above is stale, drop the key from it.
+
+### clients (+6, refresh 2026-11-14) — [evidence](drift/clients.md)
+
+- [ ] [undocumented] README:4 omits migrations `1983_clients_age_confirmation` and `1985_clients_age_confirmed_at_source`.
+- [ ] [contract] The three age routes (`GET /client-age-reviews`, `POST /client-age-reviews/confirmations`, `POST /clients/{id}/age-confirmation`; `clients/router.py:78,87,95`), the `confirm_age` field (`schemas.py:82`) and the `age_confirmed` / `age_confirmation_reset` fields (`schemas.py:110,113`) have no operation in `docs/api/`.
+- [ ] [contract] `GET /clients/{id}/photo` is not in the contract (`openapi-people.yaml:292-323`); the contract single `GET /client-notes/{id}/attachment` signed URL (`:1762`) is served as list/create/get-bytes/delete under `/attachments` (`router.py:564-583`).
+- [ ] [contract] `assignClientMemberNumber` is `PUT` in the contract (`openapi-people.yaml:429`), `POST` in code (`router.py:130`).
+- [ ] [contract] `updateClientLocationSettings` is `PATCH` in the contract (`openapi-people.yaml:929`), `PUT` in code (`router.py:255`).
+- [ ] [contract] `GET /clients/{id}/timeline` (`router.py:497`) has no operation in `openapi-people.yaml`.

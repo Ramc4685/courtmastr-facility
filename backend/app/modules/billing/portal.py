@@ -225,6 +225,15 @@ def list_payments(session: Session, principal: Principal, query: ListQuery) -> d
     )  # fmt: skip
 
 
+def get_attempt(session: Session, principal: Principal, key: str) -> dict:
+    """The outcome of a payment or purchase this identity made with this key (a payer acting for a dependant made
+    it themselves); 404 for anything else, including a household member's attempt under the same key text."""
+    found = service.attempt_outcome(session, key, [f"portal:{principal.identity_id}:"] if principal.identity_id else [])
+    if found is None:
+        raise NotFound()
+    return found
+
+
 def billing_summary(session: Session, principal: Principal, client_id: UUID | None) -> dict:
     return documents.billing_summary(session, _client(session, principal, client_id))
 

@@ -236,6 +236,40 @@ def test_a_timeout_or_server_error_is_unknown_never_a_decline(stripe, http, fail
     assert (state.outcome, state.provider_payment_ref, state.failure_category) == ("unknown", "", None)
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        (409, {"error": {"type": "idempotency_error", "message": "A request with this key is still in progress."}}),
+        (429, {"error": {"type": "rate_limit_error", "message": "Too many requests."}}),
+        # the same key with other parameters: the first call may have paid, so this is never a decline
+        (
+            400,
+            {
+                "error": {
+                    "type": "idempotency_error",
+                    "message": "Keys for idempotent requests can only be used with the same parameters they were first used with.",
+                }
+            },
+        ),
+    ],
+)
+def test_an_in_flight_or_rate_limited_answer_is_unknown_never_failed(stripe, http, answer):
+    """Stripe answers 409 to a same-key retry while the first call is still running (and 429 when rate limited):
+    the first call may still pay. A refund is then left `initiated` for the retry or the sweep (find_refund), and a
+    payment is `unknown` (find_payment); neither is ever recorded as failed or declined."""
+    http.answers.append(answer)
+    with pytest.raises(ProviderUnavailable):
+        stripe.refund(account_ref=ACCOUNT, provider_payment_ref="pi_1", amount_minor=500, idempotency_key="t1:refund:k")
+    http.answers.append(answer)
+    state = stripe.create_payment(
+        account_ref=ACCOUNT, amount_minor=5, currency="usd", method_token="pm_x", idempotency_key="k"
+    )
+    assert (state.outcome, state.failure_category) == ("unknown", None)
+    http.reply(400, {"error": {"type": "invalid_request_error", "message": "charge already refunded"}})
+    refused = stripe.refund(account_ref=ACCOUNT, provider_payment_ref="pi_1", amount_minor=1, idempotency_key="b")
+    assert (refused.outcome, refused.failure_message) == ("failed", "charge already refunded")  # a definitive no
+
+
 def test_reading_finding_and_cancelling_a_payment(stripe, http):
     http.reply(200, intent("processing"))
     assert stripe.get_payment(account_ref=ACCOUNT, provider_payment_ref="pi_1").outcome == "processing"
@@ -420,3 +454,19 @@ def test_webhook_signature_and_normalisation(stripe):
     now = int(time.time())
     rotated = f"{sign('old-secret', body, now)},v1={sign(SECRET, body, now).split('v1=')[1]}"
     assert parse(body, rotated).kind == "payment"
+
+
+def test_only_a_succeeded_charge_or_refund_this_app_started_expects_a_local_row(stripe):
+    """An unmatched failed intent or a charge made outside the app is not an orphan of ours: it is neither retried
+    nor listed for staff (webhooks.process_provider_event)."""
+
+    def expects(kind: str, **obj) -> bool:
+        body = json.dumps({"id": "evt_1", "type": kind, "account": ACCOUNT, "data": {"object": {"id": "pi_1", **obj}}})
+        return stripe.parse_webhook({"stripe-signature": sign(SECRET, body.encode())}, body.encode()).expects_row
+
+    ours = {"metadata": {"fh_key": "t:payment:k"}}
+    assert expects("payment_intent.succeeded", status="succeeded", **ours)
+    assert expects("refund.updated", status="succeeded", **ours)
+    assert not expects("payment_intent.payment_failed", status="requires_payment_method", **ours)
+    assert not expects("payment_intent.succeeded", status="succeeded")  # made outside this app
+    assert not expects("refund.updated", status="failed", **ours)

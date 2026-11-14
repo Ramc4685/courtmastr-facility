@@ -247,6 +247,16 @@ def send_invoice(session: Session, principal: Principal, invoice_id: UUID, data:
     return row
 
 
+def check_invoice_send(session: Session, invoice_id: UUID, channel: str) -> None:
+    """What send_invoice would refuse, without sending or storing anything (a bulk dry run): a voided invoice, no
+    address to email, a document that does not render."""
+    invoice = service._get(session, Invoice, invoice_id)
+    if invoice.status == "voided":
+        raise Conflict("This invoice is voided.", code="invoice-voided")
+    _recipient(session, invoice.bill_to_client_id, None, channel)
+    invoice_pdf(invoice_document(session, invoice), session)
+
+
 def list_invoice_deliveries(session: Session, principal: Principal, invoice_id: UUID) -> list:
     authorize(principal, "billing.invoice.read")
     invoice = service._get(session, Invoice, invoice_id)
@@ -682,63 +692,3 @@ def list_history(session: Session, principal: Principal, query: ListQuery) -> di
             "location_id": AuditEvent.location_id,
         },
     )  # fmt: skip
-
-
-# --- bulk invoicing (BIL-02) -------------------------------------------------------------------------------
-
-BULK_INVOICE_MAX = 1000  # the request runs in one transaction; the same cap as BulkInvoiceRequest.charge_ids
-
-
-def bulk_invoice(session: Session, principal: Principal, data: dict) -> dict:
-    """Invoice many uninvoiced items at once: ONE INVOICE PER CLIENT. Items of different clients are never
-    put on one payer's invoice (the reference bills a mixed selection to the first client; overview
-    divergence 6). Give `charge_ids`, or a `location_id` to take everything uninvoiced there (optionally only
-    what you added, `only_mine`: the per-user "cart").
-
-    Each client is its own savepoint: a failure is reported on that client's row and the others still go
-    through. With `is_dry_run` nothing is created and the same rows show what would happen.
-    """
-    stmt = select(Charge).where(Charge.invoice_id.is_(None), Charge.status == "active", Charge.kind != "reversal")
-    if data.get("charge_ids"):
-        stmt = stmt.where(Charge.id.in_(data["charge_ids"]))
-    elif data.get("location_id"):
-        stmt = stmt.where(Charge.location_id == data["location_id"])
-        if data.get("only_mine"):
-            stmt = stmt.where(Charge.created_by_staff_user_id == principal.staff_user_id)
-    else:
-        raise ValidationFailed("Select items or a location.", pointer="/charge_ids")
-    stmt = scope_query(stmt, principal, Charge.location_id).order_by(Charge.id).limit(BULK_INVOICE_MAX + 1)
-    charges = session.scalars(stmt).all()
-    if len(charges) > BULK_INVOICE_MAX:
-        raise ValidationFailed(
-            f"More than {BULK_INVOICE_MAX} uninvoiced items here. Select them with charge_ids, a batch at a time.",
-            pointer="/location_id",
-        )
-    groups: dict = defaultdict(list)
-    for charge in charges:
-        authorize(principal, "billing.invoice.bulk_create", location_id=charge.location_id)
-        groups[(charge.client_id, charge.location_id)].append(charge)
-    found = {charge.id for charge in charges}
-    items = [
-        {"client_id": None, "location_id": None, "charge_ids": [charge_id], "total_minor": 0, "invoice_id": None,
-         "status": "skipped", "error_code": "charge-not-invoiceable"}
-        for charge_id in data.get("charge_ids") or [] if charge_id not in found
-    ]  # fmt: skip
-    for (client_id, location_id), group in groups.items():
-        item = {
-            "client_id": client_id, "location_id": location_id, "charge_ids": [charge.id for charge in group],
-            "total_minor": sum(charge.total_minor for charge in group), "invoice_id": None, "status": "pending",
-            "error_code": None,
-        }  # fmt: skip
-        if not data.get("is_dry_run"):
-            try:
-                with session.begin_nested():
-                    invoice = service.create_invoice_for_charges(
-                        session, item["charge_ids"], due_on=data.get("due_on"),
-                        is_autopay=bool(data.get("is_autopay")),
-                    )  # fmt: skip
-                item["invoice_id"], item["status"] = invoice.id, "done"
-            except DomainError as error:
-                item["status"], item["error_code"] = "failed", error.code
-        items.append(item)
-    return {"is_dry_run": bool(data.get("is_dry_run")), "items": items}

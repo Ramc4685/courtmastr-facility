@@ -17,6 +17,7 @@ function open(provider: 'fake' | null, outcomes: string[], payments: Call[] = []
     'POST /api/v1/public/invoice-links/payments': (call) => {
       payments.push(call)
       const status = outcomes[payments.length - 1]
+      if (status === '503') return { status: 503, body: { status: 503, code: 'provider-unavailable', detail: 'The card processor did not answer.' } }
       return { status: 201, body: { id: 'p1', status, amount_minor: 2500, currency: 'USD', receipt_number: 7, client_secret: status === 'requires_action' ? 'fake_pi_1_secret_x' : null } }
     },
     ...extra,
@@ -64,6 +65,19 @@ describe('PayLinkPage', { timeout: 20_000 }, () => {
     expect(await screen.findByText('Thank you, your payment went through.')).toBeInTheDocument()
     expect(confirms[0]?.body).toEqual({ token: 'abc123', payment_id: 'p1' })
     expect(confirms[0]?.headers['idempotency-key']).toBeTruthy()
+  })
+
+  it('keeps the key and the card after an unknown outcome; only the answer frees the form (S1)', async () => {
+    const payments = open('fake', ['503', 'succeeded'])
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Card' }), 'tok_card_ok')
+    await userEvent.click(screen.getByRole('button', { name: /^Pay / }))
+    expect(await screen.findByText(/stays as it was/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Card' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Check what happened' })).not.toBeInTheDocument() // no session to ask with
+    await userEvent.click(screen.getByRole('button', { name: /^Try again/ }))
+    expect(await screen.findByText('Thank you, your payment went through.')).toBeInTheDocument()
+    expect(payments[1]?.headers['idempotency-key']).toBe(payments[0]?.headers['idempotency-key'])
+    expect(payments[1]?.body).toEqual(payments[0]?.body)
   })
 
   it('says so when the club cannot take cards online', async () => {

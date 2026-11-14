@@ -5,6 +5,7 @@ import { Button } from '../../components/Button'
 import { ErrorState, LoadingState } from '../../components/States'
 import { AuthLayout } from '../auth/AuthLayout'
 import { formatMoney } from './money'
+import { AttemptFields, AttemptLock, useAttemptKey } from './attempt'
 import { FormError } from './shared'
 import { PaymentAuthentication, PaymentMethodField } from './PaymentMethodField'
 
@@ -16,20 +17,16 @@ export function PayLinkPage() {
     if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname)
   }, [])
   const [method, setMethod] = useState('')
-  const [attempt] = useState(() => ({ key: crypto.randomUUID() }))
+  const attempt = useAttemptKey('pay-link') // no session to ask with: after an unknown outcome, try again only
   const invoice = useQuery({ queryKey: ['pay-link', token], queryFn: () => api.post('/api/v1/public/invoice-links/lookup', { body: { token } }), enabled: Boolean(token), retry: false })
   const pay = useMutation({
     mutationFn: () => api.post('/api/v1/public/invoice-links/payments', { body: { token, method_token: method }, idempotencyKey: attempt.key }),
-    onSuccess: (r) => {
-      if (r.status === 'failed') attempt.key = crypto.randomUUID() // a decline: the next try is a new attempt
-    },
+    onSuccess: () => attempt.settle(null), // an answer (paid, declined, waiting on the bank): the next is a new attempt
+    onError: attempt.settle,
   })
   // Back from the bank's 3-D Secure check: the server re-reads the payment and, once it went through, pays the invoice.
   const confirm = useMutation({
     mutationFn: (paymentId: string) => api.post('/api/v1/public/invoice-links/payments/confirm', { body: { token, payment_id: paymentId }, idempotencyKey: crypto.randomUUID() }),
-    onSuccess: (r) => {
-      if (r.status === 'failed') attempt.key = crypto.randomUUID()
-    },
   })
 
   const body = () => {
@@ -91,9 +88,12 @@ export function PayLinkPage() {
                 The payment was declined or the bank check failed. Try another card.
               </p>
             )}
-            <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod} provider={inv.provider} keys={inv} />
+            <AttemptLock attempt={attempt} />
+            <AttemptFields attempt={attempt}>
+              <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod} provider={inv.provider} keys={inv} />
+            </AttemptFields>
             <Button type="submit" className="w-full" loading={pay.isPending} disabled={!method || !inv.provider}>
-              Pay {m(inv.balance_minor)}
+              {attempt.locked ? 'Try again:' : 'Pay'} {m(inv.balance_minor)}
             </Button>
           </form>
         ) : (

@@ -8,7 +8,7 @@ This check builds CIRQT in the product and drives it the way the owner would. Th
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 25 pass, 0 fail, 5 gaps** (re-run on 2026-11-13 after merging `main`: league set scoring and league nights closed two gaps). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot`, which re-ran the scenarios with the owner's real prices and 24-hour opening; the minors follow-up added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
+**Result: 25 pass, 0 fail, 4 gaps** (re-run on 2026-11-13 after merging `main`: league set scoring and league nights closed two gaps; the court use report on `claude/court-use-report` closed utilisation from opening hours, scenario i, against head 2011). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot`, which re-ran the scenarios with the owner's real prices and 24-hour opening; the minors follow-up added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
 
 ## Owner's numbers and assumptions
 
@@ -48,8 +48,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 | g | Member prices on bookings. | pass (closed on `claude/rentals-pilot`): members pay the member rate per band; quote and charge share one pricing function |
 | h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass (a walk-in guest pays the guest off-peak price, $18) |
 | h | No-show rule for rentals. | **gap** |
-| i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
-| i | Utilisation measured from opening hours. | **gap** |
+| i | Daily and monthly court use and revenue (`court_use`) for a 24-hour site: measured against opening hours less closures, changeover and staff blocks shown apart from play, prime from the price rules, revenue per available and per rented court-hour, sport split, month equal to the sum of its days. | pass |
 | j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. The seed turns self sign-up on. Sign-up asks for a birth date and a declaration that it is true; a self-declared adult books and pays at once and sees "Your entry code will be sent once our staff have confirmed your age. This is a one-time check." with the CIRQT phone. The person cannot change the date. |
 | j | Staff confirm a newcomer's age once (owner decision "Staff confirm once"). | pass. The newcomer is in the age-check queue; the desk confirms with `clients.client.confirm_age`, `clients.client.age_confirmed` fires once and the notice goes. Seeded adults were confirmed by the owner through the same action. Building-control (not built) issues the held entry code on that event. |
 | k | Staff book several courts for several weeks in one go, on one invoice. | pass |
@@ -65,7 +64,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 
 ## What is missing, ranked for CIRQT
 
-1. **Building control: door codes and court lights.** There is no adapter, no booking-bound code, no booking start or end trigger and no remote unlock route. For an unmanned site this is the blocker. Details are below.
+1. **Building control: door codes and court lights.** Built on branch `claude/building-control` against a simulated controller only: a code per booking, minute-tick lights per court, staff and member unlock. The blocker now is hardware: no vendor adapter exists. Details are below.
 2. **Member prices on rentals.** *Closed on `claude/rentals-pilot`: one pricing function for quote and charge, member prices online through `/portal/rental-availability` (rentals README).* Before: rentals priced every payer as a guest; screenshot 05 shows a member billed $54 (guest $24 + $30) for 17:00-19:00, and the portal (screenshot 15) tells a member "members pay less" while quoting the guest $24. The member price and membership-type rules are stored but never used on bookings. Rentals are the main revenue, so this matters more than anything except the door.
 3. **Recurring and bulk booking online, and a contract object for clubs.** Staff can book a recurring weekly slot on a discounted rate, but:
    - a member or club cannot do it themselves;
@@ -77,7 +76,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
    It also has no minor guard on marketing opt-in or on portal invitations.
 5. **No-shows and overstays for rentals.** There is no mark, no fee and no rule.
 6. **Paying independent coaches.** The revenue share and payout statements are built (staff README "Coach revenue share"); the product still moves no money, so CIRQT pays the coach by transfer or cheque and records it.
-7. **Utilisation from opening hours.** The report needs per-court availability windows.
+7. ~~**Utilisation from opening hours.**~~ Closed on `claude/court-use-report`: the `court_use` report measures against opening hours less closures, with changeover and staff blocks shown apart from play.
 8. ~~**League details.**~~ Closed: league nights the scheduler fills, and set-by-set scoring with set and points ratio in the standings. League nights work for scheduling, with three known limits until a follow-up redesign (leagues README, "League nights: known limits"):
    - a game that is rescheduled, postponed or cancelled does not give its slot back to the night, so a public booking can take it; staff re-block the old slot;
    - with a night on a parent court and a game on one half, the sibling half opens for that hour;
@@ -97,10 +96,18 @@ Steps that are API-only or easy to miss:
 
 - **Self sign-up** is off by default for a new location (`PUT /locations/{id}/portal-settings` with `allows_self_signup`); the CIRQT seed turns it on. Without it a newcomer is refused with `signup-disabled`.
 - **The coach's calendar column**, `linked_resource_id` on the staff user. The seed sets it directly.
-- **Utilisation** needs per-court availability windows that copy the opening hours.
 - **The portal shows sessions only 30 days ahead** by default (`visible_range_days`).
 
 ## Building control (door code and court lights)
+
+**Update (branch `claude/building-control`).** Built in the access module behind `app/ports/building_control.py`, with a
+simulated adapter only: a personal code per person on a booking, never shared (a rental's holder, each session
+participant; league players get none; 15 minutes before to 10 after, location settings),
+revoked on cancel and reissued on reschedule, emailed and shown in the portal with the location phone; a device
+verify endpoint and a door check-in; staff remote unlock (`access.door.unlock`) and member "open the door"; lights per
+court computed every minute from holds on the booked time (not the changeover buffer), with overrides and a
+reconciliation line. The CIRQT seed adds a front door and four court zones. Still missing: a real door and relay
+adapter, and SMS. The text below describes the state before that branch.
 
 Nothing in the product drives a door or a light today. The access module reserves a `door` check-in channel, but nothing writes to it. The permissions `access.door.unlock` and `access.device.manage` are registered with no route behind them (CHK-15 and CHK-16 are deferred).
 
@@ -118,7 +125,7 @@ Nothing in the product drives a door or a light today. The access module reserve
 **What a booking-bound one-time code needs:**
 
 - A validity window around the booking, for example 15 minutes before the start until the end. It must be in the location's zone and must account for the changeover buffers.
-- A choice between one code per booking (shared with the group) and one per participant. For rentals the booker is known and, since `claude/rentals-pilot`, any household players named on the booking (`rental_party`).
+- One code per person, never shared (decided; access README): a code goes to one adult (a rental's holder, or each adult enrolled on a session) and checks in only that person. Other players on a rental (`rental_party`, since `claude/rentals-pilot`) get no code; the holder lets them in.
 - Revocation when the booking is cancelled, plus reissue when it is rescheduled.
 - Issuing at or shortly before arrival, through the notification port.
 - An audit record of each issue and use.
@@ -199,7 +206,7 @@ This was not built.
 ## Open questions for the owner
 
 1. Should members pay the member price on rentals and guests pay more, or should everyone pay one price? This decides how urgent gap 2 is.
-2. Who issues door codes, and how early before a booking? One code per booking or per person? Which door or lighting hardware is installed?
+2. Who issues door codes, and how early before a booking? Which door or lighting hardware is installed? (Settled: a code is personal to one adult and never shared, see the access README.)
 3. Do independent coaches sell lessons through CIRQT (you collect and pay them), or do they rent courts and collect from students themselves?
 4. Is a club's weekly slot a fixed-term agreement (for example a season with a renewal), or open-ended?
 5. From what age may a child play without a parent present?

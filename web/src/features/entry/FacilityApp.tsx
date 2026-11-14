@@ -12,7 +12,7 @@ import { brandStyleSheet } from '../../lib/brandTheme'
 import { APP_NAME, formatDateTime, formatMoney } from '../../lib/format'
 import { MfaStep } from '../auth/mfa'
 import { PaymentMethodField } from '../billing/PaymentMethodField'
-import { useAttemptKey } from '../portal/shared'
+import { AttemptFields, AttemptLock, useAttemptKey } from '../billing/attempt'
 import { TenantLogo, useBranding } from '../platform/branding'
 
 type Config = Schemas['PublicPortalConfig']
@@ -274,7 +274,7 @@ function GuestCheckoutPage({ config }: { config: Config }) {
   const [checkout, setCheckout] = useState<Schemas['GuestCheckoutOut'] | null>(null)
   const [declared, setDeclared] = useState(false)
   const [method, setMethod] = useState('')
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`guest-checkout:${groupId}`) // a guest has no session to ask with: try again only
   const start = useMutation({
     mutationFn: (g: Group) => {
       const forKid = Boolean(form.kid_first.trim())
@@ -299,6 +299,7 @@ function GuestCheckoutPage({ config }: { config: Config }) {
         idempotencyKey: attempt.key,
       }),
     onSuccess: (done) => {
+      attempt.settle(null)
       const location = config.locations.find((l) => l.location_id === done.location_id)
       redirectAfter(location?.group_redirect_urls[groupId] ?? location?.redirect_url)
       setCheckout({ ...done, guest_token: checkout?.guest_token })
@@ -326,12 +327,15 @@ function GuestCheckoutPage({ config }: { config: Config }) {
         <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); pay.mutate() }}>
           <p>Total to pay now: <strong>{formatMoney(checkout.total_minor, config.currency)}</strong>. Your place is held until {formatDateTime(checkout.expires_at, zone)}.</p>
           {pay.error instanceof Error && <p role="alert" className="text-danger">{pay.error.message}</p>}
-          <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod}
-            provider={checkout.provider === 'fake' || checkout.provider === 'stripe' ? checkout.provider : null}
-            keys={{ publishable_key: checkout.publishable_key, account_ref: checkout.account_ref }} />
-          {gate.box}
+          <AttemptLock attempt={attempt} />
+          <AttemptFields attempt={attempt}>
+            <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod}
+              provider={checkout.provider === 'fake' || checkout.provider === 'stripe' ? checkout.provider : null}
+              keys={{ publishable_key: checkout.publishable_key, account_ref: checkout.account_ref }} />
+            {gate.box}
+          </AttemptFields>
           <Button type="submit" className="w-full" loading={pay.isPending} disabled={!method || !gate.ready}>
-            Pay and register
+            {attempt.locked ? 'Try again' : 'Pay and register'}
           </Button>
         </form>
       ) : (

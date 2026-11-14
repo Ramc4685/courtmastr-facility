@@ -213,6 +213,19 @@ booking_start = _view(
 )
 class_session = _view("rpt_class_session", """session_id location_id booking_id reservation_type_id
     reservation_type_name trainer_resource_id trainer_name session_on start_time capacity booked_count""")  # fmt: skip
+# court use (migration 2011); the builder queries these in SQL text (multiranges), the columns are still the contract
+court = _view(
+    "rpt_court", "court_id location_id court_name court_group_id court_group_name sort_order time_zone archived_at"
+)
+facility_hours = _view("rpt_facility_hours", "location_id weekday opens_time closes_time is_closed")
+closure = _view("rpt_closure", "blackout_id location_id during")
+court_hold = _view("rpt_court_hold", """resource_hold_id location_id court_id booking_id use_kind rental_type_id
+    rental_type_name during played""")  # fmt: skip
+court_rental_type = _view("rpt_court_rental_type", "location_id court_id rental_type_id rental_type_name")
+rate_band = _view("rpt_rate_band", """location_id rental_rate_rule_id rental_rate_id rental_type_id kind
+    membership_type_id sort_order amount_minor is_peak is_live start_time end_time weekdays starts_on ends_on""")  # fmt: skip
+court_revenue = _view("rpt_court_revenue", """location_id court_id booking_id rental_type_id rental_rate_id
+    rate_basis rate_minor played charge_id rental_booking_charge_item_id net_minor item_weight""")  # fmt: skip
 
 # coach revenue share (migration 2031): earning lines with the payout that gathered them
 coach_earning = _view("rpt_coach_earning", """coach_earning_id location_id staff_payee_id coach_name coach_resource_id
@@ -228,4 +241,5 @@ ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_
        campaign_message, return_line, product_stock, equipment_item, equipment_loan, rental_plan_sale,
        time_entry_pay, pay_statement, pay_line, trainer_package_sale, assessment_value, game_official,  # chip D
        league_roster, device, resource_hold, availability, booking_start, class_session,
+       court, facility_hours, closure, court_hold, court_rental_type, rate_band, court_revenue,
        coach_earning)  # fmt: skip

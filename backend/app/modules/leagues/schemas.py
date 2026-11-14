@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, Field
 
-from app.core.schemas import In, Out, Page
+from app.core.schemas import In, Int4, Out, Page
 
 __all__ = ["Page"]
 
@@ -22,6 +22,8 @@ Metric = Literal[
 ]  # SW, SL: sets won and lost; SR: set ratio; PR: points ratio over played sets (sets competitions)
 SetPoints = Annotated[int, Field(ge=1, le=99)]
 Email = Annotated[str, Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+# int4 columns: a larger number overflowed Postgres (a 500)
+Fee = Annotated[int, Field(ge=0, le=2_147_483_647)]
 
 
 class StandingsColumn(In):
@@ -80,7 +82,7 @@ class _ScoringOut(Out):
 class SportCreate(_ScoringIn):
     name: Name
     default_game_length_min: Annotated[int, Field(gt=0, le=600)] = 60
-    default_team_fee_minor: Annotated[int, Field(ge=0)] | None = None
+    default_team_fee_minor: Fee | None = None
     fees_text: Text | None = None
     rules_text: Text | None = None
     is_active: bool = True
@@ -89,7 +91,7 @@ class SportCreate(_ScoringIn):
 class SportUpdate(_ScoringIn):
     name: Name | None = None
     default_game_length_min: Annotated[int, Field(gt=0, le=600)] | None = None
-    default_team_fee_minor: Annotated[int, Field(ge=0)] | None = None
+    default_team_fee_minor: Fee | None = None
     fees_text: Text | None = None
     rules_text: Text | None = None
     is_active: bool | None = None
@@ -109,7 +111,7 @@ class AgeGroupWrite(In):
     name: Name | None = None
     min_age: Annotated[int, Field(ge=0, le=120)] | None = None
     max_age: Annotated[int, Field(ge=0, le=120)] | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
     is_active: bool | None = None
 
 
@@ -216,7 +218,7 @@ class CompetitionOut(_ScoringOut):
 class DivisionWrite(In):
     name: Name | None = None
     kind: Literal["division", "pool"] | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
 
 
 class DivisionOut(Out):

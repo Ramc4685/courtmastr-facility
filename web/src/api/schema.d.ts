@@ -1221,10 +1221,51 @@ export interface paths {
         put?: never;
         /**
          * Create Billing Bulk Action
-         * @description Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports
-         *     per client; `is_dry_run` previews.
+         * @description Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,
+         *     email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
+         *     location. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The
+         *     Idempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409
+         *     `bulk-preview-stale`) if any subject or amount changed since; an unknown `preview_id` is 404. At most 1000
+         *     subjects; each item's `error_code` says why it was skipped or failed.
          */
         post: operations["createBillingBulkAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Billing Bulk Action */
+        get: operations["getBillingBulkAction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Billing Bulk Action Items
+         * @description Filter: status.
+         */
+        get: operations["listBillingBulkActionItems"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1729,6 +1770,47 @@ export interface paths {
         post?: never;
         /** Delete Tenant Logo */
         delete: operations["deleteTenantLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/building-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Building Events
+         * @description Entries, denied attempts, unlocks, light switches, overrides, codes and failed commands. Filters:
+         *     location_id, local_on, kind, door_device_id, lighting_zone_id.
+         */
+        get: operations["listBuildingEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/building-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Building Status
+         * @description Per zone: should it be on now, what was last commanded, and whether the two agree. Per door: its state.
+         */
+        get: operations["getBuildingStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3223,7 +3305,9 @@ export interface paths {
         put?: never;
         /**
          * Refund Account Credit
-         * @description One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.
+         * @description One refund per payment, newest first, each to its original method; the body states what was refunded and
+         *     each leg's status. Errors: refund-exceeds-unapplied, refund-plan-incomplete (a replay of a plan that did not
+         *     complete).
          */
         post: operations["refundAccountCredit"];
         delete?: never;
@@ -5090,6 +5174,111 @@ export interface paths {
         get: operations["listDocumentTemplateVersions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Door Devices */
+        get: operations["listDoorDevices"];
+        put?: never;
+        /**
+         * Create Door Device
+         * @description Register a door controller; its bearer credential is shown once.
+         */
+        post: operations["createDoorDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door-devices/{door_device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Door Device
+         * @description Rename, re-address or retire a door (retiring drops its credential).
+         */
+        patch: operations["updateDoorDevice"];
+        trace?: never;
+    };
+    "/api/v1/door-devices/{door_device_id}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Door Device Credential
+         * @description A new bearer credential for the controller; the old one stops working at once.
+         */
+        post: operations["rotateDoorDeviceCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door-devices/{door_device_id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlock Door Device
+         * @description Open the door now for someone standing at it (the help line when a code fails). Reason required.
+         */
+        post: operations["unlockDoorDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Door Code
+         * @description A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the
+         *     credential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied
+         *     unevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held
+         *     (`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the
+         *     request transaction, one activity row and one audit row.
+         */
+        post: operations["verifyDoorCode"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7273,6 +7462,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/lighting-zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Lighting Zones */
+        get: operations["listLightingZones"];
+        put?: never;
+        /**
+         * Create Lighting Zone
+         * @description A light circuit and the courts whose bookings switch it.
+         */
+        post: operations["createLightingZone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lighting-zones/{lighting_zone_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Lighting Zone */
+        patch: operations["updateLightingZone"];
+        trace?: never;
+    };
+    "/api/v1/lighting-zones/{lighting_zone_id}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Override Lighting Zone
+         * @description Hold a zone on or off until a time (cleaning, an event); `is_on: null` hands it back to the bookings.
+         */
+        put: operations["overrideLightingZone"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/location-contacts": {
         parameters: {
             query?: never;
@@ -9090,6 +9337,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payment-attempts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Attempt
+         * @description What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the
+         *     caller made none (indistinguishable from a key nobody used). A form stays as it was until `settled`. Rate
+         *     limited per caller (`payment-attempt`): keys are not guessable, and guessing is throttled too.
+         */
+        get: operations["getPaymentAttempt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment-methods": {
         parameters: {
             query?: never;
@@ -9667,6 +9936,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/bookings/{booking_id}/door-unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlock Portal Booking Door
+         * @description Open the location's entrance doors from the portal, inside the booking's code window only.
+         */
+        post: operations["unlockPortalBookingDoor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/calendar-feeds": {
         parameters: {
             query?: never;
@@ -10128,6 +10417,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/entry-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Entry Codes
+         * @description Live door codes of the caller's (and dependants') bookings: the portal and the app show them.
+         */
+        get: operations["listPortalEntryCodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/favorites": {
         parameters: {
             query?: never;
@@ -10569,6 +10878,28 @@ export interface paths {
         put?: never;
         /** Portal Opt Out Series Auto Renew */
         post: operations["portalOptOutSeriesAutoRenew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payment-attempts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Payment Attempt
+         * @description What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including
+         *     a household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited
+         *     per identity (`payment-attempt`).
+         */
+        get: operations["getPortalPaymentAttempt"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -16988,6 +17319,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/unmatched-provider-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Unmatched Provider Events
+         * @description Processor charges and refunds with no row here, after the retry sweep gave up; `include=total` counts them.
+         */
+        get: operations["listUnmatchedProviderEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos": {
         parameters: {
             query?: never;
@@ -17452,13 +17803,28 @@ export interface components {
         };
         /** AccessSettingsOut */
         AccessSettingsOut: {
+            /** Door Alert Bad Codes Per Hour */
+            door_alert_bad_codes_per_hour: number;
+            /** Entry Code Early Min */
+            entry_code_early_min: number;
+            /** Entry Code Grace Min */
+            entry_code_grace_min: number;
             /** Hidden Detail Fields */
             hidden_detail_fields: ("balance_due" | "membership_dates" | "visit_counts" | "staff_notes")[];
+            /** Light Lead In Min */
+            light_lead_in_min: number;
+            /** Light Run On Min */
+            light_run_on_min: number;
             /**
              * Location Id
              * Format: uuid
              */
             location_id: string;
+            /**
+             * Requires Paid Entry
+             * @description Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).
+             */
+            requires_paid_entry: boolean;
             /** Staff Early Minutes */
             staff_early_minutes: number;
             /** Staff Late Minutes */
@@ -17466,8 +17832,23 @@ export interface components {
         };
         /** AccessSettingsWrite */
         AccessSettingsWrite: {
+            /** Door Alert Bad Codes Per Hour */
+            door_alert_bad_codes_per_hour?: number | null;
+            /** Entry Code Early Min */
+            entry_code_early_min?: number | null;
+            /** Entry Code Grace Min */
+            entry_code_grace_min?: number | null;
             /** Hidden Detail Fields */
             hidden_detail_fields?: ("balance_due" | "membership_dates" | "visit_counts" | "staff_notes")[] | null;
+            /** Light Lead In Min */
+            light_lead_in_min?: number | null;
+            /** Light Run On Min */
+            light_run_on_min?: number | null;
+            /**
+             * Requires Paid Entry
+             * @description Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).
+             */
+            requires_paid_entry?: boolean | null;
             /** Staff Early Minutes */
             staff_early_minutes?: number | null;
             /** Staff Late Minutes */
@@ -18622,6 +19003,19 @@ export interface components {
              * @enum {string}
              */
             role: "referee" | "assistant" | "scorekeeper" | "other";
+        };
+        /**
+         * AttemptOut
+         * @description What became of the payments and refunds made under one Idempotency-Key. `settled` false: the processor's
+         *     answer is not known yet (a row `initiated` or `unknown`); keep the form as it was and try again or ask later.
+         */
+        AttemptOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Settled */
+            settled: boolean;
+            /** Statuses */
+            statuses: string[];
         };
         /** AttendancePut */
         AttendancePut: {
@@ -19958,65 +20352,190 @@ export interface components {
             /** Tenant Logo Url */
             tenant_logo_url: string | null;
         };
-        /** BulkInvoiceItem */
-        BulkInvoiceItem: {
-            /** Charge Ids */
-            charge_ids: string[];
-            /** Client Id */
-            client_id: string | null;
-            /** Error Code */
-            error_code: string | null;
-            /** Invoice Id */
-            invoice_id: string | null;
-            /** Location Id */
-            location_id: string | null;
+        /** BuildingEventOut */
+        BuildingEventOut: {
+            /** Check In Id */
+            check_in_id: string | null;
             /**
-             * Status
-             * @enum {string}
+             * Created At
+             * Format: date-time
              */
-            status: "pending" | "done" | "failed" | "skipped";
-            /** Total Minor */
-            total_minor: number;
+            created_at: string;
+            /** Detail */
+            detail: string | null;
+            /** Door Device Id */
+            door_device_id: string | null;
+            /** Entry Code Id */
+            entry_code_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Lighting Zone Id */
+            lighting_zone_id: string | null;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Staff User Id */
+            staff_user_id: string | null;
+        };
+        /** BuildingStatusOut */
+        BuildingStatusOut: {
+            /** Adapter */
+            adapter: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Doors */
+            doors: components["schemas"]["DoorStatus"][];
+            /** Held Codes */
+            held_codes: components["schemas"]["HeldCodeOut"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Zones */
+            zones: components["schemas"]["LightingZoneStatus"][];
         };
         /**
-         * BulkInvoiceRequest
-         * @description `action` is fixed to creating invoices: one per client. Give charge_ids, or a location.
+         * BulkActionCreate
+         * @description `charge_ids` for create_invoices (or `location_id` alone, optionally `only_mine`) and reverse_charges;
+         *     `invoice_ids` for email_invoices and render_invoices; `client_ids` for add_catalog_item. `params`: `reason`
+         *     and `revenue_on` for a reversal, `catalog_item_id` to add an item, `due_on` and `is_autopay` for invoicing.
          */
-        BulkInvoiceRequest: {
+        BulkActionCreate: {
             /**
              * Action
-             * @default create_invoices
-             * @constant
+             * @enum {string}
              */
-            action: "create_invoices";
-            /** Charge Ids */
-            charge_ids?: string[] | null;
-            /** Due On */
-            due_on?: string | null;
+            action: "create_invoices" | "reverse_charges" | "email_invoices" | "render_invoices" | "add_catalog_item";
             /**
-             * Is Autopay
-             * @default false
+             * Charge Ids
+             * @default []
              */
-            is_autopay: boolean;
+            charge_ids: string[];
+            /**
+             * Client Ids
+             * @default []
+             */
+            client_ids: string[];
+            /**
+             * Invoice Ids
+             * @default []
+             */
+            invoice_ids: string[];
             /**
              * Is Dry Run
              * @default false
              */
             is_dry_run: boolean;
-            /** Location Id */
-            location_id?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
             /**
              * Only Mine
              * @default false
              */
             only_mine: boolean;
+            /**
+             * Params
+             * @default {}
+             */
+            params: {
+                [key: string]: string | boolean | null;
+            };
+            /** Preview Id */
+            preview_id?: string | null;
         };
-        /** BulkInvoiceResult */
-        BulkInvoiceResult: {
+        /** BulkActionItemOut */
+        BulkActionItemOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Group Client Id */
+            group_client_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Result Id */
+            result_id: string | null;
+            /** Result Type */
+            result_type: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "done" | "failed" | "skipped";
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "charge" | "invoice" | "client";
+        };
+        /** BulkActionOut */
+        BulkActionOut: {
+            /** Action */
+            action: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Done Count */
+            done_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Is Dry Run */
             is_dry_run: boolean;
-            /** Items */
-            items: components["schemas"]["BulkInvoiceItem"][];
+            /** Item Count */
+            item_count: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Requested By Staff User Id */
+            requested_by_staff_user_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "completed_with_errors";
         };
         /** CalendarEntry */
         CalendarEntry: {
@@ -20977,6 +21496,8 @@ export interface components {
              * @default 0
              */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /**
              * Exclude Tax Ids
              * @default []
@@ -21070,6 +21591,8 @@ export interface components {
             description: string;
             /** Discount Minor */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: string | null;
             /**
              * Id
              * Format: uuid
@@ -21162,6 +21685,8 @@ export interface components {
             description: string;
             /** Discount Minor */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: string | null;
             /**
              * Id
              * Format: uuid
@@ -21242,6 +21767,8 @@ export interface components {
              * @default 0
              */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /**
              * Exclude Tax Ids
              * @default []
@@ -21297,6 +21824,8 @@ export interface components {
             description?: string | null;
             /** Discount Minor */
             discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /** Exclude Tax Ids */
             exclude_tax_ids?: string[] | null;
             /** Internal Remarks */
@@ -21305,6 +21834,10 @@ export interface components {
             quantity?: number | string | null;
             /** Reason */
             reason?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Revenue On */
+            revenue_on?: string | null;
             /** Service Ends On */
             service_ends_on?: string | null;
             /** Service Starts On */
@@ -24528,6 +25061,164 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** DoorDeviceCreate */
+        DoorDeviceCreate: {
+            /** Device Ref */
+            device_ref: string;
+            /**
+             * Is Entrance
+             * @default false
+             */
+            is_entrance: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Unlock Seconds
+             * @default 5
+             */
+            unlock_seconds: number;
+        };
+        /** DoorDeviceIssued */
+        DoorDeviceIssued: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Credential */
+            credential: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
+        /** DoorDeviceOut */
+        DoorDeviceOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
+        /** DoorDeviceUpdate */
+        DoorDeviceUpdate: {
+            /** Device Ref */
+            device_ref?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Entrance */
+            is_entrance?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Unlock Seconds */
+            unlock_seconds?: number | null;
+        };
+        /** DoorStatus */
+        DoorStatus: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Sync State
+             * @enum {string}
+             */
+            sync_state: "in_sync" | "codes_pending" | "adapter_not_configured";
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
+        /** DoorUnlockRequest */
+        DoorUnlockRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /** DoorVerifyRequest */
+        DoorVerifyRequest: {
+            /** Code */
+            code: string;
+        };
+        /** DoorVerifyResult */
+        DoorVerifyResult: {
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "allow" | "deny";
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
         /** DrawerClose */
         DrawerClose: {
             /** Counted Cash Minor */
@@ -26726,6 +27417,32 @@ export interface components {
              */
             status: "ok" | "degraded" | "unavailable";
         };
+        /**
+         * HeldCodeOut
+         * @description A code held back for one person and booking until staff act (an age check).
+         */
+        HeldCodeOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Held At
+             * Format: date-time
+             */
+            held_at: string;
+            /**
+             * Reason
+             * @constant
+             */
+            reason: "age-not-confirmed";
+        };
         /** HistoryOut */
         HistoryOut: {
             /** Action */
@@ -28318,6 +29035,128 @@ export interface components {
              * Format: uuid
              */
             reservation_type_id: string;
+        };
+        /** LightingZoneCreate */
+        LightingZoneCreate: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Zone Ref */
+            zone_ref: string;
+        };
+        /** LightingZoneOut */
+        LightingZoneOut: {
+            /** Commanded At */
+            commanded_at: string | null;
+            /** Commanded Is On */
+            commanded_is_on: boolean | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Failure Count */
+            failure_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Override Is On */
+            override_is_on: boolean | null;
+            /** Override Until At */
+            override_until_at: string | null;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Zone Ref */
+            zone_ref: string;
+        };
+        /** LightingZoneOverride */
+        LightingZoneOverride: {
+            /**
+             * Confirm In Progress
+             * @default false
+             */
+            confirm_in_progress: boolean;
+            /** Is On */
+            is_on: boolean | null;
+            /** Reason */
+            reason?: string | null;
+            /** Until At */
+            until_at?: string | null;
+        };
+        /** LightingZoneStatus */
+        LightingZoneStatus: {
+            /** Commanded At */
+            commanded_at: string | null;
+            /** Commanded Is On */
+            commanded_is_on: boolean | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Failure Count */
+            failure_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is In Sync */
+            is_in_sync: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Override Is On */
+            override_is_on: boolean | null;
+            /** Override Until At */
+            override_until_at: string | null;
+            /** Reason */
+            reason: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Should Be On */
+            should_be_on: boolean;
+            /**
+             * Sync State
+             * @enum {string}
+             */
+            sync_state: "in_sync" | "out_of_sync" | "adapter_not_configured";
+            /** Zone Ref */
+            zone_ref: string;
+        };
+        /** LightingZoneUpdate */
+        LightingZoneUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Resource Ids */
+            resource_ids?: string[] | null;
+            /** Zone Ref */
+            zone_ref?: string | null;
         };
         /**
          * LimitUsage
@@ -31209,6 +32048,18 @@ export interface components {
             data: components["schemas"]["BrandOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[BuildingEventOut] */
+        Page_BuildingEventOut_: {
+            /** Data */
+            data: components["schemas"]["BuildingEventOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[BulkActionItemOut] */
+        Page_BulkActionItemOut_: {
+            /** Data */
+            data: components["schemas"]["BulkActionItemOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[CalendarFeedOut] */
         Page_CalendarFeedOut_: {
             /** Data */
@@ -31365,6 +32216,12 @@ export interface components {
             data: components["schemas"]["DocumentTemplateVersionOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[DoorDeviceOut] */
+        Page_DoorDeviceOut_: {
+            /** Data */
+            data: components["schemas"]["DoorDeviceOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[DrawerSessionOut] */
         Page_DrawerSessionOut_: {
             /** Data */
@@ -31513,6 +32370,12 @@ export interface components {
         Page_LedgerEntryOut_: {
             /** Data */
             data: components["schemas"]["LedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LightingZoneOut] */
+        Page_LightingZoneOut_: {
+            /** Data */
+            data: components["schemas"]["LightingZoneOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[LocationContactOut] */
@@ -31705,6 +32568,12 @@ export interface components {
         Page_PortalEnrollmentOut_: {
             /** Data */
             data: components["schemas"]["PortalEnrollmentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalEntryCodeOut] */
+        Page_PortalEntryCodeOut_: {
+            /** Data */
+            data: components["schemas"]["PortalEntryCodeOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalInboxItem] */
@@ -32053,6 +32922,12 @@ export interface components {
         Page_TypeOut_: {
             /** Data */
             data: components["schemas"]["TypeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[UnmatchedProviderEventOut] */
+        Page_UnmatchedProviderEventOut_: {
+            /** Data */
+            data: components["schemas"]["UnmatchedProviderEventOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[VenueOut] */
@@ -33140,6 +34015,18 @@ export interface components {
             /** Value */
             value: string;
         };
+        /**
+         * PortalAttemptOut
+         * @description The portal's own copy of AttemptOut (portal routes never reuse staff schemas): state and amount only.
+         */
+        PortalAttemptOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Settled */
+            settled: boolean;
+            /** Statuses */
+            statuses: string[];
+        };
         /** PortalCalendarFeedCreate */
         PortalCalendarFeedCreate: {
             /** Name */
@@ -33782,6 +34669,19 @@ export interface components {
             /** Signer Role */
             signer_role: string;
         };
+        /** PortalDoorUnlockResult */
+        PortalDoorUnlockResult: {
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Result
+             * @constant
+             */
+            result: "allow";
+        };
         /** PortalEnrollmentCreate */
         PortalEnrollmentCreate: {
             /**
@@ -33848,6 +34748,39 @@ export interface components {
             status: string;
             /** Target Kind */
             target_kind: string;
+        };
+        /** PortalEntryCodeOut */
+        PortalEntryCodeOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Code */
+            code: string | null;
+            /** Held Reason */
+            held_reason: "age-not-confirmed" | null;
+            /** Is Open Now */
+            is_open_now: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Location Phone */
+            location_phone: string | null;
+            /** Message */
+            message: string | null;
+            /**
+             * Valid From At
+             * Format: date-time
+             */
+            valid_from_at: string;
+            /**
+             * Valid Until At
+             * Format: date-time
+             */
+            valid_until_at: string;
         };
         /** PortalFavorite */
         PortalFavorite: {
@@ -34726,7 +35659,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "succeeded" | "failed" | "cancelled";
+            status: "initiated" | "pending" | "succeeded" | "failed" | "cancelled";
         };
         /** PortalRelationshipList */
         PortalRelationshipList: {
@@ -38518,6 +39451,12 @@ export interface components {
             /** Ends On */
             ends_on?: string | null;
             /**
+             * Is Peak
+             * @description The band is peak time (court-use report), whatever its price
+             * @default false
+             */
+            is_peak: boolean;
+            /**
              * Kind
              * @enum {string}
              */
@@ -38555,6 +39494,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Is Peak */
+            is_peak: boolean;
             /** Kind */
             kind: string;
             /** Membership Type Id */
@@ -38685,6 +39626,24 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /**
+         * RefundBatchOut
+         * @description An account-credit refund: what was asked, what the processor has refunded (`succeeded` legs), and each leg
+         *     with its status, so a declined or pending leg is never read as success.
+         */
+        RefundBatchOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Refund Batch Id
+             * Format: uuid
+             */
+            refund_batch_id: string;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["RefundOut"][];
+        };
         /** RefundCreate */
         RefundCreate: {
             /** Amount Minor */
@@ -38695,6 +39654,8 @@ export interface components {
             method?: ("original" | "external") | null;
             /** Reason */
             reason: string;
+            /** Release Allocation Ids */
+            release_allocation_ids?: string[];
         };
         /** RefundOut */
         RefundOut: {
@@ -38737,7 +39698,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "succeeded" | "failed" | "cancelled";
+            status: "initiated" | "pending" | "succeeded" | "failed" | "cancelled";
         };
         /** RegisterCreate */
         RegisterCreate: {
@@ -44249,6 +45210,28 @@ export interface components {
             /** Uses Default Buffer */
             uses_default_buffer?: boolean | null;
         };
+        /**
+         * UnmatchedProviderEventOut
+         * @description A processor charge or refund with no payment or refund here (S5). No amount: the stored event has none.
+         */
+        UnmatchedProviderEventOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string | null;
+            /** Provider */
+            provider: string;
+            /** Provider Ref */
+            provider_ref: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+        };
         /** UnsubscribeOut */
         UnsubscribeOut: {
             /** Changed */
@@ -47782,18 +48765,52 @@ export interface operations {
     createBillingBulkAction: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
             };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BulkInvoiceRequest"];
+                "application/json": components["schemas"]["BulkActionCreate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBillingBulkAction: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                billing_bulk_action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -47801,7 +48818,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BulkInvoiceResult"];
+                    "application/json": components["schemas"]["BulkActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBillingBulkActionItems: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                billing_bulk_action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_BulkActionItemOut_"];
                 };
             };
             /** @description Validation Error */
@@ -49129,6 +50191,83 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+        };
+    };
+    listBuildingEvents: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_BuildingEventOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBuildingStatus: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildingStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -52954,7 +54093,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RefundOut"][];
+                    "application/json": components["schemas"]["RefundBatchOut"];
                 };
             };
             /** @description Validation Error */
@@ -57870,6 +59009,219 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_DocumentTemplateVersionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDoorDevices: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DoorDeviceOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createDoorDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorDeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorDeviceIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDoorDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                door_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorDeviceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotateDoorDeviceCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                door_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorDeviceIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlockDoorDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                door_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorUnlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildingEventOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verifyDoorCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorVerifyResult"];
                 };
             };
             /** @description Validation Error */
@@ -63471,6 +64823,152 @@ export interface operations {
             };
         };
     };
+    listLightingZones: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LightingZoneOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLightingZone: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightingZoneCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightingZoneOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLightingZone: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                lighting_zone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightingZoneUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightingZoneOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overrideLightingZone: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                lighting_zone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightingZoneOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightingZoneOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listLocationContacts: {
         parameters: {
             query?: {
@@ -68264,6 +69762,40 @@ export interface operations {
             };
         };
     };
+    getPaymentAttempt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPaymentMethods: {
         parameters: {
             query?: {
@@ -69503,6 +71035,40 @@ export interface operations {
             };
         };
     };
+    unlockPortalBookingDoor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalDoorUnlockResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalCalendarFeeds: {
         parameters: {
             query?: never;
@@ -70587,6 +72153,38 @@ export interface operations {
             };
         };
     };
+    listPortalEntryCodes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalEntryCodeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalFavorites: {
         parameters: {
             query: {
@@ -71531,6 +73129,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalPackageSeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalPaymentAttempt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAttemptOut"];
                 };
             };
             /** @description Validation Error */
@@ -87658,6 +89290,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimeEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listUnmatchedProviderEvents: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_UnmatchedProviderEventOut_"];
                 };
             };
             /** @description Validation Error */

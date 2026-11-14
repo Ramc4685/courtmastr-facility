@@ -15,10 +15,11 @@ import { useAuth, useCurrentLocation } from '../../lib/auth'
 import { addDays, formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
+import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from './attempt'
 import { ClientItemSales, SellItemDialog } from './CatalogPage'
 import { CollectionsTab } from './CollectionsPage'
 import { useLocationToday } from '../../lib/locationDate'
-import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney } from './money'
+import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
@@ -151,9 +152,16 @@ function ItemsTab({ clientId, homeLocationId }: { clientId: string; homeLocation
   )
 }
 
-export function InvoicesTable({ query, caption = 'Invoices', showClient = false }: { query: Record<string, string | undefined>; caption?: string; showClient?: boolean }) {
+type InvoicesTableProps = { query: Record<string, string | undefined>; caption?: string; showClient?: boolean; chosen?: string[]; onChoose?: (ids: string[]) => void }
+
+export function InvoicesTable({ query, caption = 'Invoices', showClient = false, chosen, onChoose }: InvoicesTableProps) {
   const paging = useKeysetQuery(['billing', 'invoices', query], (cursor) => api.get('/api/v1/invoices', { query: { cursor, ...query } }))
+  const select: Column<Schemas['InvoiceOut']>[] =
+    chosen && onChoose
+      ? [{ header: 'Select', cell: (i) => (i.status === 'voided' ? null : <input type="checkbox" className="h-4 w-4" aria-label={`Select invoice #${i.number}`} checked={chosen.includes(i.id)} onChange={(e) => onChoose(e.target.checked ? [...chosen, i.id] : chosen.filter((x) => x !== i.id))} />) }]
+      : []
   const columns: Column<Schemas['InvoiceOut']>[] = [
+    ...select,
     { header: 'Number', cell: (i) => <Link className="font-medium text-primary underline-offset-2 hover:underline" to={`/billing/invoices/${i.id}`}>#{i.number}</Link> },
     ...(showClient ? [{ header: 'Bill to', cell: (i: Schemas['InvoiceOut']) => <ClientName id={i.bill_to_client_id} /> }] : []),
     { header: 'Date', cell: (i) => i.invoice_on },
@@ -370,25 +378,32 @@ function CreditTab({ clientId }: { clientId: string }) {
   )
 }
 
-function RefundCreditDialog({ clientId, max, onClose }: { clientId: string; max: number; onClose: () => void }) {
+export function RefundCreditDialog({ clientId, max, onClose }: { clientId: string; max: number; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const currency = useCurrency()
-  const [amount, setAmount] = useState('')
-  const [reason, setReason] = useState('')
+  // a retry replays the plan, never pays twice; a reopened locked dialog sends the values its key was used for
+  const attempt = useAttemptKey<{ amount: string; reason: string }>(`credit-refund:${clientId}`, checkStaffAttempt)
+  const [amount, setAmount] = useState(attempt.saved?.amount ?? '')
+  const [reason, setReason] = useState(attempt.saved?.reason ?? '')
   const m = useMutation({
-    mutationFn: () => api.post('/api/v1/clients/{client_id}/account-credit/refund', { path: { client_id: clientId }, body: { amount_minor: parseMoney(amount) ?? 0, reason: reason.trim() } }),
-    onSuccess: () => {
+    mutationFn: () => api.post('/api/v1/clients/{client_id}/account-credit/refund', { path: { client_id: clientId }, body: { amount_minor: parseMoney(amount) ?? 0, reason: reason.trim() }, idempotencyKey: attempt.key }),
+    onSettled: (_data, error) => attempt.settle(error, { amount, reason }),
+    onSuccess: (batch) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
-      toast('success', 'Credit refunded.')
+      const outcome = refundOutcome(batch.refunds, currency)
+      toast(outcome.tone, outcome.message)
       onClose()
     },
   })
   const errors = fieldErrors(m.error)
   return (
-    <FormDialog title="Refund account credit" description={`Up to ${formatMoney(max, currency)}; refunded from the payments holding it, newest first.`} submitLabel="Refund" danger busy={m.isPending} error={m.error} onClose={onClose} onSubmit={() => m.mutate()}>
-      <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => setAmount(e.target.value)} />
-      <TextArea label="Reason" required value={reason} error={errors.reason} onChange={setReason} />
+    <FormDialog title="Refund account credit" description={`Up to ${formatMoney(max, currency)}; refunded from the payments holding it, newest first.`} submitLabel={attempt.locked ? 'Try again' : 'Refund'} danger busy={m.isPending} error={m.error} onClose={onClose} onSubmit={() => m.mutate()}>
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
+        <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => { setAmount(e.target.value); attempt.restart() }} />
+        <TextArea label="Reason" required value={reason} error={errors.reason} onChange={(v) => { setReason(v); attempt.restart() }} />
+      </AttemptFields>
     </FormDialog>
   )
 }

@@ -5,7 +5,7 @@ from datetime import date
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Path, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,9 +15,10 @@ from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import NotFound
 from app.core.idempotency import KEY_PATTERN, idempotency, secret_response
 from app.core.pagination import ListQuery, list_query, paginate
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import hit, rate_limit
 from app.modules.billing import (
     autopay,
+    bulk,
     catalog,
     catalogue,
     checkout,
@@ -108,6 +109,18 @@ def take_payment(
     for a bank debit, `failed` for a decline, `unknown` when the processor did not answer). Errors:
     allocation-exceeds-balance, allocation-exceeds-payment, processor-not-connected."""
     return service.take_payment_at_desk(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@router.get("/payment-attempts/{key}", response_model=s.AttemptOut)
+def get_payment_attempt(
+    key: Annotated[str, Path(pattern=KEY_PATTERN)], response: Response,
+    ctx: Ctx = Depends(require("billing.payment.read")),
+):  # fmt: skip
+    """What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the
+    caller made none (indistinguishable from a key nobody used). A form stays as it was until `settled`. Rate
+    limited per caller (`payment-attempt`): keys are not guessable, and guessing is throttled too."""
+    hit("payment-attempt", str(ctx.principal.actor_id), response, tenant=ctx.session.info["tenant_id"])
+    return service.get_attempt(ctx.session, ctx.principal, key)
 
 
 @router.get("/payments/{payment_id}", response_model=s.PaymentDetail)
@@ -508,17 +521,44 @@ def get_invoice_pdf(invoice_id: UUID, ctx: Ctx = Depends(require("billing.invoic
     return _pdf(documents.get_invoice_pdf(ctx.session, ctx.principal, invoice_id))
 
 
-@router.post("/billing-bulk-actions", response_model=s.BulkInvoiceResult)
-def create_billing_bulk_action(body: s.BulkInvoiceRequest, ctx: Ctx = Depends(require("billing.invoice.bulk_create"))):
-    """Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports
-    per client; `is_dry_run` previews."""
-    return documents.bulk_invoice(ctx.session, ctx.principal, body.model_dump())
+@router.post("/billing-bulk-actions", response_model=s.BulkActionOut, status_code=202)
+def create_billing_bulk_action(
+    body: s.BulkActionCreate,
+    idempotency_key: RequiredKey,
+    ctx: Ctx = Depends(require(*bulk.KEYS.values())),
+):
+    """Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,
+    email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
+    location. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The
+    Idempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409
+    `bulk-preview-stale`) if any subject or amount changed since; an unknown `preview_id` is 404. At most 1000
+    subjects; each item's `error_code` says why it was skipped or failed."""
+    return bulk.create_bulk_action(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@router.get("/billing-bulk-actions/{billing_bulk_action_id}", response_model=s.BulkActionOut)
+def get_billing_bulk_action(billing_bulk_action_id: UUID, ctx: Ctx = Depends(require("billing.charge.read"))):
+    return bulk.get_bulk_action(ctx.session, ctx.principal, billing_bulk_action_id)
+
+
+@router.get("/billing-bulk-actions/{billing_bulk_action_id}/items", response_model=s.Page[s.BulkActionItemOut])
+def list_billing_bulk_action_items(
+    billing_bulk_action_id: UUID, query: Lists, ctx: Ctx = Depends(require("billing.charge.read"))
+):
+    """Filter: status."""
+    return bulk.list_bulk_action_items(ctx.session, ctx.principal, billing_bulk_action_id, query)
 
 
 @router.get("/billing-history", response_model=s.Page[s.HistoryOut])
 def list_billing_history(query: Lists, ctx: Ctx = Depends(require("billing.history.read"))):
     """Filters: entity_type (invoice, charge, payment...), entity_id, action, location_id."""
     return documents.list_history(ctx.session, ctx.principal, query)
+
+
+@router.get("/unmatched-provider-events", response_model=s.Page[s.UnmatchedProviderEventOut])
+def list_unmatched_provider_events(query: Lists, ctx: Ctx = Depends(require("billing.history.read"))):
+    """Processor charges and refunds with no row here, after the retry sweep gave up; `include=total` counts them."""
+    return webhooks.list_unmatched(ctx.session, ctx.principal, query)
 
 
 @router.get("/billing-notices", response_model=s.Page[s.NoticeOut])
@@ -609,14 +649,16 @@ def apply_account_credit(
     return desk.apply_account_credit(ctx.session, ctx.principal, client_id, body.model_dump())
 
 
-@router.post("/clients/{client_id}/account-credit/refund", response_model=list[s.RefundOut], status_code=201)
+@router.post("/clients/{client_id}/account-credit/refund", response_model=s.RefundBatchOut, status_code=201)
 def refund_account_credit(
     client_id: UUID,
     body: s.CreditRefundRequest,
     idempotency_key: RequiredKey,
     ctx: Ctx = Depends(require("billing.refund.create")),
 ):
-    """One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied."""
+    """One refund per payment, newest first, each to its original method; the body states what was refunded and
+    each leg's status. Errors: refund-exceeds-unapplied, refund-plan-incomplete (a replay of a plan that did not
+    complete)."""
     return desk.refund_account_credit(ctx.session, ctx.principal, client_id, body.model_dump(), idempotency_key)
 
 
@@ -891,6 +933,15 @@ def get_portal_statement_pdf(
     ctx: Client, client_id: UUID | None = None, from_on: date | None = None, to_on: date | None = None
 ):
     return _pdf(portal.statement_pdf(ctx.session, ctx.principal, client_id, from_on, to_on))
+
+
+@router.get("/portal/payment-attempts/{key}", response_model=s.PortalAttemptOut)
+def get_portal_payment_attempt(key: Annotated[str, Path(pattern=KEY_PATTERN)], response: Response, ctx: Client):
+    """What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including
+    a household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited
+    per identity (`payment-attempt`)."""
+    hit("payment-attempt", str(ctx.principal.identity_id), response, tenant=ctx.session.info["tenant_id"])
+    return portal.get_attempt(ctx.session, ctx.principal, key)
 
 
 @router.get("/portal/payments", response_model=s.Page[s.PortalPaymentOut])

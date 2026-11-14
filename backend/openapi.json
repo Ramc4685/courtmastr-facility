@@ -433,6 +433,18 @@
       },
       "AccessSettingsOut": {
         "properties": {
+          "door_alert_bad_codes_per_hour": {
+            "title": "Door Alert Bad Codes Per Hour",
+            "type": "integer"
+          },
+          "entry_code_early_min": {
+            "title": "Entry Code Early Min",
+            "type": "integer"
+          },
+          "entry_code_grace_min": {
+            "title": "Entry Code Grace Min",
+            "type": "integer"
+          },
           "hidden_detail_fields": {
             "items": {
               "enum": [
@@ -446,10 +458,23 @@
             "title": "Hidden Detail Fields",
             "type": "array"
           },
+          "light_lead_in_min": {
+            "title": "Light Lead In Min",
+            "type": "integer"
+          },
+          "light_run_on_min": {
+            "title": "Light Run On Min",
+            "type": "integer"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
+          },
+          "requires_paid_entry": {
+            "description": "Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
+            "title": "Requires Paid Entry",
+            "type": "boolean"
           },
           "staff_early_minutes": {
             "title": "Staff Early Minutes",
@@ -464,7 +489,13 @@
           "location_id",
           "hidden_detail_fields",
           "staff_early_minutes",
-          "staff_late_minutes"
+          "staff_late_minutes",
+          "entry_code_early_min",
+          "entry_code_grace_min",
+          "light_lead_in_min",
+          "light_run_on_min",
+          "requires_paid_entry",
+          "door_alert_bad_codes_per_hour"
         ],
         "title": "AccessSettingsOut",
         "type": "object"
@@ -472,6 +503,45 @@
       "AccessSettingsWrite": {
         "additionalProperties": false,
         "properties": {
+          "door_alert_bad_codes_per_hour": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Door Alert Bad Codes Per Hour"
+          },
+          "entry_code_early_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Early Min"
+          },
+          "entry_code_grace_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Grace Min"
+          },
           "hidden_detail_fields": {
             "anyOf": [
               {
@@ -491,6 +561,44 @@
               }
             ],
             "title": "Hidden Detail Fields"
+          },
+          "light_lead_in_min": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Light Lead In Min"
+          },
+          "light_run_on_min": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Light Run On Min"
+          },
+          "requires_paid_entry": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
+            "title": "Requires Paid Entry"
           },
           "staff_early_minutes": {
             "anyOf": [
@@ -1009,6 +1117,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0,
                 "type": "integer"
               },
               {
@@ -3666,6 +3776,33 @@
           "official_id"
         ],
         "title": "Assignment",
+        "type": "object"
+      },
+      "AttemptOut": {
+        "description": "What became of the payments and refunds made under one Idempotency-Key. `settled` false: the processor's\nanswer is not known yet (a row `initiated` or `unknown`); keep the form as it was and try again or ask later.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "boolean"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settled",
+          "statuses",
+          "amount_minor"
+        ],
+        "title": "AttemptOut",
         "type": "object"
       },
       "AttendancePut": {
@@ -7560,17 +7697,9 @@
         "title": "BrandingOut",
         "type": "object"
       },
-      "BulkInvoiceItem": {
+      "BuildingEventOut": {
         "properties": {
-          "charge_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Charge Ids",
-            "type": "array"
-          },
-          "client_id": {
+          "check_in_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7580,7 +7709,273 @@
                 "type": "null"
               }
             ],
-            "title": "Client Id"
+            "title": "Check In Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "door_device_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Door Device Id"
+          },
+          "entry_code_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lighting_zone_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lighting Zone Id"
+          },
+          "local_on": {
+            "format": "date",
+            "title": "Local On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "occurred_at",
+          "local_on",
+          "kind",
+          "door_device_id",
+          "lighting_zone_id",
+          "entry_code_id",
+          "check_in_id",
+          "staff_user_id",
+          "detail",
+          "created_at"
+        ],
+        "title": "BuildingEventOut",
+        "type": "object"
+      },
+      "BuildingStatusOut": {
+        "properties": {
+          "adapter": {
+            "title": "Adapter",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "doors": {
+            "items": {
+              "$ref": "#/components/schemas/DoorStatus"
+            },
+            "title": "Doors",
+            "type": "array"
+          },
+          "held_codes": {
+            "items": {
+              "$ref": "#/components/schemas/HeldCodeOut"
+            },
+            "title": "Held Codes",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/LightingZoneStatus"
+            },
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "as_of",
+          "adapter",
+          "zones",
+          "doors",
+          "held_codes"
+        ],
+        "title": "BuildingStatusOut",
+        "type": "object"
+      },
+      "BulkActionCreate": {
+        "additionalProperties": false,
+        "description": "`charge_ids` for create_invoices (or `location_id` alone, optionally `only_mine`) and reverse_charges;\n`invoice_ids` for email_invoices and render_invoices; `client_ids` for add_catalog_item. `params`: `reason`\nand `revenue_on` for a reversal, `catalog_item_id` to add an item, `due_on` and `is_autopay` for invoicing.",
+        "properties": {
+          "action": {
+            "enum": [
+              "create_invoices",
+              "reverse_charges",
+              "email_invoices",
+              "render_invoices",
+              "add_catalog_item"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "charge_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Charge Ids",
+            "type": "array"
+          },
+          "client_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "invoice_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Invoice Ids",
+            "type": "array"
+          },
+          "is_dry_run": {
+            "default": false,
+            "title": "Is Dry Run",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "only_mine": {
+            "default": false,
+            "title": "Only Mine",
+            "type": "boolean"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "default": {},
+            "title": "Params",
+            "type": "object"
+          },
+          "preview_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Id"
+          }
+        },
+        "required": [
+          "location_id",
+          "action"
+        ],
+        "title": "BulkActionCreate",
+        "type": "object"
+      },
+      "BulkActionItemOut": {
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
           },
           "error_code": {
             "anyOf": [
@@ -7593,7 +7988,7 @@
             ],
             "title": "Error Code"
           },
-          "invoice_id": {
+          "group_client_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7603,9 +7998,14 @@
                 "type": "null"
               }
             ],
-            "title": "Invoice Id"
+            "title": "Group Client Id"
           },
-          "location_id": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "result_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7615,7 +8015,18 @@
                 "type": "null"
               }
             ],
-            "title": "Location Id"
+            "title": "Result Id"
+          },
+          "result_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Type"
           },
           "status": {
             "enum": [
@@ -7627,72 +8038,85 @@
             "title": "Status",
             "type": "string"
           },
-          "total_minor": {
-            "title": "Total Minor",
-            "type": "integer"
+          "subject_id": {
+            "format": "uuid",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "charge",
+              "invoice",
+              "client"
+            ],
+            "title": "Subject Type",
+            "type": "string"
           }
         },
         "required": [
-          "client_id",
-          "location_id",
-          "charge_ids",
-          "total_minor",
-          "invoice_id",
+          "id",
+          "subject_type",
+          "subject_id",
+          "group_client_id",
+          "amount_minor",
           "status",
+          "result_type",
+          "result_id",
           "error_code"
         ],
-        "title": "BulkInvoiceItem",
+        "title": "BulkActionItemOut",
         "type": "object"
       },
-      "BulkInvoiceRequest": {
-        "additionalProperties": false,
-        "description": "`action` is fixed to creating invoices: one per client. Give charge_ids, or a location.",
+      "BulkActionOut": {
         "properties": {
           "action": {
-            "const": "create_invoices",
-            "default": "create_invoices",
             "title": "Action",
             "type": "string"
           },
-          "charge_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                "maxItems": 1000,
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Ids"
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
           },
-          "due_on": {
+          "done_count": {
+            "title": "Done Count",
+            "type": "integer"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "finished_at": {
             "anyOf": [
               {
-                "format": "date",
+                "format": "date-time",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Due On"
+            "title": "Finished At"
           },
-          "is_autopay": {
-            "default": false,
-            "title": "Is Autopay",
-            "type": "boolean"
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "is_dry_run": {
-            "default": false,
             "title": "Is Dry Run",
             "type": "boolean"
           },
+          "item_count": {
+            "title": "Item Count",
+            "type": "integer"
+          },
           "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "requested_by_staff_user_id": {
             "anyOf": [
               {
                 "format": "uuid",
@@ -7702,36 +8126,33 @@
                 "type": "null"
               }
             ],
-            "title": "Location Id"
+            "title": "Requested By Staff User Id"
           },
-          "only_mine": {
-            "default": false,
-            "title": "Only Mine",
-            "type": "boolean"
-          }
-        },
-        "title": "BulkInvoiceRequest",
-        "type": "object"
-      },
-      "BulkInvoiceResult": {
-        "properties": {
-          "is_dry_run": {
-            "title": "Is Dry Run",
-            "type": "boolean"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BulkInvoiceItem"
-            },
-            "title": "Items",
-            "type": "array"
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "completed_with_errors"
+            ],
+            "title": "Status",
+            "type": "string"
           }
         },
         "required": [
+          "id",
+          "location_id",
+          "action",
           "is_dry_run",
-          "items"
+          "status",
+          "item_count",
+          "done_count",
+          "failed_count",
+          "requested_by_staff_user_id",
+          "finished_at",
+          "created_at"
         ],
-        "title": "BulkInvoiceResult",
+        "title": "BulkActionOut",
         "type": "object"
       },
       "CalendarEntry": {
@@ -10848,6 +11269,22 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "exclude_tax_ids": {
             "default": [],
             "items": {
@@ -11181,6 +11618,17 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -11450,6 +11898,17 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -11669,6 +12128,22 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "exclude_tax_ids": {
             "default": [],
             "items": {
@@ -11836,6 +12311,22 @@
             ],
             "title": "Discount Minor"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "exclude_tax_ids": {
             "anyOf": [
               {
@@ -11893,6 +12384,30 @@
               }
             ],
             "title": "Reason"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          },
+          "revenue_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue On"
           },
           "service_ends_on": {
             "anyOf": [
@@ -21648,6 +22163,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0,
                 "type": "integer"
               },
               {
@@ -22688,6 +23205,390 @@
           "token"
         ],
         "title": "DocumentTokenIn",
+        "type": "object"
+      },
+      "DoorDeviceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "device_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "is_entrance": {
+            "default": false,
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "default": 5,
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "device_ref"
+        ],
+        "title": "DoorDeviceCreate",
+        "type": "object"
+      },
+      "DoorDeviceIssued": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credential": {
+            "title": "Credential",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at",
+          "credential"
+        ],
+        "title": "DoorDeviceIssued",
+        "type": "object"
+      },
+      "DoorDeviceOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at"
+        ],
+        "title": "DoorDeviceOut",
+        "type": "object"
+      },
+      "DoorDeviceUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "device_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Ref"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_entrance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Entrance"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "unlock_seconds": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlock Seconds"
+          }
+        },
+        "title": "DoorDeviceUpdate",
+        "type": "object"
+      },
+      "DoorStatus": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sync_state": {
+            "enum": [
+              "in_sync",
+              "codes_pending",
+              "adapter_not_configured"
+            ],
+            "title": "Sync State",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at",
+          "sync_state"
+        ],
+        "title": "DoorStatus",
+        "type": "object"
+      },
+      "DoorUnlockRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "DoorUnlockRequest",
+        "type": "object"
+      },
+      "DoorVerifyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[0-9]{4,12}$",
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "DoorVerifyRequest",
+        "type": "object"
+      },
+      "DoorVerifyResult": {
+        "properties": {
+          "result": {
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "result",
+          "unlock_seconds"
+        ],
+        "title": "DoorVerifyResult",
         "type": "object"
       },
       "DrawerClose": {
@@ -29557,6 +30458,39 @@
         "title": "HealthStatus",
         "type": "object"
       },
+      "HeldCodeOut": {
+        "description": "A code held back for one person and booking until staff act (an age check).",
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "held_at": {
+            "format": "date-time",
+            "title": "Held At",
+            "type": "string"
+          },
+          "reason": {
+            "const": "age-not-confirmed",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "client_id",
+          "reason",
+          "held_at"
+        ],
+        "title": "HeldCodeOut",
+        "type": "object"
+      },
       "HistoryOut": {
         "properties": {
           "action": {
@@ -34171,6 +35105,393 @@
         "title": "LegendType",
         "type": "object"
       },
+      "LightingZoneCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "zone_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Zone Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "zone_ref",
+          "resource_ids"
+        ],
+        "title": "LightingZoneCreate",
+        "type": "object"
+      },
+      "LightingZoneOut": {
+        "properties": {
+          "commanded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded At"
+          },
+          "commanded_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded Is On"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failure_count": {
+            "title": "Failure Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "override_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Is On"
+          },
+          "override_until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Until At"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "zone_ref": {
+            "title": "Zone Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "zone_ref",
+          "is_active",
+          "resource_ids",
+          "override_is_on",
+          "override_until_at",
+          "commanded_is_on",
+          "commanded_at",
+          "failure_count",
+          "created_at"
+        ],
+        "title": "LightingZoneOut",
+        "type": "object"
+      },
+      "LightingZoneOverride": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm_in_progress": {
+            "default": false,
+            "title": "Confirm In Progress",
+            "type": "boolean"
+          },
+          "is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is On"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until At"
+          }
+        },
+        "required": [
+          "is_on"
+        ],
+        "title": "LightingZoneOverride",
+        "type": "object"
+      },
+      "LightingZoneStatus": {
+        "properties": {
+          "commanded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded At"
+          },
+          "commanded_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded Is On"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failure_count": {
+            "title": "Failure Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_in_sync": {
+            "title": "Is In Sync",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "override_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Is On"
+          },
+          "override_until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Until At"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "should_be_on": {
+            "title": "Should Be On",
+            "type": "boolean"
+          },
+          "sync_state": {
+            "enum": [
+              "in_sync",
+              "out_of_sync",
+              "adapter_not_configured"
+            ],
+            "title": "Sync State",
+            "type": "string"
+          },
+          "zone_ref": {
+            "title": "Zone Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "zone_ref",
+          "is_active",
+          "resource_ids",
+          "override_is_on",
+          "override_until_at",
+          "commanded_is_on",
+          "commanded_at",
+          "failure_count",
+          "created_at",
+          "should_be_on",
+          "reason",
+          "is_in_sync",
+          "sync_state"
+        ],
+        "title": "LightingZoneStatus",
+        "type": "object"
+      },
+      "LightingZoneUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Ids"
+          },
+          "zone_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Ref"
+          }
+        },
+        "title": "LightingZoneUpdate",
+        "type": "object"
+      },
       "LimitUsage": {
         "description": "`limit` null = unlimited. `used` is counted for capped limits (all of them on the plan screen).",
         "properties": {
@@ -34805,6 +36126,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0,
                 "type": "integer"
               },
               {
@@ -35404,6 +36727,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": -2147483648.0,
                 "type": "integer"
               },
               {
@@ -43717,6 +45042,46 @@
         "title": "Page[BrandOut]",
         "type": "object"
       },
+      "Page_BuildingEventOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BuildingEventOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[BuildingEventOut]",
+        "type": "object"
+      },
+      "Page_BulkActionItemOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BulkActionItemOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[BulkActionItemOut]",
+        "type": "object"
+      },
       "Page_CalendarFeedOut_": {
         "properties": {
           "data": {
@@ -44237,6 +45602,26 @@
         "title": "Page[DocumentTemplateVersionOut]",
         "type": "object"
       },
+      "Page_DoorDeviceOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DoorDeviceOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[DoorDeviceOut]",
+        "type": "object"
+      },
       "Page_DrawerSessionOut_": {
         "properties": {
           "data": {
@@ -44735,6 +46120,26 @@
           "page"
         ],
         "title": "Page[LedgerEntryOut]",
+        "type": "object"
+      },
+      "Page_LightingZoneOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/LightingZoneOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[LightingZoneOut]",
         "type": "object"
       },
       "Page_LocationContactOut_": {
@@ -45375,6 +46780,26 @@
           "page"
         ],
         "title": "Page[PortalEnrollmentOut]",
+        "type": "object"
+      },
+      "Page_PortalEntryCodeOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalEntryCodeOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalEntryCodeOut]",
         "type": "object"
       },
       "Page_PortalInboxItem_": {
@@ -46535,6 +47960,26 @@
           "page"
         ],
         "title": "Page[TypeOut]",
+        "type": "object"
+      },
+      "Page_UnmatchedProviderEventOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/UnmatchedProviderEventOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[UnmatchedProviderEventOut]",
         "type": "object"
       },
       "Page_VenueOut_": {
@@ -49569,6 +51014,33 @@
         "title": "PortalAssessmentValueOut",
         "type": "object"
       },
+      "PortalAttemptOut": {
+        "description": "The portal's own copy of AttemptOut (portal routes never reuse staff schemas): state and amount only.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "boolean"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settled",
+          "statuses",
+          "amount_minor"
+        ],
+        "title": "PortalAttemptOut",
+        "type": "object"
+      },
       "PortalCalendarFeedCreate": {
         "additionalProperties": false,
         "properties": {
@@ -51406,6 +52878,26 @@
         "title": "PortalDocumentAcceptanceOut",
         "type": "object"
       },
+      "PortalDoorUnlockResult": {
+        "properties": {
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "result": {
+            "const": "allow",
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "occurred_at"
+        ],
+        "title": "PortalDoorUnlockResult",
+        "type": "object"
+      },
       "PortalEnrollmentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -51589,6 +53081,92 @@
           "cancel_kind"
         ],
         "title": "PortalEnrollmentOut",
+        "type": "object"
+      },
+      "PortalEntryCodeOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "held_reason": {
+            "anyOf": [
+              {
+                "const": "age-not-confirmed",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Reason"
+          },
+          "is_open_now": {
+            "title": "Is Open Now",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "location_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Phone"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "valid_from_at": {
+            "format": "date-time",
+            "title": "Valid From At",
+            "type": "string"
+          },
+          "valid_until_at": {
+            "format": "date-time",
+            "title": "Valid Until At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "location_id",
+          "location_phone",
+          "code",
+          "held_reason",
+          "message",
+          "valid_from_at",
+          "valid_until_at",
+          "is_open_now"
+        ],
+        "title": "PortalEntryCodeOut",
         "type": "object"
       },
       "PortalFavorite": {
@@ -53956,6 +55534,7 @@
           },
           "status": {
             "enum": [
+              "initiated",
               "pending",
               "succeeded",
               "failed",
@@ -65528,6 +67107,12 @@
             ],
             "title": "Ends On"
           },
+          "is_peak": {
+            "default": false,
+            "description": "The band is peak time (court-use report), whatever its price",
+            "title": "Is Peak",
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "rate",
@@ -65677,6 +67262,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_peak": {
+            "title": "Is Peak",
+            "type": "boolean"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -65752,7 +67341,8 @@
           "membership_type_id",
           "amount_minor",
           "discount_pct",
-          "discount_minor"
+          "discount_minor",
+          "is_peak"
         ],
         "title": "RateRuleOut",
         "type": "object"
@@ -66158,6 +67748,39 @@
         "title": "RefreshRequest",
         "type": "object"
       },
+      "RefundBatchOut": {
+        "description": "An account-credit refund: what was asked, what the processor has refunded (`succeeded` legs), and each leg\nwith its status, so a declined or pending leg is never read as success.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "refund_batch_id": {
+            "format": "uuid",
+            "title": "Refund Batch Id",
+            "type": "string"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/RefundOut"
+            },
+            "title": "Refunds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "refund_batch_id",
+          "amount_minor",
+          "refunded_minor",
+          "refunds"
+        ],
+        "title": "RefundBatchOut",
+        "type": "object"
+      },
       "RefundCreate": {
         "additionalProperties": false,
         "properties": {
@@ -66200,6 +67823,15 @@
             "minLength": 1,
             "title": "Reason",
             "type": "string"
+          },
+          "release_allocation_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Release Allocation Ids",
+            "type": "array"
           }
         },
         "required": [
@@ -66276,6 +67908,7 @@
           },
           "status": {
             "enum": [
+              "initiated",
               "pending",
               "succeeded",
               "failed",
@@ -74000,6 +75633,7 @@
         "additionalProperties": false,
         "properties": {
           "booking_number": {
+            "maximum": 2147483647.0,
             "minimum": 1.0,
             "title": "Booking Number",
             "type": "integer"
@@ -76404,6 +78038,7 @@
           "default_team_fee_minor": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
                 "minimum": 0.0,
                 "type": "integer"
               },
@@ -76911,6 +78546,7 @@
           "default_team_fee_minor": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
                 "minimum": 0.0,
                 "type": "integer"
               },
@@ -83309,6 +84945,56 @@
           }
         },
         "title": "TypeUpdate",
+        "type": "object"
+      },
+      "UnmatchedProviderEventOut": {
+        "description": "A processor charge or refund with no payment or refund here (S5). No amount: the stored event has none.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Ref"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "kind",
+          "provider_ref",
+          "received_at"
+        ],
+        "title": "UnmatchedProviderEventOut",
         "type": "object"
       },
       "UnsubscribeOut": {
@@ -91022,26 +92708,21 @@
     },
     "/api/v1/billing-bulk-actions": {
       "post": {
-        "description": "Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports\nper client; `is_dry_run` previews.",
+        "description": "Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,\nemail or render invoices, or add a pre-defined item to clients. Each action needs its own key at the\nlocation. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The\nIdempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409\n`bulk-preview-stale`) if any subject or amount changed since; an unknown `preview_id` is 404. At most 1000\nsubjects; each item's `error_code` says why it was skipped or failed.",
         "operationId": "createBillingBulkAction",
         "parameters": [
           {
-            "description": "Optional; keys live 24 hours.",
+            "description": "Required; keys live 24 hours.",
             "in": "header",
             "name": "idempotency-key",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional; keys live 24 hours.",
-              "title": "Idempotency-Key"
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
             }
           }
         ],
@@ -91049,18 +92730,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BulkInvoiceRequest"
+                "$ref": "#/components/schemas/BulkActionCreate"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BulkInvoiceResult"
+                  "$ref": "#/components/schemas/BulkActionOut"
                 }
               }
             },
@@ -91082,7 +92763,228 @@
           "billing"
         ],
         "x-api-key-scopes": [
-          "billing.invoice.bulk_create"
+          "billing.invoice.bulk_create",
+          "billing.charge.reverse",
+          "billing.invoice.send",
+          "billing.invoice.send",
+          "billing.charge.create"
+        ]
+      }
+    },
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}": {
+      "get": {
+        "operationId": "getBillingBulkAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "billing_bulk_action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Billing Bulk Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Billing Bulk Action",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
+        ]
+      }
+    },
+    "/api/v1/billing-bulk-actions/{billing_bulk_action_id}/items": {
+      "get": {
+        "description": "Filter: status.",
+        "operationId": "listBillingBulkActionItems",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "billing_bulk_action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Billing Bulk Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BulkActionItemOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Billing Bulk Action Items",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.charge.read"
         ]
       }
     },
@@ -93814,6 +95716,214 @@
         "summary": "Put Tenant Logo",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/building-events": {
+      "get": {
+        "description": "Entries, denied attempts, unlocks, light switches, overrides, codes and failed commands. Filters:\nlocation_id, local_on, kind, door_device_id, lighting_zone_id.",
+        "operationId": "listBuildingEvents",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BuildingEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Building Events",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      }
+    },
+    "/api/v1/building-status": {
+      "get": {
+        "description": "Per zone: should it be on now, what was last commanded, and whether the two agree. Per door: its state.",
+        "operationId": "getBuildingStatus",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildingStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Building Status",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
         ]
       }
     },
@@ -101942,7 +104052,7 @@
     },
     "/api/v1/clients/{client_id}/account-credit/refund": {
       "post": {
-        "description": "One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.",
+        "description": "One refund per payment, newest first, each to its original method; the body states what was refunded and\neach leg's status. Errors: refund-exceeds-unapplied, refund-plan-incomplete (a replay of a plan that did not\ncomplete).",
         "operationId": "refundAccountCredit",
         "parameters": [
           {
@@ -101985,11 +104095,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RefundOut"
-                  },
-                  "title": "Response Refundaccountcredit",
-                  "type": "array"
+                  "$ref": "#/components/schemas/RefundBatchOut"
                 }
               }
             },
@@ -112408,6 +114514,383 @@
         ],
         "x-api-key-scopes": [
           "documents.template.manage"
+        ]
+      }
+    },
+    "/api/v1/door-devices": {
+      "get": {
+        "operationId": "listDoorDevices",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DoorDeviceOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Door Devices",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      },
+      "post": {
+        "description": "Register a door controller; its bearer credential is shown once.",
+        "operationId": "createDoorDevice",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorDeviceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorDeviceIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Door Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door-devices/{door_device_id}": {
+      "patch": {
+        "description": "Rename, re-address or retire a door (retiring drops its credential).",
+        "operationId": "updateDoorDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "door_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Door Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorDeviceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Door Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door-devices/{door_device_id}/credential": {
+      "post": {
+        "description": "A new bearer credential for the controller; the old one stops working at once.",
+        "operationId": "rotateDoorDeviceCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "door_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Door Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorDeviceIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Door Device Credential",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door-devices/{door_device_id}/unlock": {
+      "post": {
+        "description": "Open the door now for someone standing at it (the help line when a code fails). Reason required.",
+        "operationId": "unlockDoorDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "door_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Door Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorUnlockRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildingEventOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlock Door Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door/verify": {
+      "post": {
+        "description": "A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the\ncredential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied\nunevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held\n(`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the\nrequest transaction, one activity row and one audit row.",
+        "operationId": "verifyDoorCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorVerifyResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Door Code",
+        "tags": [
+          "access"
         ]
       }
     },
@@ -124045,6 +126528,277 @@
         ]
       }
     },
+    "/api/v1/lighting-zones": {
+      "get": {
+        "operationId": "listLightingZones",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LightingZoneOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Lighting Zones",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      },
+      "post": {
+        "description": "A light circuit and the courts whose bookings switch it.",
+        "operationId": "createLightingZone",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightingZoneCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightingZoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Lighting Zone",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/lighting-zones/{lighting_zone_id}": {
+      "patch": {
+        "operationId": "updateLightingZone",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lighting_zone_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lighting Zone Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightingZoneUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightingZoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Lighting Zone",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/lighting-zones/{lighting_zone_id}/override": {
+      "put": {
+        "description": "Hold a zone on or off until a time (cleaning, an event); `is_on: null` hands it back to the bookings.",
+        "operationId": "overrideLightingZone",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lighting_zone_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lighting Zone Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightingZoneOverride"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightingZoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Override Lighting Zone",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/location-contacts": {
       "get": {
         "description": "Filters: location_id, kind.",
@@ -134102,6 +136856,72 @@
         ]
       }
     },
+    "/api/v1/payment-attempts/{key}": {
+      "get": {
+        "description": "What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the\ncaller made none (indistinguishable from a key nobody used). A form stays as it was until `settled`. Rate\nlimited per caller (`payment-attempt`): keys are not guessable, and guessing is throttled too.",
+        "operationId": "getPaymentAttempt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Payment Attempt",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
+        ]
+      }
+    },
     "/api/v1/payment-methods": {
       "get": {
         "description": "Expiring cards: filter exp_year and exp_month. Other filters: client_id, kind, status, is_autopay.",
@@ -136824,6 +139644,69 @@
         ]
       }
     },
+    "/api/v1/portal/bookings/{booking_id}/door-unlock": {
+      "post": {
+        "description": "Open the location's entrance doors from the portal, inside the booking's code window only.",
+        "operationId": "unlockPortalBookingDoor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalDoorUnlockResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlock Portal Booking Door",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/portal/calendar-feeds": {
       "delete": {
         "description": "Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old.",
@@ -139118,6 +142001,59 @@
         ]
       }
     },
+    "/api/v1/portal/entry-codes": {
+      "get": {
+        "description": "Live door codes of the caller's (and dependants') bookings: the portal and the app show them.",
+        "operationId": "listPortalEntryCodes",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalEntryCodeOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Entry Codes",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/portal/favorites": {
       "get": {
         "description": "For the signed-in client or one it may act for (else 404).",
@@ -141073,6 +144009,69 @@
         "summary": "Portal Opt Out Series Auto Renew",
         "tags": [
           "packages"
+        ]
+      }
+    },
+    "/api/v1/portal/payment-attempts/{key}": {
+      "get": {
+        "description": "What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including\na household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited\nper identity (`payment-attempt`).",
+        "operationId": "getPortalPaymentAttempt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalAttemptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Payment Attempt",
+        "tags": [
+          "billing"
         ]
       }
     },
@@ -174372,6 +177371,148 @@
         "summary": "Void Time Entry",
         "tags": [
           "staff"
+        ]
+      }
+    },
+    "/api/v1/unmatched-provider-events": {
+      "get": {
+        "description": "Processor charges and refunds with no row here, after the retry sweep gave up; `include=total` counts them.",
+        "operationId": "listUnmatchedProviderEvents",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UnmatchedProviderEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Unmatched Provider Events",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.history.read"
         ]
       }
     },

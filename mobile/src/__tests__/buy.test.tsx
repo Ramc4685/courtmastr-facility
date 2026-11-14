@@ -16,7 +16,7 @@ jest.mock('../lib/hooks', () => ({
   useLocations: () => ({ data: [{ id: 'l1' }] }),
   useAppConfig: () => ({ data: { currency: 'EUR' } }),
 }));
-jest.mock('../ui/NewCard', () => ({ NewCard: () => null, useAttemptKey: () => ({ key: 'k', settle: () => undefined }) }));
+jest.mock('../ui/NewCard', () => ({ NewCard: () => null, useAttemptKey: () => ({ key: 'k', locked: false, settle: () => undefined }) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: ({ children }: { children: unknown }) => children }));
 
 const renderBuy = () =>

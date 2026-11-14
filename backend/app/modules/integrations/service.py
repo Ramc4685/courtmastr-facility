@@ -83,11 +83,18 @@ KEY_PERMISSIONS = frozenset({
 
 
 # Single keys withheld from a listed context: portal on/off switches and online defaults, a person's decision like
-# engagement's portal settings (which never made the list above).
+# engagement's portal settings (which never made the list above); and opening an unmanned building's doors or holding
+# its court lights, which a person at the facility's end of a phone line decides, never an integration.
 # clients.client.confirm_age: a person saw the ID; it releases held entry codes (owner decision 2026-11-13).
 # rentals.booking.override_minor: lifting the minors rule is a person's judgment, with a reason.
 KEY_WITHHELD = frozenset(
-    {"rentals.portal_setting.manage", "clients.client.confirm_age", "rentals.booking.override_minor"}
+    {
+        "rentals.portal_setting.manage",
+        "clients.client.confirm_age",
+        "rentals.booking.override_minor",
+        "access.door.unlock",
+        "access.lighting.override",
+    }
 )
 
 

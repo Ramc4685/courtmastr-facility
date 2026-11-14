@@ -204,6 +204,23 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     expect(calls.filter((c) => c.url.endsWith('/guest-checkouts'))).toHaveLength(1) // the place stays held
   })
 
+  it('keeps the attempt key and the card after a lost answer, so the retry replays it (S1)', async () => {
+    let tries = 0
+    const calls = open(GUEST, routes({
+      [CONFIRM]: () => (++tries === 1 ? { status: 504, body: { status: 504, code: 'gateway-timeout', detail: 'No answer.' } } : done),
+    }))
+    const user = await fillAndContinue()
+    await user.selectOptions(await screen.findByLabelText('Card'), 'tok_card_ok')
+    await user.click(screen.getByRole('button', { name: 'Pay and register' }))
+    expect(await screen.findByText(/stays as it was/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Card')).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText(/You are registered/)).toBeInTheDocument()
+    const [lost, paid] = confirms(calls)
+    expect(paid?.headers['idempotency-key']).toBe(lost?.headers['idempotency-key'])
+    expect(paid?.body).toEqual(lost?.body)
+  })
+
   it('reloads the terms and clears the tick when they changed under the guest (409 terms-changed)', async () => {
     let version = 1
     let tries = 0

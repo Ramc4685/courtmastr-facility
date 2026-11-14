@@ -417,7 +417,6 @@ combined key. The reference sets "customize contract" per user only and Billing 
 | `billing.collections.read` | C | | | Y | Y | - | - | - | - | - | BIL-20 (profile, collections report) |
 | `billing.collections.manage` | L | | | Y | Y | - | - | - | - | - | BIL-20, BIL-22 (at the client's home location) |
 | `billing.collections_tag.manage` | T | | | Y | Y | - | - | - | - | - | BIL-20 (tag list) |
-| `billing.dispute.manage` | L | | | Y | - | - | - | - | - | - | PAY-17 |
 | `billing.history.read` | L | | | Y | Y | - | - | - | - | - | BIL-09 |
 | `billing.ledger.read` | L | | | Y | - | - | - | - | - | - | our design (raw double-entry rows) |
 | `billing.ledger.export` | L | X | | Y | - | - | - | - | - | - | INT-07, PAY-16 |
@@ -472,8 +471,9 @@ gating of cart price/quantity edits": permission wins over the Classic preferenc
 | `access.rule.manage` | L | | | Y | Y | - | - | - | - | - | CHK-08, CHK-09, CHK-10, CHK-17 |
 | `access.settings.manage` | L | | | Y | Y | - | - | - | - | - | CHK-02, CHK-06, CHK-07, CHK-12 |
 | `access.client.set_access_mode` | C | P | | Y | Y | - | - | - | - | - | CHK-08 (always admit, always deny one client) |
-| `access.door.unlock` | L | P | | Y | Y | - | - | - | - | - | CHK-16 (simulated adapter in v1) |
+| `access.door.unlock` | L | P + | | Y | Y | - | - | - | - | - | CHK-16 (simulated adapter in v1) |
 | `access.device.manage` | L | K | | Y | - | - | - | - | - | - | CHK-15, CHK-16 |
+| `access.lighting.override` | L | | | Y | Y | - | - | - | - | - | CHK-16 (court lights on or off for a period: cleaning, events) |
 
 Without `read_full_details` the check-in window shows only the fields the location's visibility toggles allow
 (CHK-02).

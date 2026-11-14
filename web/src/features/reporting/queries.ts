@@ -43,6 +43,10 @@ export const ID_SOURCES: Record<string, () => Promise<Option[]>> = {
   revenue_category_ids: async () => (await api.get('/api/v1/revenue-categories')).data.map((c) => ({ value: c.id, label: c.label })),
   membership_type_ids: async () => (await api.get('/api/v1/membership-types', { query: { limit: 100 } })).data.map((t) => ({ value: t.id, label: t.name })),
   reservation_type_ids: async () => (await api.get('/api/v1/reservation-types', { query: { limit: 200 } })).data.map((t) => ({ value: t.id, label: t.name })),
+  // court use: a court is a top-level venue; its halves roll up into it
+  resource_ids: async () =>
+    (await api.get('/api/v1/resources', { query: { kind: 'venue', limit: 200 } })).data.filter((r) => r.parent_id == null).map((r) => ({ value: r.id, label: r.name })),
+  resource_group_ids: async () => (await api.get('/api/v1/resource-groups', { query: { limit: 200 } })).data.map((g) => ({ value: g.id, label: g.name })),
   trainer_resource_ids: async () => (await api.get('/api/v1/resources', { query: { kind: 'trainer', limit: 200 } })).data.map((r) => ({ value: r.id, label: r.name })),
   assessment_template_ids: async () => (await api.get('/api/v1/assessment-templates', { query: { limit: 200 } })).data.map((t) => ({ value: t.id, label: t.name })),
   job_classification_ids: async () => (await api.get('/api/v1/job-classifications', { query: { limit: 200 } })).data.map((j) => ({ value: j.id, label: j.name })),

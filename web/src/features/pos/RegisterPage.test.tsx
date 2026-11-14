@@ -72,6 +72,35 @@ describe('RegisterPage', { timeout: 20_000 }, () => {
     expect(posts[3]?.headers['idempotency-key']).toBeTruthy()
   })
 
+  it('locks a tender to its key and amount after an unknown outcome and asks what happened (S1)', async () => {
+    const tenders: Call[] = []
+    const checks: Call[] = []
+    mockFetch({
+      'GET /api/v1/registers/r1/session': { status: 200, body: { ...session, draft_sale_id: 's1', draft_sale: withLine } },
+      'GET /api/v1/pos-sales/s1': { status: 200, body: withLine },
+      'GET /api/v1/equipment-items': { status: 200, body: { data: [], page: { has_more: false } } },
+      'POST /api/v1/pos-sales/s1/tenders': (c) => (tenders.push(c), tenders.length === 1 ? { status: 502, body: { status: 502, code: 'bad-gateway', detail: 'Lost.' } } : { status: 201, body: paid }),
+    })
+    const inner = vi.mocked(fetch).getMockImplementation() as typeof fetch
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).startsWith('/api/v1/payment-attempts/')) {
+        checks.push({ method: 'GET', url: String(input), headers: {}, body: undefined })
+        return new Response(JSON.stringify({ settled: false, statuses: ['initiated'], amount_minor: 1083 }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return inner(input, init)
+    })
+    renderAt()
+    await userEvent.click(await screen.findByRole('button', { name: /Take \$10\.83/ }))
+    expect(await screen.findByText(/stays as it was/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /Amount/ })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Check what happened' }))
+    expect(await screen.findByText(/still being confirmed/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Try again: \$10\.83/ }))
+    await waitFor(() => expect(tenders).toHaveLength(2))
+    expect(tenders[1]?.headers['idempotency-key']).toBe(tenders[0]?.headers['idempotency-key'])
+    expect(checks[0]?.url).toBe(`/api/v1/payment-attempts/${tenders[0]?.headers['idempotency-key']}`)
+  })
+
   it('explains a register blocked by the network allow-list', async () => {
     mockFetch({ 'GET /api/v1/registers/r1/session': { status: 403, body: { status: 403, code: 'network-not-allowed', detail: 'no' } } })
     renderAt()

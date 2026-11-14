@@ -21,6 +21,7 @@ APPEND_ONLY = {
     "audit_event", "ledger_transaction", "ledger_entry", "billing_notice", "stock_movement", "client_merge",
     "consent_event", "document_acceptance", "credit_ledger_entry", "rental_plan_ledger_entry", "adapter_command_log",
     "coach_earning",
+    "building_event",
 }  # fmt: skip
 
 

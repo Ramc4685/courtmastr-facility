@@ -4,7 +4,7 @@ two read views the coach reports use (staff README "Coach revenue share").
 `coach_earning` is append-only (SELECT, INSERT): a correction is a reversing line, never an update.
 
 Revision ID: 2031
-Revises: 1985
+Revises: 1807
 """
 
 import sqlalchemy as sa
@@ -13,7 +13,7 @@ from alembic import op
 from app.core.db.rls import enable_rls
 
 revision = "2031"
-down_revision = "1985"
+down_revision = "1807"
 
 _TABLES = ("coach_engagement", "coach_share_rule", "coach_payout", "coach_payout_line")
 VIEWS = {

@@ -71,6 +71,10 @@ def secure_online_checkout(
     `amount_minor` pays only that part of the invoice now (a deposit or a first instalment, REG-10 and RNT-06);
     the rest stays on the invoice for its schedule and autopay. None pays the whole balance.
     """
+    identity = getattr(session.info.get("actor"), "identity_id", None)
+    if getattr(session.info.get("actor"), "kind", None) == "client" and identity:
+        # bound to the paying identity, as portal invoice payments are, so only that person can ask what became of it
+        idempotency_key = f"portal:{identity}:{idempotency_key}"
     if coupon_code:
         if invoice is None:
             raise ValidationFailed("A coupon applies to what is paid now.", pointer="/coupon_code",

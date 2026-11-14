@@ -261,6 +261,13 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    post("/payments", {  # + refund_credit_plan: credit on account, part of it given back
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 200, "tender_kind": "cash",
+    }, key=f"populate-credit-{uuid4().hex}")  # fmt: skip
+    post(
+        f"/clients/{person['id']}/account-credit/refund", {"amount_minor": 100, "reason": "Leaving"},
+        key=f"populate-credit-refund-{uuid4().hex}",
+    )  # fmt: skip
     billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
     disputed = post("/payments", {  # + dispute: a settled card payment the payer then disputes
@@ -294,6 +301,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_program_forms(client, headers, post, tenant, location["id"])
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
+    space |= _populate_building(post, tenant, location["id"], space)
     _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(
@@ -498,7 +506,11 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
     profile = client.put(f"/api/v1/clients/{person['id']}/collections-profile", headers=headers,
                          json={"collections_tag_id": tag["id"]})  # fmt: skip
     assert profile.status_code == 200, profile.text
+    bulk = post("/billing-bulk-actions", {  # billing_bulk_action + billing_bulk_action_item
+        "action": "render_invoices", "location_id": location["id"], "invoice_ids": [unpaid["id"]],
+    }, key="populate-bulk-render")  # fmt: skip
     return {
+        "billing_bulk_action_id": bulk["id"],
         "collections_tag_id": tag["id"],
         "statement_batch_id": batch["id"],
         "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],
@@ -1322,6 +1334,32 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
         "kiosk_device_id": device["kiosk_device_id"], "check_in_station_id": station["id"],
         "id_card_template_id": card["id"],
     }  # fmt: skip
+
+
+def _populate_building(post, tenant, location_id, space) -> dict:
+    """Building control (CHK-15, CHK-16): a door, a court's lighting zone, one remote unlock (an activity row) and
+    an entry code for populate()'s booking, written directly (the booking is not inside the issue window)."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.core import crypto
+    from app.modules.access.models import EntryCode, EntryCodeHold
+    from app.modules.clients.models import Client
+
+    door = post("/door-devices", {"location_id": location_id, "name": "Main door", "device_ref": "door-1"})
+    zone = post("/lighting-zones", {"location_id": location_id, "name": "Court 1 lights", "zone_ref": "relay-1",
+                                    "resource_ids": [space["resource_id"]]})  # fmt: skip
+    post(f"/door-devices/{door['id']}/unlock", {"reason": "Populate"})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        now, person = clock.now(), session.scalar(select(Client.id).order_by(Client.id).limit(1))
+        session.add(EntryCode(
+            location_id=location_id, booking_id=space["booking_id"], client_id=person, code_hash=f"pop-{uuid4().hex}",
+            code_ciphertext=crypto.encrypt("12345678", tenant.id), valid_from_at=now, valid_until_at=now + timedelta(hours=1),
+        ))  # fmt: skip
+        session.add(EntryCodeHold(location_id=location_id, booking_id=space["booking_id"], client_id=person,
+                                  reason="age-not-confirmed"))  # fmt: skip
+    return {"door_device_id": door["id"], "lighting_zone_id": zone["id"]}
 
 
 def _populate_pos_desk(client, headers, post, tenant, location_id, product_category_id) -> None:

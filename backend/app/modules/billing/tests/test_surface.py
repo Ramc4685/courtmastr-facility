@@ -229,48 +229,162 @@ def test_items_workbench_edits_and_coupons(api, shop, desk):
 # --- invoices ----------------------------------------------------------------------------------------------
 
 
+def _bulk(api, body, status=202, **kw):
+    made = api("POST", "/billing-bulk-actions", body, status, **kw)
+    if status != 202:
+        return made
+    return made, api("GET", f"/billing-bulk-actions/{made['id']}/items?limit=100")["data"]
+
+
 def test_bulk_invoicing_makes_one_invoice_per_client_and_never_mixes(client, api, shop, desk):
     other = new_client(client, shop.owner, shop.location_id)["id"]
     ids = [api("POST", "/charges", item(shop, price), 201)["id"] for price in (1000, 500)]
     ids.append(api("POST", "/charges", item(shop, 300, client_id=other), 201)["id"])
     invoiced = api("POST", "/charges", item(shop, 100), 201)["id"]
     api("POST", "/invoices", {"charge_ids": [invoiced]}, 201)
-    body = {"charge_ids": [*ids, invoiced]}
-    api("POST", "/billing-bulk-actions", body, 403, headers=desk.front)
-    preview = api("POST", "/billing-bulk-actions", body | {"is_dry_run": True})
-    assert preview["is_dry_run"] and [row["status"] for row in preview["items"]] == ["skipped", "pending", "pending"]
-    assert api("GET", "/invoices")["page"]["has_more"] is False and len(api("GET", "/invoices")["data"]) == 1
-    done = api("POST", "/billing-bulk-actions", body | {"is_autopay": True})["items"]
-    assert (done[0]["status"], done[0]["error_code"], done[0]["charge_ids"]) == (
-        "skipped",
-        "charge-not-invoiceable",
-        [invoiced],
-    )
-    by_client = {row["client_id"]: row for row in done[1:]}
-    assert set(by_client) == {str(shop.client_id), other} and all(row["status"] == "done" for row in done[1:])
-    assert sorted(by_client[str(shop.client_id)]["charge_ids"]) == sorted(ids[:2])
-    for row in done[1:]:
-        invoice = api("GET", f"/invoices/{row['invoice_id']}")
-        assert invoice["bill_to_client_id"] == row["client_id"] and invoice["is_autopay"]
-        assert {line["client_id"] for line in invoice["charges"]} == {row["client_id"]}  # never a mixed invoice
-    again = api("POST", "/billing-bulk-actions", {"location_id": str(shop.location_id), "only_mine": True})
-    assert again["items"] == []  # nothing uninvoiced is left
-    api("POST", "/billing-bulk-actions", {}, 422)
-    api("POST", "/charges", item(shop, 700), 201)
-    cart = api("POST", "/billing-bulk-actions", {"location_id": str(shop.location_id), "only_mine": True})["items"]
-    assert [(row["status"], row["total_minor"]) for row in cart] == [("done", 758)]
+    body = {"action": "create_invoices", "location_id": str(shop.location_id), "charge_ids": [*ids, invoiced]}
+    _bulk(api, body, 403, headers=desk.front)
+    preview, rows = _bulk(api, body | {"is_dry_run": True})
+    assert (preview["is_dry_run"], preview["status"], preview["done_count"]) == (True, "completed", 3)
+    assert sorted(row["status"] for row in rows) == ["done", "done", "done", "skipped"]
+    assert all(row["result_id"] is None for row in rows)  # a dry run keeps nothing
+    assert len(api("GET", "/invoices")["data"]) == 1
+    done, rows = _bulk(api, body | {"params": {"is_autopay": True}})
+    assert (done["status"], done["item_count"], done["done_count"]) == ("completed", 4, 3)
+    skipped = next(row for row in rows if row["status"] == "skipped")
+    assert (skipped["subject_id"], skipped["error_code"]) == (invoiced, "charge-not-invoiceable")
+    invoices = {row["group_client_id"]: row["result_id"] for row in rows if row["status"] == "done"}
+    assert set(invoices) == {str(shop.client_id), other}
+    assert len({row["result_id"] for row in rows if row["group_client_id"] == str(shop.client_id)}) == 1
+    for client_id, invoice_id in invoices.items():
+        invoice = api("GET", f"/invoices/{invoice_id}")
+        assert invoice["bill_to_client_id"] == client_id and invoice["is_autopay"]
+        assert {line["client_id"] for line in invoice["charges"]} == {client_id}  # never a mixed invoice
+    assert api("GET", f"/billing-bulk-actions/{done['id']}")["status"] == "completed"
+    _, again = _bulk(api, {"action": "create_invoices", "location_id": str(shop.location_id), "only_mine": True})
+    assert again == []  # nothing uninvoiced is left
+    api("POST", "/billing-bulk-actions", {"action": "create_invoices"}, 422)
 
 
-def test_bulk_invoicing_by_location_is_capped_like_a_selection(api, shop, monkeypatch):
-    """The location mode runs in the request too, so it refuses more items than charge_ids may carry."""
-    monkeypatch.setattr(documents, "BULK_INVOICE_MAX", 2)
+def test_bulk_actions_are_capped_keyed_and_run_as_a_job_when_large(api, shop, monkeypatch):
+    from app.modules.billing import bulk
+
+    monkeypatch.setattr(bulk, "MAX_ITEMS", 2)
     for price in (100, 200, 300):
         api("POST", "/charges", item(shop, price), 201)
-    body = {"location_id": str(shop.location_id), "is_dry_run": True}
-    refused = api("POST", "/billing-bulk-actions", body, 422)
-    assert refused["code"] == "validation-failed" and refused["errors"][0]["pointer"] == "/location_id"
-    monkeypatch.setattr(documents, "BULK_INVOICE_MAX", 3)
-    assert len(api("POST", "/billing-bulk-actions", body)["items"]) == 1  # one client, three items
+    body = {"action": "create_invoices", "location_id": str(shop.location_id)}
+    refused = _bulk(api, body | {"is_dry_run": True}, 422)
+    assert refused["errors"][0]["pointer"] == "/charge_ids"
+    monkeypatch.setattr(bulk, "MAX_ITEMS", 3)
+    monkeypatch.setattr(bulk, "IN_REQUEST_LIMIT", 1)
+    sent = []
+    monkeypatch.setattr(bulk.run_bulk_action, "send", lambda *args: sent.append(args))
+    key = {"Idempotency-Key": f"bulk-{uuid4().hex}"}
+    queued = api.client.post(f"{API}/billing-bulk-actions", headers=shop.owner | key, json=body)
+    assert queued.status_code == 202 and queued.json()["status"] == "queued" and len(sent) == 1
+    replay = api.client.post(f"{API}/billing-bulk-actions", headers=shop.owner | key, json=body)
+    assert replay.json()["id"] == queued.json()["id"] and len(sent) == 1  # the key replays, nothing new
+    other = api.client.post(f"{API}/billing-bulk-actions", headers=shop.owner | key, json=body | {"only_mine": True})
+    assert other.status_code in (409, 422)  # the key is bound to the first request body
+    with work(shop.tenant) as session:
+        assert bulk.run_chunk(session, UUID(queued.json()["id"])) is False  # one client: one chunk
+    done = api("GET", f"/billing-bulk-actions/{queued.json()['id']}")
+    assert (done["status"], done["done_count"]) == ("completed", 3)
+
+
+@pytest.mark.parametrize("in_request", [True, False])
+def test_bulk_invoicing_skips_a_charge_with_no_client_and_always_finishes(api, shop, monkeypatch, in_request):
+    """A clientless (POS) charge left uninvoiced by a void cannot go on a client's invoice: it is skipped with a
+    reason, and a chunk that selects nothing fails what is left instead of looping for ever."""
+    from app.modules.billing import bulk
+
+    api("POST", "/charges", item(shop, 100), 201)
+    with work(shop.tenant) as session:
+        walk_in = charge(session, shop, 250, client_id=None, source_context="pos").id
+    if not in_request:
+        monkeypatch.setattr(bulk, "IN_REQUEST_LIMIT", 1)
+        monkeypatch.setattr(bulk.run_bulk_action, "send", lambda *args: None)
+    made = api(
+        "POST", "/billing-bulk-actions", {"action": "create_invoices", "location_id": str(shop.location_id)}, 202
+    )
+    with work(shop.tenant) as session:
+        for _ in range(5):  # the job: a bounded number of chunks, never for ever
+            if not bulk.run_chunk(session, UUID(made["id"])):
+                break
+        else:
+            pytest.fail("the bulk action never finished")
+    done = api("GET", f"/billing-bulk-actions/{made['id']}")
+    rows = api("GET", f"/billing-bulk-actions/{made['id']}/items?limit=100")["data"]
+    assert (done["status"], done["done_count"]) == ("completed", 1)
+    skipped = next(row for row in rows if row["subject_id"] == str(walk_in))
+    assert (skipped["status"], skipped["error_code"]) == ("skipped", "charge-has-no-client")
+
+
+def test_a_chunk_that_selects_nothing_fails_the_rest(api, shop):
+    from app.modules.billing import bulk
+    from app.modules.billing.models import BillingBulkActionItem
+
+    api("POST", "/charges", item(shop, 100), 201)
+    made = api("POST", "/billing-bulk-actions", {"action": "create_invoices", "location_id": str(shop.location_id),
+                                                 "is_dry_run": True}, 202)  # fmt: skip
+    with work(shop.tenant) as session:  # an item that no chunk can pick up (a payer the grouping cannot match)
+        session.add(BillingBulkActionItem(
+            billing_bulk_action_id=UUID(made["id"]), subject_type="charge", subject_id=uuid4(), group_client_id=None,
+            status="pending",
+        ))  # fmt: skip
+        action = session.get(bulk.BillingBulkAction, UUID(made["id"]))
+        action.status = "running"
+        assert bulk.run_chunk(session, action.id) is False
+        assert (
+            session.scalar(
+                select(BillingBulkActionItem.error_code).where(BillingBulkActionItem.group_client_id.is_(None))
+            )
+            == "not-processed"
+        )
+
+
+def test_bulk_reverse_email_render_and_add_item(api, shop, desk):
+    from app.modules.billing.models import BillingDocumentDelivery
+
+    loc = str(shop.location_id)
+    ids = [api("POST", "/charges", item(shop, price), 201)["id"] for price in (1000, 500)]
+    _bulk(api, {"action": "reverse_charges", "location_id": loc, "charge_ids": ids}, 422)  # a reason is required
+    done, rows = _bulk(api, {"action": "reverse_charges", "location_id": loc, "charge_ids": ids,
+                             "params": {"reason": "Entered twice"}})  # fmt: skip
+    assert done["done_count"] == 2 and {row["result_type"] for row in rows} == {"charge"}
+    assert {api("GET", f"/charges/{charge_id}")["status"] for charge_id in ids} == {"reversed"}
+    invoice = api("POST", "/invoices", {"charge_ids": [api("POST", "/charges", item(shop, 700), 201)["id"]]}, 201)
+    done, rows = _bulk(api, {"action": "email_invoices", "location_id": loc, "invoice_ids": [invoice["id"]]})
+    assert (done["status"], rows[0]["error_code"]) == ("completed_with_errors", "no-email-address")  # reported
+    done, rows = _bulk(api, {"action": "render_invoices", "location_id": loc, "invoice_ids": [invoice["id"]]})
+    assert done["status"] == "completed" and rows[0]["result_type"] == "billing_document_delivery"
+    with work(shop.tenant) as session:
+        assert session.get(BillingDocumentDelivery, UUID(rows[0]["result_id"])).channel == "download"
+    catalog_item = api(
+        "POST",
+        "/catalog-items",
+        {
+            "location_id": loc,
+            "kind": "one_off",
+            "description": "Locker",
+            "fee_minor": 1000,
+            "revenue_category_id": str(shop.category_id),
+        },
+        201,
+    )
+    body = {"action": "add_catalog_item", "location_id": loc, "client_ids": [str(shop.client_id)],
+            "params": {"catalog_item_id": catalog_item["id"]}}  # fmt: skip
+    done, rows = _bulk(api, body)
+    assert (done["status"], rows[0]["result_type"]) == ("completed", "catalog_item_sale")
+
+
+def test_a_bulk_action_is_location_scoped(client, api, shop):
+    other = client.post(f"{API}/locations", headers=shop.owner,
+                        json={"name": "North", "time_zone": "America/Chicago", "country_code": "US"}).json()["id"]  # fmt: skip
+    mine = api("POST", "/charges", item(shop, 400), 201)["id"]
+    done, rows = _bulk(api, {"action": "reverse_charges", "location_id": other, "charge_ids": [mine],
+                             "params": {"reason": "x"}})  # fmt: skip
+    assert rows[0]["status"] == "skipped" and api("GET", f"/charges/{mine}")["status"] == "active"
 
 
 def test_invoice_edits_schedule_void_and_mark_paid(client, api, shop, desk):
@@ -470,9 +584,12 @@ def test_receipts_statements_credit_and_ageing(api, shop, emailed, mailbox):
         extra = api(
             "POST", "/payments", who | {"amount_minor": 250, "tender_kind": "card", "method_token": "tok_card_ok"}, 201
         )
-        refunds = api(
+        batch = api(
             "POST", f"/clients/{emailed}/account-credit/refund", {"amount_minor": 250, "reason": "Leaving"}, 201
         )
+        refunds = batch["refunds"]
+        assert (batch["amount_minor"], batch["refunded_minor"]) == (250, 250)
+        assert batch["refund_batch_id"] == refunds[0]["refund_batch_id"]
         assert [(row["payment_id"], row["method"], row["status"]) for row in refunds] == [
             (extra["id"], "original", "succeeded")
         ]
@@ -770,9 +887,11 @@ def test_webhook_events_for_methods_and_accounts(shop):
         account.has_card = False
         webhooks.apply_event(session, "account", account.provider_account_ref)
         assert account.has_card is True
-        for nothing in (("payment", "fake_pay_unknown"), ("refund", "fake_ref_unknown"), ("method", "pm_unknown"),
-                        ("account", "acct_unknown"), ("other", "x"), ("payment", None)):  # fmt: skip
+        for nothing in (("method", "pm_unknown"), ("account", "acct_unknown"), ("other", "x"), ("payment", None)):
             webhooks.apply_event(session, *nothing)  # events about objects we do not hold are ignored
+        for money in (("payment", "fake_pay_unknown"), ("refund", "fake_ref_unknown")):
+            with pytest.raises(webhooks.Unmatched):  # money with no row of ours is kept for an operator
+                webhooks.apply_event(session, *money)
 
 
 # --- client portal -----------------------------------------------------------------------------------------
@@ -874,7 +993,7 @@ def test_service_gates_hold_without_the_router(shop, desk):
     Manager-only commands, and a Manager of another location gets 404, never 403."""
     from app.core.auth import Principal
     from app.core.errors import NotFound, PermissionDenied
-    from app.modules.billing import catalogue
+    from app.modules.billing import bulk, catalogue
     from app.modules.billing import desk as commands
 
     nobody = Principal(kind="staff", tenant_id=shop.tenant.id, permissions={"billing.charge.read": "all"})
@@ -904,9 +1023,11 @@ def test_service_gates_hold_without_the_router(shop, desk):
             lambda: catalogue.put_settings(session, nobody, None, {}),
             lambda: catalogue.set_period_lock(session, nobody, None),
             lambda: methods.connect_provider_account(session, nobody, "fake"),
-            lambda: documents.bulk_invoice(session, nobody, {"charge_ids": [row.id]}),
+            lambda: bulk.create_bulk_action(
+                session, nobody, {"action": "create_invoices", "location_id": shop.location_id}, None
+            ),
             lambda: documents.receivables_ageing(session, nobody),
         ):
             with pytest.raises(PermissionDenied):
                 tenant_wide()
-        assert documents.bulk_invoice(session, elsewhere, {"charge_ids": [row.id]})["items"][0]["status"] == "skipped"
+        # another location's bulk scoping: test_a_bulk_action_is_location_scoped

@@ -1,4 +1,3 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type Schemas } from '../../api/client'
@@ -9,78 +8,14 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
-import { useToast } from '../../components/Toast'
 import { useAuth, useCurrentLocation, useMe } from '../../lib/auth'
 import { useDebounced } from '../../lib/useDebounced'
 import { InvoicesTable, PaymentsTable } from './ClientBillingPage'
-import { useLocationToday } from '../../lib/locationDate'
+import { BulkAddItemDialog, BulkInvoiceDialog, BulkReverseDialog, BulkSendDialog, MAX_ITEMS } from './BulkActions'
 import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS } from './money'
-import { ClientName, FormDialog, ListTable, LocationSelect, Money, StatusBadge } from './shared'
+import { ClientName, LocationSelect, Money, StatusBadge } from './shared'
 
 type Charge = Schemas['ChargeOut']
-type Scope = { charge_ids: string[]; only_mine: false } | { location_id: string; only_mine: boolean }
-
-/** Bulk invoicing: preview first (dry run), then create. One invoice per client, never mixed. */
-export function BulkInvoiceDialog({ scope, onClose }: { scope: Scope; onClose: () => void }) {
-  const qc = useQueryClient()
-  const toast = useToast()
-  const [dueOn, setDueOn] = useState(useLocationToday('location_id' in scope ? scope.location_id : null))
-  const [autopay, setAutopay] = useState(false)
-  const run = useMutation({
-    mutationFn: (dry: boolean) => api.post('/api/v1/billing-bulk-actions', { body: { action: 'create_invoices', ...scope, due_on: dueOn || null, is_autopay: autopay, is_dry_run: dry } }),
-    onSuccess: (r) => {
-      if (r.is_dry_run) return
-      void qc.invalidateQueries({ queryKey: ['billing'] })
-      const made = r.items.filter((i) => i.status === 'done').length
-      const failed = r.items.filter((i) => i.status === 'failed').length
-      toast(failed ? 'error' : 'success', `${made} invoices created${failed ? `, ${failed} failed` : ''}.`)
-    },
-  })
-  const result = run.data
-  return (
-    <FormDialog
-      title="Invoice items in bulk"
-      description="One invoice per client. Preview shows what would be created; nothing is saved until you create."
-      submitLabel={result?.is_dry_run ? 'Create invoices' : result ? 'Done' : 'Preview'}
-      busy={run.isPending}
-      error={run.error}
-      onClose={onClose}
-      onSubmit={() => (result && !result.is_dry_run ? onClose() : run.mutate(!result))}
-      size="lg"
-    >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Due date" type="date" value={dueOn} disabled={Boolean(result)} onChange={(e) => setDueOn(e.target.value)} />
-        <div className="flex items-end pb-2">
-          <Checkbox label="Collect by autopay" checked={autopay} disabled={Boolean(result)} onChange={(e) => setAutopay(e.target.checked)} />
-        </div>
-      </div>
-      {result && (
-        <ListTable
-          caption={result.is_dry_run ? 'Invoices that would be created' : 'Bulk invoicing result'}
-          rows={result.items}
-          rowKey={(i) => `${i.client_id}-${i.location_id}-${i.charge_ids.join()}`}
-          empty={<EmptyState title="Nothing to invoice" />}
-          columns={[
-            { header: 'Client', cell: (i) => <ClientName id={i.client_id} link={false} /> },
-            { header: 'Items', cell: (i) => i.charge_ids.length, className: 'text-right' },
-            { header: 'Total', cell: (i) => <Money minor={i.total_minor} />, className: 'text-right' },
-            {
-              header: 'Result',
-              cell: (i) =>
-                i.invoice_id ? (
-                  <Link className="text-primary underline" to={`/billing/invoices/${i.invoice_id}`}>
-                    Invoice created
-                  </Link>
-                ) : (
-                  <Badge tone={i.status === 'failed' ? 'danger' : i.status === 'skipped' ? 'warning' : 'neutral'}>{i.error_code ?? (result.is_dry_run ? 'Will be invoiced' : i.status)}</Badge>
-                ),
-            },
-          ]}
-        />
-      )}
-    </FormDialog>
-  )
-}
 
 function ItemsWorkbench() {
   const { can } = useAuth()
@@ -88,7 +23,7 @@ function ItemsWorkbench() {
   const [filters, setFilters] = useState({ location_id: locationId ?? '', state: 'uninvoiced', status: '', kind: '', q: '' })
   const q = useDebounced(filters.q.trim(), 300)
   const [chosen, setChosen] = useState<string[]>([])
-  const [bulk, setBulk] = useState(false)
+  const [bulk, setBulk] = useState<'' | 'invoice' | 'reverse' | 'add'>('')
   const query = {
     location_id: filters.location_id || undefined,
     status: filters.status || undefined,
@@ -101,7 +36,7 @@ function ItemsWorkbench() {
     {
       header: 'Select',
       cell: (c) =>
-        !c.invoice_id && c.status === 'active' && c.kind !== 'reversal' ? (
+        c.status === 'active' && c.kind !== 'reversal' ? (
           <input type="checkbox" className="h-4 w-4" aria-label={`Select ${c.description}`} checked={chosen.includes(c.id)} onChange={(e) => setChosen(e.target.checked ? [...chosen, c.id] : chosen.filter((x) => x !== c.id))} />
         ) : null,
     },
@@ -113,6 +48,10 @@ function ItemsWorkbench() {
     { header: 'Invoice', cell: (c) => (c.invoice_id ? <Link className="text-primary underline" to={`/billing/invoices/${c.invoice_id}`}>Open</Link> : <Badge tone="warning">Uninvoiced</Badge>) },
     { header: 'Status', cell: (c) => (c.kind === 'standard' ? <StatusBadge map={CHARGE_STATUS} value={c.status} /> : <Badge>{c.kind}</Badge>) },
   ]
+  const done = () => {
+    setBulk('')
+    setChosen([])
+  }
   const set = (p: Partial<typeof filters>) => {
     setFilters({ ...filters, ...p })
     setChosen([])
@@ -126,23 +65,29 @@ function ItemsWorkbench() {
         <Select label="Kind" value={filters.kind} onChange={(e) => set({ kind: e.target.value })} placeholder="All kinds" options={['standard', 'adjustment', 'reversal', 'surcharge'].map((k) => ({ value: k, label: k }))} />
         <Input label="Search" type="search" value={filters.q} onChange={(e) => set({ q: e.target.value })} placeholder="Description" />
       </div>
-      {can('billing.invoice.bulk_create') && (
-        <div className="flex justify-end">
-          <Button disabled={chosen.length === 0} onClick={() => setBulk(true)}>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {!filters.location_id && <p className="text-sm text-muted">Choose a location to act on selected items.</p>}
+        {filters.location_id && <p className="text-sm text-muted">Bulk actions take at most {MAX_ITEMS.toLocaleString()} items.</p>}
+        {can('billing.charge.create') && (
+          <Button variant="secondary" disabled={!filters.location_id} onClick={() => setBulk('add')}>
+            Add an item to clients
+          </Button>
+        )}
+        {can('billing.charge.reverse') && (
+          <Button variant="secondary" disabled={chosen.length === 0 || !filters.location_id} onClick={() => setBulk('reverse')}>
+            Reverse selected ({chosen.length})
+          </Button>
+        )}
+        {can('billing.invoice.bulk_create') && (
+          <Button disabled={chosen.length === 0 || !filters.location_id} onClick={() => setBulk('invoice')}>
             Invoice selected ({chosen.length})
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       <Table caption="Billing items" columns={columns} rowKey={(c) => c.id} paging={paging} empty={<EmptyState title="No items match" />} />
-      {bulk && (
-        <BulkInvoiceDialog
-          scope={{ charge_ids: chosen, only_mine: false }}
-          onClose={() => {
-            setBulk(false)
-            setChosen([])
-          }}
-        />
-      )}
+      {bulk === 'invoice' && <BulkInvoiceDialog scope={{ location_id: filters.location_id, charge_ids: chosen }} onClose={done} />}
+      {bulk === 'reverse' && <BulkReverseDialog scope={{ location_id: filters.location_id, charge_ids: chosen }} onClose={done} />}
+      {bulk === 'add' && <BulkAddItemDialog locationId={filters.location_id} onClose={done} />}
     </div>
   )
 }
@@ -188,16 +133,42 @@ function CartsTab() {
 }
 
 function InvoicesWorkbench() {
+  const { can } = useAuth()
   const { locationId } = useCurrentLocation()
   const [location, setLocation] = useState(locationId ?? '')
   const [status, setStatus] = useState('')
+  const [chosen, setChosen] = useState<string[]>([])
+  const [bulk, setBulk] = useState<'' | 'email' | 'render'>('')
+  const send = can('billing.invoice.send')
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <LocationSelect value={location} onChange={setLocation} allowAll />
-        <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)} placeholder="All statuses" options={Object.entries(INVOICE_STATUS).map(([value, [label]]) => ({ value, label }))} />
+        <LocationSelect value={location} onChange={(v) => (setLocation(v), setChosen([]))} allowAll />
+        <Select label="Status" value={status} onChange={(e) => (setStatus(e.target.value), setChosen([]))} placeholder="All statuses" options={Object.entries(INVOICE_STATUS).map(([value, [label]]) => ({ value, label }))} />
       </div>
-      <InvoicesTable showClient query={{ location_id: location || undefined, status: status || undefined }} />
+      {send && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <p className="text-sm text-muted">{location ? `Bulk actions take at most ${MAX_ITEMS.toLocaleString()} invoices.` : 'Choose a location to act on selected invoices.'}</p>
+          <Button variant="secondary" disabled={chosen.length === 0 || !location} onClick={() => setBulk('render')}>
+            Save PDFs ({chosen.length})
+          </Button>
+          <Button disabled={chosen.length === 0 || !location} onClick={() => setBulk('email')}>
+            Email selected ({chosen.length})
+          </Button>
+        </div>
+      )}
+      <InvoicesTable showClient query={{ location_id: location || undefined, status: status || undefined }} {...(send ? { chosen, onChoose: setChosen } : {})} />
+      {bulk && (
+        <BulkSendDialog
+          mode={bulk}
+          locationId={location}
+          invoiceIds={chosen}
+          onClose={() => {
+            setBulk('')
+            setChosen([])
+          }}
+        />
+      )}
     </div>
   )
 }
