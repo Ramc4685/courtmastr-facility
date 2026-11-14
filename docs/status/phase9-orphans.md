@@ -85,6 +85,25 @@ PAY-16) wait for the review of these.
   1,185 passed, 6 skipped, 4 failed, all outside billing and from main (`GET /time-entries/summary` and
   `POST /payroll-runs` with year-1 dates, `POST /sports` and `POST /age-groups` with integers above int4); `make
   web-check` clean, `make web-test` 312 passed (62 files).
+- **Third Fable verification fixes (fifth pass).** A processed refund's row never falls back to the caller's
+  transaction: a lock held past 500 ms (a plain `FOR UPDATE` on the payment blocks the row's foreign key check) is
+  409 `request-in-progress` before the processor is called. `spend_credit` (held by autopay for a whole tenant pass,
+  and by portal pay-with-credit), the payment-by-key lookup and the dispute webhook now lock payments `FOR NO KEY
+  UPDATE`, so ordinary refunds wait instead of being refused. A payment whose row is held by another request is 409
+  before any charge (a NOWAIT probe tells another request from the caller's own rows: a guest's new client, first-use
+  tender rows and a cash leg's receipt counter still insert in the caller's transaction, which cannot be avoided). An
+  account-credit refund answers the contract's `RefundBatch` (`refunded_minor` and each leg's status); a same-key
+  replay of a plan with a declined or cancelled leg is 409 `refund-plan-incomplete`; the credit and card refund
+  dialogs say what was refunded and what was declined or is pending. Stripe 409 (same key in flight) and 429 are
+  unknown, never failed. Year-1 dates on the time summary and payroll runs and int4 overflows on sports, age groups
+  and divisions are 422. Merged main (kiosk name oracle): migration 1801 now revises 1965 (one head, 1806; lane
+  databases rebuilt).
+- **Checks run (fifth pass, after the merge).** `app/modules/billing` 298 passed; `app/modules/pos` 49 passed;
+  `app/modules/memberships` 154 passed; `app/modules/integrations` 172 passed, 1 failed
+  (`test_migration_1951_removes_existing_analytics_connections`: the 1801 downgrade guard refuses while earlier tests
+  left `initiated` refunds; order dependent, not fixed); `tests/` 4,967 passed, 1,152 skipped or xfailed, 0 failed.
+  `make lint typecheck boundaries` clean; `make contract` 1,191 passed, 6 skipped; `make web-check` clean, `make
+  web-test` 322 passed (62 files). `make api-diff` still reports the third pass's `booking_number` int4 cap (no allow line).
 
 ## Not done inside built features
 
