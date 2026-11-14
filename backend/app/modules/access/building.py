@@ -800,14 +800,18 @@ async def door_enter(door_id: UUID, location_id: UUID) -> tuple | None:
     Redis error, the request cancelled mid-wait) leaves the queue and gives up the turn if it was taken."""
     p = ratelimit.PREFIX
     queue, lock, wake = f"{p}:door-queue:{door_id}", f"{p}:door-lock:{door_id}", f"{p}:door-wake:{door_id}"
-    mine, joined, ticket = secrets.token_hex(8), False, None
-    try:
-        r = _aredis()
+    mine, join, ticket = secrets.token_hex(8), None, None
+
+    async def incr() -> int:
         async with r.pipeline() as pipe:
             pipe.incr(queue)
             pipe.expire(queue, 60)
-            depth = int((await pipe.execute())[0])
-        joined = True
+            return int((await pipe.execute())[0])
+
+    try:
+        r = _aredis()
+        join = asyncio.ensure_future(incr())
+        depth = await asyncio.shield(join)  # a cancel mid round trip still lets the INCR finish, so finally knows
         if depth > DOOR_QUEUE + 1:
             return None
         deadline = time.monotonic() + DOOR_LOCK_WAIT
@@ -823,8 +827,18 @@ async def door_enter(door_id: UUID, location_id: UUID) -> tuple | None:
         log.warning("door gate unavailable")
         return None
     finally:  # also on asyncio.CancelledError
-        if joined and ticket is None:
+        if join is not None and ticket is None and await _joined(join):
             await door_leave((queue, lock, wake, mine))  # frees the lock only if it is ours
+
+
+async def _joined(join: asyncio.Future) -> bool:
+    """Whether the queue INCR happened (waits for a shielded one still in flight): only then is there a slot to give
+    back."""
+    try:
+        await asyncio.shield(join)
+        return True
+    except redis.RedisError:
+        return False
 
 
 async def door_leave(ticket: tuple) -> None:

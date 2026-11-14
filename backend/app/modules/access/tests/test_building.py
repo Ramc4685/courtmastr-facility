@@ -1518,3 +1518,33 @@ def test_a_booking_that_fails_every_tick_is_shown_to_staff_once(b, sim, monkeypa
         for _ in range(3):
             tick(b)
     assert codes(b, booking) == [] and details_of(b, "command_failed") == [f"code_sync:{booking}"]
+
+
+def test_a_verify_cancelled_during_the_queue_increment_gives_its_slot_back(b, monkeypatch):
+    import asyncio
+
+    from redis.asyncio.client import Pipeline
+
+    from app.core import ratelimit
+
+    queue = f"{ratelimit.PREFIX}:door-queue:{b.door}"
+    real, slow = Pipeline.execute, [True]
+
+    async def late_reply(self, *args, **kwargs):  # the INCR lands, its reply is slow
+        result = await real(self, *args, **kwargs)
+        if slow:
+            slow.pop()
+            await asyncio.sleep(0.3)
+        return result
+
+    monkeypatch.setattr(Pipeline, "execute", late_reply)
+
+    async def scenario():
+        task = asyncio.create_task(building.door_enter(UUID(b.door), UUID(b.location)))
+        await asyncio.sleep(0.1)  # inside the INCR round trip
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return int(await building._aredis().get(queue) or 0)
+
+    assert asyncio.run(scenario()) == 0
