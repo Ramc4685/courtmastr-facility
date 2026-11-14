@@ -20,7 +20,7 @@ VIEWS = {
     # every earning line with its coach and where it stands: unpaid (on no payout or a draft), approved, or paid
     "rpt_coach_earning": """
         SELECT e.tenant_id, e.id AS coach_earning_id, e.location_id, e.staff_payee_id, sp.display_name AS coach_name,
-               sp.resource_id AS coach_resource_id, e.kind, e.earned_on, e.description, e.gross_minor,
+               sp.resource_id AS coach_resource_id, sp.staff_user_id AS coach_staff_user_id, e.kind, e.earned_on, e.description, e.gross_minor,
                e.facility_share_minor, e.coach_share_minor, p.id AS coach_payout_id,
                coalesce(p.status, 'unpaid') AS payout_status, p.paid_on
         FROM coach_earning e

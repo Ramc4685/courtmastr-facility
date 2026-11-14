@@ -213,7 +213,9 @@ line kind, and leaving it draft is the smaller change. PDF and CSV per statement
 place a transfer would be started and its reference recorded.
 
 **Reports and accounting.** `coach_revenue_split` (per coach, gross and both shares, in a period) and
-`coach_liability` (lines earned by a date and not paid by then) read the `rpt_coach_earning` view. The coach's
+`coach_liability` (lines earned by a date and not paid by then) read the `rpt_coach_earning` view. With `own` reach a
+coach sees the lines of the payees linked to their sign-in (`staff_payee.staff_user_id`), the same rule as their own
+earnings and statements, not their linked calendar column. The coach's
 share is a cost owed to the coach, not less revenue: revenue reports and the ledger keep the full lesson price.
 QuickBooks is unchanged: its daily journal is built from billing's ledger postings, which never include coach
 earnings, so lesson revenue posts in full and the facility books each payout as a contractor expense when it pays.

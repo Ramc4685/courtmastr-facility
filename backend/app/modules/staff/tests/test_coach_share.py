@@ -15,6 +15,7 @@ from app.core.db.session import tenant_session
 from app.modules.memberships.tests.support import deliver_events, package_plan
 from app.modules.scheduling.tests.helpers import API, DAY, at, book, facility, ok
 from app.modules.staff.domain import share
+from app.modules.platform.models import StaffUser
 from app.modules.staff.models import CoachEarning
 from conftest import add_staff, login, new_client, scalar
 
@@ -372,6 +373,21 @@ def test_changing_a_share_rule_or_an_engagement_audits_the_old_and_new_values(cl
     [changes] = [r[0] for r in rows(tenant, select(AuditEvent.changes).where(AuditEvent.entity_id == term["id"])
                                     .order_by(AuditEvent.occurred_at.desc()).limit(1))]  # fmt: skip
     assert changes["engagement"] == ["independent", "employee"]
+
+
+def test_a_coachs_report_and_own_view_agree_on_what_is_theirs(client, tenant, owner, coached):
+    """One meaning of "own": the payee linked to the coach's sign-in, even when their calendar link is elsewhere."""
+    c = coached
+    _mark(client, tenant, c, "attended")
+    email, ines = add_staff(tenant, "coach", location_ids=[c.f.location])
+    ok(client.patch(f"{API}/staff-payees/{c.payee['id']}", headers=owner, json={"staff_user_id": str(ines)}), 200)
+    with tenant_session(tenant.id) as session:  # the coach's calendar link moved off this column
+        session.get_one(StaffUser, ines).linked_resource_id = None
+    headers = login(client, tenant, email)
+    mine = sum(e["coach_share_minor"] for e in ok(client.get(f"{API}/coach-earnings", headers=headers), 200)["data"])
+    report = ok(client.post(f"{API}/report-runs", headers=headers, json={"report_key": "coach_revenue_split",
+                "params": {"from_on": "2031-05-01", "to_on": "2031-05-31"}}), 200)  # fmt: skip
+    assert mine == report["totals"]["coach_share_minor"] == 700
 
 
 def test_share_rules_validate_and_keep_their_history(client, tenant, owner, coached):

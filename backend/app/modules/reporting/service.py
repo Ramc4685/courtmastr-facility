@@ -155,7 +155,8 @@ def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict)
         raise PermissionDenied(f"Requires {spec.permission} for every row", required=spec.permission)
     own = platform.service.linked_resource_id(session, principal.staff_user_id) if own_only else None
     permitted = None if principal.kind == "system" or principal.location_ids is None else tuple(principal.location_ids)
-    return params.model_copy(update=changes), Scope(locations, own_only, own, day_ranges, permitted)
+    staff_user_id = principal.staff_user_id if own_only else None
+    return params.model_copy(update=changes), Scope(locations, own_only, own, day_ranges, permitted, staff_user_id)
 
 
 # --- runs ----------------------------------------------------------------------------------------------------

@@ -37,6 +37,14 @@ def _own(column, scope: Scope) -> list:
     return [column == scope.own_resource_id if scope.own_resource_id else false()]
 
 
+def _own_coach(column, scope: Scope) -> list:
+    """`own` reach on the coach-share reports: the payees linked to the caller's sign-in, the same rule as the
+    coach's own earnings and statements (staff `coach._own_payees`), not the calendar column."""
+    if not scope.own_only:
+        return []
+    return [column == scope.own_staff_user_id if scope.own_staff_user_id else false()]
+
+
 def _hours(minutes: int) -> float:
     return round(minutes / 60, 2)
 
@@ -214,7 +222,7 @@ def _coach_rows(session: Session, where: list, scope: Scope) -> dict:
     for r in session.execute(_loc(
         select(e.staff_payee_id, e.coach_name, e.earned_on, e.kind, e.description, e.payout_status, e.paid_on,
                *(getattr(e, m) for m in _SPLIT))
-        .where(*where, *_own(e.coach_resource_id, scope))
+        .where(*where, *_own_coach(e.coach_staff_user_id, scope))
         .order_by(e.coach_name, e.earned_on, e.coach_earning_id), v.coach_earning, scope,
     )):  # fmt: skip
         d = dict(r._mapping)

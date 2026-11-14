@@ -216,7 +216,7 @@ class_session = _view("rpt_class_session", """session_id location_id booking_id 
 
 # coach revenue share (migration 2031): earning lines with the payout that gathered them
 coach_earning = _view("rpt_coach_earning", """coach_earning_id location_id staff_payee_id coach_name coach_resource_id
-    kind earned_on description gross_minor facility_share_minor coach_share_minor coach_payout_id payout_status
+    coach_staff_user_id kind earned_on description gross_minor facility_share_minor coach_share_minor coach_payout_id payout_status
     paid_on""")  # fmt: skip
 
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
