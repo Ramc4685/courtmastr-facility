@@ -431,3 +431,44 @@ def test_a_nul_character_in_a_request_dict_key_is_a_422(client, tenant, owner):
 def test_a_booking_number_above_int4_is_a_422(client, tenant, owner):
     refused = client.post(f"{API}/bookings/{uuid4()}/merge", headers=owner, json={"booking_number": 2**31})
     assert refused.status_code == 422, refused.text
+
+
+def _data_error(sql: str, **params):
+    """A real psycopg 22003 from Postgres, raised through SQLAlchemy as the routes would see it."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import DataError
+
+    from app.core.db.session import app_engine
+
+    with app_engine().connect() as conn:
+        conn.execute(text("CREATE TEMP TABLE overflow_probe (n int4)"))
+        try:
+            conn.execute(text(sql), params)
+        except DataError as error:
+            return error
+    raise AssertionError("no DataError")
+
+
+def _answer(error, method: str):
+    import json
+
+    from starlette.requests import Request
+
+    from app.core.api import _on_data_error
+
+    response = _on_data_error(Request({"type": "http", "method": method, "path": "/x", "headers": []}), error)
+    return response.status_code, json.loads(response.body)["code"]
+
+
+def test_only_an_int4_bind_on_the_write_path_is_a_422_any_other_overflow_is_a_500(caplog):
+    """S4: 22003 is the caller's fault only when a request value bound into an INSERT or UPDATE overflows an
+    integer column; arithmetic overflow in a query, or any read, is a server fault logged with its trace id."""
+    bind = _data_error("INSERT INTO overflow_probe (n) VALUES (:n)", n=2**31)
+    assert _answer(bind, "POST") == (422, "validation-failed")
+    assert _answer(bind, "GET") == (500, "internal-error")  # never on a read
+    arithmetic = _data_error("SELECT 9223372036854775807::bigint + 1")
+    with caplog.at_level("ERROR"):
+        assert _answer(arithmetic, "POST") == (500, "internal-error")
+    assert any(record.exc_info for record in caplog.records)
+    read = _data_error("SELECT 2147483647::int4 + 1")  # "integer out of range", but in a query, not a bind
+    assert _answer(read, "POST") == (500, "internal-error")

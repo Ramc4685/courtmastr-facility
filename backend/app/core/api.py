@@ -368,8 +368,21 @@ def _on_integrity_error(request: Request, exc: IntegrityError):
 
 
 def _on_data_error(request: Request, exc: DataError):
-    """A number past its column's range (22003) is the caller's value, not a server fault."""
-    if getattr(exc.orig, "sqlstate", None) == "22003":
+    """A request value too big for an integer column (22003 on the INSERT or UPDATE of a write) is the caller's,
+    not a server fault. Every other DataError, a 22003 from arithmetic in a query or on a read included, is a 500
+    logged with its trace id.
+
+    shortcut: an UPDATE whose own arithmetic overflows an int4 column reads the same as a bound value; tell them
+    apart by bind position if that ever happens."""
+    diag = getattr(exc.orig, "diag", None)
+    message = (diag.message_primary if diag else None) or ""
+    statement = (exc.statement or "").lstrip().upper()
+    if (
+        getattr(exc.orig, "sqlstate", None) == "22003"
+        and request.method in ("POST", "PUT", "PATCH")
+        and statement.startswith(("INSERT", "UPDATE"))
+        and message in ("integer out of range", "smallint out of range")
+    ):
         detail = "A number is out of range."
         return problem(
             request,
