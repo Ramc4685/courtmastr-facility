@@ -378,8 +378,7 @@ def _on_data_error(request: Request, exc: DataError):
             detail,
             errors=[{"pointer": "", "code": "validation-failed", "detail": detail}],
         )
-    log.error("unmapped data error", exc_info=exc)
-    return problem(request, 500, "internal-error")
+    return _on_unhandled(request, exc)
 
 
 def _on_http_exception(request: Request, exc: StarletteHTTPException):
