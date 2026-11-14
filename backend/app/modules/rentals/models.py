@@ -356,6 +356,7 @@ class RentalBooking(TenantOwned, Timestamps, Base):
     ends_at: Mapped[datetime]
     cancelled_at: Mapped[datetime | None]
     is_on_public_schedule: Mapped[bool] = mapped_column(server_default=text("false"))
+    minor_override_reason: Mapped[str | None]  # staff booked past the minors rule (audit: flag only)
 
 
 class RentalParty(TenantOwned, Timestamps, Base):

@@ -7,6 +7,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Age checks: online sign-up, guest checkout and portal dependants ask for a date of birth declared true; staff confirm it once from the client record or the new Age checks queue, with a count on the dashboard.
+- A self-declared adult books and pays online at once and is told the entry code follows once staff have confirmed their age.
 - Kiosk: after checking in, members see the classes starting soon and book one on the tablet, by the same rules as online booking; a location can have the kiosk book the next open class automatically, and sets how far ahead classes are listed and how long the list stays up.
 - Kiosk: booking a class that uses a package needs the member's app code or wallet pass; a key fob, barcode or member number counts like a name, so it can book only free classes (a location can turn that off), and the tablet forgets the visit as soon as it returns to the start screen.
 - Rental plans: a waiver bound to a plan must be signed before the plan is sold, at the desk or online, and again on each purchase when it is set to every purchase.

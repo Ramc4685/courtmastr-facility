@@ -5,9 +5,10 @@ Each test asserts what CIRQT needs. Where the product cannot do it today the tes
 the reason, so it turns red the day the gap closes. Product code is not changed by this file.
 """
 
+import os
 from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -15,7 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 
+from app.core import clock
 from app.core.db.session import tenant_session
+from app.core.events import OutboxEvent
 from app.modules.clients.models import Client
 from app.modules.memberships.models import MembershipPlan
 from app.modules.platform.models import Location
@@ -26,11 +29,23 @@ from seeds import cirqt
 
 API = "/api/v1"
 ZONE = ZoneInfo(cirqt.ZONE)
-TODAY = datetime.now(ZONE).date()
+# One clock for the whole file: core.clock (which the product reads) frozen at noon on CIRQT's real local date. Every
+# scenario builds its times from NOW, TODAY and at(), never from datetime.now(), so the file gives the same result at
+# any hour (a slot "three hours from now" used to run past midnight after about 20:00 in Chicago). The date is the
+# real local one because Postgres stamps created_at with the real time; noon keeps both twelve hours from midnight.
+# CIRQT_FROZEN_AT=HH:MM moves the frozen hour, to prove the scenarios hold at any time of day.
+NOW = datetime.combine(datetime.now(ZONE).date(), time.fromisoformat(os.environ.get("CIRQT_FROZEN_AT", "12:00")), ZONE)
+TODAY = NOW.date()
 MON = TODAY + timedelta(days=7 - TODAY.weekday() + 21)  # a Monday three to four weeks out
 LEAGUE_FROM, LEAGUE_TO = MON + timedelta(days=14), MON + timedelta(days=35)
 BLOCKED_TUESDAY = MON + timedelta(days=15)
 PDAY = MON + timedelta(days=9)  # a Wednesday with nothing booked: the pricing previews
+
+
+@pytest.fixture(scope="module", autouse=True)
+def frozen_clock():
+    with clock.freeze(NOW.astimezone(UTC)):
+        yield
 
 
 def at(day: date, hhmm: str) -> str:
@@ -64,11 +79,14 @@ def w(client_module):
         walk_in_pool = [str(c.id) for c in people.values() if c.id not in (parent.id, member.id)]
     owner = sign("owner")
     types = {t["name"]: t for t in ok(client_module.get(f"{API}/rental-types?location_id={location.id}", headers=owner), 200)["data"]}  # fmt: skip
+    # Every seeded adult holds a membership; a walk-in guest pays guest prices.
+    guest = ok(client_module.post(f"{API}/clients", headers=owner, json={
+        "first_name": "Gale", "last_name": "Guest", "home_location_id": str(location.id), "birth_on": "1988-03-04"}))["id"]  # fmt: skip
     return SimpleNamespace(
         tenant=tenant, mail=mail, location=str(location.id), courts=courts, member=str(member.id),
         parent=str(parent.id), kids=[str(k.id) for k in kids], kid_names=[k.first_name for k in kids], plans=plans,
         types={n: t["id"] for n, t in types.items()}, rates={n: t["online_rental_rate_id"] for n, t in types.items()},
-        others=walk_in_pool, owner=owner, manager=sign("manager"), desk=sign("front-desk"),
+        others=walk_in_pool, guest=guest, owner=owner, manager=sign("manager"), desk=sign("front-desk"),
         league=sign("league-admin"), member_portal=sign("member", "client"), parent_portal=sign("parent", "client"),
         public={"X-Tenant-Slug": tenant.slug},
     )  # fmt: skip
@@ -83,12 +101,13 @@ def client_module():
     return TestClient(app)
 
 
-def rent(c, w, headers, sport: str, court: str, day: date, start: str, end: str, client_id: str | None = None):
+def rent(c, w, headers, sport: str, court: str, day: date, start: str, end: str, client_id: str | None = None,
+         **extra):  # fmt: skip
     return c.post(f"{API}/rentals", headers=headers | key(), json={
         "location_id": w.location, "rental_type_id": w.types[sport], "client_id": client_id or w.others[0],
         "resources": [{"resource_id": w.courts[court]}], "starts_at": at(day, start), "ends_at": at(day, end),
         "charge": {"decision": "bill", "rental_rate_id": w.rates[sport]},
-    })  # fmt: skip
+    } | extra)  # fmt: skip
 
 
 def conflict(response) -> bool:
@@ -129,6 +148,30 @@ def test_a_member_books_court_1_online_and_overlaps_are_refused(client_module, w
             session.flush()
 
 
+def test_a_a_member_picks_an_8_pm_court_from_the_open_times_and_pays(client_module, w):
+    """Prime time is 18:00-22:00: the open times cover the whole day (here narrowed to the evening), every court."""
+    c, day = client_module, MON + timedelta(days=4)
+    query = (f"rental_type_id={w.types['Badminton court']}&on={day.isoformat()}&length_min=60&client_id={w.member}"
+             "&from_time=18:00&to_time=22:00")  # fmt: skip
+    page = ok(c.get(f"{API}/portal/rental-availability?{query}", headers=w.member_portal), 200)
+    assert not page["page"]["has_more"]
+    eight = [
+        s for s in page["data"] if datetime.fromisoformat(s["starts_at"]) == datetime.fromisoformat(at(day, "20:00"))
+    ]
+    assert len(eight) == len({s["resource_id"] for s in page["data"]}) >= 2  # 8 pm is offered on every court
+    slot = eight[-1]
+    assert slot["price_minor"] == 2500 and slot["is_member_price"]  # member prime
+    checkout = ok(c.post(f"{API}/portal/rentals", headers=w.member_portal, json={
+        "rental_type_id": w.types["Badminton court"], "client_id": w.member, "resource_id": slot["resource_id"],
+        "starts_at": slot["starts_at"], "ends_at": slot["ends_at"]}))  # fmt: skip
+    assert checkout["quote"]["subtotal_minor"] == 2500
+    paid = ok(c.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm", headers=w.member_portal | key(),
+                     json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
+    assert paid["rental"]["status"] == "confirmed"
+    again = ok(c.get(f"{API}/portal/rental-availability?{query}", headers=w.member_portal), 200)["data"]
+    assert (slot["resource_id"], slot["starts_at"]) not in {(s["resource_id"], s["starts_at"]) for s in again}
+
+
 # --- b. convertible courts: Court 2 and Court 3 each become one volleyball court ------------------------------
 
 
@@ -163,16 +206,16 @@ def test_b_volleyball_on_court_2_or_3_excludes_badminton_and_pickleball_there(cl
 
 @pytest.fixture(scope="module")
 def leagues(client_module, w):
-    """The manager blocks every court on one Tuesday league night; the league manager then generates and commits
-    the badminton schedule (Tuesdays, one game per court) and the volleyball one (Thursdays, the two volleyball
-    venues)."""
+    """The manager holds every court on one Tuesday as the badminton league's night; the league manager then
+    generates and commits the badminton schedule (Tuesdays, one game per court) and the volleyball one (Thursdays,
+    the two volleyball venues)."""
     c = client_module
-    block = c.post(f"{API}/bookings", headers=w.manager, json={
-        "location_id": w.location, "kind": "block", "block_kind": "unavailable", "title": "League night",
-        "resources": [{"resource_id": w.courts[n]} for n in cirqt.COURTS],
+    competitions = {x["name"]: x for x in ok(c.get(f"{API}/competitions", headers=w.league), 200)["data"]}
+    night = f"{API}/competitions/{competitions['Tuesday Badminton League']['id']}/league-nights"
+    block = c.post(night, headers=w.manager, json={
+        "resource_ids": [w.courts[n] for n in cirqt.COURTS],
         "starts_at": at(BLOCKED_TUESDAY, "18:00"), "ends_at": at(BLOCKED_TUESDAY, "22:00"),
     })  # fmt: skip
-    competitions = {x["name"]: x for x in ok(c.get(f"{API}/competitions", headers=w.league), 200)["data"]}
     venues = {v["name"]: v["id"] for v in ok(c.get(f"{API}/league-venues", headers=w.league), 200)["data"]}
     runs = {}
     for name, slots in (
@@ -204,8 +247,8 @@ def test_c_blocked_league_night_and_committed_fixtures_refuse_public_rentals(cli
     badminton = leagues.runs["Tuesday Badminton League"].games
     scheduled = [g for g in badminton if g["status"] == "scheduled"]
     assert scheduled, badminton
-    # The staff block is not the league's own: games the generator put on that night cannot be booked there.
-    assert not [g for g in scheduled if _local_day(g["starts_at"]) == BLOCKED_TUESDAY]
+    # The night is held for this league: its games take their slots out of the hold.
+    assert [g for g in scheduled if _local_day(g["starts_at"]) == BLOCKED_TUESDAY]
     game = scheduled[0]
     court = next(n for n, i in w.courts.items() if i == game["resource_id"])
     starts = datetime.fromisoformat(game["starts_at"].replace("Z", "+00:00")).astimezone(ZONE)
@@ -225,12 +268,6 @@ def test_c_blocked_league_night_and_committed_fixtures_refuse_public_rentals(cli
     assert ok(rent(c, w, w.desk, "Badminton court", "Court 1", v.date(), *hhmm))  # Court 1 is not a volleyball court
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A staff block on the courts is not a league reservation: the generator "
-    "treats it as a clash and leaves those games unschedulable, so a league night cannot be blocked "
-    "first and filled by the league scheduler later",
-)
 def test_c_league_fixtures_use_the_blocked_league_night(w, leagues):
     games = leagues.runs["Tuesday Badminton League"].games
     assert any(g["status"] == "scheduled" and _local_day(g["starts_at"]) == BLOCKED_TUESDAY for g in games)
@@ -241,13 +278,16 @@ def test_c_league_fixtures_use_the_blocked_league_night(w, leagues):
 
 def test_d_badminton_and_volleyball_leagues_score_and_rank(client_module, w, leagues):
     c = client_module
-    for name, score in (("Tuesday Badminton League", (2, 1)), ("Thursday Volleyball League", (3, 1))):
+    for name, sets in (
+        ("Tuesday Badminton League", ([21, 19, 21], [18, 21, 15])),
+        ("Thursday Volleyball League", ([25, 23, 25, 25], [20, 25, 18, 22])),
+    ):
         run = leagues.runs[name]
         teams = ok(c.get(f"{API}/competitions/{run.competition}/teams", headers=w.league), 200)
         assert len(teams if isinstance(teams, list) else teams["data"]) == 6
         game = next(g for g in run.games if g["status"] == "scheduled")
         result = ok(c.put(f"{API}/games/{game['id']}/result", headers=w.league,
-                          json={"home": {"score": score[0]}, "away": {"score": score[1]}}), 200)  # fmt: skip
+                          json={"home": {"sets": sets[0]}, "away": {"sets": sets[1]}}), 200)  # fmt: skip
         assert result["home"]["outcome"] == "win" and result["away"]["outcome"] == "loss"
         standings = ok(c.get(f"{API}/competitions/{run.competition}/standings", headers=w.league), 200)
         rows = standings if isinstance(standings, list) else standings["data"]
@@ -258,15 +298,18 @@ def test_d_badminton_and_volleyball_leagues_score_and_rank(client_module, w, lea
         assert public
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="A result is one integer score per side: no games or sets (badminton best of "
-    "three to 21, volleyball sets to 25), so per-game points cannot be entered or validated",
-)
 def test_d_set_by_set_scores(client_module, w, leagues):
-    game = next(g for g in leagues.runs["Tuesday Badminton League"].games if g["status"] == "scheduled")
-    sets = {"home": {"score": 2, "sets": [21, 18, 21]}, "away": {"score": 1, "sets": [19, 21, 15]}}
-    assert client_module.put(f"{API}/games/{game['id']}/result", headers=w.league, json=sets).status_code == 200
+    c = client_module
+    run = leagues.runs["Tuesday Badminton League"]
+    game = [g for g in run.games if g["status"] == "scheduled"][1]  # the first one is scored above
+    url = f"{API}/games/{game['id']}/result"
+    # 21-20 is not a finished set (win by two); 30-29 is, at the cap.
+    bad = c.put(url, headers=w.league, json={"home": {"sets": [21, 21]}, "away": {"sets": [20, 15]}})
+    assert bad.status_code == 422, bad.text
+    result = ok(c.put(url, headers=w.league, json={"home": {"sets": [21, 19, 30]}, "away": {"sets": [18, 21, 29]}}), 200)  # fmt: skip
+    assert (result["home"]["score"], result["away"]["score"]) == (2, 1) and result["home"]["sets"] == [21, 19, 30]
+    public = ok(c.get(f"{API}/public/competitions/{run.competition}/games", headers=w.public), 200)
+    assert next(g for g in public if g["id"] == game["id"])["set_scores"] == "21-18, 19-21, 30-29"
 
 
 # --- e. children ---------------------------------------------------------------------------------------------
@@ -352,19 +395,19 @@ def test_f_desk_checks_in_takes_a_walk_in_rental_with_payment_and_refunds_it(cli
     assert checked["check_in"]["result"] == "granted"
     walk_in = ok(c.post(f"{API}/clients", headers=w.desk, json={"first_name": "Drop", "last_name": f"In-{uuid4().hex[:4]}", "home_location_id": w.location}))  # fmt: skip
     rental = ok(rent(c, w, w.desk, "Badminton court", "Court 4", day, "10:00", "11:00", walk_in["id"]))
-    assert rental["quote"]["total_minor"] == 2400
+    assert rental["quote"]["total_minor"] == 1800  # a guest off-peak hour: $15 member price plus 20%
     [invoice] = rental["invoice_ids"]
     payment = ok(c.post(f"{API}/payments", headers=w.desk | key(), json={
-        "client_id": walk_in["id"], "location_id": w.location, "amount_minor": 2400, "tender_kind": "cash", "invoice_id": invoice,
+        "client_id": walk_in["id"], "location_id": w.location, "amount_minor": 1800, "tender_kind": "cash", "invoice_id": invoice,
     }))  # fmt: skip
     assert ok(c.get(f"{API}/invoices/{invoice}", headers=w.desk), 200)["status"] == "paid"
     cancelled = ok(
         c.post(f"{API}/rentals/{rental['rental']['id']}/cancel", headers=w.desk, json={"reason": "client"}), 200
     )
-    assert cancelled["reversed_minor"] == 2400 and cancelled["late_fee_minor"] == 0
-    refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.desk | key(), json={"amount_minor": 2400, "reason": "Walk-in cancelled"})  # fmt: skip
+    assert cancelled["reversed_minor"] == 1800 and cancelled["late_fee_minor"] == 0
+    refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.desk | key(), json={"amount_minor": 1800, "reason": "Walk-in cancelled"})  # fmt: skip
     if refund.status_code == 403:  # front desk may not refund: a manager does it
-        refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.manager | key(), json={"amount_minor": 2400, "reason": "Walk-in cancelled"})  # fmt: skip
+        refund = c.post(f"{API}/payments/{payment['id']}/refunds", headers=w.manager | key(), json={"amount_minor": 1800, "reason": "Walk-in cancelled"})  # fmt: skip
         w.desk_cannot_refund = True
     assert refund.status_code == 201, refund.text
 
@@ -381,37 +424,36 @@ def preview(c, w, client_id: str, day: date, start: str, end: str, sport: str = 
 
 
 def test_g_peak_and_off_peak_in_the_location_zone_with_a_straddling_booking(client_module, w):
-    c, saturday, walk_in = client_module, MON + timedelta(days=12), w.others[-1]
-    # Guest (non-member) prices: badminton $30 prime (18:00-22:00 Chicago), $24 outside; pickleball $14.40 mornings.
-    assert preview(c, w, walk_in, PDAY, "10:00", "11:00")["subtotal_minor"] == 2400
+    c, saturday, walk_in = client_module, MON + timedelta(days=12), w.guest
+    # Guest (non-member) prices, the owner's member prices plus the assumed 20%: badminton and pickleball $30 peak
+    # (18:00-22:00 Chicago), $18 off-peak; volleyball $48 at any hour (the owner's $40 is flat).
+    assert preview(c, w, walk_in, PDAY, "10:00", "11:00")["subtotal_minor"] == 1800
     assert preview(c, w, walk_in, PDAY, "18:00", "19:00")["subtotal_minor"] == 3000
     straddle = preview(c, w, walk_in, PDAY, "17:00", "19:00")  # one hour each side of 18:00 local
-    assert sorted(line["unit_amount_minor"] for line in straddle["lines"]) == [2400, 3000]
-    assert straddle["subtotal_minor"] == 5400
-    assert preview(c, w, walk_in, saturday, "19:00", "20:00")["subtotal_minor"] == 3000  # prime every day
-    assert preview(c, w, walk_in, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1440
+    assert sorted(line["unit_amount_minor"] for line in straddle["lines"]) == [1800, 3000]
+    assert straddle["subtotal_minor"] == 4800
+    assert preview(c, w, walk_in, saturday, "19:00", "20:00")["subtotal_minor"] == 3000  # peak every day
     assert (
-        preview(c, w, walk_in, PDAY, "11:30", "12:30", "Pickleball court")["subtotal_minor"] == 720 + 1200
-    )  # noon edge
+        preview(c, w, walk_in, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1800
+    )  # no morning price
+    assert preview(c, w, walk_in, PDAY, "19:00", "20:00", "Pickleball court")["subtotal_minor"] == 3000
     assert preview(c, w, walk_in, PDAY, "19:00", "20:00", "Volleyball court")["subtotal_minor"] == 4800
+    assert preview(c, w, walk_in, PDAY, "10:00", "11:00", "Volleyball court")["subtotal_minor"] == 4800
     slots = ok(c.get(f"{API}/public/rental-availability?rental_type_id={w.types['Badminton court']}&on={PDAY.isoformat()}"
                      f"&length_min=60&resource_id={w.courts['Court 4']}", headers=w.public), 200)["data"]  # fmt: skip
     by_start = {datetime.fromisoformat(s["starts_at"].replace("Z", "+00:00")).astimezone(ZONE).strftime("%H:%M"): s["price_minor"] for s in slots}  # fmt: skip
-    assert by_start["06:00"] == 2400 and by_start["18:00"] == 3000 and by_start["22:00"] == 2400
-    assert "22:30" not in by_start  # closes 23:00
+    assert by_start["06:00"] == 1800 and by_start["18:00"] == 3000 and by_start["22:00"] == 1800
+    assert by_start["02:00"] == 1800 and by_start["22:30"] == 1800  # open 24 hours
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Rental bookings never apply member prices: rentals price every payer as a "
-    "non-member (member_amount_minor and membership-type rules are stored but unused on bookings)",
-)
 def test_g_member_prices(client_module, w):
     c = client_module
-    assert preview(c, w, w.member, PDAY, "10:00", "11:00")["subtotal_minor"] == 2000  # owner: $25 prime less 20%
-    assert preview(c, w, w.member, PDAY, "18:00", "19:00")["subtotal_minor"] == 2500
-    assert preview(c, w, w.member, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1200
-    assert preview(c, w, w.member, PDAY, "19:00", "20:00", "Volleyball court")["subtotal_minor"] == 4000
+    assert preview(c, w, w.member, PDAY, "10:00", "11:00")["subtotal_minor"] == 1500  # owner: $15 off-peak
+    assert preview(c, w, w.member, PDAY, "18:00", "19:00")["subtotal_minor"] == 2500  # owner: $25 peak
+    assert preview(c, w, w.member, PDAY, "08:00", "09:00", "Pickleball court")["subtotal_minor"] == 1500
+    assert preview(c, w, w.member, PDAY, "19:00", "20:00", "Pickleball court")["subtotal_minor"] == 2500
+    assert preview(c, w, w.member, PDAY, "19:00", "20:00", "Volleyball court")["subtotal_minor"] == 4000  # flat
+    assert preview(c, w, w.member, PDAY, "10:00", "11:00", "Volleyball court")["subtotal_minor"] == 4000
 
 
 # --- h. cancellation and no-show -----------------------------------------------------------------------------
@@ -419,18 +461,20 @@ def test_g_member_prices(client_module, w):
 
 def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_module, w):
     c = client_module
-    payer = w.others[1]
+    payer = w.guest
     far = ok(rent(c, w, w.desk, "Pickleball court", "Court 2", MON + timedelta(days=4), "14:00", "15:00", payer))
+    paid = far["quote"]["subtotal_minor"]
+    assert paid == 1800  # a walk-in guest: the guest off-peak price (members pay 1500, test_g_member_prices)
     ok(c.post(f"{API}/payments", headers=w.desk | key(), json={"client_id": payer, "location_id": w.location,
-         "amount_minor": 2400, "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": far["invoice_ids"][0]}))  # fmt: skip
+         "amount_minor": paid, "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": far["invoice_ids"][0]}))  # fmt: skip
     result = ok(c.post(f"{API}/rentals/{far['rental']['id']}/cancel", headers=w.desk, json={"reason": "client"}), 200)
-    assert (result["reversed_minor"], result["late_fee_minor"]) == (2400, 0)
+    assert (result["reversed_minor"], result["late_fee_minor"]) == (paid, 0)
     balance = ok(c.get(f"{API}/clients/{payer}/account-credit", headers=w.owner), 200)
-    assert balance["credit_minor"] == 2400  # paid card money became credit
-    soon = datetime.now(ZONE) + timedelta(hours=3)
+    assert balance["credit_minor"] == paid  # paid card money became credit
+    soon = NOW + timedelta(hours=3)
     start = soon.replace(minute=0, second=0, microsecond=0)
-    if start.hour > 21:  # the two hours below would wrap past midnight; tomorrow morning is still inside 24 hours
-        start = (start + timedelta(days=1)).replace(hour=10)
+    if start.hour >= 22:  # both hour-long bookings below stay on one local date, still inside the 24-hour cut-off
+        start = (start + timedelta(days=1)).replace(hour=1)
     late = ok(rent(c, w, w.desk, "Pickleball court", "Court 1", start.date(), start.strftime("%H:%M"),
                    (start + timedelta(hours=1)).strftime("%H:%M"), payer))  # fmt: skip
     charged = late["quote"]["subtotal_minor"]
@@ -605,41 +649,76 @@ def data(response) -> list:
 # --- j. unmanned: a newcomer signs up, pays the membership fee and books a court with no staff ---------------
 
 
-def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(client_module, w, mailbox):
-    c, day = client_module, MON + timedelta(days=8)
-    assert w.location in {x["id"] for x in data(c.get(f"{API}/public/locations", headers=w.public))}
-    assert "Adult monthly" in {p["name"] for p in data(c.get(f"{API}/public/membership-plans", headers=w.public))}
-    offered = {t["name"] for t in data(c.get(f"{API}/public/rental-types", headers=w.public))}
-    assert {"Badminton court", "Pickleball court", "Volleyball court"} <= offered
-    # The one staff step: online sign-up is off by default, so the owner turns it on once at set-up.
+NOTICE = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
+
+
+def newcomer(c, w, mailbox) -> tuple[dict, dict]:
+    """Self sign-up with a declared birth date (no staff step: the seed switches self sign-up on)."""
     body = {
         "location_id": w.location,
         "email": f"new-{uuid4().hex[:6]}@{w.mail}",
         "first_name": "Nova",
         "last_name": "Newcomer",
+        "birth_on": "1994-06-07",
+        "birth_on_declared": True,
     }
-    refused = c.post(f"{API}/public/portal-signups", headers=w.public, json=body)
-    assert refused.status_code == 409 and refused.json()["code"] == "signup-disabled"
-    ok(c.put(f"{API}/locations/{w.location}/portal-settings", headers=w.owner,
-             json={"is_enabled": True, "is_public": True, "allows_self_signup": True}), 200)  # fmt: skip
     mailbox.clear()
     assert c.post(f"{API}/public/portal-signups", headers=w.public, json=body).status_code == 202
     signed = ok(c.post(f"{API}/public/portal-signups/confirm", headers=w.public,
                        json={"token": link_token(mailbox[-1]), "client_kind": "mobile"}), 200)  # fmt: skip
     me = {"Authorization": f"Bearer {signed['access_token']}"}
     [mine] = data(c.get(f"{API}/portal/clients", headers=me))
+    return me, mine
+
+
+def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(client_module, w, mailbox):
+    c, day = client_module, MON + timedelta(days=8)
+    assert w.location in {x["id"] for x in data(c.get(f"{API}/public/locations", headers=w.public))}
+    assert "Adult monthly" in {p["name"] for p in data(c.get(f"{API}/public/membership-plans", headers=w.public))}
+    offered = {t["name"] for t in data(c.get(f"{API}/public/rental-types", headers=w.public))}
+    assert {"Badminton court", "Pickleball court", "Volleyball court"} <= offered
+    me, mine = newcomer(c, w, mailbox)
+    # The declared date lets an adult book and pay at once; the entry code waits for staff's one-time check.
+    assert mine["age_confirmed"] is False
+    assert mine["entry_code_notice"] == f"{NOTICE} Questions? Call us on {cirqt.PHONE}."
     member = ok(c.post(f"{API}/portal/membership-contracts", headers=me | key(), json={
         "client_id": mine["id"], "location_id": w.location, "membership_plan_id": w.plans["Adult monthly"],
         "method_token": "tok_card_ok",
     }))  # fmt: skip
     assert member["status"] == "active" and member["payment_status"] == "succeeded"
-    checkout = ok(c.post(f"{API}/portal/rentals", headers=me, json={
-        "rental_type_id": w.types["Pickleball court"], "client_id": mine["id"], "resource_id": w.courts["Court 4"],
-        "starts_at": at(day, "08:00"), "ends_at": at(day, "09:00"),
-    }))  # fmt: skip
+    court = {
+        "rental_type_id": w.types["Pickleball court"],
+        "client_id": mine["id"],
+        "resource_id": w.courts["Court 4"],
+        "starts_at": at(day, "08:00"),
+        "ends_at": at(day, "09:00"),
+    }
+    checkout = ok(c.post(f"{API}/portal/rentals", headers=me, json=court))
+    assert checkout["entry_code_notice"].startswith(NOTICE)  # shown before payment
     paid = ok(c.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm", headers=me | key(),
                      json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
     assert paid["rental"]["status"] == "confirmed" and paid["payment_status"] == "succeeded"
+    # The person cannot confirm or change their own date.
+    locked = c.patch(f"{API}/portal/clients/{mine['id']}", headers=me, json={"birth_on": "1992-08-09"})
+    assert (locked.status_code, locked.json()["code"]) == (422, "field-locked"), locked.text
+
+
+def test_j_staff_confirm_a_newcomers_age_once_and_the_confirmed_event_fires(client_module, w, mailbox):
+    c = client_module
+    me, mine = newcomer(c, w, mailbox)
+    queue = data(c.get(f"{API}/client-age-reviews", headers=w.desk))
+    assert mine["id"] in {r["id"] for r in queue}
+    confirmed = ok(c.post(f"{API}/clients/{mine['id']}/age-confirmation", headers=w.desk, json={}), 200)
+    assert confirmed["age_confirmed"] is True and confirmed["age_confirmed_at"]
+    with tenant_session(w.tenant.id) as session:
+        fired = session.scalars(select(OutboxEvent).where(OutboxEvent.event_type == "clients.client.age_confirmed",
+                                                          OutboxEvent.aggregate_id == UUID(mine["id"]))).all()  # fmt: skip
+    assert len(fired) == 1
+    [after] = data(c.get(f"{API}/portal/clients", headers=me))
+    assert after["age_confirmed"] is True and after["entry_code_notice"] is None
+    assert mine["id"] not in {r["id"] for r in data(c.get(f"{API}/client-age-reviews", headers=w.desk))}
+    # Seeded adults were confirmed by the owner through the same action.
+    assert ok(c.get(f"{API}/clients/{w.member}", headers=w.desk), 200)["age_confirmed"] is True
 
 
 # --- k. bulk booking -----------------------------------------------------------------------------------------
@@ -660,7 +739,7 @@ def test_k_staff_bulk_book_several_courts_for_several_weeks_in_one_go(client_mod
 
 def test_k_a_club_holds_the_same_weekly_prime_slot_at_15_percent_off(client_module, w):
     """Bulk for CIRQT: a club or coach keeps one weekly slot. Staff book it as a recurring rental on the second
-    rate the seed made, "Weekly club" (the guest price with a 15% discount rule). There is no contract object."""
+    rate the seed made, "Weekly club" (the same prices with a 15% discount rule). There is no contract object."""
     c, day = client_module, MON + timedelta(days=11)  # a Friday
     rates = {
         r["name"]: r["id"]
@@ -674,7 +753,7 @@ def test_k_a_club_holds_the_same_weekly_prime_slot_at_15_percent_off(client_modu
     }))  # fmt: skip
     assert made["created_count"] == 8 and len(made["invoice_ids"]) == 1
     invoice = ok(c.get(f"{API}/invoices/{made['invoice_ids'][0]}", headers=w.manager), 200)
-    assert invoice["total_minor"] == 8 * 2550, invoice  # $30 prime guest price less 15%
+    assert invoice["total_minor"] == 8 * 2125, invoice  # the club's holder is a member: $25 member prime less 15%
     assert conflict(rent(c, w, w.desk, "Badminton court", "Court 1", day + timedelta(days=49), "19:30", "20:30"))
 
 
@@ -707,11 +786,11 @@ def lesson_setup(c, w):
     return lesson, plan
 
 
-def coached_session(c, w, day: date, start: str, end: str, court: str) -> str:
+def coached_session(c, w, day: date, start: str, end: str, court: str, coach: str = "Rowan (staff coach)") -> str:
     lesson, _ = lesson_setup(c, w)
     booked = ok(c.post(f"{API}/bookings", headers=w.owner, json={
         "location_id": w.location, "kind": "session", "reservation_type_id": lesson,
-        "resources": [{"resource_id": payees(c, w)["Rowan (staff coach)"]["resource_id"]}, {"resource_id": w.courts[court]}],
+        "resources": [{"resource_id": payees(c, w)[coach]["resource_id"]}, {"resource_id": w.courts[court]}],
         "starts_at": at(day, start), "ends_at": at(day, end)}))  # fmt: skip
     return booked["booking"]["session"]["id"]
 
@@ -757,17 +836,47 @@ def test_m_online_a_parent_can_only_rent_a_court_in_their_own_name(client_module
     assert ok(client_module.post(f"{API}/portal/rentals", headers=w.parent_portal, json=body | {"client_id": w.parent}))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="No age rule on rentals: staff (or an import) can book a court in a child's "
-    "name alone; a rental carries one client and no participant list, so 'a parent on the booking' "
-    "cannot be expressed or enforced, and rental types have no age or guardian setting",
-)
 def test_m_a_child_cannot_be_booked_on_a_court_without_a_parent(client_module, w):
-    response = rent(
-        client_module, w, w.desk, "Badminton court", "Court 4", MON + timedelta(days=12), "17:00", "18:00", w.kids[1]
-    )
-    assert response.status_code in (403, 409, 422), response.text
+    day = MON + timedelta(days=12)
+    response = rent(client_module, w, w.desk, "Badminton court", "Court 4", day, "17:00", "18:00", w.kids[1])
+    assert (response.status_code, response.json()["code"]) == (422, "minor-cannot-hold-rental"), response.text
+    with_parent = rent(client_module, w, w.desk, "Badminton court", "Court 4", day, "17:00", "18:00", w.parent,
+                       parties=[{"client_id": w.kids[1]}])  # fmt: skip
+    assert with_parent.status_code == 201, with_parent.text  # the parent holds and pays; the child plays
+
+
+def _portal_child(c, w, born: str) -> str:
+    parent_of = next(t for t in ok(c.get(f"{API}/portal/relationship-types", headers=w.parent_portal), 200)
+                     if t["code"] == "parent_of")  # fmt: skip
+    return ok(c.post(f"{API}/portal/dependents", headers=w.parent_portal, json={
+        "relationship_type_id": parent_of["id"], "first_name": "Remy", "last_name": "Added", "birth_on": born, "birth_on_declared": True}))["id"]  # fmt: skip
+
+
+def test_m_a_child_the_parent_added_online_never_holds_a_court(client_module, w):
+    """The parent manages a child they add in the portal (`manager`, not `guardian`): the server's age check,
+    not the acting authority, keeps the court in the parent's name."""
+    c, day = client_module, MON + timedelta(days=13)
+    kid = _portal_child(c, w, (TODAY - timedelta(days=9 * 365)).isoformat())
+    acting = next(x for x in data(c.get(f"{API}/portal/clients", headers=w.parent_portal)) if x["id"] == kid)
+    assert (acting["authority"], acting["is_adult"], acting["is_my_ward"]) == ("manager", False, True)
+    body = {"rental_type_id": w.types["Badminton court"], "resource_id": w.courts["Court 4"],
+            "starts_at": at(day, "15:00"), "ends_at": at(day, "16:00")}  # fmt: skip
+    alone = c.post(f"{API}/portal/rentals", headers=w.parent_portal, json=body | {"client_id": kid})
+    assert (alone.status_code, alone.json()["code"]) == (422, "minor-cannot-hold-rental"), alone.text
+    ok(c.post(f"{API}/portal/rentals", headers=w.parent_portal,
+              json=body | {"client_id": w.parent, "player_client_ids": [kid]}))  # fmt: skip
+
+
+def test_m_a_dependant_with_no_birth_date_cannot_hold_a_court_online(client_module, w):
+    """Dependants added before birth dates were required: online an unknown date is not an adult."""
+    c, day = client_module, MON + timedelta(days=13)
+    kid = _portal_child(c, w, "2016-01-01")
+    with tenant_session(w.tenant.id) as session:
+        session.get(Client, kid).birth_on = None
+    body = {"rental_type_id": w.types["Badminton court"], "resource_id": w.courts["Court 4"], "client_id": kid,
+            "starts_at": at(day, "17:00"), "ends_at": at(day, "18:00")}  # fmt: skip
+    refused = c.post(f"{API}/portal/rentals", headers=w.parent_portal, json=body)
+    assert (refused.status_code, refused.json()["code"]) == (422, "birth-date-required"), refused.text
 
 
 # --- n. coaches: one on staff, one independent ----------------------------------------------------------------
@@ -801,3 +910,45 @@ def test_n_staff_coach_and_independent_coach(client_module, w):
         )
     }
     assert list(seen.values()) == [200, 200, 200, 200, 403, 403, 403], seen
+
+
+def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(client_module, w):
+    """The owner pays coaches per session: Rowan $30 a one-hour lesson (assumed rate), and his only clock job is
+    for non-coaching work ("Upkeep and front desk (not lessons)", $15 an hour, assumed); Ines keeps 70% of the lesson
+    money. Rowan clocks the opening hour and, by mistake, through his lesson as well; Ines teaches a paid lesson. The
+    next day's payroll preview pays his lesson once: clocked minutes inside a paid session are not counted."""
+    c, day = client_module, TODAY + timedelta(days=3)
+    found = payees(c, w)
+    rowan, ines = found["Rowan (staff coach)"], found["Ines (independent coach)"]
+    coach = login(c, w.tenant, f"coach@{w.mail}", cirqt.PASSWORD, "staff")
+    clock_state = ok(c.get(f"{API}/time-entries/current?location_id={w.location}", headers=coach), 200)
+    [job] = [j for j in clock_state["job_classifications"] if j["name"] == cirqt.UPKEEP_JOB]
+    rates = data(c.get(f"{API}/staff-users/{rowan['staff_user_id']}/hourly-rates", headers=w.owner))
+    assert [(r["job_classification_id"], r["rate_minor"]) for r in rates] == [(job["id"], 1500)]
+    _, plan = lesson_setup(c, w)
+    lessons = []
+    for name, start, end in (("Rowan (staff coach)", "09:00", "10:00"), ("Ines (independent coach)", "11:00", "12:00")):
+        session_id = coached_session(c, w, day, start, end, "Court 1", coach=name)
+        bought = ok(c.post(f"{API}/portal/client-packages", headers=w.member_portal | key(), json={
+            "package_plan_id": plan, "location_id": w.location, "client_id": w.member, "method_token": "tok_card_ok"}))  # fmt: skip
+        enrolled = ok(c.post(f"{API}/enrollments", headers=w.owner, json={
+            "session_id": session_id, "client_id": w.member, "client_package_id": bought["id"]}))  # fmt: skip
+        lessons.append((session_id, enrolled["id"]))
+    with clock.freeze(datetime.combine(day + timedelta(days=1), time(12), ZONE)):
+        owner = login(c, w.tenant, f"owner@{w.mail}", cirqt.PASSWORD, "staff")  # a token minted on the frozen clock
+        ok(c.post(f"{API}/time-entries", headers=owner, json={
+            "staff_user_id": rowan["staff_user_id"], "location_id": w.location, "job_classification_id": job["id"],
+            "clock_in_at": at(day, "07:00"), "clock_out_at": at(day, "08:00"), "edit_reason": "Opening the doors"}))  # fmt: skip
+        ok(c.post(f"{API}/time-entries", headers=owner, json={
+            "staff_user_id": rowan["staff_user_id"], "location_id": w.location, "job_classification_id": job["id"],
+            "clock_in_at": at(day, "08:30"), "clock_out_at": at(day, "10:00"), "edit_reason": "Clocked through the lesson"}))  # fmt: skip
+        for session_id, enrollment_id in lessons:
+            ok(c.put(f"{API}/sessions/{session_id}/attendance", headers=owner,
+                     json={"marks": [{"enrollment_id": enrollment_id, "status": "attended"}]}), 200)  # fmt: skip
+        run = ok(c.post(f"{API}/payroll-runs", headers=owner, json={
+            "location_id": w.location, "period_starts_on": day.isoformat(), "period_ends_on": day.isoformat()}))  # fmt: skip
+        statements = data(c.get(f"{API}/payroll-runs/{run['id']}/statements", headers=owner))
+    pay = lambda field, *who: sum(s[field] for s in statements if {s["staff_payee_id"], s["staff_user_id"]} & set(who))  # noqa: E731
+    assert pay("session_pay_minor", rowan["id"], rowan["staff_user_id"]) == 3000  # his lesson
+    assert pay("hourly_pay_minor", rowan["id"], rowan["staff_user_id"]) == 2250  # 07:00-08:00 and 08:30-09:00 only
+    assert pay("commission_minor", ines["id"]) == 3500  # 70% of the $50 lesson

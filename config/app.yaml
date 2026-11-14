@@ -85,6 +85,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     calendar-feed:    {limit: 12, window_sec: 3600}                 # per calendar feed (after the token checks out)
     calendar-feed-ip: {limit: 300, window_sec: 60}                  # per IP, before the token is looked up; calendar services share IPs
     public-schedule:  {limit: 60, window_sec: 60}                   # embedded public schedule, per IP
+    portal-availability: {limit: 60, window_sec: 60, closed: true}  # member-priced open times (one membership read per call), per IP
     public-site:      {limit: 120, window_sec: 60}                  # public league site and TV board, per IP (a board polls)
     public-site-media: {limit: 600, window_sec: 60}                 # league gallery images and sponsor logos, per IP
     league-post:      {limit: 10, window_sec: 3600, closed: true}   # classifieds and pickup games posted, per IP

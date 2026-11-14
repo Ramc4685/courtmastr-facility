@@ -433,7 +433,8 @@ class PortalSignupIn(In):
     first_name: Name
     last_name: Name
     phone_mobile: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)] | None = None
-    birth_on: date | None = None
+    birth_on: date  # required: the first entry code waits for staff to confirm it once (owner, 2026-11-13)
+    birth_on_declared: Literal[True]  # the person declares the birth date is true
 
 
 class PortalSignupConfirmIn(In):

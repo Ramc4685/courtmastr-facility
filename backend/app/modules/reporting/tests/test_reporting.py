@@ -1,10 +1,11 @@
 """reporting (build module 15): the report centre and the P0 reports, through the API with both gates, against
 real billing data, plus the view contract and the pure date, aging and CSV rules."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from dramatiq import Worker
@@ -39,8 +40,11 @@ def code(response, status):
 @pytest.fixture(autouse=True)
 def same_day_everywhere():
     """Multi-location runs cut at the earliest local today (service.py); between 05:00 and 06:00 UTC New York is
-    a day ahead of Chicago and the North sale fell outside the period. Noon in Chicago is one day in both."""
-    with clock.freeze(datetime.combine(datetime.now(UTC).date(), NOON.timetz())):
+    a day ahead of Chicago and the North sale fell outside the period. Noon in Chicago is one day in both.
+    The day is Chicago's real one, not UTC's: the views date sales and freezes by created_at, which Postgres stamps
+    with the real time, so after 18:00 in Chicago a UTC day put the frozen today a day after those rows."""
+    chicago = ZoneInfo("America/Chicago")
+    with clock.freeze(datetime.combine(datetime.now(chicago).date(), time(12), chicago).astimezone(UTC)):
         yield
 
 

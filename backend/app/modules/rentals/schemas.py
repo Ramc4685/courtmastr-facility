@@ -212,6 +212,10 @@ class RentalCreate(In):
     charge: ChargeDecision
     on_conflict: OnConflict = "abort"
     override_policy: bool = False
+    # Past the minors rule: needs rentals.booking.override_minor; kept on the rental, flag-only in audit.
+    minor_override_reason: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None
+    ) = None
 
 
 class QuoteLine(Out):
@@ -246,6 +250,7 @@ class RentalPreview(Out):
     requested_count: int
     conflict_count: int
     quote: Quote | None
+    birth_on_unknown: list[UUID] = []  # holder or players with no birth date: counted as adults at the desk
 
 
 class PartyOut(Out):
@@ -283,6 +288,7 @@ class RentalOut(Out):
     is_on_public_schedule: bool
     title: str
     version: int
+    minor_override_reason: str | None = None  # why staff booked it in a minor's name (staff view only)
 
 
 class RentalCreated(Out):
@@ -294,6 +300,7 @@ class RentalCreated(Out):
     quote: Quote | None = None
     invoice_ids: list[UUID] = []
     status_url: str | None = None
+    birth_on_unknown: list[UUID] = []
 
 
 class BillSelected(In):
@@ -322,6 +329,10 @@ class Extension(In):
     on_conflict: OnConflict = "abort"
     preview: bool = False
     override_policy: bool = False
+    # A series booked in a minor's name extends only with a fresh reason (the old one is never copied).
+    minor_override_reason: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None
+    ) = None
 
 
 class Extended(Out):
@@ -425,6 +436,17 @@ class RentalSlot(Out):
     is_member_price: bool
 
 
+class PortalRentalSlot(Out):
+    """An open time priced for the signed-in client (portal schema, never the public one)."""
+
+    starts_at: datetime
+    ends_at: datetime
+    resource_id: UUID
+    resource_name: str
+    price_minor: int
+    is_member_price: bool
+
+
 class PortalRentalCreate(In):
     rental_type_id: UUID
     client_id: UUID
@@ -432,6 +454,7 @@ class PortalRentalCreate(In):
     starts_at: datetime
     ends_at: datetime
     rental_plan_purchase_id: UUID | None = None
+    player_client_ids: Annotated[list[UUID], Field(max_length=10)] = []  # household members who will play
 
 
 class PortalRentalConfirm(In):
@@ -468,6 +491,7 @@ class PortalRentalCheckout(Out):
     payment_required: bool
     amount_due_minor: int
     payment_status: str | None = None
+    entry_code_notice: str | None = None  # the holder's birth date waits for staff: the first entry code is held
 
 
 # --- plans -------------------------------------------------------------------------------------------------

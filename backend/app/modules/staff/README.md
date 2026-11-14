@@ -60,7 +60,11 @@ computes three `includes` groups (`sessions`, `commissions`, `hourly`), and bonu
   exactly pays; `off_hours` pays an hourly extra over the trained minutes that fall inside a local window on
   chosen weekdays. They are added when "sessions" is in the run's `includes`. A payee with neither a pay-rate row nor a
   session-completion rule gets none, because the session pass returns first.
-- **Hourly.** Closed, unvoided time entries by local start date, at the rate in force that day.
+- **Hourly.** Closed, unvoided time entries by local start date, at the rate in force that day. Clocked minutes
+  that overlap a session (or paid time block) the same run pays on the same person's trainer column are not
+  counted, so a coach who stays clocked in through a lesson is paid for it once, as the session; the hourly line
+  says how many minutes were left out. Limit: only sessions paid in the same run are subtracted, so a run with
+  `hourly` but not `sessions` pays the clocked time in full (the CIRQT pilot runs both together).
 
 A sale already on a finalized run is flagged `was_paid_before` but still counted, so the manager decides.
 

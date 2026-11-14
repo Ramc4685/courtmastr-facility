@@ -4,14 +4,14 @@ Existing rules keep the meaning the court-use report gave them: a time-banded ra
 rate's base price is marked peak; everything else is not.
 
 Revision ID: 2010
-Revises: 1965
+Revises: 1985
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "2010"
-down_revision = "1965"
+down_revision = "1985"
 
 
 def upgrade() -> None:

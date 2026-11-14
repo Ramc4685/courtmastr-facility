@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -13,12 +13,14 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, formatMoney, toMinor } from '../../lib/format'
+import { useLocationZone } from '../../lib/locationDate'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { useRevenueCategories } from '../rentals/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
-import { BlankCardButton, FeeSplitDialog, PlayerStatsDialog, LadderTab, PlayerStatsTab, PreferencesDialog, PublishGroupDialog, StaffTab, usePlaces } from './depth'
+import { fromWallInput } from '../scheduling/time'
+import { BlankCardButton, FeeSplitDialog, PlayerStatsDialog, LadderTab, PlayerStatsTab, PreferencesDialog, PublishGroupDialog, StaffTab, useCourts, usePlaces } from './depth'
 import { label, STATUS_TONE, useBrackets, useCompetition, useEntries, useGames, useSports, useStandings, type Competition, type Entry, type Game } from './queries'
-import { Alert, CardButton, List, matchup, ScoreDialog } from './shared'
+import { Alert, CardButton, List, matchup, ScoreDialog, scoreText } from './shared'
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MANAGE = 'leagues.competition.manage'
@@ -339,6 +341,7 @@ function ScheduleTab({ competition }: { competition: Competition }) {
   const [generating, setGenerating] = useState(false)
   const [scoring, setScoring] = useState<Game | null>(null)
   const [stats, setStats] = useState<Game | null>(null)
+  const [night, setNight] = useState(false)
   if (games.isPending) return <LoadingState />
   if (games.isError) return <ErrorState error={games.error} onRetry={() => games.refetch()} />
   const rows = [...games.data.data].filter((g) => !g.is_bye).sort((a, b) => (a.starts_at ?? '~').localeCompare(b.starts_at ?? '~'))
@@ -349,6 +352,7 @@ function ScheduleTab({ competition }: { competition: Competition }) {
           <Button onClick={() => setGenerating(true)} disabled={competition.status !== 'active'}>Generate schedule</Button>
         )}
         {can('leagues.game_card.print') && <BlankCardButton competition={competition} />}
+        {can('leagues.game.manage') && <Button variant="secondary" onClick={() => setNight(true)}>Hold a league night</Button>}
       </div>
       <List<Game>
         caption="Games"
@@ -358,7 +362,7 @@ function ScheduleTab({ competition }: { competition: Competition }) {
         columns={[
           { header: 'When', cell: (g) => formatDateTime(g.starts_at) },
           { header: 'Game', cell: matchup },
-          { header: 'Score', cell: (g) => (g.status === 'played' ? `${g.home_score} - ${g.away_score}` : '—') },
+          { header: 'Score', cell: (g) => (g.status === 'played' ? scoreText(g) : '—') },
           { header: 'Status', cell: (g) => <Badge tone={STATUS_TONE[g.status]}>{label(g.status)}</Badge> },
           {
             header: 'Actions',
@@ -375,31 +379,183 @@ function ScheduleTab({ competition }: { competition: Competition }) {
       {generating && <GenerateDialog competition={competition} onClose={() => setGenerating(false)} />}
       {scoring && <ScoreDialog game={scoring} onClose={() => setScoring(null)} />}
       {stats && <PlayerStatsDialog game={stats} onClose={() => setStats(null)} />}
+      {night && <LeagueNightDialog competition={competition} onClose={() => setNight(false)} />}
     </div>
   )
 }
 
-function StandingsTab({ competitionId }: { competitionId: string }) {
-  const standings = useStandings(competitionId)
+type Standing = Schemas['LeagueStandingOut']
+const ratio = (won: number, lost: number) => (lost ? (won / lost).toFixed(2) : won ? '∞' : '—')
+
+function StandingsTab({ competition }: { competition: Competition }) {
+  const { can } = useAuth()
+  const standings = useStandings(competition.id)
+  const [editing, setEditing] = useState(false)
   if (standings.isPending) return <LoadingState />
   if (standings.isError) return <ErrorState error={standings.error} onRetry={() => standings.refetch()} />
-  return (
-    <List<Schemas['LeagueStandingOut']>
-      caption="Standings"
-      rows={standings.data}
-      rowKey={(s) => s.id}
-      empty="No standings yet"
-      columns={[
-        { header: 'Rank', cell: (s) => s.rank },
-        { header: 'Team', cell: (s) => s.team_name },
-        { header: 'GP', cell: (s) => s.games_played },
-        { header: 'W', cell: (s) => s.wins },
-        { header: 'L', cell: (s) => s.losses },
+  const bySets = competition.scoring_mode === 'sets'
+  const middle: { header: string; cell: (s: Standing) => ReactNode }[] = bySets
+    ? [
+        { header: 'Sets won', cell: (s) => s.goals_for },
+        { header: 'Sets lost', cell: (s) => s.goals_against },
+        { header: 'Set ratio', cell: (s) => ratio(s.goals_for, s.goals_against) },
+        { header: 'Points ratio', cell: (s) => ratio(s.set_points_for ?? 0, s.set_points_against ?? 0) },
+      ]
+    : [
         { header: 'T', cell: (s) => s.ties },
         { header: 'GD', cell: (s) => s.goal_difference },
-        { header: 'PTS', cell: (s) => Number(s.points) },
-      ]}
-    />
+      ]
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-muted">Scoring: {scoringLabel(competition)}</p>
+        {can(MANAGE) && <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>Scoring format</Button>}
+      </div>
+      <List<Standing>
+        caption="Standings"
+        rows={standings.data}
+        rowKey={(s) => s.id}
+        empty="No standings yet"
+        columns={[
+          { header: 'Rank', cell: (s) => s.rank },
+          { header: 'Team', cell: (s) => s.team_name },
+          { header: 'GP', cell: (s) => s.games_played },
+          { header: 'W', cell: (s) => s.wins },
+          { header: 'L', cell: (s) => s.losses },
+          ...middle,
+          { header: 'PTS', cell: (s) => Number(s.points) },
+        ]}
+      />
+      {editing && <ScoringDialog competition={competition} onClose={() => setEditing(false)} />}
+    </div>
+  )
+}
+
+const scoringLabel = (c: Competition) =>
+  c.scoring_mode === 'sets'
+    ? `best of ${c.sets_best_of}, sets to ${c.set_points_to}, win by ${c.set_win_by}${c.set_cap ? `, cap ${c.set_cap}` : ''}${c.deciding_set_points_to ? `, deciding set to ${c.deciding_set_points_to}` : ''}`
+    : 'points (one score per side)'
+
+type Format = { scoring_mode: 'points' | 'sets'; sets_best_of: string; set_points_to: string; set_win_by: string; set_cap: string; deciding_set_points_to: string }
+const SET_SORT = [{ metric: 'PTS' as const, direction: 'desc' as const }, { metric: 'SR' as const, direction: 'desc' as const }, { metric: 'PR' as const, direction: 'desc' as const }, { metric: 'H2H' as const, direction: 'desc' as const }]
+const PRESETS: { name: string; format: Format }[] = [
+  { name: 'Points', format: { scoring_mode: 'points', sets_best_of: '', set_points_to: '', set_win_by: '2', set_cap: '', deciding_set_points_to: '' } },
+  { name: 'Badminton', format: { scoring_mode: 'sets', sets_best_of: '3', set_points_to: '21', set_win_by: '2', set_cap: '30', deciding_set_points_to: '' } },
+  { name: 'Volleyball, best of 3', format: { scoring_mode: 'sets', sets_best_of: '3', set_points_to: '25', set_win_by: '2', set_cap: '', deciding_set_points_to: '15' } },
+  { name: 'Volleyball, best of 5', format: { scoring_mode: 'sets', sets_best_of: '5', set_points_to: '25', set_win_by: '2', set_cap: '', deciding_set_points_to: '15' } },
+  { name: 'Pickleball', format: { scoring_mode: 'sets', sets_best_of: '3', set_points_to: '11', set_win_by: '2', set_cap: '', deciding_set_points_to: '' } },
+]
+const num = (v: string) => (v.trim() === '' ? null : Number(v))
+
+function ScoringDialog({ competition, onClose }: { competition: Competition; onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const text = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v))
+  const [f, setF] = useState<Format>({
+    scoring_mode: competition.scoring_mode === 'sets' ? 'sets' : 'points', sets_best_of: text(competition.sets_best_of), set_points_to: text(competition.set_points_to),
+    set_win_by: text(competition.set_win_by), set_cap: text(competition.set_cap), deciding_set_points_to: text(competition.deciding_set_points_to),
+  })
+  const set = (patch: Partial<Format>) => setF({ ...f, ...patch })
+  const save = useMutation({
+    mutationFn: () => {
+      const sets = f.scoring_mode === 'sets'
+      const changed = sets !== (competition.scoring_mode === 'sets')
+      const bestOfChanged = num(f.sets_best_of) !== (competition.sets_best_of ?? null)
+      return api.patch('/api/v1/competitions/{competition_id}', {
+        path: { competition_id: competition.id },
+        body: {
+          scoring_mode: f.scoring_mode, sets_best_of: num(f.sets_best_of) as 1 | 3 | 5 | null, set_points_to: num(f.set_points_to), set_win_by: num(f.set_win_by) ?? 2,
+          set_cap: num(f.set_cap), deciding_set_points_to: num(f.deciding_set_points_to),
+          // a forfeit counts as the sets needed (kept in step with best of); switching to sets ranks by set and points ratio
+          ...(sets && (changed || bestOfChanged) ? { forfeit_score_for: Math.floor(Number(f.sets_best_of) / 2) + 1 } : {}),
+          ...(changed && sets ? { standings_sort: SET_SORT } : {}),
+        },
+      })
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['competition', competition.id] })
+      toast('success', 'Scoring format saved.')
+      onClose()
+    },
+  })
+  const e = fieldErrors(save.error)
+  return (
+    <Dialog
+      open
+      size="lg"
+      onClose={onClose}
+      title="Scoring format"
+      description="Points keeps one score per side. Sets checks every set score against these rules; the score becomes the sets won."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="scoring-form" loading={save.isPending}>Save format</Button>
+        </>
+      }
+    >
+      <form id="scoring-form" className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={(ev) => { ev.preventDefault(); save.mutate() }}>
+        <Alert error={save.error} />
+        <div className="flex flex-wrap gap-2 sm:col-span-2" role="group" aria-label="Presets">
+          {PRESETS.map((p) => <Button key={p.name} size="sm" variant="secondary" onClick={() => setF(p.format)}>{p.name}</Button>)}
+        </div>
+        <Select label="Scoring" value={f.scoring_mode} onChange={(ev) => set({ scoring_mode: ev.target.value as Format['scoring_mode'] })} options={[{ value: 'points', label: 'Points' }, { value: 'sets', label: 'Sets' }]} />
+        {f.scoring_mode === 'sets' && (
+          <>
+            <Select label="Best of" value={f.sets_best_of} placeholder="Choose" error={e.sets_best_of} onChange={(ev) => set({ sets_best_of: ev.target.value })} options={['1', '3', '5'].map((v) => ({ value: v, label: v }))} />
+            <Input label="Points to win a set" type="number" min={1} value={f.set_points_to} error={e.set_points_to} onChange={(ev) => set({ set_points_to: ev.target.value })} />
+            <Input label="Win by" type="number" min={1} value={f.set_win_by} error={e.set_win_by} onChange={(ev) => set({ set_win_by: ev.target.value })} />
+            <Input label="Cap" type="number" min={1} value={f.set_cap} hint="Blank for none. The score that ends a set however close." error={e.set_cap} onChange={(ev) => set({ set_cap: ev.target.value })} />
+            <Input label="Deciding set to" type="number" min={1} value={f.deciding_set_points_to} hint="Blank when the last set is played to the same score." error={e.deciding_set_points_to} onChange={(ev) => set({ deciding_set_points_to: ev.target.value })} />
+          </>
+        )}
+      </form>
+    </Dialog>
+  )
+}
+
+function LeagueNightDialog({ competition, onClose }: { competition: Competition; onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const courts = useCourts(competition.location_id)
+  const [f, setF] = useState({ starts_at: '', ends_at: '', resource_ids: [] as string[] })
+  const zone = useLocationZone(competition.location_id) // the night's hours are the venue's wall time
+  const save = useMutation({
+    mutationFn: () => api.post('/api/v1/competitions/{competition_id}/league-nights', {
+      path: { competition_id: competition.id },
+      body: { resource_ids: f.resource_ids, starts_at: fromWallInput(f.starts_at, zone), ends_at: fromWallInput(f.ends_at, zone) },
+    }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['competition', competition.id] })
+      toast('success', 'Courts held for the league. Its games take their slots when the schedule is committed.')
+      onClose()
+    },
+  })
+  const e = fieldErrors(save.error)
+  const toggle = (id: string, on: boolean) => setF({ ...f, resource_ids: on ? [...f.resource_ids, id] : f.resource_ids.filter((r) => r !== id) })
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Hold a league night"
+      description="Rentals cannot book these courts. This league's games take their slots from the hold. If you move or postpone a game, re-block its old slot."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="night-form" loading={save.isPending} disabled={!f.resource_ids.length}>Hold courts</Button>
+        </>
+      }
+    >
+      <form id="night-form" className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={(ev) => { ev.preventDefault(); save.mutate() }}>
+        <Alert error={save.error} />
+        <Input label="From" type="datetime-local" value={f.starts_at} required error={e.starts_at} onChange={(ev) => setF({ ...f, starts_at: ev.target.value })} />
+        <Input label="Until" type="datetime-local" value={f.ends_at} required error={e.ends_at} onChange={(ev) => setF({ ...f, ends_at: ev.target.value })} />
+        <fieldset className="sm:col-span-2">
+          <legend className="mb-2 text-sm font-medium">Courts</legend>
+          {courts.map((c) => <Checkbox key={c.id} label={c.name} checked={f.resource_ids.includes(c.id)} onChange={(ev) => toggle(c.id, ev.target.checked)} />)}
+          {e.resource_ids && <p className="text-sm text-danger">{e.resource_ids}</p>}
+        </fieldset>
+      </form>
+    </Dialog>
   )
 }
 
@@ -500,7 +656,7 @@ export function LeaguePage() {
         tabs={[
           { id: 'teams', label: 'Teams', content: <TeamsTab competition={c} /> },
           { id: 'schedule', label: 'Schedule & results', content: <ScheduleTab competition={c} /> },
-          { id: 'standings', label: 'Standings', content: <StandingsTab competitionId={c.id} /> },
+          { id: 'standings', label: 'Standings', content: <StandingsTab competition={c} /> },
           { id: 'bracket', label: 'Bracket', content: <BracketTab competition={c} /> },
           ...(c.format === 'ladder' ? [{ id: 'ladder', label: 'Ladder', content: <LadderTab competition={c} /> }] : []),
           { id: 'player-stats', label: 'Player stats', content: <PlayerStatsTab competition={c} /> },

@@ -272,8 +272,9 @@ def test_extend_a_recurring_rental(client, owner, f):
     assert refused.status_code == 422 and refused.json()["code"] == "not-a-series"
 
 
-def portal_client(client, owner, tenant, f) -> tuple[str, dict]:
-    person = new_client(client, owner, f.location, primary_email=f"pat-{uuid4().hex[:6]}@example.com")
+def portal_client(client, owner, tenant, f, birth_on: str | None = "1985-05-05") -> tuple[str, dict]:
+    extra = {"birth_on": birth_on} if birth_on else {}
+    person = new_client(client, owner, f.location, primary_email=f"pat-{uuid4().hex[:6]}@example.com", **extra)
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         identity = Identity(
             kind="client", email=person["primary_email"], status="active", email_verified_at=clock.now(),
@@ -491,3 +492,12 @@ def test_portal_rental_defaults_and_stored_method(client, owner, f, tenant):
     assert (
         invoice(client, owner, paid["invoice_id"])["balance_minor"] == billed["balance_minor"]
     )  # a replay moves no money
+
+
+def test_a_rental_may_cross_local_midnight(client, owner, f):
+    """23:00 to 01:00 in Chicago (DAY is 2031-05-05, CDT): legitimate at a 24-hour facility. The evening rate runs to
+    midnight and the standard rate after it, each for its hour."""
+    made = ok(rent(client, owner, f, 28, 30))  # 04:00Z to 06:00Z
+    assert made["rental"]["status"] == "confirmed"
+    assert (made["rental"]["starts_at"], made["rental"]["ends_at"]) == (at(28), at(30))
+    assert made["quote"]["subtotal_minor"] == 5000 + 4000

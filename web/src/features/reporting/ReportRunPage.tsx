@@ -8,7 +8,8 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
-import { formatDateTime, toMinor } from '../../lib/format'
+import { addDays, formatDateTime, toMinor } from '../../lib/format'
+import { useLocationToday } from '../../lib/locationDate'
 import { FormDialog, FormError, LocationSelect, useCurrency } from '../billing/shared'
 import { ScheduleDialog } from './schedules'
 import { EXPORT_KEY, FORMATS, ID_SOURCES, formatCell, isNumeric, useDefinitions, type Column, type Definition, type ExportJob, type Params, type Row, type Run } from './queries'
@@ -449,7 +450,7 @@ export function ReportRunRoute() {
   const { reportKey = '' } = useParams()
   const [search] = useSearchParams()
   const clientId = search.get('client_id') // a client screen's link: that client over the last year
-  const day = (back: number) => new Date(Date.now() - back * 86_400_000).toLocaleDateString('en-CA')
-  const initial = clientId ? { client_ids: [clientId], from_on: day(365), to_on: day(0) } : undefined
+  const today = useLocationToday()
+  const initial = clientId ? { client_ids: [clientId], from_on: addDays(today, -365), to_on: today } : undefined
   return <ReportRunPage key={`${reportKey}-${search.get('saved') ?? ''}`} reportKey={reportKey} savedId={search.get('saved')} initial={initial} />
 }

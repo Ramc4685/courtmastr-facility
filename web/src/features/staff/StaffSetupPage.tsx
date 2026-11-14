@@ -9,7 +9,8 @@ import { EmptyState, ErrorState } from '../../components/States'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
-import { parseMoney, today } from '../billing/money'
+import { useLocationToday } from '../../lib/locationDate'
+import { parseMoney } from '../billing/money'
 import { FormDialog, ListTable, Money, MoneyInput, TextArea } from '../billing/shared'
 import { useJobs, useNames } from './shared'
 
@@ -73,7 +74,7 @@ function HourlyRates() {
   const names = useNames()
   const [user, setUser] = useState('')
   const [adding, setAdding] = useState(false)
-  const [f, setF] = useState({ job_classification_id: '', rate: '', effective_from_on: today() })
+  const [f, setF] = useState({ job_classification_id: '', rate: '', effective_from_on: useLocationToday() })
   const key = ['staff', 'hourly', user]
   const rates = useQuery({ queryKey: key, queryFn: () => api.get('/api/v1/staff-users/{staff_user_id}/hourly-rates', { path: { staff_user_id: user } }), enabled: Boolean(user) })
   const add = useMutation({
