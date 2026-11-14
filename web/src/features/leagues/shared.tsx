@@ -35,15 +35,30 @@ export function List<T>({ caption, rows, columns, rowKey, empty }: { caption: st
 
 export const matchup = (g: Game) => `${g.home_name ?? g.home_label ?? 'TBD'} vs ${g.away_name ?? g.away_label ?? 'TBD'}`
 
+/** '3 - 1', or '2 - 1 (21-18, 19-21, 21-15)' when the game was scored set by set. */
+export const scoreText = (g: { home_score?: number | null; away_score?: number | null; set_scores?: string | null }) =>
+  `${g.home_score} - ${g.away_score}${g.set_scores ? ` (${g.set_scores})` : ''}`
+
 const side = (score: string) => ({ score: Number(score), participation: 'full' as const, went_to_overtime: false, bonus_points: 0 })
+
+/** Per-set points of the filled rows only: a best-of-three won 2-0 leaves the third row blank. */
+const setSides = (rows: { home: string; away: string }[]) => {
+  const played = rows.filter((r) => r.home !== '' || r.away !== '')
+  const base = { participation: 'full' as const, went_to_overtime: false, bonus_points: 0 }
+  return { home: { ...base, sets: played.map((r) => Number(r.home)) }, away: { ...base, sets: played.map((r) => Number(r.away)) } }
+}
 
 export function ScoreDialog({ game, onClose }: { game: Game; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const [home, setHome] = useState(game.home_score === null || game.home_score === undefined ? '' : String(game.home_score))
   const [away, setAway] = useState(game.away_score === null || game.away_score === undefined ? '' : String(game.away_score))
+  const bestOf = game.sets_best_of ?? 0
+  const known = (game.set_scores ?? '').split(', ').filter(Boolean).map((s) => s.split('-'))
+  const [rows, setRows] = useState(Array.from({ length: bestOf }, (_, i) => ({ home: known[i]?.[0] ?? '', away: known[i]?.[1] ?? '' })))
+  const setRow = (i: number, patch: Partial<{ home: string; away: string }>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const save = useMutation({
-    mutationFn: () => api.put('/api/v1/games/{game_id}/result', { path: { game_id: game.id }, body: { home: side(home), away: side(away) } }),
+    mutationFn: () => api.put('/api/v1/games/{game_id}/result', { path: { game_id: game.id }, body: bestOf ? setSides(rows) : { home: side(home), away: side(away) } }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['competition', game.competition_id] })
       void qc.invalidateQueries({ queryKey: ['score-games'] })
@@ -65,8 +80,19 @@ export function ScoreDialog({ game, onClose }: { game: Game; onClose: () => void
     >
       <form id="score-form" className="grid grid-cols-2 gap-4" noValidate onSubmit={(ev) => { ev.preventDefault(); save.mutate() }}>
         <Alert error={save.error} />
-        <Input label={`${game.home_name ?? 'Home'} score`} type="number" min={0} value={home} required onChange={(ev) => setHome(ev.target.value)} />
-        <Input label={`${game.away_name ?? 'Away'} score`} type="number" min={0} value={away} required onChange={(ev) => setAway(ev.target.value)} />
+        {bestOf ? (
+          rows.map((r, i) => (
+            <div key={i} className="contents">
+              <Input label={`Set ${i + 1}: ${game.home_name ?? 'Home'}`} type="number" min={0} value={r.home} onChange={(ev) => setRow(i, { home: ev.target.value })} />
+              <Input label={`Set ${i + 1}: ${game.away_name ?? 'Away'}`} type="number" min={0} value={r.away} onChange={(ev) => setRow(i, { away: ev.target.value })} />
+            </div>
+          ))
+        ) : (
+          <>
+            <Input label={`${game.home_name ?? 'Home'} score`} type="number" min={0} value={home} required onChange={(ev) => setHome(ev.target.value)} />
+            <Input label={`${game.away_name ?? 'Away'} score`} type="number" min={0} value={away} required onChange={(ev) => setAway(ev.target.value)} />
+          </>
+        )}
       </form>
     </Dialog>
   )

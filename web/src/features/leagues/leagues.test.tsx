@@ -77,6 +77,43 @@ describe('LeaguesPage', SCREEN, () => {
       away: { score: 1, participation: 'full', went_to_overtime: false, bonus_points: 0 },
     })
   })
+
+  it('scores a sets competition set by set, ranks by sets and switches the format by preset', async () => {
+    const sets = { ...competition, scoring_mode: 'sets', sets_best_of: 3, set_points_to: 21, set_win_by: 2, set_cap: 30, deciding_set_points_to: null }
+    const calls = renderAsStaff(at('/leagues/c1', <LeaguePage />), ALL, {
+      'GET /api/v1/competitions/c1': { status: 200, body: sets },
+      'GET /api/v1/competitions/c1/teams': { status: 200, body: [] },
+      'GET /api/v1/games': page([{ ...game, sets_best_of: 3, set_scores: null }]),
+      'GET /api/v1/competitions/c1/standings': { status: 200, body: [
+        { id: 's1', rank: 1, team_name: 'Strikers', games_played: 1, wins: 1, losses: 0, ties: 0, goals_for: 2, goals_against: 1, goal_difference: 1, points: '3.00', set_points_for: 61, set_points_against: 54 },
+      ] },
+      'PUT /api/v1/games/g1/result': { status: 200, body: { game_id: 'g1', status: 'played' } },
+      'PATCH /api/v1/competitions/c1': { status: 200, body: sets },
+    })
+    await userEvent.click(await screen.findByRole('tab', { name: 'Schedule & results' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Enter the score of Strikers vs Rovers' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Score: Strikers vs Rovers' })
+    for (const [field, value] of [['Set 1: Strikers', '21'], ['Set 1: Rovers', '18'], ['Set 2: Strikers', '19'], ['Set 2: Rovers', '21'], ['Set 3: Strikers', '21'], ['Set 3: Rovers', '15']]) {
+      await userEvent.type(within(dialog).getByLabelText(field), value)
+    }
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save result' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
+    const side = { participation: 'full', went_to_overtime: false, bonus_points: 0 }
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ home: { ...side, sets: [21, 19, 21] }, away: { ...side, sets: [18, 21, 15] } })
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Standings' }))
+    const row = within(await screen.findByRole('table', { name: 'Standings' })).getByRole('row', { name: /Strikers/ })
+    expect(row).toHaveTextContent('2.00')
+    expect(row).toHaveTextContent('1.13')
+    await userEvent.click(screen.getByRole('button', { name: 'Scoring format' }))
+    const format = await screen.findByRole('dialog', { name: 'Scoring format' })
+    await userEvent.click(within(format).getByRole('button', { name: 'Volleyball, best of 5' }))
+    await userEvent.click(within(format).getByRole('button', { name: 'Save format' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+      scoring_mode: 'sets', sets_best_of: 5, set_points_to: 25, set_win_by: 2, set_cap: null, deciding_set_points_to: 15,
+    })
+  })
 })
 
 describe('PublicLeaguesPage', SCREEN, () => {
