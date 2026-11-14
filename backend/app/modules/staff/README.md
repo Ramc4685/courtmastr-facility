@@ -201,7 +201,8 @@ Replaying an event changes nothing; a per-source advisory lock serialises concur
 a location, gathers every unpaid line up to the end date (earlier unpaid lines included). Adjustments need
 `staff.coach_payout.adjust` and a reason; they are ledger lines with a zero gross that move money between the
 facility's and the coach's share. Draft, approved (`+`, step-up), paid (`+`): paid records the method (bank
-transfer, cheque, other), a reference (scanned for card numbers) and the date. **The product moves no money**:
+transfer, cheque, other), a reference (scanned for card numbers) and the date. Adjust, approve, mark paid and discard
+lock the statement row and check its state after the lock, so two of them never both pass. **The product moves no money**:
 the screen, the statement and the API say so. Paid is final; a later refund lands on the next statement as a
 reversing line. PDF and CSV per statement. A coach reads their own lines and statements (`own` reach on
 `staff.coach_payout.read`); another coach's statement is 404. Seam for Stripe Connect: `mark_paid` is the one

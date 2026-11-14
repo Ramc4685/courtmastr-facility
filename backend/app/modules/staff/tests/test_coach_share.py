@@ -6,7 +6,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
+from sqlalchemy.engine import Engine
 
 from app.core import clock
 from app.core.audit import AuditEvent
@@ -250,6 +251,30 @@ def test_payout_statement_flow_adjustment_step_up_and_paid_is_final(client, tena
     assert dict(actions) == {"staff.coach_payout.create": 1, "staff.coach_payout.adjust": 1,
                              "staff.coach_payout.approve": 1, "staff.coach_payout.pay": 1,
                              "staff.coach_payout.read": 2}  # fmt: skip
+
+
+def test_adjust_approve_and_mark_paid_lock_the_statement_row(client, tenant, owner, coached):
+    """Without the lock an adjustment can land on a statement approved a moment before, and paid can run twice."""
+    c = coached
+    _mark(client, tenant, c, "attended")
+    body = {"location_id": c.f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-31"}
+    [payout] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    url = f"{API}/coach-payouts/{payout['id']}"
+    seen: list[str] = []
+
+    def spy(conn, cursor, statement, *args):
+        seen.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", spy)
+    try:
+        for path, payload, status in (("/adjustments", {"amount_minor": 100, "reason": "Clinic"}, 201),
+                                      ("/approve", None, 200),
+                                      ("/paid", {"paid_on": "2031-06-01", "payment_method": "cheque"}, 200)):  # fmt: skip
+            seen.clear()
+            ok(client.post(f"{url}{path}", headers=owner, json=payload), status)
+            assert any("FROM coach_payout" in q and "FOR UPDATE" in q for q in seen), path
+    finally:
+        event.remove(Engine, "before_cursor_execute", spy)
 
 
 def test_the_coach_sees_only_their_own_and_never_a_share_rule(client, tenant, owner, coached):

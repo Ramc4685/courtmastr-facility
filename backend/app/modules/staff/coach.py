@@ -320,13 +320,16 @@ def _earning_view(principal: Principal, e: CoachEarning) -> dict:
     return view
 
 
-def _payout(session: Session, principal: Principal, payout_id: UUID, key: str) -> CoachPayout:
+def _payout(session: Session, principal: Principal, payout_id: UUID, key: str, *, lock: bool = False) -> CoachPayout:
     payout = _scoped(session, principal, CoachPayout, payout_id)
     authorize(principal, key, location_id=payout.location_id)
     if _is_own(principal, key):
         payee = session.get_one(StaffPayee, payout.staff_payee_id)
         if payee.staff_user_id != principal.staff_user_id:
             raise NotFound()
+    if lock:  # a state change: hold the row and read its state fresh, so callers check the state after the lock
+        payout = session.scalar(select(CoachPayout).where(CoachPayout.id == payout.id).with_for_update()
+                                .execution_options(populate_existing=True))  # fmt: skip
     return payout
 
 
@@ -425,7 +428,7 @@ def create_payouts(session: Session, principal: Principal, data: dict) -> dict:
 
 
 def _draft(session: Session, principal: Principal, payout_id: UUID, key: str) -> CoachPayout:
-    payout = _payout(session, principal, payout_id, key)
+    payout = _payout(session, principal, payout_id, key, lock=True)
     if payout.status != "draft":
         raise Conflict("Only a draft statement changes.", code="invalid-state-transition")
     return payout
@@ -479,7 +482,7 @@ def approve_payout(session: Session, principal: Principal, payout_id: UUID) -> d
 def mark_paid(session: Session, principal: Principal, payout_id: UUID, data: dict) -> dict:
     """Record how and when the facility paid an approved statement. Nothing is transferred by the software. A paid
     statement is final."""
-    payout = _payout(session, principal, payout_id, PAYOUT_PAY)
+    payout = _payout(session, principal, payout_id, PAYOUT_PAY, lock=True)
     if payout.status != "approved":
         raise Conflict("Only an approved statement is marked paid.", code="invalid-state-transition")
     payout.status, payout.paid_at, payout.paid_by_staff_user_id = "paid", clock.now(), principal.staff_user_id
