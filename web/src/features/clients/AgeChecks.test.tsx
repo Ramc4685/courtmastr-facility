@@ -14,6 +14,11 @@ vi.mock('../../lib/auth', () => ({ useAuth: () => ({ can: (k: string) => keys.he
 
 const client = { id: 'c1', first_name: 'Nia', last_name: 'Newcomer', birth_on: '1994-06-07', age_confirmed: false, merged_into_id: null, erased_at: null } as unknown as Schemas['ClientOut']
 const empty = { next_cursor: null, has_more: false }
+/** The queue's GET: `adults` for the main list, `dateless` for the "No birth date on file" section. */
+const queue = (adults: unknown[], dateless: unknown[] = []) => (call: { url: string }) => ({
+  status: 200,
+  body: { data: call.url.includes('no_birth_date=true') ? dateless : adults, page: empty },
+})
 const show = (ui: ReactNode) =>
   render(
     <QueryClientProvider client={makeQueryClient()}>
@@ -50,7 +55,7 @@ describe('age checks', () => {
 
   it('lists the queue with bookers first as the server orders it', async () => {
     const row = (id: string, first: string, booking: string | null) => ({ id, first_name: first, last_name: 'Newcomer', home_location_id: 'l1', birth_on: '1994-06-07', earliest_booking_at: booking, created_via: 'portal', created_at: '2026-11-10T00:00:00Z' })
-    mockFetch({ 'GET /api/v1/client-age-reviews': { status: 200, body: { data: [row('c1', 'Nia', '2026-11-14T18:00:00Z'), row('c2', 'Omar', null)], page: empty } } })
+    mockFetch({ 'GET /api/v1/client-age-reviews': queue([row('c1', 'Nia', '2026-11-14T18:00:00Z'), row('c2', 'Omar', null)]) })
     show(<AgeChecksPage />)
     const links = await screen.findAllByRole('link')
     expect(links.map((l) => l.textContent)).toEqual(['Nia Newcomer', 'Omar Newcomer'])
@@ -62,8 +67,8 @@ describe('age checks', () => {
     keys.held.add('clients.client.confirm_ages')
     const row = (id: string, first: string) => ({ id, first_name: first, last_name: 'Member', home_location_id: 'l1', birth_on: '1980-01-02', earliest_booking_at: null, created_via: 'import', created_at: '2026-11-10T00:00:00Z' })
     const calls = mockFetch({
-      'GET /api/v1/client-age-reviews': { status: 200, body: { data: [row('c1', 'Ana'), row('c2', 'Ben'), row('c3', 'Cy')], page: empty } },
-      'POST /api/v1/client-age-reviews/confirmations': { status: 200, body: { client_ids: ['c1', 'c3'], confirmed_count: 1, skipped_client_ids: ['c3'] } },
+      'GET /api/v1/client-age-reviews': queue([row('c1', 'Ana'), row('c2', 'Ben'), row('c3', 'Cy')]),
+      'POST /api/v1/client-age-reviews/confirmations': { status: 200, body: { client_ids: ['c1', 'c3'], confirmed_count: 1, skipped_client_ids: ['c3'], skipped: [{ client_id: 'c3', reason: 'not-found' }] } },
     })
     show(<AgeChecksPage />)
     const confirmSelected = screen.getByRole('button', { name: /Confirm selected/ })
@@ -81,6 +86,17 @@ describe('age checks', () => {
       expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ client_ids: ['c1', 'c3'], note: 'known members, IDs seen at the desk' }),
     )
     expect(await screen.findByRole('status')).toHaveTextContent('1 person was not confirmed: their home location is outside yours.')
+  })
+
+  it('lists people who booked with no date of birth in their own section, outside the bulk selection', async () => {
+    keys.held.add('clients.client.confirm_age')
+    keys.held.add('clients.client.confirm_ages')
+    const dateless = { id: 'd1', first_name: 'Dee', last_name: 'Nodate', home_location_id: 'l1', birth_on: null, earliest_booking_at: '2026-11-20T18:00:00Z', created_via: 'portal', created_at: '2026-11-10T00:00:00Z' }
+    mockFetch({ 'GET /api/v1/client-age-reviews': queue([], [dateless]) })
+    show(<AgeChecksPage />)
+    const section = await screen.findByRole('table', { name: 'Clients with a booking and no date of birth' })
+    expect(await within(section).findByRole('link', { name: 'Dee Nodate' })).toHaveAttribute('href', '/clients/d1')
+    expect(within(section).queryByRole('checkbox')).toBeNull()
   })
 
   it('narrows the queue to a freshly imported batch', async () => {

@@ -78,7 +78,9 @@ def enable_client(client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.
 @router.get("/client-age-reviews", response_model=s.Page[s.AgeReviewItem])
 def list_client_age_reviews(query: Lists, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGE))]):
     """Clients whose self-declared birth date waits for staff, people with an online booking first (earliest
-    booking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count."""
+    booking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.
+    `no_birth_date=true`: the second section, people with no birth date on file who booked; staff enter the date
+    through the confirm action."""
     return service.list_age_reviews(ctx.session, ctx.principal, query)
 
 

@@ -63,9 +63,15 @@ export function AgeCheckBadge({ client }: { client: Schemas['ClientOut'] }) {
   )
 }
 
+const SKIP_REASON: Record<Schemas['AgeConfirmationSkip']['reason'], string> = {
+  'not-found': 'their home location is outside yours',
+  minor: 'a child is never age-confirmed',
+  'no-birth-date': 'no date of birth is on file (confirm them one at a time)',
+}
+
 const columns: Column<Schemas['AgeReviewItem']>[] = [
   { header: 'Client', cell: (r) => <Link className="font-medium text-primary hover:underline" to={`/clients/${r.id}`}>{fullName(r)}</Link> },
-  { header: 'Date of birth', cell: (r) => (r.birth_on ? formatDate(r.birth_on) : 'Hidden') },
+  { header: 'Date of birth', cell: (r) => (r.birth_on ? formatDate(r.birth_on) : 'Not shown') },
   { header: 'First booking', cell: (r) => (r.earliest_booking_at ? formatDateTime(r.earliest_booking_at) : 'No booking yet') },
   { header: 'Joined', cell: (r) => formatDate(r.created_at.slice(0, 10)) },
 ]
@@ -82,7 +88,8 @@ export function AgeChecksPage() {
   const [chosen, setChosen] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
-  const [skipped, setSkipped] = useState(0)
+  const dateless = useKeysetQuery([...QUEUE, 'no-birth-date'], (cursor) => api.get('/api/v1/client-age-reviews', { query: { cursor, no_birth_date: true } }))
+  const [skipped, setSkipped] = useState<Schemas['AgeConfirmationSkip'][]>([])
   const bulk = can(CONFIRM_AGE) && can(CONFIRM_AGES)
   const confirm = useMutation({
     mutationFn: () => api.post('/api/v1/client-age-reviews/confirmations', { body: { client_ids: chosen, note } }),
@@ -90,7 +97,7 @@ export function AgeChecksPage() {
       setOpen(false)
       setChosen([])
       setNote('')
-      setSkipped(done.skipped_client_ids.length)
+      setSkipped(done.skipped)
       void qc.invalidateQueries({ queryKey: ['clients'] })
     },
   })
@@ -128,12 +135,16 @@ export function AgeChecksPage() {
         </label>
         <Input label="Joined on or after" type="date" value={since} onChange={(e) => setSince(e.target.value)} />
       </div>
-      {skipped > 0 && (
+      {skipped.length > 0 && (
         <p role="status" className="mb-4 text-danger">
-          {skipped === 1 ? '1 person was' : `${skipped} people were`} not confirmed: their home location is outside yours.
+          {skipped.length === 1 ? '1 person was' : `${skipped.length} people were`} not confirmed:{' '}
+          {[...new Set(skipped.map((s) => SKIP_REASON[s.reason]))].join('; ')}.
         </p>
       )}
       <Table caption="Clients waiting for an age check" columns={bulk ? [pick, ...columns] : columns} rowKey={(r) => r.id} paging={paging} empty={<EmptyState title="No one is waiting for an age check" />} />
+      <h2 className="mb-2 mt-8 text-lg font-semibold">No birth date on file</h2>
+      <p className="mb-4 text-muted">People who booked without giving a date of birth. Open each one and confirm their age with the date on their ID; the bulk confirm skips them.</p>
+      <Table caption="Clients with a booking and no date of birth" columns={columns} rowKey={(r) => r.id} paging={dateless} empty={<EmptyState title="Everyone who booked has a date of birth on file" />} />
       <Dialog
         open={open}
         onClose={() => setOpen(false)}

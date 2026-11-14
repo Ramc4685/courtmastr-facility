@@ -47,6 +47,10 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
 - **Never a child, never without a date.** The single confirm and the confirm flag on an edit refuse a date that
   makes the person a minor (`422 minor-not-confirmed`) and a missing date (`birth-date-required`). Both actions take a
   row lock on the client, so concurrent replays fire `age_confirmed` once.
+- **No birth date on file.** Session enrolment needs no birth date, so a dateless booker is told to staff but is
+  not in the main queue. `GET /client-age-reviews?no_birth_date=true` is the second section (web: "No birth date on
+  file"): people with no date and a booking. Staff resolve each one through the confirm action, which takes the
+  date from the ID; the bulk confirm skips them.
 - **One wording.** `ENTRY_CODE_NOTICE` and `with_phone` ("Questions? Call us on X.") are shared with building
   control's held-code message.
 - **Self-service needs a declared date.** Sign-up, guest checkout and portal dependants require `birth_on` and

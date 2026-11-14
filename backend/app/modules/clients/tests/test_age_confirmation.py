@@ -558,3 +558,22 @@ def test_a_merge_is_not_a_way_round_the_home_move_guard(client, owner, tenant, f
     ok(confirm(client, owner, who), 200)  # once confirmed at A, the merge is no longer a way to gain anything
     merge_ok = client.post(f"{API}/clients/{mine}/merge", headers=manager, json={"merged_client_ids": [who]})
     assert merge_ok.status_code == 200
+
+
+def test_a_dateless_booker_is_queued_under_no_birth_date_and_resolved_by_the_confirm_action(client, owner, tenant, f):
+    from app.modules.clients import service
+
+    booker = self_declared(client, owner, tenant, f, birth_on=None)
+    idle = self_declared(client, owner, tenant, f, birth_on=None)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        service.note_unconfirmed_booking(session, booker, clock.now() + timedelta(days=2), f.location)
+
+    def dateless() -> set[str]:
+        page = client.get(f"{API}/client-age-reviews", headers=owner, params={"no_birth_date": "true", "limit": 200})
+        return {c["id"] for c in ok(page, 200)["data"]}
+
+    assert booker in dateless() and idle not in dateless() and booker not in queued(client, owner)
+    skipped = ok(client.post(BULK, headers=owner, json={"client_ids": [booker], "note": NOTE}), 200)
+    assert skipped["skipped"] == [{"client_id": booker, "reason": "no-birth-date"}]
+    ok(confirm(client, owner, booker, birth_on=ADULT), 200)  # the date seen on the ID, set and confirmed at once
+    assert booker not in dateless() and confirmed_events(tenant, booker) == 1

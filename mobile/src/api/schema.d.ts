@@ -2342,6 +2342,8 @@ export interface paths {
          * List Client Age Reviews
          * @description Clients whose self-declared birth date waits for staff, people with an online booking first (earliest
          *     booking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.
+         *     `no_birth_date=true`: the second section, people with no birth date on file who booked; staff enter the date
+         *     through the confirm action.
          */
         get: operations["listClientAgeReviews"];
         put?: never;

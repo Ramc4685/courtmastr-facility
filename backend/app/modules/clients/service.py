@@ -941,11 +941,15 @@ _NO_BOOKING = datetime(9999, 12, 31, tzinfo=UTC)  # sorts people with no booking
 def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -> dict:
     """Clients whose birth date waits for staff, people with a booking first (earliest booking soonest), within the
     caller's locations. Filters: location_id (the home location), created_via and created_at[gte|lt] (a freshly
-    imported batch, for the go-live bulk confirm). `?include=total` gives the dashboard count."""
+    imported batch, for the go-live bulk confirm). `?include=total` gives the dashboard count. `no_birth_date=true`:
+    the second section, people with no birth date on file who booked (session enrolment needs none); the confirm
+    action, which takes the date, resolves them, never the bulk confirm."""
     authorize(principal, CONFIRM_AGE)
+    no_birth_date = query.filters.pop("no_birth_date", "false") == "true"
     stmt = select(Client).where(
         Client.age_confirmed_at.is_(None), Client.status == "active", Client.merged_into_id.is_(None),
-        Client.birth_on <= _adult_born_by(session),  # children never get entry codes: not in the queue
+        and_(Client.birth_on.is_(None), Client.earliest_booking_at.is_not(None)) if no_birth_date
+        else Client.birth_on <= _adult_born_by(session),  # children never get entry codes: not in the queue
     )  # fmt: skip
     if principal.kind != "system" and principal.location_ids is not None:  # home, or the location told
         reach = principal.location_ids
