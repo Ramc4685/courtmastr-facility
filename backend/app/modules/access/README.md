@@ -316,15 +316,20 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   (migration 1980: booking, client, reason, under RLS with composite FKs; one per booking and person), which the
   portal notice, the staff "Codes waiting on an age check" card (`held_codes` on the building status) and
   `issue_held_codes` read. The `code_withheld` building event (`age-not-confirmed:booking:<number>`) is display
-  text only and is never parsed. The person gets one email per booking and a held line on the portal Door codes list (`code: null`, `held_reason`, `message`), both saying "Your entry code will
-  be sent once our staff have confirmed your age. This is a one-time check." with the location phone. The booking
-  itself is never refused. On `clients.client.age_confirmed`, `issue_held_codes` issues and sends every held code at
-  once; later bookings are self-service. Minors and people with no birth date: never, as before. Seam: the event and
-  `clients.service.is_age_confirmed(session, client_id)` land with `claude/rentals-pilot`; until then
-  `_age_confirmed` calls that function when present, else reads `client.is_birth_on_unverified` when the column
-  exists (no column: confirmed, today's behaviour). The event name follows the house `ctx.aggregate.verb` form and
-  must match what that branch publishes. The notice is access's own email, not rentals' booking confirmation (access
-  does not own that template).
+  text only and is never parsed. The person is emailed once, on their first held booking, and the portal Door codes
+  list shows a held line per booking (`code: null`, `held_reason`, `message`); both use clients' one wording
+  (`clients.service.ENTRY_CODE_NOTICE` through `with_phone`, the same text the rentals checkout shows before
+  payment), and the portal Bookings page shows it once: when the page already shows the person's own notice it
+  leaves the held lines out. The booking itself is never refused. On `clients.client.age_confirmed` (fired only by
+  the staff confirm action), `issue_held_codes` issues and sends every held code at once; the handler is idempotent
+  and later bookings are self-service. Minors and people with no birth date: never. A rental's code goes to its
+  holder only; players listed on the rental (`rental_party`, children included) never get one. The check reads
+  `clients.service.is_age_confirmed(session, client_id)` fresh at issue, at the door (`_admit`) and on every
+  minute tick. **A reset publishes no event:** a staff edit of a confirmed birth date or a merge unconfirms the
+  person and fires nothing in reverse, so `clients.client.updated` and `clients.client.merged` run
+  `resync_client_codes` (each booking the person holds an active code on is synced: the code is revoked
+  `not_known_adult` and held again, with the notice), the door refuses the code at once, and a raw write is caught
+  by the tick.
 - **Entitlement at the door.** Every verify and portal unlock re-checks, for every kind of code, that the booking is
   still confirmed and the person still entitled (still the holder, still enrolled), that the code's window equals the
   live booking's window (a moved booking's old code fails at once, before any handler runs), that the person passes
@@ -396,7 +401,9 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   between start minus lead-in and end plus run-on. Holds cover a resource and its descendants, never its ancestors,
   so a zone watches each mapped resource and everything below it: a booking on a whole court lights its halves'
   zones, and a booking on a half or quarter court lights the zone mapped to the parent court too (the CIRQT split
-  courts). A zone may map several resources. The window uses the booked time,
+  courts). Blocks never light, so a league night (an unavailable block held for a competition) stays dark; each
+  of its games takes its slot out of the night and lights its court. A zone may map several resources. The window
+  uses the booked time,
   never the changeover buffer; a location that wants the lights on through the buffer raises lead-in and run-on.
   Only changes are sent, so back-to-back bookings never flicker, a restarted scheduler or a missed tick catches up on
   the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every

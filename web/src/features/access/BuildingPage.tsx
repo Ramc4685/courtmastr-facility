@@ -12,6 +12,7 @@ import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
+import { useLocationToday } from '../../lib/locationDate'
 import { resourceTree, useResources } from '../resources/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
 
@@ -327,7 +328,9 @@ function HeldCodesCard({ held, timeZone }: { held: Schemas['HeldCodeOut'][]; tim
 }
 
 function ActivityCard({ locationId, timeZone, zones, doors }: { locationId: string; timeZone?: string; zones: Zone[]; doors: Door[] }) {
-  const [day, setDay] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone }))
+  const today = useLocationToday(locationId)
+  const [chosen, setDay] = useState<string | null>(null)
+  const day = chosen ?? today // the location's today until staff pick a day (the zone may load after the first render)
   const [kind, setKind] = useState('')
   const paging = useKeysetQuery(['building-events', locationId, day, kind], (cursor) =>
     api.get('/api/v1/building-events', { query: { location_id: locationId, local_on: day || undefined, kind: kind || undefined, limit: 50, cursor } }),

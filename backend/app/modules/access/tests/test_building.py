@@ -66,10 +66,14 @@ def b(client, tenant, owner, sim):
     return f
 
 
-def adult(client, owner, location: str, **fields) -> dict:
-    """A client a door code may go to: a known birth date over the minor age."""
+def adult(client, owner, location: str, *, confirmed: bool = True, **fields) -> dict:
+    """A client a door code may go to: a birth date over the minor age that staff confirmed once (ID seen);
+    `confirmed=False`: a self-declared adult whose code is held."""
     body = {"primary_email": f"p-{uuid4().hex[:6]}@example.com", "birth_on": "1990-01-01"} | fields
-    return new_client(client, owner, location, **body)
+    person = new_client(client, owner, location, **body)
+    if confirmed:
+        ok(client.post(f"{API}/clients/{person['id']}/age-confirmation", headers=owner, json={}), 200)
+    return person
 
 
 def book(f, start: float, end: float, *, resources=None, kind="rental", buffer_min: int | None = None,
@@ -267,9 +271,9 @@ def test_a_moved_booking_fails_its_old_code_at_once_and_a_failed_payment_revokes
 def test_codes_never_go_to_a_minor_or_someone_of_unknown_age(client, tenant, owner, b, mailbox):
     """Rentals held by a minor or a dateless client get no code (logged once); on a session, an adult gets their
     own, a minor's goes to their adult guardian, and a minor with no adult guardian's goes to nobody."""
-    dateless = adult(client, owner, b.location, birth_on=None)
-    child = adult(client, owner, b.location, birth_on="2020-01-01")
-    lone_child = adult(client, owner, b.location, birth_on="2019-01-01")
+    dateless = adult(client, owner, b.location, confirmed=False, birth_on=None)
+    child = adult(client, owner, b.location, confirmed=False, birth_on="2020-01-01")
+    lone_child = adult(client, owner, b.location, confirmed=False, birth_on="2019-01-01")
     parent = adult(client, owner, b.location)
     kinds_of = {t["code"]: t["id"] for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200)}
     ok(client.post(f"{API}/clients/{parent['id']}/relationships", headers=owner,
@@ -306,9 +310,9 @@ def test_portal_and_delivery_follow_one_rule_for_a_childs_code(client, tenant, o
     a household manager who is not a guardian, or another child holding a guardianship link."""
     from app.modules.clients.models import ClientPortalAccess
 
-    child = adult(client, owner, b.location, birth_on="2020-01-01")
+    child = adult(client, owner, b.location, confirmed=False, birth_on="2020-01-01")
     guardian, barred, delegate, manager = (adult(client, owner, b.location) for _ in range(4))
-    kid = adult(client, owner, b.location, birth_on="2018-01-01")
+    kid = adult(client, owner, b.location, confirmed=False, birth_on="2018-01-01")
     types = {t["code"]: t["id"] for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200)}
     for person, kind in (
         (guardian, "guardian_of"),
@@ -396,35 +400,22 @@ def test_a_holder_who_stops_being_a_known_adult_loses_the_active_code(client, b)
     assert [(c.status, c.revoke_reason) for c in codes(b, booking)] == [("revoked", "not_known_adult")]
 
 
-def test_until_clients_ships_is_age_confirmed_the_shim_reads_the_unverified_flag(monkeypatch):
-    from types import SimpleNamespace
-
-    monkeypatch.delattr(clients.service, "is_age_confirmed", raising=False)
-    get = lambda person: monkeypatch.setattr(clients.service, "get", lambda s, cid: person)  # noqa: E731
-    get(SimpleNamespace(id=uuid4()))
-    assert building._age_confirmed(None, uuid4()) is True
-    get(SimpleNamespace(id=uuid4(), is_birth_on_unverified=True))
-    assert building._age_confirmed(None, uuid4()) is False
-
-
 def holds(f) -> list[tuple[str, str, str]]:
     with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
         return [(str(h.booking_id), str(h.client_id), h.reason) for h in session.scalars(select(EntryCodeHold))]
 
 
-HELD = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
 
 
-def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(client, tenant, owner, b, mailbox,
-                                                                             monkeypatch):  # fmt: skip
+def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(client, tenant, owner, b, mailbox):
     """Owner decision 2026-11-13, "staff confirm once": a self-declared adult books, but each code is held (one
-    `code_withheld` row with the reason, a notice with the location phone, a held line on the portal) until
-    `clients.age_confirmed`; then every held code is issued and sent at once, and later ones are self-service."""
-    confirmed: set[UUID] = set()
-    monkeypatch.setattr(clients.service, "is_age_confirmed", lambda s, cid: cid in confirmed, raising=False)
-    me = b.person["id"]
+    `code_withheld` row and one `entry_code_hold` per booking, a held line on the portal) and the person is told
+    once, in clients' wording with the location phone; staff confirm (`clients.client.age_confirmed`) and every
+    held code is issued and sent at once; the event handled twice changes nothing; later codes are self-service."""
+    person = adult(client, owner, b.location, confirmed=False)
+    me = person["id"]
     with clock.freeze(at(9)):
-        first, second = book(b, 10, 11), book(b, 12, 13)
+        first, second = book(b, 10, 11, holder=me), book(b, 12, 13, holder=me)
         mailbox.clear()
         tick(b)
         tick(b)
@@ -432,27 +423,68 @@ def test_an_unconfirmed_adult_gets_no_code_until_staff_confirm_their_age_once(cl
         shown = details_of(b, "code_withheld")  # display text for staff: the booking number, never the person
         assert len(shown) == 2 and all(d.startswith("age-not-confirmed:booking:") and me not in d for d in shown)
         assert sorted(holds(b)) == sorted((x, me, "age-not-confirmed") for x in (first, second))  # the record
-        assert len(mailbox) == 2 and all(HELD in m.body and "+1 309 555 0100" in m.body for m in mailbox)
-        member = portal(client, tenant, b.person)
+        [told] = mailbox  # once per person, not once per booking or per tick
+        assert clients.service.ENTRY_CODE_NOTICE in told.body and "+1 309 555 0100" in told.body
+        member = portal(client, tenant, person)
         held = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
         assert sorted(h["booking_id"] for h in held) == sorted([first, second])
-        assert all(h["code"] is None and h["held_reason"] == "age-not-confirmed" and h["message"].startswith(HELD)
+        assert all(h["code"] is None and h["held_reason"] == "age-not-confirmed"
+                   and h["message"].startswith(clients.service.ENTRY_CODE_NOTICE)
                    and "+1 309 555 0100" in h["message"] for h in held)  # fmt: skip
         assert client.post(f"{API}/portal/bookings/{first}/door-unlock", headers=member).status_code == 404
         mailbox.clear()
-        confirmed.add(UUID(me))
-        handlers.on_age_confirmed.fn(str(tenant.id), str(uuid4()), {"client_id": me})
+    ok(client.post(f"{API}/clients/{me}/age-confirmation", headers=owner, json={}), 200)  # staff saw the ID
+    with clock.freeze(at(9)):
+        member = portal_login(client, tenant, person)
+        for _ in range(2):  # the outbox may deliver twice
+            handlers.on_age_confirmed.fn(str(tenant.id), str(uuid4()), {"client_id": me})
         assert [c.status for c in codes(b, first) + codes(b, second)] == ["active", "active"]
         assert len(mailbox) == 2 and all("Your door code" in m.subject for m in mailbox)
         listed = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
         assert all(c["code"] and c["held_reason"] is None for c in listed) and len(listed) == 2
-        third = book(b, 14, 15)
+        third = book(b, 14, 15, holder=me)
         sync(b, third)  # self-service from now on
         assert [c.status for c in codes(b, third)] == ["active"]
     assert len(details_of(b, "code_withheld")) == 2  # the third was never held
     assert holds(b) == []  # issued holds are gone
     activity = ok(client.get(f"{API}/building-events?kind=code_withheld", headers=owner), 200)["data"]  # staff view
     assert {e["detail"].split(":")[0] for e in activity} == {"age-not-confirmed"} and len(activity) == 2
+
+
+def test_a_reset_confirmation_revokes_the_code_and_holds_it_again(client, tenant, owner, b, mailbox):
+    """A confirmed date edited (or a merge) unconfirms the person and publishes no reverse event: the door refuses
+    the code at once, the `clients.client.updated` handler revokes and holds it, and the tick would too."""
+    me = b.person["id"]
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        [row] = codes(b, booking)
+        digits = clear(b, row)
+    with clock.freeze(at(10)):
+        assert verify(client, b, digits)["result"] == "allow"
+    edited = ok(client.patch(f"{API}/clients/{me}", headers=owner, json={"birth_on": "1991-02-02"}), 200)
+    assert edited["age_confirmation_reset"] is True
+    with clock.freeze(at(10.1)):
+        assert verify(client, b, digits)["result"] == "deny"  # `_admit` re-reads the confirmation
+        mailbox.clear()
+        handlers.on_client_updated.fn(str(tenant.id), str(uuid4()), {"client_id": me})
+        handlers.on_client_updated.fn(str(tenant.id), str(uuid4()), {"client_id": me})  # idempotent
+        tick(b)
+    assert [(c.status, c.revoke_reason) for c in codes(b, booking)] == [("revoked", "not_known_adult")]
+    assert holds(b) == [(booking, me, "age-not-confirmed")]
+    assert len(mailbox) == 1 and clients.service.ENTRY_CODE_NOTICE in mailbox[0].body
+
+
+def test_the_tick_alone_catches_a_reset_confirmation(client, tenant, owner, b):
+    me = b.person["id"]
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # a merge: no event at all
+            clients.service._mark_age_unconfirmed(clients.service.get(session, UUID(me)))
+        tick(b)
+    assert [(c.status, c.revoke_reason) for c in codes(b, booking)] == [("revoked", "not_known_adult")]
+    assert holds(b) == [(booking, me, "age-not-confirmed")]
 
 
 def test_a_failed_code_email_is_retried_by_the_tick_and_marked_only_once_handed_off(b, mailbox, monkeypatch):
@@ -1047,6 +1079,43 @@ def test_lights_follow_holds_without_flicker_and_light_child_zones(b, sim):
         tick(b)  # a cancelled booking is corrected on the next tick
         assert sim.zones["relay-2"] is False
     assert first and second
+
+
+def test_the_request_log_never_holds_a_door_code_or_the_device_credential(client, b, caplog):
+    """The code rides in the body and the credential in a header; the request log records the path only, and
+    neither appears in it (core.api `_loggable_path` needs no prefix for these routes)."""
+    import logging
+
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        [row] = codes(b, booking)
+    digits, credential = clear(b, row), b.device["Authorization"].split()[1]
+    with caplog.at_level(logging.INFO, logger="app.request"), clock.freeze(at(10)):
+        verify(client, b, digits)
+        verify(client, b, "00000000")
+    logged = [r for r in caplog.records if r.name == "app.request"]
+    assert logged and all(r.path == f"{API}/door/verify" for r in logged)
+    text = " ".join(f"{r.getMessage()} {vars(r)}" for r in logged)
+    assert digits not in text and credential not in text and "00000000" not in text
+
+
+def test_a_league_night_block_stays_dark_and_the_games_carved_out_of_it_light(b, sim):
+    """A league night (main's shape: an unavailable block whose source is the competition) holds the courts but
+    is nobody playing: no lights. Each of the competition's games takes its slot out of the night (`gives_way`)
+    and lights its court."""
+    night = ("leagues", "competition", uuid4())
+    with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+        common = {"location_id": UUID(b.location), "resource_ids": [UUID(b.court)], "created_via": "staff"}
+        scheduling.service.create_booking(session, kind="block", block_kind="unavailable", starts_at=at(18),
+                                          ends_at=at(22), include_linked=False, buffer_before_min=0,
+                                          buffer_after_min=0, source=night, **common)  # fmt: skip
+        scheduling.service.create_booking(session, kind="game", starts_at=at(19), ends_at=at(20), gives_way=night,
+                                          source=("leagues", "game", uuid4()), **common)  # fmt: skip
+    for hours, lit in ((18.5, False), (19.5, True), (21, False)):
+        with clock.freeze(at(hours)):
+            tick(b)
+            assert bool(sim.zones.get("relay-1")) is lit, hours
 
 
 def test_a_quarter_court_booking_lights_the_zones_mapped_to_its_ancestors(b, sim):
