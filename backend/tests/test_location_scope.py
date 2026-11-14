@@ -86,6 +86,7 @@ CLIENT_OR_TENANT_ROUTES = {
         closeSupportRequest getSupportRequest createTenantExportDownloadUrl getTenantExport
         putCommissionRules putDefaultPayRate putPayRateOverride putMembershipPayRate deletePayRateOverride
         deleteMembershipPayRate listBonusRules putBonusRules
+        listCoachEngagements setCoachEngagement setCoachTaxForm deleteCoachShareRule
         listReservationTypeGrants replaceReservationTypeGrants
         setClientPhoto deleteClientPhoto getClientPhoto listClientNoteAttachments uploadClientNoteAttachment
         getClientNoteAttachment deleteClientNoteAttachment
