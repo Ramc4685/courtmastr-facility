@@ -143,7 +143,7 @@ describe('LeaguesPage', SCREEN, () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Hold courts' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
-      resource_ids: ['r2'], starts_at: new Date('2031-05-07T18:00').toISOString(), ends_at: new Date('2031-05-07T22:00').toISOString(),
+      resource_ids: ['r2'], starts_at: '2031-05-07T23:00:00Z', ends_at: '2031-05-08T03:00:00Z', // Chicago's wall time, whatever the browser's zone
     })
   })
 })

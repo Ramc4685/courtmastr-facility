@@ -13,6 +13,7 @@ import { useToast } from '../../components/Toast'
 import { formatDateTime } from '../../lib/format'
 import { FormDialog, TextArea } from '../billing/shared'
 import { LocationPicker, usePortal } from '../portal/shared'
+import { fromWallInput } from '../scheduling/time'
 import { label } from './queries'
 
 type Mine = Schemas['PortalLeaguePostOut']
@@ -23,7 +24,7 @@ const CATEGORIES = ['player_wanted', 'team_wanted', 'coach_wanted', 'other'] as 
 function NewPost() {
   const qc = useQueryClient()
   const toast = useToast()
-  const { locations } = usePortal()
+  const { locations, zoneOf } = usePortal()
   const blank = { kind: 'classified' as 'classified' | 'pickup', category: 'other' as (typeof CATEGORIES)[number], title: '', body: '', starts_at: '', players_needed: '', skill_level: '' }
   const [f, setF] = useState(blank)
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '')
@@ -33,7 +34,7 @@ function NewPost() {
     mutationFn: () => api.post('/api/v1/portal/league-posts', {
       body: {
         kind: f.kind, location_id: locationId, category: pickup ? 'other' : f.category, title: f.title, body: f.body,
-        starts_at: pickup && f.starts_at ? new Date(f.starts_at).toISOString() : null,
+        starts_at: pickup && f.starts_at ? fromWallInput(f.starts_at, zoneOf(locationId) ?? 'UTC') : null,
         players_needed: f.players_needed ? Number(f.players_needed) : null, skill_level: f.skill_level || null,
       },
     }),

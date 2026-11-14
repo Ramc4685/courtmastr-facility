@@ -5,6 +5,7 @@ Each test asserts what CIRQT needs. Where the product cannot do it today the tes
 the reason, so it turns red the day the gap closes. Product code is not changed by this file.
 """
 
+import os
 from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -28,11 +29,23 @@ from seeds import cirqt
 
 API = "/api/v1"
 ZONE = ZoneInfo(cirqt.ZONE)
-TODAY = datetime.now(ZONE).date()
+# One clock for the whole file: core.clock (which the product reads) frozen at noon on CIRQT's real local date. Every
+# scenario builds its times from NOW, TODAY and at(), never from datetime.now(), so the file gives the same result at
+# any hour (a slot "three hours from now" used to run past midnight after about 20:00 in Chicago). The date is the
+# real local one because Postgres stamps created_at with the real time; noon keeps both twelve hours from midnight.
+# CIRQT_FROZEN_AT=HH:MM moves the frozen hour, to prove the scenarios hold at any time of day.
+NOW = datetime.combine(datetime.now(ZONE).date(), time.fromisoformat(os.environ.get("CIRQT_FROZEN_AT", "12:00")), ZONE)
+TODAY = NOW.date()
 MON = TODAY + timedelta(days=7 - TODAY.weekday() + 21)  # a Monday three to four weeks out
 LEAGUE_FROM, LEAGUE_TO = MON + timedelta(days=14), MON + timedelta(days=35)
 BLOCKED_TUESDAY = MON + timedelta(days=15)
 PDAY = MON + timedelta(days=9)  # a Wednesday with nothing booked: the pricing previews
+
+
+@pytest.fixture(scope="module", autouse=True)
+def frozen_clock():
+    with clock.freeze(NOW.astimezone(UTC)):
+        yield
 
 
 def at(day: date, hhmm: str) -> str:
@@ -458,7 +471,7 @@ def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_
     assert (result["reversed_minor"], result["late_fee_minor"]) == (paid, 0)
     balance = ok(c.get(f"{API}/clients/{payer}/account-credit", headers=w.owner), 200)
     assert balance["credit_minor"] == paid  # paid card money became credit
-    soon = datetime.now(ZONE) + timedelta(hours=3)
+    soon = NOW + timedelta(hours=3)
     start = soon.replace(minute=0, second=0, microsecond=0)
     if start.hour >= 22:  # both hour-long bookings below stay on one local date, still inside the 24-hour cut-off
         start = (start + timedelta(days=1)).replace(hour=1)

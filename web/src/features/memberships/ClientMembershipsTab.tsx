@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { addDays, formatDate, formatDateTime, todayIn, toMinor } from '../../lib/format'
+import { useLocationZone } from '../../lib/locationDate'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import {
   CONTRACT_TONE,
@@ -28,11 +29,6 @@ import {
 
 type Client = Schemas['ClientOut']
 const contractsKey = (clientId: string) => ['membership-contracts', 'client', clientId]
-
-function useLocationZone(locationId: string) {
-  const { me } = useAuth()
-  return me?.locations?.find((l) => l.id === locationId)?.time_zone
-}
 
 /** Quote, then sell (MEM-07): the dates, proration and every billing period come from the server's quote, so what
  * the seller sees is what the sale writes. `replacing` turns it into a plan change (cancel, then sell). */

@@ -13,6 +13,7 @@ const keys = { current: new Set<string>() }
 vi.mock('../../lib/auth', () => ({
   useMe: () => ({ tenant: { currency: 'USD' }, locations: [{ id: 'l1', name: 'Main' }] }),
   useAuth: () => ({ can: (k: string) => keys.current.has(k) }),
+  useCurrentLocation: () => ({ locationId: null }),
 }))
 
 const locker = {

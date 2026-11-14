@@ -10,8 +10,10 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
+import { useLocationZone } from '../../lib/locationDate'
 import { FormDialog, ListTable, LocationSelect, TextArea } from '../billing/shared'
-import { fromLocalInput, measure, toLocalInput, useTemplates, type Field, type Result } from './queries'
+import { fromWallInput, toWallInput } from '../scheduling/time'
+import { measure, useTemplates, type Field, type Result } from './queries'
 import { TrendChart } from './TrendChart'
 
 type ClientRef = { id: string; home_location_id?: string | null }
@@ -19,15 +21,16 @@ type ClientRef = { id: string; home_location_id?: string | null }
 function RecordDialog({ client, fields, onClose }: { client: ClientRef; fields: Field[]; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const [when, setWhen] = useState(toLocalInput(new Date().toISOString()))
   const [location, setLocation] = useState(client.home_location_id ?? '')
+  const zone = useLocationZone(location) // the wall time typed is the facility's, not the browser's
+  const [when, setWhen] = useState(() => toWallInput(new Date().toISOString(), zone))
   const [note, setNote] = useState('')
   const [values, setValues] = useState<Record<string, string>>({})
   const save = useMutation({
     mutationFn: () =>
       api.post('/api/v1/assessment-results', {
         body: {
-          client_id: client.id, location_id: location, recorded_at: fromLocalInput(when), note: note.trim() || null,
+          client_id: client.id, location_id: location, recorded_at: fromWallInput(when, zone), note: note.trim() || null,
           values: Object.entries(values).filter(([, v]) => v.trim() !== '').map(([assessment_field_id, v]) => ({ assessment_field_id, value: v.trim() })),
         },
       }),

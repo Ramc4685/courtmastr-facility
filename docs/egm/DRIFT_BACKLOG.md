@@ -444,6 +444,7 @@ Re-check 2026-11-13 pass 3 (`claude/hardening-pass`, new items only):
 - [ ] [undocumented] (2026-11-13) README says turning auto-renew off ends a waiting renewal, but staff `update_purchase` rejects expired purchases with `plan-not-valid` (service.py:1792-1793); only the portal opt-out (service.py:2044) can stop a waiting one.
 - [ ] [undocumented] (2026-11-13) A renewal whose successor sale fails (validation, conflict or not-found, service.py:1907) ends silently and clears the wait (service.py:1867-1870); README 86-87 lists only plan archived or client no longer eligible.
 - [ ] [wording] (2026-11-13) README 97 says portal confirm takes no stored method; README 173-174 and the code accept `payment_method_id`.
+- [ ] [undocumented] (2026-11-13) `PUT /rentals/{id}/public-schedule` (router.py:137) and its key `rentals.public_listing.publish` (permissions.py:25) are not described in the README, which mentions only the missing web control (line 153). `rentals.rental_plan.remove` (permissions.py:24) is not named either.
 
 ### reporting (5) — [evidence](drift/reporting.md)
 
@@ -622,7 +623,7 @@ Access, billing and programs re-run; programs found nothing new. New items only:
 
 New items only; the ten engagement items above are already ticked. Counts: contract 5, missing 1, undocumented 9, wording 4.
 
-- [ ] [contract] README:71 "API keys holding engagement scopes can create campaigns"; `integrations/service.py:64-72` `KEY_CONTEXTS` excludes engagement
+- [x] [contract] README:71 "API keys holding engagement scopes can create campaigns"; now holds: `integrations/service.py:77-78` `KEY_PERMISSIONS` lists `engagement.campaign.create` (rechecked 2026-11-13)
 - [ ] [contract] README:34 "suppressions are T, admin only"; `GET /suppressions` needs only `campaign.read` (`router.py:246-248`, `service.py:1103-1104`), so managers can list them
 - [ ] [contract] README:58-59 `engagement.consent.changed`; published only at `service.py:1183,1224`, not for staff, portal, import or GDPR-off changes
 - [ ] [contract] spec ops tagged `engagement` with no route (webhooks/email, campaign resume/unschedule/copy/audience-preview, media-assets, news-stories, ...) not under Not built (README:131-136)
@@ -642,6 +643,8 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:43-45 basis `express_written` or `express_verbal`; plain `express` is accepted and default (`schemas.py:42`)
 - [ ] [wording] README:11,20 "one send path"; duplicate-skip row and inbox writes bypass `_deliver` (`service.py:943-966,1451-1458`)
 - [ ] [wording] `router.py:422-423` docstring says a token moves to the new login; code revokes and re-adds (`service.py:1296-1303`)
+- [ ] [wording] `router.py:343` docstring says automation rules include "the built-in waitlist promotion notice"; README:99-101 says no built-in rule and nothing sets `is_system` (`service.py:1552,1565`)
+- [ ] [wording] `router.py:439` docstring "moves it to this login" (same defect as the item above, now at this line)
 - [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says
 
 ## Added on claude/league-set-scoring (drift refresh 2026-11-13)
