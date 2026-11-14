@@ -45,7 +45,7 @@ LOCATION_BOUND_EXTRA = LOCATION_BOUND_WRITES | LOCATION_BOUND_READS
 CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
-        createSetupIntent getAccountCredit getAutopayRun
+        createSetupIntent getAccountCredit getAutopayRun getPaymentAttempt
         getCharge getClientBillingSummary
         getClientDocument getClientDocumentFile getClientPackage getClientStatement getClientStatementPdf
         getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getInvoicePdf

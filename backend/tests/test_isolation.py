@@ -463,6 +463,7 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     """Every route with an id parameter, called with A's token and B's id: 404, never 403 or data."""
     a, b = two_tenants
     url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
+    url = url.replace("{key}", "iso-foreign-key")  # an attempt key A never used: same 404 as B's would be
     body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
     headers = a.headers | {"Idempotency-Key": f"iso-{name}-key"}
     if "/public/" in path:  # anonymous routes take the tenant from the host or X-Tenant-Slug, not the token

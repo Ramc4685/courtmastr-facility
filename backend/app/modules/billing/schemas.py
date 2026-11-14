@@ -1002,6 +1002,14 @@ class PortalPaymentConfirm(In):
     invoice_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
 
 
+class PortalAttemptOut(Out):
+    """The portal's own copy of AttemptOut (portal routes never reuse staff schemas): state and amount only."""
+
+    settled: bool
+    statuses: list[str]
+    amount_minor: int
+
+
 class PortalReceiptLine(Out):
     description: str
     invoice_id: UUID | None

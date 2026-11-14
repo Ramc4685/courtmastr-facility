@@ -935,7 +935,7 @@ def get_portal_statement_pdf(
     return _pdf(portal.statement_pdf(ctx.session, ctx.principal, client_id, from_on, to_on))
 
 
-@router.get("/portal/payment-attempts/{key}", response_model=s.AttemptOut)
+@router.get("/portal/payment-attempts/{key}", response_model=s.PortalAttemptOut)
 def get_portal_payment_attempt(key: Annotated[str, Path(pattern=KEY_PATTERN)], response: Response, ctx: Client):
     """What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including
     a household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited

@@ -32769,6 +32769,18 @@ export interface components {
             /** Value */
             value: string;
         };
+        /**
+         * PortalAttemptOut
+         * @description The portal's own copy of AttemptOut (portal routes never reuse staff schemas): state and amount only.
+         */
+        PortalAttemptOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Settled */
+            settled: boolean;
+            /** Statuses */
+            statuses: string[];
+        };
         /** PortalCalendarFeedCreate */
         PortalCalendarFeedCreate: {
             /** Name */
@@ -70862,7 +70874,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AttemptOut"];
+                    "application/json": components["schemas"]["PortalAttemptOut"];
                 };
             };
             /** @description Validation Error */

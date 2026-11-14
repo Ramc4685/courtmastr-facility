@@ -49079,6 +49079,33 @@
         "title": "PortalAssessmentValueOut",
         "type": "object"
       },
+      "PortalAttemptOut": {
+        "description": "The portal's own copy of AttemptOut (portal routes never reuse staff schemas): state and amount only.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "boolean"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settled",
+          "statuses",
+          "amount_minor"
+        ],
+        "title": "PortalAttemptOut",
+        "type": "object"
+      },
       "PortalCalendarFeedCreate": {
         "additionalProperties": false,
         "properties": {
@@ -139913,7 +139940,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttemptOut"
+                  "$ref": "#/components/schemas/PortalAttemptOut"
                 }
               }
             },
