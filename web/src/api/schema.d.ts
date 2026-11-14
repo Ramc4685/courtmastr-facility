@@ -16714,6 +16714,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/unmatched-provider-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Unmatched Provider Events
+         * @description Processor charges and refunds with no row here, after the retry sweep gave up; `include=total` counts them.
+         */
+        get: operations["listUnmatchedProviderEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos": {
         parameters: {
             query?: never;
@@ -31334,6 +31354,12 @@ export interface components {
             data: components["schemas"]["TypeOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[UnmatchedProviderEventOut] */
+        Page_UnmatchedProviderEventOut_: {
+            /** Data */
+            data: components["schemas"]["UnmatchedProviderEventOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[VenueOut] */
         Page_VenueOut_: {
             /** Data */
@@ -43425,6 +43451,28 @@ export interface components {
             sort_order?: number | null;
             /** Uses Default Buffer */
             uses_default_buffer?: boolean | null;
+        };
+        /**
+         * UnmatchedProviderEventOut
+         * @description A processor charge or refund with no payment or refund here (S5). No amount: the stored event has none.
+         */
+        UnmatchedProviderEventOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string | null;
+            /** Provider */
+            provider: string;
+            /** Provider Ref */
+            provider_ref: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
         };
         /** UnsubscribeOut */
         UnsubscribeOut: {
@@ -86187,6 +86235,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TimeEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listUnmatchedProviderEvents: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_UnmatchedProviderEventOut_"];
                 };
             };
             /** @description Validation Error */

@@ -1316,6 +1316,28 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
+  /unmatched-provider-events:
+    get:
+      operationId: listUnmatchedProviderEvents
+      tags: [billing]
+      summary: Processor charges and refunds with no payment or refund here
+      description: Events the retry sweep gave up on (Phase 9 S5). Provider reference and time only; the stored
+        event carries no amount. A location-scoped caller sees its locations' provider accounts only.
+      x-priority: P1
+      x-permission: billing.history.read
+      x-features: [PAY-11]
+      parameters:
+      - {$ref: '#/components/parameters/Limit'}
+      - {$ref: '#/components/parameters/Cursor'}
+      - {$ref: '#/components/parameters/Include'}
+      x-problem-codes: [permission-denied]
+      responses:
+        '200':
+          description: Keyset page, newest first.
+          content: {application/json: {schema: {$ref: '#/components/schemas/UnmatchedProviderEventPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
   /billing-notices:
     get:
       operationId: listBillingNotices
@@ -6891,6 +6913,22 @@ components:
       required: [data, page]
       properties:
         data: {type: array, items: {$ref: '#/components/schemas/HistoryEntry'}}
+        page: {$ref: '#/components/schemas/Page'}
+    UnmatchedProviderEventPage:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, provider, received_at]
+            properties:
+              id: {type: string, format: uuid}
+              provider: {type: string}
+              kind: {type: [string, 'null'], enum: [payment, refund, null]}
+              provider_ref: {type: [string, 'null']}
+              received_at: {type: string, format: date-time}
         page: {$ref: '#/components/schemas/Page'}
     BillingNoticePage:
       type: object

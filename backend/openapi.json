@@ -45357,6 +45357,26 @@
         "title": "Page[TypeOut]",
         "type": "object"
       },
+      "Page_UnmatchedProviderEventOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/UnmatchedProviderEventOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[UnmatchedProviderEventOut]",
+        "type": "object"
+      },
       "Page_VenueOut_": {
         "properties": {
           "data": {
@@ -81762,6 +81782,56 @@
           }
         },
         "title": "TypeUpdate",
+        "type": "object"
+      },
+      "UnmatchedProviderEventOut": {
+        "description": "A processor charge or refund with no payment or refund here (S5). No amount: the stored event has none.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Ref"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "kind",
+          "provider_ref",
+          "received_at"
+        ],
+        "title": "UnmatchedProviderEventOut",
         "type": "object"
       },
       "UnsubscribeOut": {
@@ -171273,6 +171343,148 @@
         "summary": "Void Time Entry",
         "tags": [
           "staff"
+        ]
+      }
+    },
+    "/api/v1/unmatched-provider-events": {
+      "get": {
+        "description": "Processor charges and refunds with no row here, after the retry sweep gave up; `include=total` counts them.",
+        "operationId": "listUnmatchedProviderEvents",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UnmatchedProviderEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Unmatched Provider Events",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.history.read"
         ]
       }
     },

@@ -671,6 +671,16 @@ class BulkActionItemOut(Out):
     error_code: str | None
 
 
+class UnmatchedProviderEventOut(Out):
+    """A processor charge or refund with no payment or refund here (S5). No amount: the stored event has none."""
+
+    id: UUID
+    provider: str
+    kind: str | None
+    provider_ref: str | None
+    received_at: datetime
+
+
 class HistoryOut(Out):
     id: UUID
     occurred_at: datetime

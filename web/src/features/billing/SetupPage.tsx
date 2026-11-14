@@ -6,6 +6,7 @@ import { Button } from '../../components/Button'
 import { Checkbox, Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, LoadingState } from '../../components/States'
+import { Table, useKeysetQuery } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
@@ -237,6 +238,34 @@ function TendersTab() {
   )
 }
 
+type Unmatched = Schemas['UnmatchedProviderEventOut']
+
+/** Phase 9 S5: processor charges and refunds with no record here, after the retry sweep gave up. No amount is
+ * stored with the event, so staff look the reference up at the processor and refund it there. */
+function UnmatchedEvents() {
+  const paging = useKeysetQuery<Unmatched>(['billing', 'unmatched-provider-events'], (cursor) =>
+    api.get('/api/v1/unmatched-provider-events', { query: { cursor, include: 'total' } }),
+  )
+  const total = paging.query.data?.page.total ?? 0
+  return (
+    <section aria-labelledby="unmatched-heading" className="space-y-2">
+      <h3 id="unmatched-heading" className="font-medium">Unmatched processor activity ({total})</h3>
+      <p className="text-sm text-muted">Charges and refunds the processor reported that match no payment here. Find each reference at the processor and refund it there.</p>
+      <Table
+        caption="Unmatched processor activity"
+        rowKey={(e) => e.id}
+        paging={paging}
+        empty={<EmptyState title="Nothing unmatched" />}
+        columns={[
+          { header: 'Received', cell: (e) => formatDateTime(e.received_at) },
+          { header: 'Kind', cell: (e) => (e.kind === 'refund' ? 'Refund' : e.kind === 'payment' ? 'Charge' : '—') },
+          { header: 'Processor reference', cell: (e) => <code>{e.provider_ref ?? '—'}</code> },
+        ]}
+      />
+    </section>
+  )
+}
+
 function ProcessorTab() {
   const { can } = useAuth()
   const toast = useToast()
@@ -291,6 +320,7 @@ function ProcessorTab() {
           {import.meta.env.DEV && <Button variant="secondary" onClick={() => connect.mutate('fake')}>Connect the test processor</Button>}
         </div>
       )}
+      {can('billing.history.read') && <UnmatchedEvents />}
     </div>
   )
 }

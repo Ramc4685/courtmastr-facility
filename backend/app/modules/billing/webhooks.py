@@ -15,8 +15,10 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core import clock, inbound_webhooks
+from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import DomainError, NotFound
 from app.core.jobs import tenant_actor
+from app.core.pagination import ListQuery
 from app.modules.billing import autopay, methods, service
 from app.modules.billing.models import Payment, ProviderAccount, Refund
 from app.ports import payment_provider
@@ -58,8 +60,22 @@ class Unmatched(DomainError):
     """A processor payment or refund with no row of ours: a request that died after charging, or a row that has
     not committed yet. Kept `failed` on the stored event (the sweep retries it, then an operator refunds it)."""
 
+    CODE = "unmatched-provider-event"
+
     def __init__(self) -> None:
-        super().__init__("No payment or refund here matches this processor object.", code="unmatched-provider-event")
+        super().__init__("No payment or refund here matches this processor object.", code=self.CODE)
+
+
+def list_unmatched(session: Session, principal: Principal, query: ListQuery) -> dict:
+    """Processor charges and refunds that never matched a row here and that the sweep has given up on (S5): the
+    operator refunds them at the processor. A location-scoped caller sees only events of provider accounts at
+    its locations (a tenant-wide account is outside every location scope)."""
+    authorize(principal, "billing.history.read")
+    refs = None
+    if principal.kind != "system" and principal.location_ids is not None:
+        accounts = select(ProviderAccount.provider_account_ref)
+        refs = list(session.scalars(scope_query(accounts, principal, ProviderAccount.location_id)))
+    return inbound_webhooks.given_up(session.info["tenant_id"], Unmatched.CODE, query, account_refs=refs)
 
 
 def apply_event(session: Session, kind: str, object_ref: str | None, account_ref: str | None = None) -> None:

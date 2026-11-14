@@ -289,7 +289,7 @@ and record a failed attempt ("payload missing").
   (`unmatched-provider-event`, retried by the stale-event sweep in case the row commits late) and logged by event
   id only; an operator finds it in `inbound_webhook_event` and refunds it at the processor. It is not auto-created:
   the event names no payer, location, tender or allocation, so a row would put unattributed money on the books.
-  Not built: a staff screen for these events (the failed-jobs list is CLI only).
+  Staff with `billing.history.read` see the ones the sweep gave up on (S5b, below).
 - **An outcome the processor did not give is never final.** Stripe 409 (the same key in flight), 429 and 5xx
   are `ProviderUnavailable` (`app.ports.payment_provider`). A payment is then `unknown`: the sweep asks the
   processor by key (`find_payment`) and, finding nothing after 30 minutes, cancels it like an `initiated` one, so
@@ -525,5 +525,15 @@ and record a failed attempt ("payload missing").
   looks again for a few seconds (`UNMATCHED_RETRY_SEC`, for a row that commits late), then keeps the event
   `failed` as `unmatched-provider-event`; the stale-event sweep retries it until `RETRY_ATTEMPTS`. Nothing
   creates a payment from it: an operator finds it in `inbound_webhook_event` and refunds it at the processor.
-  There is no staff screen for unmatched events yet, and a retry with the same Idempotency-Key replays the
-  same processor charge (it never charges twice) but cannot recover a request whose client never retries.
+  A retry with the same Idempotency-Key replays the same processor charge (it never charges twice) but cannot
+  recover a request whose client never retries.
+- **Unmatched processor activity shows no amount (Phase 9 S5b).** `GET /unmatched-provider-events`
+  (`billing.history.read`, keyset, `include=total` for the count; Billing set-up, Processor tab) lists the
+  events above once the sweep has stopped retrying them: provider, kind, the processor's reference and the
+  time received. No amount: the stored event keeps only kind, object and account (the event is a notification,
+  never a source of truth), so an amount would mean storing new provider payload data or calling the processor
+  for every listed row; staff look the reference up at the processor. `inbound_webhook_event` is a global
+  table, so the read is the kernel's `inbound_webhooks.given_up()` as fh_platform, like the retry sweep's
+  `stale()`, always filtered to the session's tenant. A location-scoped caller sees only events of provider
+  accounts at its locations; a tenant-wide account's events are visible to unscoped callers only. An event
+  whose payload the retention purge emptied drops off the list.

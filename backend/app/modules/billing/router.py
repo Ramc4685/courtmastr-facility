@@ -555,6 +555,12 @@ def list_billing_history(query: Lists, ctx: Ctx = Depends(require("billing.histo
     return documents.list_history(ctx.session, ctx.principal, query)
 
 
+@router.get("/unmatched-provider-events", response_model=s.Page[s.UnmatchedProviderEventOut])
+def list_unmatched_provider_events(query: Lists, ctx: Ctx = Depends(require("billing.history.read"))):
+    """Processor charges and refunds with no row here, after the retry sweep gave up; `include=total` counts them."""
+    return webhooks.list_unmatched(ctx.session, ctx.principal, query)
+
+
 @router.get("/billing-notices", response_model=s.Page[s.NoticeOut])
 def list_billing_notices(query: Lists, ctx: Ctx = Depends(require("billing.invoice.read"))):
     """Reminders, decline notices and alerts that were sent. Filters: kind, client_id, subject_id."""

@@ -9,8 +9,10 @@ import pytest
 from sqlalchemy import select, text
 
 from app.core import clock, inbound_webhooks
+from app.core.auth import Principal
 from app.core.db.platform import platform_engine
 from app.core.errors import ValidationFailed
+from app.core.pagination import ListQuery
 from app.core.settings import get_settings
 from app.modules.billing import checkout, documents, webhooks
 from app.modules.billing.models import Coupon, CouponRedemption, Invoice, InvoicePayLink, Payment
@@ -339,6 +341,33 @@ def test_a_processor_charge_with_no_local_row_is_kept_for_staff_never_dropped(sh
         conn.execute(text("UPDATE inbound_webhook_event SET received_at = now() - interval '10 minutes' "
                           "WHERE id = :id"), {"id": stored[0]})  # fmt: skip
     assert stored[0] in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
+
+
+def test_staff_see_an_unmatched_charge_once_the_sweep_gives_up_by_reference_and_time_only(api, shop, monkeypatch):
+    """S5b: the given-up event is listed for staff with history access (reference, kind, time; no amount or
+    personal data). A caller scoped to other locations does not see a tenant-wide provider account's events."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    orphan = f"pi_orphan_{uuid4().hex}"
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.succeeded",
+                                     {"kind": "payment", "object": orphan, "account": account_ref})  # fmt: skip
+    monkeypatch.setattr(webhooks.time, "sleep", lambda _: None)
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0  # still being retried
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
+                     {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
+    listed = api("GET", "/unmatched-provider-events?include=total")
+    assert listed["page"]["total"] == 1
+    [row] = listed["data"]
+    assert (row["id"], row["kind"], row["provider_ref"], row["provider"]) == (str(stored[0]), "payment", orphan, "fake")
+    assert set(row) == {"id", "provider", "kind", "provider_ref", "received_at"}
+    api("GET", "/unmatched-provider-events?amount_minor=1", None, 400)  # no filters
+    elsewhere = Principal(kind="staff", tenant_id=shop.tenant.id, staff_user_id=uuid4(), location_ids=frozenset({uuid4()}),
+                          permissions={"billing.history.read": "all"})  # fmt: skip
+    with work(shop.tenant) as session:
+        assert webhooks.list_unmatched(session, elsewhere, ListQuery(include_total=True))["page"]["total"] == 0
 
 
 def test_an_event_whose_payload_is_gone_fails_loudly_and_is_never_marked_processed(shop, caplog):
