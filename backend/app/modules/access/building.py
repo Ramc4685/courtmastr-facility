@@ -2,8 +2,9 @@
 and the staff tools around them (devices, remote unlock, light overrides, the activity log).
 
 The door decision is not a second rule engine: a code admits only inside its booking's window, while the booking
-is confirmed, and only if the booking's holder would pass the check-in evaluation (`service._facts` plus
-`domain.evaluate`) with no balance due where the location requires paid entry. An admitted entry writes a normal
+is confirmed, and only if the booking's holder would pass the check-in evaluation for a booking (`service._facts`
+plus `domain.evaluate.for_booking`: the person, never a membership rule) with no balance due where the location
+requires paid entry. An admitted entry writes a normal
 check-in on the `door` channel.
 
 Lights are computed, not scheduled: each minute (`jobs.run_building_control`) a zone should be on when an override
@@ -44,7 +45,7 @@ from app.core.settings import get_settings
 from app.modules import clients, platform, programs, scheduling
 from app.modules.access import events as ev
 from app.modules.access import service
-from app.modules.access.domain.evaluate import evaluate
+from app.modules.access.domain.evaluate import evaluate, for_booking
 from app.modules.access.models import (
     BuildingEvent,
     DoorDevice,
@@ -133,10 +134,11 @@ def _booking(session: Session, booking_id: UUID) -> dict | None:
 
 
 def _refusal(session: Session, client_id: UUID, location_id: UUID) -> str | None:
-    """Why the check-in evaluation would turn this client away now, or None. A balance due refuses too when the
+    """Why a booking's code is refused for this client now, or None: the person only (disabled, banned), never a
+    membership rule (`for_booking`: the booking was paid for and allowed). A balance due refuses too when the
     location requires paid entry (the booking's own charge is not visible to access: README)."""
     facts, _ = service._facts(session, clients.service.get(session, client_id), location_id)
-    decision = evaluate(facts)
+    decision = for_booking(evaluate(facts))
     if not decision.would_grant:
         return decision.denial_reason
     if _cfg(session, location_id)["requires_paid_entry"] and "balance_due" in decision.alerts:
@@ -729,7 +731,7 @@ def _enter(session: Session, row: EntryCode):
     assert row.client_id is not None  # only a linked person's code opens a door
     check_in, _, _ = service._check_in(
         session, client=clients.service.get(session, row.client_id), location_id=row.location_id, channel="door",
-        identified_by="credential", credential=None,
+        identified_by="credential", credential=None, booked=True,
     )  # fmt: skip
     return check_in
 

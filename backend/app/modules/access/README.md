@@ -339,7 +339,13 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - **Entitlement at the door.** Every verify and portal unlock re-checks, for every kind of code, that the booking is
   still confirmed and the person still entitled (still the holder, still enrolled), that the code's window equals the
   live booking's window (a moved booking's old code fails at once, before any handler runs), that the person passes
-  the known-adult rule (a session participant who is a minor needs an adult guardian) and the check-in evaluation.
+  the known-adult rule (a session participant who is a minor needs an adult guardian) and the check-in evaluation
+  for a booking (`domain.evaluate.for_booking`): a booking's code is refused only when the person is disabled or
+  banned (access mode always deny), the booking is cancelled or outside its window, the age rule fails, or (with
+  `requires_paid_entry`) a balance is due. A frozen, suspended, used-up, cancelled, wrong-location or
+  out-of-schedule membership never refuses it: the person paid for the rental or session and was allowed to book
+  it. The door check-in it writes uses the same rule (`service._check_in(..., booked=True)`); the front desk and the
+  kiosk still apply every membership rule.
   Handlers revoke as soon as entitlement ends: booking cancelled or moved, session cancelled, enrolment cancelled or
   moved (`recheck_client_codes`), and a payment failed, refunded, voided or disputed (revoked when the evaluation
   now refuses the person). A whole-group enrolment's codes are issued by the minute tick.

@@ -978,6 +978,30 @@ def test_check_in_evaluation_refuses_blocked_and_unpaid_holders(client, tenant, 
     assert kinds(b).count("entry_denied") == 2
 
 
+def test_a_frozen_or_out_of_schedule_membership_never_refuses_a_booked_code(client, tenant, owner, b, monkeypatch):
+    """A booking was paid for and allowed: membership rules do not refuse its code at the door (they still refuse
+    at the front desk); a ban still does."""
+    from app.modules import memberships
+
+    with clock.freeze(at(9.8)):
+        owner = login(client, tenant, tenant.owner_email)
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        code = clear(b, codes(b, booking)[0])
+        for reason in ("frozen", "depleted"):
+            monkeypatch.setattr(memberships.service, "eligibility",
+                                lambda *a, reason=reason: {"reason": reason, "contract_id": None, "status": reason})  # fmt: skip
+            assert verify(client, b, code)["result"] == "allow"
+            check_in = scalar(tenant, select(CheckIn).where(CheckIn.channel == "door").order_by(CheckIn.id.desc()))
+            assert (check_in.result, check_in.denial_reason) == ("granted", None)
+        desk = ok(client.post(f"{API}/check-ins", headers=owner,
+                              json={"channel": "staff_window", "client_id": b.person["id"], "location_id": b.location}), 201)  # fmt: skip
+        assert desk["check_in"]["result"] == "denied"  # the front desk still applies the membership rule
+        ok(client.put(f"{API}/clients/{b.person['id']}/access-mode", headers=owner,
+                      json={"access_mode": "always_deny", "reason": "Banned"}), 200)  # fmt: skip
+        assert verify(client, b, code)["result"] == "deny"
+
+
 def test_staff_remote_unlock_is_audited_and_a_dead_controller_is_409(client, owner, b, sim):
     event = ok(client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Card reader down"}))
     assert event["kind"] == "remote_unlock" and ("unlock", "door-front", 5) in sim.calls
