@@ -4,6 +4,7 @@ Money is integer minor units; each value is rounded half-up once, and the facili
 minus the coach's, so the two shares sum to the gross by construction.
 """
 
+from collections.abc import Sequence
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -39,7 +40,7 @@ def split(gross: int, pct: Decimal, fee: int = 0, applies: str = "before_split")
     return sign * (amount - coach), sign * coach
 
 
-def in_force(rows: list[tuple[date, object]], on: date):
+def in_force(rows: Sequence[tuple[date, object]], on: date):
     """The value of the latest (effective_from_on, value) row on or before `on`, else None."""
     best = None
     for start, value in sorted(rows, key=lambda r: r[0]):

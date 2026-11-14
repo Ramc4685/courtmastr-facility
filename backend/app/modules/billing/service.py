@@ -2077,4 +2077,6 @@ def source_totals(session: Session, source_context: str, source_type: str, sourc
         )
         .group_by(Charge.source_id)
     ).all() if ids else []  # fmt: skip
-    return {row[0]: {"invoiced_minor": int(row[1]), "paid_minor": int(row[2]), "net_minor": int(row[3])} for row in rows}
+    return {
+        row[0]: {"invoiced_minor": int(row[1]), "paid_minor": int(row[2]), "net_minor": int(row[3])} for row in rows
+    }

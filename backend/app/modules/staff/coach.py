@@ -297,14 +297,14 @@ def _payout(session: Session, principal: Principal, payout_id: UUID, key: str) -
     payout = _scoped(session, principal, CoachPayout, payout_id)
     authorize(principal, key, location_id=payout.location_id)
     if _is_own(principal, key):
-        payee = session.get(StaffPayee, payout.staff_payee_id)
+        payee = session.get_one(StaffPayee, payout.staff_payee_id)
         if payee.staff_user_id != principal.staff_user_id:
             raise NotFound()
     return payout
 
 
 def payout_view(session: Session, payout: CoachPayout) -> dict:
-    payee = session.get(StaffPayee, payout.staff_payee_id)
+    payee = session.get_one(StaffPayee, payout.staff_payee_id)
     return {c.key: getattr(payout, c.key) for c in CoachPayout.__table__.columns} | {
         "coach_name": payee.display_name, "tax_form_on_file_on": payee.tax_form_on_file_on,
         "notice": NO_MONEY_MOVED,
@@ -416,7 +416,7 @@ def add_adjustment(session: Session, principal: Principal, payout_id: UUID, data
     """A manual line on a draft (a correction, a bonus, a deduction): the coach's share moves by the amount and the
     facility's by its opposite, so the gross is unchanged. Needs a reason and its own permission."""
     payout = _draft(session, principal, payout_id, PAYOUT_ADJUST)
-    payee = session.get(StaffPayee, payout.staff_payee_id)
+    payee = session.get_one(StaffPayee, payout.staff_payee_id)
     _not_own_payee(session, principal, payee)
     if not data["amount_minor"]:
         raise ValidationFailed("An adjustment is not zero.", pointer="/amount_minor")

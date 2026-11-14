@@ -1,5 +1,7 @@
 ## backend/app/modules/staff/README.md
 
+Checked: 2026-11-13 (re-verified against the working tree; citations spot-checked, no change in findings).
+
 Compared with `backend/app/modules/staff/*.py` and `domain/*.py`, and the `staff` tag operations of `docs/api/openapi-money.yaml` (written `contract:<line>`, tag description at contract:78, staff paths at contract:4759-5890). Paths are relative to `backend/app/modules/staff/` unless they start with `docs/`, `backend/` or `web/`. Read in the working tree on `claude/coach-share`, uncommitted edits included. README line numbers are from the current file.
 
 ### [stale-not-built]

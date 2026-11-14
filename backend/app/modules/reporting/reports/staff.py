@@ -209,7 +209,8 @@ _SPLIT = ("gross_minor", "facility_share_minor", "coach_share_minor")
 
 def _coach_rows(session: Session, where: list, scope: Scope) -> dict:
     e = v.coach_earning.c
-    details, coaches = [], {}
+    details: list[dict] = []
+    coaches: dict[str, dict] = {}
     for r in session.execute(_loc(
         select(e.staff_payee_id, e.coach_name, e.earned_on, e.kind, e.description, e.payout_status, e.paid_on,
                *(getattr(e, m) for m in _SPLIT))
