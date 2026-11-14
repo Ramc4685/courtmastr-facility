@@ -1130,7 +1130,7 @@ def _populate_coach_share(client, headers, post, tenant, location_id, payee_id) 
 
     post(f"/staff-payees/{payee_id}/engagements", {"engagement": "independent", "effective_from_on": "2099-01-01"})
     rule = client.put("/api/v1/coach-share-rules", headers=headers, json={
-        "staff_payee_id": payee_id, "effective_from_on": "2020-01-01", "coach_share_pct": "70"})  # fmt: skip
+        "staff_payee_id": payee_id, "effective_from_on": "2099-01-01", "coach_share_pct": "70"})  # fmt: skip
     assert rule.status_code == 200, rule.text
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         today = service.location_today(session, UUID(location_id))
