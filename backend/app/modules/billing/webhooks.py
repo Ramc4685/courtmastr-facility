@@ -44,7 +44,7 @@ def receive(provider_name: str, headers: dict[str, str], body: bytes) -> str:
         raise DomainError("The webhook signature is not valid.", code="invalid-signature", status=400) from error
     stored = inbound_webhooks.record(
         provider_name, event.provider_event_id, event.account_ref, event.event_type,
-        {"kind": event.kind, "object": event.object_ref, "account": event.account_ref},
+        {"kind": event.kind, "object": event.object_ref, "account": event.account_ref, "expects_row": event.expects_row},
     )  # fmt: skip
     if stored is None:
         return "duplicate"
@@ -58,7 +58,7 @@ def receive(provider_name: str, headers: dict[str, str], body: bytes) -> str:
 
 class Unmatched(DomainError):
     """A processor payment or refund with no row of ours: a request that died after charging, or a row that has
-    not committed yet. Kept `failed` on the stored event (the sweep retries it, then an operator refunds it)."""
+    not committed yet. Kept `failed` on the stored event (the sweep retries it, then staff look it up at the processor)."""
 
     CODE = "unmatched-provider-event"
 
@@ -68,7 +68,7 @@ class Unmatched(DomainError):
 
 def list_unmatched(session: Session, principal: Principal, query: ListQuery) -> dict:
     """Processor charges and refunds that never matched a row here and that the sweep has given up on (S5): the
-    operator refunds them at the processor. A location-scoped caller sees only events of provider accounts at
+    operator looks them up at the processor. A location-scoped caller sees only events of provider accounts at
     its locations (a tenant-wide account is outside every location scope)."""
     authorize(principal, "billing.history.read")
     refs = None
@@ -132,6 +132,7 @@ def process_provider_event(session: Session, row_id: str) -> None:
         return
     if _payload_gone(UUID(row_id), row):
         return
+    expected = row.payload.get("expects_row", True)  # older rows never said: treated as an orphan candidate
     try:
         for wait in (*UNMATCHED_RETRY_SEC, None):
             try:
@@ -139,10 +140,14 @@ def process_provider_event(session: Session, row_id: str) -> None:
                     apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
                 break
             except Unmatched:
-                if wait is None:
+                if wait is None or not expected:
                     raise
                 time.sleep(wait)  # a row committed meanwhile is seen by the next statement (read committed)
     except Unmatched as error:  # no retry storm: the stale-event sweep tries it again, then it waits for an operator
+        if not expected:  # a failed intent or a charge made outside this app: no row of ours is missing
+            log.info("webhook %s matches no row and moved no money of ours: ignored", row_id)
+            inbound_webhooks.finish(UUID(row_id))
+            return
         log.warning("webhook %s unmatched: no local payment or refund", row_id)
         inbound_webhooks.finish(UUID(row_id), error=_event_failure(error))
         return

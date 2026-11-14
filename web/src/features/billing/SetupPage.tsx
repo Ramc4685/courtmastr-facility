@@ -242,8 +242,8 @@ function TendersTab() {
 
 type Unmatched = Schemas['UnmatchedProviderEventOut']
 
-/** Phase 9 S5: processor charges and refunds with no record here, after the retry sweep gave up. No amount is
- * stored with the event, so staff look the reference up at the processor and refund it there. */
+/** Phase 9 S5: succeeded charges and refunds this app started at the processor that have no record here, after
+ * the retry sweep gave up. No amount is stored with the event, so staff look the reference up at the processor. */
 function UnmatchedEvents() {
   const paging = useKeysetQuery<Unmatched>(['billing', 'unmatched-provider-events'], (cursor) =>
     api.get('/api/v1/unmatched-provider-events', { query: { cursor, include: 'total' } }),
@@ -252,7 +252,7 @@ function UnmatchedEvents() {
   return (
     <section aria-labelledby="unmatched-heading" className="space-y-2">
       <h3 id="unmatched-heading" className="font-medium">Unmatched processor activity ({total})</h3>
-      <p className="text-sm text-muted">Charges and refunds the processor reported that match no payment here. Find each reference at the processor and refund it there.</p>
+      <p className="text-sm text-muted">Each row is a charge or refund that went through at the processor but has no payment or refund recorded here, usually because the request that made it stopped part way. Look the reference up in the processor's dashboard to see what it was and who paid.</p>
       <Table
         caption="Unmatched processor activity"
         rowKey={(e) => e.id}

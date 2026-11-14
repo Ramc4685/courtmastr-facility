@@ -452,3 +452,22 @@ def test_an_attempt_is_readable_only_by_the_identity_that_made_it(api, shop, mem
     answers = [client.get(f"/api/v1/portal/payment-attempts/guess-{n}", headers=member.headers).status_code
                for n in range(3)]  # fmt: skip
     assert answers == [404, 404, 429]
+
+
+def test_an_unmatched_event_that_moved_no_money_of_ours_is_ignored_without_a_retry(api, shop, monkeypatch):
+    """A failed intent or a charge made outside the app names no row here: it costs no retry wait, is marked
+    processed and never reaches the staff list."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        account_ref = svc._provider_account(session).provider_account_ref
+    stored = inbound_webhooks.record("fake", f"evt_{uuid4().hex}", account_ref, "payment.failed",
+                                     {"kind": "payment", "object": f"pi_{uuid4().hex}", "account": account_ref,
+                                      "expects_row": False})  # fmt: skip
+    naps = []
+    monkeypatch.setattr(webhooks.time, "sleep", naps.append)
+    webhooks.process_provider_event.fn(str(shop.tenant.id), str(stored[0]))
+    assert (inbound_webhooks.get(stored[0]).status, naps) == ("processed", [])
+    with platform_engine().begin() as conn:
+        conn.execute(text("UPDATE inbound_webhook_event SET attempt_count = :n WHERE id = :id"),
+                     {"n": webhooks.RETRY_ATTEMPTS, "id": stored[0]})  # fmt: skip
+    assert api("GET", "/unmatched-provider-events?include=total")["page"]["total"] == 0

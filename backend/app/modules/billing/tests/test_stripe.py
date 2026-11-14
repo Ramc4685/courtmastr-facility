@@ -454,3 +454,19 @@ def test_webhook_signature_and_normalisation(stripe):
     now = int(time.time())
     rotated = f"{sign('old-secret', body, now)},v1={sign(SECRET, body, now).split('v1=')[1]}"
     assert parse(body, rotated).kind == "payment"
+
+
+def test_only_a_succeeded_charge_or_refund_this_app_started_expects_a_local_row(stripe):
+    """An unmatched failed intent or a charge made outside the app is not an orphan of ours: it is neither retried
+    nor listed for staff (webhooks.process_provider_event)."""
+
+    def expects(kind: str, **obj) -> bool:
+        body = json.dumps({"id": "evt_1", "type": kind, "account": ACCOUNT, "data": {"object": {"id": "pi_1", **obj}}})
+        return stripe.parse_webhook({"stripe-signature": sign(SECRET, body.encode())}, body.encode()).expects_row
+
+    ours = {"metadata": {"fh_key": "t:payment:k"}}
+    assert expects("payment_intent.succeeded", status="succeeded", **ours)
+    assert expects("refund.updated", status="succeeded", **ours)
+    assert not expects("payment_intent.payment_failed", status="requires_payment_method", **ours)
+    assert not expects("payment_intent.succeeded", status="succeeded")  # made outside this app
+    assert not expects("refund.updated", status="failed", **ours)

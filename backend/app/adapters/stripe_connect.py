@@ -400,7 +400,10 @@ class StripeConnectProvider:
             event = json.loads(body)
             event_type, account = event["type"], event.get("account")
             kind = next((kind for prefix, kind in _EVENT_KINDS if event_type.startswith(prefix)), "other")
-            object_ref = account if kind == "account" else event["data"]["object"].get("id")
-            return ProviderEvent(event["id"], account, kind, object_ref, event_type)
+            obj = event["data"]["object"]
+            object_ref = account if kind == "account" else obj.get("id")
+            ours = kind in ("payment", "refund") and bool((obj.get("metadata") or {}).get("fh_key"))
+            expects_row = ours and obj.get("status") == "succeeded"
+            return ProviderEvent(event["id"], account, kind, object_ref, event_type, expects_row)
         except (ValueError, KeyError, TypeError, AttributeError) as error:
             raise WebhookRejected("malformed event") from error
