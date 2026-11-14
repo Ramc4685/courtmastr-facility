@@ -115,7 +115,9 @@ def test_a_carve_that_meets_a_concurrent_carve_rereads_the_night_and_retries(cli
         with TestClient(fastapi_app) as own:
             codes.append(own.post(f"{API}/games/{game['id']}/reschedule", headers=owner, json=move).status_code)
 
-    waiting = text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()")
+    waiting = text(
+        "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()"
+    )
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         scheduling.service.create_booking(
             session, location_id=UUID(f.location), kind="block", block_kind="unavailable",
@@ -133,4 +135,7 @@ def test_a_carve_that_meets_a_concurrent_carve_rereads_the_night_and_retries(cli
     thread.join(timeout=30)
     assert codes == [200]
     # both carves stand: the night is held between them and after the second game
-    assert book(client, owner, f, [f.court], local(f.zone, 2031, 5, 7, 19), local(f.zone, 2031, 5, 7, 20)).status_code == 409
+    assert (
+        book(client, owner, f, [f.court], local(f.zone, 2031, 5, 7, 19), local(f.zone, 2031, 5, 7, 20)).status_code
+        == 409
+    )
