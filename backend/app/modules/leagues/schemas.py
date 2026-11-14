@@ -19,6 +19,9 @@ Wall = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
 Color = Annotated[str, Field(pattern=r"^#[0-9a-f]{6}$")]
 Metric = Literal["GP", "W", "L", "T", "GF", "GA", "PTS", "GD", "WP", "OTL", "FF", "BP", "SPT", "H2H"]
 Email = Annotated[str, Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+# int4 columns: a larger number overflowed Postgres (a 500)
+Int4 = Annotated[int, Field(ge=-2_147_483_648, le=2_147_483_647)]
+Fee = Annotated[int, Field(ge=0, le=2_147_483_647)]
 
 
 class StandingsColumn(In):
@@ -65,7 +68,7 @@ class _ScoringOut(Out):
 class SportCreate(_ScoringIn):
     name: Name
     default_game_length_min: Annotated[int, Field(gt=0, le=600)] = 60
-    default_team_fee_minor: Annotated[int, Field(ge=0)] | None = None
+    default_team_fee_minor: Fee | None = None
     fees_text: Text | None = None
     rules_text: Text | None = None
     is_active: bool = True
@@ -74,7 +77,7 @@ class SportCreate(_ScoringIn):
 class SportUpdate(_ScoringIn):
     name: Name | None = None
     default_game_length_min: Annotated[int, Field(gt=0, le=600)] | None = None
-    default_team_fee_minor: Annotated[int, Field(ge=0)] | None = None
+    default_team_fee_minor: Fee | None = None
     fees_text: Text | None = None
     rules_text: Text | None = None
     is_active: bool | None = None
@@ -94,7 +97,7 @@ class AgeGroupWrite(In):
     name: Name | None = None
     min_age: Annotated[int, Field(ge=0, le=120)] | None = None
     max_age: Annotated[int, Field(ge=0, le=120)] | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
     is_active: bool | None = None
 
 
@@ -201,7 +204,7 @@ class CompetitionOut(_ScoringOut):
 class DivisionWrite(In):
     name: Name | None = None
     kind: Literal["division", "pool"] | None = None
-    sort_order: int | None = None
+    sort_order: Int4 | None = None
 
 
 class DivisionOut(Out):

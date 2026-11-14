@@ -532,3 +532,12 @@ def test_w2_07_bracket_booking_needs_the_games_key_and_copied_rosters_the_roster
     copied = ok(client.post(f"{API}/competitions/{target['id']}/teams/copy", headers=owner,
                             json={"source_competition_id": comp["id"], "includes_rosters": True}), 201)  # fmt: skip
     assert len(copied) == 2
+
+
+def test_integers_above_int4_are_a_422_not_a_500(client, owner):
+    """The team fee and the sort order are int4 columns: a larger number overflowed Postgres (a 500)."""
+    too_big = 2**31
+    sport = client.post(f"{API}/sports", headers=owner, json={"name": "Big", "default_team_fee_minor": too_big})
+    assert sport.status_code == 422, sport.text
+    group = client.post(f"{API}/age-groups", headers=owner, json={"name": "Big", "sort_order": too_big})
+    assert group.status_code == 422, group.text

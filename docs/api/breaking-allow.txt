@@ -61,3 +61,15 @@ POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotenc
 POST /api/v1/billing-bulk-actions added the pattern `^[A-Za-z0-9_.:\-]{1,255}$` to the `header` request parameter `idempotency-key`
 # S1 (phase 9 orphans): the account-credit refund answers its contract's RefundBatch (refunded total and each leg's status) instead of a bare list; the staff web page is its only client and moves with it.
 POST /api/v1/clients/{client_id}/account-credit/refund the response's body `type` changed from `array<object>` to `object` for status `201`
+# Phase 9 orphans: int4 columns get their int4 range in the schema (a larger number was a 500, now a 422); no value
+# the database could store is refused.
+POST /api/v1/age-groups the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+POST /api/v1/age-groups the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+PATCH /api/v1/age-groups/{age_group_id} the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/age-groups/{age_group_id} the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+POST /api/v1/competitions/{competition_id}/divisions the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+POST /api/v1/competitions/{competition_id}/divisions the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+PATCH /api/v1/divisions/{division_id} the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/divisions/{division_id} the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+POST /api/v1/sports the `default_team_fee_minor/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/sports/{sport_id} the `default_team_fee_minor/anyOf[subschema #1]` request property's max was set to `2147483647.00`

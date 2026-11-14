@@ -18,6 +18,8 @@ Pct = Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
 Password = Annotated[str, StringConstraints(min_length=1, max_length=200)]
 Basis = Literal["invoiced", "paid"]
 Section = Literal["sessions", "commissions", "hourly"]
+FIRST_DAY, LAST_DAY = date(1900, 1, 1), date(2999, 12, 31)
+Day = Annotated[date, Field(ge=FIRST_DAY, le=LAST_DAY)]  # year 1 overflowed local-midnight arithmetic (500)
 
 
 # --- payees ------------------------------------------------------------------------------------------------
@@ -376,8 +378,8 @@ class SessionInstructorOut(Out):
 
 class PayrollRunCreate(In):
     location_id: UUID | None = None
-    period_starts_on: date
-    period_ends_on: date
+    period_starts_on: Day
+    period_ends_on: Day
     commission_basis: Basis | None = None
     includes: Annotated[list[Section], Field(min_length=1, max_length=3)] = ["sessions", "commissions", "hourly"]
     scope_staff_payee_id: UUID | None = None

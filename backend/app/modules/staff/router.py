@@ -33,10 +33,11 @@ RunExport = Depends(require(service.RUN_EXPORT))
 StatementRead = Depends(require(service.STATEMENT_READ))
 SessionManage = Depends(require(service.SESSION_MANAGE))
 ScheduleRead = Depends(require(service.SCHEDULE_READ))
-From = Annotated[date, Query(alias="from")]
-To = Annotated[date, Query(alias="to")]
-MaybeFrom = Annotated[date | None, Query(alias="from")]
-MaybeTo = Annotated[date | None, Query(alias="to")]
+_DAYS = {"ge": s.FIRST_DAY, "le": s.LAST_DAY}  # bounded: year 1 overflowed the local-midnight arithmetic (500)
+From = Annotated[date, Query(alias="from", **_DAYS)]
+To = Annotated[date, Query(alias="to", **_DAYS)]
+MaybeFrom = Annotated[date | None, Query(alias="from", **_DAYS)]
+MaybeTo = Annotated[date | None, Query(alias="to", **_DAYS)]
 
 
 # --- payees ------------------------------------------------------------------------------------------------
