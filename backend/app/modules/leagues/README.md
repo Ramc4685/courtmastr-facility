@@ -108,7 +108,9 @@ games to score.
   per side, the default; every existing competition stays on it) or `sets`, with `sets_best_of` (1, 3 or 5),
   `set_points_to`, `set_win_by` (default 2), an optional `set_cap` and an optional `deciding_set_points_to`. The sport
   holds the defaults and a new competition snapshots them, like the points per outcome; staff edit them per
-  competition. A result side may carry `sets` (its points per set); they are checked in order by
+  competition until a game has a result: then a change of mode or set rules is refused (409 `results-recorded`,
+  naming the count) until those results are cleared. A set at the cap ends only from deuce (30-29 or 30-28, never
+  30-5). A result side may carry `sets` (its points per set); they are checked in order by
   `domain/sets.py` (a set ends only at a legal score, no set after the match is decided, the match decided), and the
   side's `score` becomes its sets won, so brackets, ladders, outcomes and player stats work unchanged. A result given
   as sets won only (no per-set points) is accepted when it is a finished match. A forfeit or default takes no sets;

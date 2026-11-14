@@ -2391,6 +2391,7 @@ paths:
       operationId: updateCompetition
       tags: [leagues]
       summary: Update competition
+      description: The scoring mode and set rules are locked once any game has a result (409 results-recorded); clear the results first.
       x-priority: P0
       x-permission: leagues.competition.manage
       x-features: [LGE-01, LGE-02, LGE-06]
@@ -2407,7 +2408,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
-      x-problem-codes: [version-conflict]
+      x-problem-codes: [version-conflict, results-recorded]
     delete:
       operationId: deleteCompetition
       tags: [leagues]

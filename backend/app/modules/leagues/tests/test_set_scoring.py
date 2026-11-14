@@ -32,6 +32,19 @@ def test_sets_format_is_checked_and_snapshotted(client, owner, f):
     assert client.patch(f"{API}/competitions/{comp['id']}", headers=owner, json={"sets_best_of": 4}).status_code == 422
 
 
+def test_scoring_format_is_locked_once_a_result_is_recorded(client, owner, f):
+    comp = league(client, owner, f, teams=4)  # a points league
+    game = scheduled(client, owner, f, comp["id"])[0]
+    ok(put(client, owner, game["id"], score(3, 1)), 200)
+    url = f"{API}/competitions/{comp['id']}"
+    refused = client.patch(url, headers=owner, json=BADMINTON)
+    assert refused.status_code == 409 and refused.json()["code"] == "results-recorded", refused.text
+    assert "1 game" in refused.json()["detail"]
+    assert ok(client.patch(url, headers=owner, json={"name": "Renamed"}), 200)["scoring_mode"] == "points"
+    assert client.delete(f"{API}/games/{game['id']}/result", headers=owner).status_code == 204
+    assert ok(client.patch(url, headers=owner, json=BADMINTON), 200)["scoring_mode"] == "sets"
+
+
 def test_set_results_validate_derive_the_score_and_rank_by_ratio(client, owner, tenant, f):
     f.sport = post(client, owner, "/sports", {"name": "Badminton"} | BADMINTON)
     comp = league(client, owner, f, teams=4)

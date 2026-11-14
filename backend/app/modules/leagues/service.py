@@ -388,6 +388,18 @@ def update_competition(session: Db, principal: Principal, competition_id: UUID, 
     _check_refs(session, principal, data)
     changes = _apply(row, _given(_layout(data), _COMPETITION_NULLABLE), _COMPETITION_FIELDS)
     _check_shape(row)
+    if changes.keys() & {"scoring_mode", *_SET_FORMAT}:
+        scored = session.scalar(
+            select(func.count(func.distinct(GameResult.game_id)))
+            .join(Game, Game.id == GameResult.game_id)
+            .where(Game.competition_id == row.id)
+        )  # fmt: skip
+        if scored:
+            raise Conflict(
+                f"{scored} game{'s' if scored > 1 else ''} already {'have' if scored > 1 else 'has'} a result under "
+                "this scoring format; clear those results before changing it.",
+                code="results-recorded",
+            )
     audit.record(session, MANAGE, row, location_id=row.location_id, changes=changes)
     session.flush()
     return row

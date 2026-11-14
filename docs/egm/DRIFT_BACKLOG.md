@@ -635,8 +635,8 @@ Leagues re-run after set scoring (migration 2001) and league nights. Items alrea
 ### leagues — [evidence](drift/leagues.md)
 
 - [ ] [wording] README:8 names migrations 1101 and 1441 (16 + 6 tables) but not 1421 (8 more, 30 in all).
-- [ ] [undocumented] Set scoring: problem code `invalid-set-score` (`service.py:1391`), game view `sets_best_of` (`schemas.py:533`), public competition `scoring_mode` (`schemas.py:916`), sets game card boxes (`depth.py:686`).
-- [ ] [undocumented] League nights: nothing carved while another booking is in the way, block is `unavailable`, carved original cancelled with reason `other` (`scheduling/service.py:467-485`, `leagues/service.py:1049`).
+- [ ] [undocumented] Set scoring: problem code `invalid-set-score` (`service.py:1403`), game view `sets_best_of` (`schemas.py:533`), public competition `scoring_mode` (`schemas.py:916`), sets game card boxes (`depth.py:686`).
+- [ ] [undocumented] League nights: nothing carved while another booking is in the way, block is `unavailable`, carved original cancelled with reason `other` (`scheduling/service.py:463-485`, `leagues/service.py:1061`).
 - [ ] [wording] README security table (55-68) has no row for league nights or the B2 surface; `tests/test_site.py` and `tests/test_set_scoring.py` are not cited.
 
 ## scheduling (refresh 2026-11-13, README with the `gives_way` paragraph; evidence in `drift/scheduling.md`)
