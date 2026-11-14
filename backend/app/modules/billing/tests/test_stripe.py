@@ -236,6 +236,30 @@ def test_a_timeout_or_server_error_is_unknown_never_a_decline(stripe, http, fail
     assert (state.outcome, state.provider_payment_ref, state.failure_category) == ("unknown", "", None)
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        (409, {"error": {"type": "idempotency_error", "message": "A request with this key is still in progress."}}),
+        (429, {"error": {"type": "rate_limit_error", "message": "Too many requests."}}),
+    ],
+)
+def test_an_in_flight_or_rate_limited_answer_is_unknown_never_failed(stripe, http, answer):
+    """Stripe answers 409 to a same-key retry while the first call is still running (and 429 when rate limited):
+    the first call may still pay. A refund is then left `initiated` for the retry or the sweep (find_refund), and a
+    payment is `unknown` (find_payment); neither is ever recorded as failed or declined."""
+    http.answers.append(answer)
+    with pytest.raises(ProviderUnavailable):
+        stripe.refund(account_ref=ACCOUNT, provider_payment_ref="pi_1", amount_minor=500, idempotency_key="t1:refund:k")
+    http.answers.append(answer)
+    state = stripe.create_payment(
+        account_ref=ACCOUNT, amount_minor=5, currency="usd", method_token="pm_x", idempotency_key="k"
+    )
+    assert (state.outcome, state.failure_category) == ("unknown", None)
+    http.reply(400, {"error": {"type": "invalid_request_error", "message": "charge already refunded"}})
+    refused = stripe.refund(account_ref=ACCOUNT, provider_payment_ref="pi_1", amount_minor=1, idempotency_key="b")
+    assert (refused.outcome, refused.failure_message) == ("failed", "charge already refunded")  # a definitive no
+
+
 def test_reading_finding_and_cancelling_a_payment(stripe, http):
     http.reply(200, intent("processing"))
     assert stripe.get_payment(account_ref=ACCOUNT, provider_payment_ref="pi_1").outcome == "processing"

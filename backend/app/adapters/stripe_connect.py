@@ -80,7 +80,8 @@ def _test_account_details(email: str, country: str) -> dict:
 
 
 class ProviderUnavailable(Exception):
-    """No usable answer: a timeout, a connection failure or a 5xx. The outcome of the call is not known."""
+    """No usable answer: a timeout, a connection failure, a 5xx, a 409 (the same key's first call is still in
+    flight) or a 429 (rate limited). The outcome of the call is not known."""
 
 
 def _flatten(params: dict, prefix: str = "") -> list[tuple[str, str]]:
@@ -161,7 +162,7 @@ class StripeConnectProvider:
             body = encoded.encode()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         status, payload = self._send(method, url, headers, body)
-        if status >= 500:
+        if status >= 500 or status in (409, 429):  # the call may still go through: never a decline
             raise ProviderUnavailable(f"Stripe answered {status}")
         return status, payload
 
