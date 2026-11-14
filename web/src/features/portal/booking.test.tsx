@@ -355,11 +355,11 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     const confirms: Call[] = []
     const type = { id: 'rt2', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 30, min_lead_min: 0, horizon_days: 14, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
     const rental = { id: 'r2', client_id: 'c1', location_id: 'l1', rental_type_id: 'rt2', title: 'Court rental', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', status: 'tentative', resources: [] }
-    const quote = { lines: [{ description: 'Court rental', amount_minor: 5000 }], tax_minor: 0, total_minor: 5000 }
+    const quote = { lines: [{ description: 'Court rental', amount_minor: 5000 }], subtotal_minor: 5000, tax_minor: 0, total_minor: 5000 }
     open('/portal/bookings', {
       'GET /api/v1/portal/rentals': page([]),
       'GET /api/v1/public/rental-types': { status: 200, body: [type] },
-      'GET /api/v1/public/rental-availability': page([{ resource_id: 'res1', resource_name: 'Court 3', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', price_minor: 5000 }]),
+      'GET /api/v1/portal/rental-availability': page([{ resource_id: 'res1', resource_name: 'Court 3', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', price_minor: 5000, is_member_price: false }]),
       'POST /api/v1/portal/rentals': { status: 201, body: { rental, quote, amount_due_minor: 5000, payment_required: true, expires_at: null, invoice_id: null } },
       'POST /api/v1/portal/rentals/r2/confirm': (call) => {
         confirms.push(call)
