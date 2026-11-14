@@ -1435,13 +1435,14 @@ paths:
       tags: [billing]
       summary: What became of the caller's own payment or refund attempt sent with this Idempotency-Key
       description: The web keeps a payment or refund form as it was after an unknown outcome until this says `settled`.
-        Only attempts whose stored key carries the caller's own id are found; anything else is 404.
+        Only attempts whose stored key is anchored on this staff identity (staff, mark-paid and POS keys) are found;
+        anything else is 404, indistinguishable from a key nobody used. Rate limited per caller (429 rate-limited).
       x-priority: P0
       x-permission: billing.payment.read
       x-features: [PAY-01, PAY-05]
       parameters:
       - {name: key, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}}
-      x-problem-codes: [permission-denied, not-found]
+      x-problem-codes: [permission-denied, not-found, rate-limited]
       responses:
         '200':
           description: OK.
@@ -1449,6 +1450,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
   /payments/{payment_id}:
     get:
       operationId: getPayment
@@ -2244,8 +2246,9 @@ paths:
       operationId: getPortalPaymentAttempt
       tags: [billing]
       summary: What became of a payment or purchase the caller sent with this Idempotency-Key
-      description: Found only for the caller's own or household clients; 404 otherwise. The form stays as it was until
-        `settled`.
+      description: Found only for attempts this identity made (a payer acting for a dependant made it themselves);
+        never another household member's, never a key from another surface; 404 otherwise. Carries only the state
+        and the amount. Rate limited per identity (429 rate-limited). The form stays as it was until `settled`.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-18, SSP-11]
@@ -2261,6 +2264,7 @@ paths:
           content: {application/json: {schema: {$ref: '#/components/schemas/AttemptOut'}}}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
   /portal/payments:
     post:
       operationId: payPortalInvoices

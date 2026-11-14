@@ -11,6 +11,7 @@ from sqlalchemy import select, text
 from app.core import clock, inbound_webhooks
 from app.core.db.platform import platform_engine
 from app.core.errors import ValidationFailed
+from app.core.settings import get_settings
 from app.modules.billing import checkout, documents, webhooks
 from app.modules.billing.models import Coupon, CouponRedemption, Invoice, InvoicePayLink, Payment
 from app.modules.billing.tests.test_billing import assert_books_agree, svc, work
@@ -357,6 +358,41 @@ def test_the_web_can_ask_what_became_of_its_own_attempt_only(api, shop, member, 
     assert member.api("GET", f"/portal/payment-attempts/{mine}")["statuses"] == ["succeeded"]
     api("GET", f"/payment-attempts/{mine}", None, 404)  # the owner did not send it
     with work(shop.tenant) as session:
-        session.execute(text("UPDATE payment SET status = 'initiated' WHERE idempotency_key LIKE :k"), {"k": f"%{mine}"})
+        session.execute(
+            text("UPDATE payment SET status = 'initiated' WHERE idempotency_key LIKE :k"), {"k": f"%{mine}"}
+        )
     assert member.api("GET", f"/portal/payment-attempts/{mine}")["settled"] is False
     assert member.api("GET", f"/portal/payment-attempts/{mine[:-1]}", None, 404) is not None  # no prefix match
+
+
+def test_an_attempt_is_readable_only_by_the_identity_that_made_it(api, shop, member, client, monkeypatch):
+    """Security review of S1: the portal lookup is anchored on the caller's identity, never widened by household
+    or matched with an empty prefix; a portal purchase (secure_online_checkout) is bound to the buyer's identity
+    too; guessing is rate limited."""
+    ready(shop)
+    shared = f"same-{uuid4().hex}"
+    with work(shop.tenant) as session:  # another identity of the same household paid for this very client
+        svc.take_payment(session, client_id=member.id, location_id=shop.location_id, amount_minor=900,
+                         tender_kind="cash", idempotency_key=f"portal:{uuid4()}:{shared}")  # fmt: skip
+        svc.take_payment(session, client_id=member.id, location_id=shop.location_id, amount_minor=800,
+                         tender_kind="cash", idempotency_key=shared)  # a key minted with no caller prefix  # fmt: skip
+    member.api("GET", f"/portal/payment-attempts/{shared}", None, 404)
+
+    plan = package_plan(client, shop.owner, shop.tenant, online_sale_mode="paid_in_full")
+    bought = f"pack-{uuid4().hex}"
+    sale = client.post("/api/v1/portal/client-packages", headers=member.headers | {"Idempotency-Key": bought},
+                       json={"package_plan_id": plan["id"], "location_id": str(shop.location_id),
+                             "method_token": "tok_card_ok"})  # fmt: skip
+    assert sale.status_code == 201, sale.text
+    seen = member.api("GET", f"/portal/payment-attempts/{bought}")
+    assert (
+        seen["settled"] and seen["statuses"] == ["succeeded"] and set(seen) == {"settled", "statuses", "amount_minor"}
+    )
+    api("GET", f"/payment-attempts/{bought}", None, 404)  # staff did not send it
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(cfg.buckets, "payment-attempt", cfg.buckets["payment-attempt"].model_copy(update={"limit": 2}))
+    answers = [client.get(f"/api/v1/portal/payment-attempts/guess-{n}", headers=member.headers).status_code
+               for n in range(3)]  # fmt: skip
+    assert answers == [404, 404, 429]

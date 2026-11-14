@@ -226,11 +226,9 @@ def list_payments(session: Session, principal: Principal, query: ListQuery) -> d
 
 
 def get_attempt(session: Session, principal: Principal, key: str) -> dict:
-    """The outcome of a purchase or payment the caller made with this key, for the caller's own or household
-    clients (purchases are paid by or for them); 404 for anything else. The key is the browser's random one."""
-    found = service.attempt_outcome(
-        session, key, [""], sorted({*_own(session, principal), *_household(session, principal)})
-    )
+    """The outcome of a payment or purchase this identity made with this key (a payer acting for a dependant made
+    it themselves); 404 for anything else, including a household member's attempt under the same key text."""
+    found = service.attempt_outcome(session, key, [f"portal:{principal.identity_id}:"] if principal.identity_id else [])
     if found is None:
         raise NotFound()
     return found

@@ -131335,7 +131335,7 @@
     },
     "/api/v1/payment-attempts/{key}": {
       "get": {
-        "description": "What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the\ncaller made none. A form stays as it was until `settled`.",
+        "description": "What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the\ncaller made none (indistinguishable from a key nobody used). A form stays as it was until `settled`. Rate\nlimited per caller (`payment-attempt`): keys are not guessable, and guessing is throttled too.",
         "operationId": "getPaymentAttempt",
         "parameters": [
           {
@@ -138375,7 +138375,7 @@
     },
     "/api/v1/portal/payment-attempts/{key}": {
       "get": {
-        "description": "What became of a payment or purchase the caller sent with this Idempotency-Key, for their own or household\nclients; 404 otherwise. A form stays as it was until `settled`.",
+        "description": "What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including\na household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited\nper identity (`payment-attempt`).",
         "operationId": "getPortalPaymentAttempt",
         "parameters": [
           {

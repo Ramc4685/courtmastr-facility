@@ -15,7 +15,7 @@ from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import NotFound
 from app.core.idempotency import KEY_PATTERN, idempotency, secret_response
 from app.core.pagination import ListQuery, list_query, paginate
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import hit, rate_limit
 from app.modules.billing import (
     autopay,
     bulk,
@@ -113,10 +113,13 @@ def take_payment(
 
 @router.get("/payment-attempts/{key}", response_model=s.AttemptOut)
 def get_payment_attempt(
-    key: Annotated[str, Path(pattern=KEY_PATTERN)], ctx: Ctx = Depends(require("billing.payment.read"))
-):
+    key: Annotated[str, Path(pattern=KEY_PATTERN)], response: Response,
+    ctx: Ctx = Depends(require("billing.payment.read")),
+):  # fmt: skip
     """What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the
-    caller made none. A form stays as it was until `settled`."""
+    caller made none (indistinguishable from a key nobody used). A form stays as it was until `settled`. Rate
+    limited per caller (`payment-attempt`): keys are not guessable, and guessing is throttled too."""
+    hit("payment-attempt", str(ctx.principal.actor_id), response, tenant=ctx.session.info["tenant_id"])
     return service.get_attempt(ctx.session, ctx.principal, key)
 
 
@@ -927,9 +930,11 @@ def get_portal_statement_pdf(
 
 
 @router.get("/portal/payment-attempts/{key}", response_model=s.AttemptOut)
-def get_portal_payment_attempt(key: Annotated[str, Path(pattern=KEY_PATTERN)], ctx: Client):
-    """What became of a payment or purchase the caller sent with this Idempotency-Key, for their own or household
-    clients; 404 otherwise. A form stays as it was until `settled`."""
+def get_portal_payment_attempt(key: Annotated[str, Path(pattern=KEY_PATTERN)], response: Response, ctx: Client):
+    """What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including
+    a household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited
+    per identity (`payment-attempt`)."""
+    hit("payment-attempt", str(ctx.principal.identity_id), response, tenant=ctx.session.info["tenant_id"])
     return portal.get_attempt(ctx.session, ctx.principal, key)
 
 

@@ -8848,7 +8848,8 @@ export interface paths {
         /**
          * Get Payment Attempt
          * @description What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the
-         *     caller made none. A form stays as it was until `settled`.
+         *     caller made none (indistinguishable from a key nobody used). A form stays as it was until `settled`. Rate
+         *     limited per caller (`payment-attempt`): keys are not guessable, and guessing is throttled too.
          */
         get: operations["getPaymentAttempt"];
         put?: never;
@@ -10353,8 +10354,9 @@ export interface paths {
         };
         /**
          * Get Portal Payment Attempt
-         * @description What became of a payment or purchase the caller sent with this Idempotency-Key, for their own or household
-         *     clients; 404 otherwise. A form stays as it was until `settled`.
+         * @description What became of a payment or purchase this identity sent with this Idempotency-Key; 404 otherwise, including
+         *     a household member's attempt under the same key text. A form stays as it was until `settled`. Rate limited
+         *     per identity (`payment-attempt`).
          */
         get: operations["getPortalPaymentAttempt"];
         put?: never;

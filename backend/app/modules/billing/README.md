@@ -262,6 +262,12 @@ and record a failed attempt ("payload missing").
   model: security-baseline 17.2 asks for hashed at rest and single-use, which a stateless token cannot be. It
   expires after 14 days; a decline does not consume it.
 - **`payment.idempotency_key`** is a column the data model does not list; the pre-provider row needs it.
+- **"What became of my attempt" is the caller's alone.** `GET /payment-attempts/{key}` and
+  `/portal/payment-attempts/{key}` match only stored keys anchored on the caller (`staff:<actor>:`,
+  `mark-paid:<actor>:`, `pos:<sale>:<staff user>:`; `portal:<identity>:`), never by household and never with an
+  empty prefix; `secure_online_checkout` binds a portal buyer's key to their identity for that reason. They answer
+  state and amount only, are rate limited per caller (`payment-attempt`), and 404 for anything else. Guest and
+  pay-link payers have no lookup: their forms offer only "try again" with the same key.
 - **A payment key is bound to its request (Phase 9 orphans, migration 1807).** `payment.request_hash` digests the
   amount, payer, tender, stored method or method token, invoice and allocations the key was first used with. A
   reuse with any of them changed is 409 `idempotency-key-reused` before any processor call, whatever the row's

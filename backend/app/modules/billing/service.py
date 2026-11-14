@@ -240,34 +240,29 @@ def create_refund(
     return refund(session, payment_id, **data, idempotency_key=_staff_key(principal, idempotency_key))
 
 
-def attempt_outcome(
-    session: Session, key: str, scopes: Sequence[str], client_ids: Sequence[UUID] | None = None
-) -> dict | None:
-    """Internal read: what became of the payments and refunds made under the browser's Idempotency-Key `key`.
+def attempt_outcome(session: Session, key: str, heads: Sequence[str]) -> dict | None:
+    """Internal read: what became of the payments and refunds made under the browser's Idempotency-Key `key` by
+    one caller.
 
-    A stored key is the caller's key behind a prefix (`staff:<actor>:`, `portal:<identity>:`, `pos:<sale>:<staff>:`)
-    and, for an account-credit refund leg, followed by `:<payment id>`. `scopes` are the prefixes' caller ids that
-    must stand right before the key ("" accepts any prefix: the portal, which narrows by `client_ids` instead).
-    `settled` is false while a row is `initiated` or `unknown` (the processor's answer is not known). None: no row.
+    `heads` are the caller's own anchored key prefixes (`staff:<actor>:`, `portal:<identity>:`); a stored key
+    matches only when it starts with one of them and ends in `key`, directly (`portal:<identity>:<key>`), behind
+    the surface's own infix (`portal:<identity>:rental:<row>:<key>`), or followed by an account-credit refund
+    leg's `:<payment id>`. Nothing else matches: no empty prefix, no household widening. `settled` is false while
+    a row is `initiated` or `unknown` (the processor's answer is not known). None: no row of this caller's.
     """
-    tail = key.replace("_", r"\_")  # KEY_PATTERN allows no % or backslash; _ is LIKE's one-character wildcard
-    keys = Payment.idempotency_key, Refund.idempotency_key
-    like = [
-        column.like(pattern, escape="\\")
-        for column in keys
-        for caller in scopes
-        for head in ([f"%:{caller}:"] if caller else ["", "%:"])
-        for pattern in (f"{head}{tail}", f"{head}{tail}:%")
+    esc = lambda value: value.replace("_", r"\_")  # noqa: E731  KEY_PATTERN allows no % or \; _ is a LIKE wildcard
+    patterns = [
+        pattern
+        for head in heads if head
+        for pattern in (f"{esc(head)}{esc(key)}", f"{esc(head)}%:{esc(key)}", f"{esc(head)}{esc(key)}:%")
     ]  # fmt: skip
-    payments = select(Payment.status, Payment.amount_minor).where(or_(*like[: len(like) // 2]))
-    refunds = (
-        select(Refund.status, Refund.amount_minor).join(Payment, Payment.id == Refund.payment_id)
-        .where(or_(*like[len(like) // 2 :]))
-    )  # fmt: skip
-    if client_ids is not None:
-        payments = payments.where(Payment.client_id.in_(client_ids))
-        refunds = refunds.where(Payment.client_id.in_(client_ids))
-    rows = [*session.execute(payments), *session.execute(refunds)]
+    if not patterns:
+        return None
+    matches = lambda column: or_(*(column.like(p, escape="\\") for p in patterns))  # noqa: E731
+    rows = [
+        *session.execute(select(Payment.status, Payment.amount_minor).where(matches(Payment.idempotency_key))),
+        *session.execute(select(Refund.status, Refund.amount_minor).where(matches(Refund.idempotency_key))),
+    ]
     if not rows:
         return None
     statuses = sorted({status for status, _ in rows})
@@ -278,10 +273,13 @@ def attempt_outcome(
 
 
 def get_attempt(session: Session, principal: Principal, key: str) -> dict:
-    """Staff: the outcome of this caller's own attempt with this key (the web asks before letting a form change)."""
+    """Staff: the outcome of this caller's own attempt with this key (the web asks before letting a form change).
+    Only keys this staff identity sent: `staff:`, `mark-paid:` and the POS `pos:<sale>:<staff user>:` prefixes."""
     authorize(principal, "billing.payment.read")
-    callers = {str(caller) for caller in (principal.actor_id, principal.staff_user_id) if caller}
-    found = attempt_outcome(session, key, sorted(callers)) if callers else None
+    heads = [f"staff:{principal.actor_id}:", f"mark-paid:{principal.actor_id}:"] if principal.actor_id else []
+    if principal.staff_user_id:
+        heads.append(f"pos:%:{principal.staff_user_id}:")
+    found = attempt_outcome(session, key, heads)
     if found is None:
         raise NotFound()
     return found
