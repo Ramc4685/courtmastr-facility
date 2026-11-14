@@ -6,6 +6,7 @@ import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
 import { StepUpDialog } from '../features/auth/StepUpDialog'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
+import { AgeChecksPage } from '../features/clients/AgeChecks'
 import { ClientProfilePage } from '../features/clients/ClientProfilePage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { MergePage } from '../features/clients/MergePage'
@@ -241,6 +242,7 @@ export function AppRoutes() {
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
+        <Route path="clients/age-checks" element={<RequirePermission permission="clients.client.confirm_age"><AgeChecksPage /></RequirePermission>} />
         <Route path="clients/:id" element={<RequirePermission permission="clients.client.read"><ClientProfilePage /></RequirePermission>} />
         <Route path="documents" element={<RequirePermission permission="documents.template.manage"><TemplatesPage /></RequirePermission>} />
         <Route path="documents/:id" element={<RequirePermission permission="documents.template.manage"><TemplateEditorPage /></RequirePermission>} />

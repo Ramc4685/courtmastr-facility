@@ -67,10 +67,14 @@ describe('FacilityApp', { timeout: 20_000 }, () => {
     await user.type(await screen.findByLabelText(/First name/), 'Nia')
     await user.type(screen.getByLabelText(/Last name/), 'Newcomer')
     await user.type(screen.getByLabelText(/^Email/), 'nia@example.com')
-    await user.click(screen.getByRole('button', { name: 'Send confirmation link' }))
+    fireEvent.change(screen.getByLabelText(/Date of birth/), { target: { value: '1994-06-07' } })
+    const send = screen.getByRole('button', { name: 'Send confirmation link' })
+    expect(send).toBeDisabled() // the birth date is declared true before it is sent
+    await user.click(screen.getByLabelText('I confirm the date of birth I entered is true.'))
+    await user.click(send)
     expect(await screen.findByRole('status')).toHaveTextContent('nia@example.com')
     const post = calls.find((c) => c.method === 'POST')
-    expect(post?.body).toMatchObject({ location_id: 'l1', email: 'nia@example.com', first_name: 'Nia', phone_mobile: null })
+    expect(post?.body).toMatchObject({ location_id: 'l1', email: 'nia@example.com', first_name: 'Nia', phone_mobile: null, birth_on: '1994-06-07', birth_on_declared: true })
   })
 
   it('keeps a page heading and title when no location allows online sign-up', async () => {
@@ -113,6 +117,8 @@ describe('guest checkout', { timeout: 20_000 }, () => {
     await user.type(screen.getByLabelText('Last name'), 'Newcomer')
     await user.type(screen.getByLabelText('Email'), 'nia@example.com')
     fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1990-05-04' } })
+    expect(screen.getByRole('button', { name: 'Continue to payment' })).toBeDisabled()
+    await user.click(screen.getByLabelText('I confirm the dates of birth I entered are true.'))
     await user.click(screen.getByRole('button', { name: 'Continue to payment' }))
     return user
   }
@@ -128,6 +134,7 @@ describe('guest checkout', { timeout: 20_000 }, () => {
       payer: { first_name: 'Nia', last_name: 'Newcomer', email: 'nia@example.com', birth_on: '1990-05-04' },
       participants: [],
       items: [{ program_group_id: 'g1', program_fee_id: 'f1', participant: null }],
+      birth_on_declared: true,
     })
     await user.selectOptions(screen.getByLabelText('Card'), 'tok_card_ok')
     await user.click(screen.getByRole('button', { name: 'Pay and register' }))

@@ -272,8 +272,9 @@ def test_extend_a_recurring_rental(client, owner, f):
     assert refused.status_code == 422 and refused.json()["code"] == "not-a-series"
 
 
-def portal_client(client, owner, tenant, f) -> tuple[str, dict]:
-    person = new_client(client, owner, f.location, primary_email=f"pat-{uuid4().hex[:6]}@example.com")
+def portal_client(client, owner, tenant, f, birth_on: str | None = "1985-05-05") -> tuple[str, dict]:
+    extra = {"birth_on": birth_on} if birth_on else {}
+    person = new_client(client, owner, f.location, primary_email=f"pat-{uuid4().hex[:6]}@example.com", **extra)
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         identity = Identity(
             kind="client", email=person["primary_email"], status="active", email_verified_at=clock.now(),

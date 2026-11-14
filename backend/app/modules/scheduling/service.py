@@ -1594,16 +1594,30 @@ def get_series_run(session: Db, principal: Principal, series_id: UUID, run_id: U
     return run
 
 
+def _refuse_owned(session: Db, series_id: UUID) -> None:
+    """A series whose template carries an owner's source (a rental) gains occurrences only through its owner,
+    which runs its own rules (the minors rule, its override key and a fresh reason); scheduling's generic routes
+    would copy the template, override reason included, past them."""
+    templates = session.scalars(
+        select(BookingSeriesRule.template).where(BookingSeriesRule.booking_series_id == series_id)
+    )
+    if any((t or {}).get("source") for t in templates):
+        raise Conflict(
+            "This series belongs to a rental; add or change its dates from the rental.", code="series-owned-by-rental"
+        )
+
+
 def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: dict) -> dict:
     """Stack another pass onto a series ("add occurrences", SCH-09): same attributes, new pattern."""
     series = _series(session, principal, series_id, UPDATE_SERIES, lock=True)
+    _refuse_owned(session, series.id)
     return add_rule(session, series.id, data, principal.staff_user_id, principal=principal)
 
 
 def add_rule(
     session: Db, series_id: UUID, data: dict, staff_user_id: UUID | None, *, principal: Principal | None = None,
     key: str = UPDATE_SERIES, template_rule: BookingSeriesRule | None = None, extra_changes: dict | None = None,
-    sync_only: bool = False,
+    sync_only: bool = False, source_data: dict | None = None,
 ) -> dict:  # fmt: skip
     """Internal (no gate unless `principal` is given; `key` gates and audits): add a pass to a series, copying
     its first template (or `template_rule`'s), so an owner's source hook runs for the new occurrences too (rentals RNT-04 "add
@@ -1615,6 +1629,8 @@ def add_rule(
         .order_by(BookingSeriesRule.sequence)
     ).all()
     template = dict((template_rule or rules[0]).template)
+    if source_data and template.get("source"):  # the owner replaces fields its hook must not inherit
+        template["source"] = {**template["source"], "data": {**template["source"].get("data", {}), **source_data}}
     if data.get("resources"):
         ordered = sorted(data["resources"], key=lambda r: r.get("role") != "primary")
         rows = _resolve_resources(session, series.location_id, [r["resource_id"] for r in ordered], False)
@@ -1664,6 +1680,7 @@ def change_series_rule(session: Db, principal: Principal, series_id: UUID, rule_
     rule = session.get(BookingSeriesRule, rule_id)
     if rule is None or rule.booking_series_id != series.id:
         raise NotFound()
+    _refuse_owned(session, series.id)
     if data["start_on"] < platform.service.location_today(session, series.location_id):
         raise ValidationFailed("A pattern change starts today or later.", pointer="/start_on")
     targets = list(

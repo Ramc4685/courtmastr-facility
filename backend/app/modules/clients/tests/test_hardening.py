@@ -148,7 +148,7 @@ def test_merge_never_carries_acting_rights(client, tenant, owner, location_id, m
     portal = _portal(client, tenant, owner, attacker, mailbox)
     fake = client.post(f"{API}/portal/dependents", headers=portal, json={
         "relationship_type_id": types["parent_of"]["id"], "first_name": "Vic", "last_name": "Ray", "birth_on": born,
-        "email": "vic@example.com"}).json()  # fmt: skip
+        "email": "vic@example.com", "birth_on_declared": True}).json()  # fmt: skip
     # an unverified address typed into a portal-created record is not a reason to pair it
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         reasons = clients.merge._reasons(
@@ -182,6 +182,7 @@ def test_merge_of_two_portal_records_keeps_guardians_apart(client, tenant, owner
         "first_name": "Sam",
         "last_name": "Lee",
         "birth_on": born,
+        "birth_on_declared": True,
     }
     mum = new_client(client, owner, location_id, first_name="Mia", primary_email="mia@example.com")
     stranger = new_client(client, owner, location_id, first_name="Rex", primary_email="rex@example.com")

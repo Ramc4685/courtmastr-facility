@@ -135,6 +135,10 @@ test('portal booking and buying: saved cards, calendar, virtual session, payment
       await m.getByRole('button', { name: 'Book a rental' }).click()
       const rental = m.getByRole('dialog', { name: 'Book a rental' })
       await expect(rental.getByText(/^Book (up to|any date)/)).toBeVisible()
+      // The whole day by court, narrowed to the evening (prime time), with prices; scanned before the pay step.
+      await rental.getByRole('combobox', { name: 'Time of day' }).selectOption('evening')
+      await expect(rental.getByText('Finding open times')).toBeHidden()
+      await scan(m, `${colorScheme} rental open times by court`)
       const slot = rental.getByRole('listitem').getByRole('button').first()
       if (await slot.count()) {
         await slot.click()

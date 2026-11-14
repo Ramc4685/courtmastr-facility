@@ -789,6 +789,117 @@
         "title": "AdapterOut",
         "type": "object"
       },
+      "AgeConfirmation": {
+        "additionalProperties": false,
+        "description": "Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken.",
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          }
+        },
+        "title": "AgeConfirmation",
+        "type": "object"
+      },
+      "AgeConfirmationBatch": {
+        "additionalProperties": false,
+        "description": "Staff already know these people (IDs seen at the desk). The note says why; it is kept flag-only.",
+        "properties": {
+          "client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_ids",
+          "note"
+        ],
+        "title": "AgeConfirmationBatch",
+        "type": "object"
+      },
+      "AgeConfirmationBatchOut": {
+        "properties": {
+          "client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "confirmed_count": {
+            "title": "Confirmed Count",
+            "type": "integer"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/AgeConfirmationSkip"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "skipped_client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Skipped Client Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_ids",
+          "confirmed_count",
+          "skipped_client_ids",
+          "skipped"
+        ],
+        "title": "AgeConfirmationBatchOut",
+        "type": "object"
+      },
+      "AgeConfirmationSkip": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "not-found",
+              "minor",
+              "no-birth-date"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "reason"
+        ],
+        "title": "AgeConfirmationSkip",
+        "type": "object"
+      },
       "AgeGroupOut": {
         "properties": {
           "id": {
@@ -908,6 +1019,74 @@
           }
         },
         "title": "AgeGroupWrite",
+        "type": "object"
+      },
+      "AgeReviewItem": {
+        "description": "One client in the staff age-check queue. birth_on is null without clients.client.read_sensitive.",
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_via": {
+            "title": "Created Via",
+            "type": "string"
+          },
+          "earliest_booking_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Booking At"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "home_location_id": {
+            "format": "uuid",
+            "title": "Home Location Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "first_name",
+          "last_name",
+          "home_location_id",
+          "birth_on",
+          "earliest_booking_at",
+          "created_via",
+          "created_at"
+        ],
+        "title": "AgeReviewItem",
         "type": "object"
       },
       "AgeingReport": {
@@ -13859,6 +14038,40 @@
             ],
             "title": "Address Line2"
           },
+          "age_confirmation_reset": {
+            "default": false,
+            "title": "Age Confirmation Reset",
+            "type": "boolean"
+          },
+          "age_confirmed": {
+            "default": false,
+            "title": "Age Confirmed",
+            "type": "boolean"
+          },
+          "age_confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Confirmed At"
+          },
+          "age_confirmed_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Confirmed By Staff User Id"
+          },
           "birth_on": {
             "anyOf": [
               {
@@ -14014,6 +14227,11 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_birth_on_unverified": {
+            "default": false,
+            "title": "Is Birth On Unverified",
+            "type": "boolean"
           },
           "is_sensitive_masked": {
             "default": false,
@@ -14477,6 +14695,17 @@
               }
             ],
             "title": "Comments"
+          },
+          "confirm_age": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Age"
           },
           "country_code": {
             "anyOf": [
@@ -25287,6 +25516,19 @@
             "title": "End Time",
             "type": "string"
           },
+          "minor_override_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Override Reason"
+          },
           "on_conflict": {
             "default": "abort",
             "enum": [
@@ -28240,6 +28482,11 @@
       "GuestCheckoutCreate": {
         "additionalProperties": false,
         "properties": {
+          "birth_on_declared": {
+            "const": true,
+            "title": "Birth On Declared",
+            "type": "boolean"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/GuestItem"
@@ -28270,7 +28517,8 @@
         "required": [
           "location_id",
           "payer",
-          "items"
+          "items",
+          "birth_on_declared"
         ],
         "title": "GuestCheckoutCreate",
         "type": "object"
@@ -42515,6 +42763,26 @@
         "title": "Page[AgeGroupOut]",
         "type": "object"
       },
+      "Page_AgeReviewItem_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AgeReviewItem"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[AgeReviewItem]",
+        "type": "object"
+      },
       "Page_ApiKeyOut_": {
         "properties": {
           "data": {
@@ -44493,6 +44761,26 @@
           "page"
         ],
         "title": "Page[PortalRentalPlanPurchaseOut]",
+        "type": "object"
+      },
+      "Page_PortalRentalSlot_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalRentalSlot"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalRentalSlot]",
         "type": "object"
       },
       "Page_PortalVideo_": {
@@ -49098,6 +49386,17 @@
             ],
             "title": "Address Line2"
           },
+          "age_confirmed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Confirmed"
+          },
           "authority": {
             "enum": [
               "self",
@@ -49152,6 +49451,17 @@
             "title": "Custom Values",
             "type": "object"
           },
+          "entry_code_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Notice"
+          },
           "first_name": {
             "title": "First Name",
             "type": "string"
@@ -49171,6 +49481,22 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "is_adult": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Adult"
+          },
+          "is_my_ward": {
+            "default": false,
+            "title": "Is My Ward",
+            "type": "boolean"
           },
           "last_name": {
             "title": "Last Name",
@@ -50096,16 +50422,14 @@
         "additionalProperties": false,
         "properties": {
           "birth_on": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birth On"
+            "format": "date",
+            "title": "Birth On",
+            "type": "string"
+          },
+          "birth_on_declared": {
+            "const": true,
+            "title": "Birth On Declared",
+            "type": "boolean"
           },
           "email": {
             "anyOf": [
@@ -50157,7 +50481,9 @@
         "required": [
           "relationship_type_id",
           "first_name",
-          "last_name"
+          "last_name",
+          "birth_on",
+          "birth_on_declared"
         ],
         "title": "PortalDependentCreate",
         "type": "object"
@@ -52977,6 +53303,17 @@
             "title": "Amount Due Minor",
             "type": "integer"
           },
+          "entry_code_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Notice"
+          },
           "expires_at": {
             "anyOf": [
               {
@@ -53096,6 +53433,16 @@
             "format": "date-time",
             "title": "Ends At",
             "type": "string"
+          },
+          "player_client_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Player Client Ids",
+            "type": "array"
           },
           "rental_plan_purchase_id": {
             "anyOf": [
@@ -53542,6 +53889,48 @@
           "role"
         ],
         "title": "PortalRentalResourceOut",
+        "type": "object"
+      },
+      "PortalRentalSlot": {
+        "description": "An open time priced for the signed-in client (portal schema, never the public one).",
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "is_member_price": {
+            "title": "Is Member Price",
+            "type": "boolean"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_name": {
+            "title": "Resource Name",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at",
+          "resource_id",
+          "resource_name",
+          "price_minor",
+          "is_member_price"
+        ],
+        "title": "PortalRentalSlot",
         "type": "object"
       },
       "PortalRosterEntryCreate": {
@@ -54277,16 +54666,14 @@
         "description": "Public self-registration (SSP-05). The answer is the same whether or not the address is known.",
         "properties": {
           "birth_on": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birth On"
+            "format": "date",
+            "title": "Birth On",
+            "type": "string"
+          },
+          "birth_on_declared": {
+            "const": true,
+            "title": "Birth On Declared",
+            "type": "boolean"
           },
           "email": {
             "maxLength": 254,
@@ -54329,7 +54716,9 @@
           "location_id",
           "email",
           "first_name",
-          "last_name"
+          "last_name",
+          "birth_on",
+          "birth_on_declared"
         ],
         "title": "PortalSignupIn",
         "type": "object"
@@ -66616,6 +67005,19 @@
             "title": "Location Id",
             "type": "string"
           },
+          "minor_override_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Override Reason"
+          },
           "notes": {
             "anyOf": [
               {
@@ -66707,6 +67109,15 @@
       },
       "RentalCreated": {
         "properties": {
+          "birth_on_unknown": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Birth On Unknown",
+            "type": "array"
+          },
           "booking_series_id": {
             "anyOf": [
               {
@@ -66891,6 +67302,17 @@
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
+          },
+          "minor_override_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Override Reason"
           },
           "parties": {
             "items": {
@@ -67911,6 +68333,15 @@
       },
       "RentalPreview": {
         "properties": {
+          "birth_on_unknown": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Birth On Unknown",
+            "type": "array"
+          },
           "conflict_count": {
             "title": "Conflict Count",
             "type": "integer"
@@ -95909,6 +96340,208 @@
         ]
       }
     },
+    "/api/v1/client-age-reviews": {
+      "get": {
+        "description": "Clients whose self-declared birth date waits for staff, people with an online booking first (earliest\nbooking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.\n`no_birth_date=true`: the second section, people with no birth date on file who booked; staff enter the date\nthrough the confirm action.",
+        "operationId": "listClientAgeReviews",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AgeReviewItem_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Client Age Reviews",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
+    "/api/v1/client-age-reviews/confirmations": {
+      "post": {
+        "description": "Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is\naudited and announced once. Unknown or out-of-reach people, children and people with no birth date are skipped\nwith a reason, never failing the batch. Errors: step-up-required.",
+        "operationId": "confirmClientAges",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgeConfirmationBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeConfirmationBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Client Ages",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
     "/api/v1/client-alerts/{alert_id}": {
       "patch": {
         "operationId": "updateClientAlert",
@@ -100593,6 +101226,86 @@
         ],
         "x-api-key-scopes": [
           "billing.refund.create"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/age-confirmation": {
+      "post": {
+        "description": "Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is\nself-service. Clears the flag even when the date is unchanged. Errors: birth-date-required.",
+        "operationId": "confirmClientAge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgeConfirmation"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Client Age",
+        "tags": [
+          "clients"
         ]
       }
     },
@@ -140057,6 +140770,204 @@
         ]
       }
     },
+    "/api/v1/portal/rental-availability": {
+      "get": {
+        "description": "The open times priced for the client who will hold the rental and the players they will name (people the\nholder may act for), exactly as the checkout charges them.",
+        "operationId": "searchPortalRentalAvailability",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "On",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Length Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "player_client_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Player Client Ids"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalRentalSlot_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Portal Rental Availability",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/portal/rental-plan-purchases": {
       "get": {
         "description": "Live plans the acting client owns or may draw on through a share.",
@@ -151378,7 +152289,7 @@
     },
     "/api/v1/public/rental-availability": {
       "get": {
-        "description": "Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day.",
+        "description": "Advisory: the hold insert at checkout decides. The day's slots by court, in keyset pages.",
         "operationId": "searchRentalAvailability",
         "parameters": [
           {
@@ -151436,6 +152347,40 @@
           },
           {
             "in": "query",
+            "name": "from_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Time"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -151444,6 +152389,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
             }
           }
         ],
