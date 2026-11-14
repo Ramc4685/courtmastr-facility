@@ -116,3 +116,43 @@ builder onto main's head at that moment, with its lane database rebuilt from scr
   file; remove them only when the owner agrees.
 - `brave-heisenberg-bef4b6` ("What's New"): owner has not decided.
 - Pull requests #1 to #4 are open on GitHub; they show as merged once main is pushed.
+
+## State at 2026-11-14 07:00 (supersedes the merge order above where they differ)
+
+- Local `main` = `aeaa3ff`, fully green on PR #8; origin `main` = `2582b70` (owner has not pushed). Integration
+  branch = `855e5e7` = main + court-use report (`claude/court-use-report` `c97d0e4`, reviewed: merge with
+  documented limits). Keep `main` at the last green SHA until the owner pushes; build the next merge on the
+  integration branch with `git merge-tree` + `git commit-tree`, then fast-forward `main` once CI is green.
+- Backend on `855e5e7` failed once on a midnight flake (`reporting/tests/test_money_memberships.py`, referrals
+  `sold_on` from the database clock while the test freezes `core.clock`); re-run started. Proper fix not routed.
+- The weekly usage limit stopped four agents at about 23:40; resumed 07:00: coach-share fixes (worktree
+  `.agent-a93b2812893b4bda9`), Phase 9 final check (`claude/phase9-orphans-2` `5216bad`), door-codes re-check
+  (`claude/building-control` `b823310`), seed re-run fix (`claude/fix-seed-rerun`).
+- `claude/weekly-slots` `ddfdd6e` has 12 files staged that a permission check refused to commit in the builder's
+  session. Do not commit them for it; the owner was asked. Risk review: do not merge (renewal without a card never
+  released, skip dates keep the term discount, rentals pin 15) plus no member or staff screens.
+- Merge order once clean: court-use (migrations 2010, 2011), Phase 9 (1801-1807 on 1985, will need re-parenting),
+  door codes (1971-1980), weekly slots (2021 onto 2011), coach share (2031 onto 2021).
+- Not routed: court-use speed follow-ups, league players get no entry code, sign-up page disabled-until-ticked
+  button, `make seed` twice fails on main, full downgrade fails on a seeded database at 0101.
+- 09:00 update: integration branch = `f5a46675` = main + court-use + seed fix + door codes (with the entry-code
+  lock-order fix) + Phase 9 (`claude/phase9-orphans-2`) + coach share (`claude/coach-share`) + bulk-billing
+  workbench fix + two `.gitleaksignore` fingerprints. Single alembic head 2031 (1985 -> 2010 -> 2011 -> 1971..1980
+  -> 1801..1807 -> 2031). It is merged in the worktree `../Facility Software.integration` (no venv there; branches
+  are brought onto it by a builder in their own worktree, then fast-forwarded). When PR #8 is green at that head:
+  `git merge --ff-only claude/overnight-integration` on local `main`, then tell the owner to push.
+- 09:30 update (trust this over the 07:00 bullets above): CI at `f5a46675` has ONE failing browser test,
+  `web/e2e/coach-share.spec.ts:41` (coach's own earnings page: "My payout statements" table not found; order- or
+  data-dependent); a builder is fixing it on `claude/fix-coach-e2e`. Weekly slots: the staged files were committed
+  with the owner's yes at `1d357968`; a builder is on 14 backend review fixes; the member booking screen and the
+  staff switch are NOT built (second round, not started).
+- Session `progress-reporter` (Haiku, read-only) reads the LAST section of this file every 30 minutes and reports
+  to the owner. Keep this section current at every merge.
+- Agent definitions (`.claude/agents/builder|mechanical|reviewer|risk-reviewer.md`) now tell agents to search
+  with the shared code graph (`graphify query ... --graph <main checkout>/graphify-out/graph.json`; worktrees have
+  no graph of their own) and to keep changes lean. The graph only knows the main checkout: run `graphify update .`
+  there (free, no model calls) every time `main` moves. Edited in the main checkout, not yet committed.
+- Lesson: every branch must run the FULL backend suite in one process and the full Playwright suite after its last
+  merge; Phase 9 skipped Playwright (bulk buttons disabled) and door codes skipped the full run (deadlock).
+- Owner questions open: partial-refund treatment for coach share ($126 or $210 in the README example); whether an
+  unrelated overdue balance should refuse a paid booking's door code (currently yes).
