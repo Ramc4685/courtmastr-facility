@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect as baseExpect, test } from '@playwright/test'
 import { PASSWORD, scan } from './a11y'
 
 // Seeded demo data (docs/dev/demo-accounts.md): Avery Nguyen's adult birth date was typed in, so it waits for the
 // one-time staff age check (children are never in the queue). The spec opens the confirm and bulk-confirm dialogs but never confirms, so the queue stays as seeded.
 const OWNER = 'owner@courtside-demo.example.com'
+const expect = baseExpect.configure({ timeout: 15_000 })
 
 test('age-check queue, the client mark and the confirm dialog pass the axe WCAG 2.1 AA scan', async ({ page }) => {
   test.setTimeout(120_000)
@@ -11,6 +12,8 @@ test('age-check queue, the client mark and the confirm dialog pass the axe WCAG 
   await page.getByRole('textbox', { name: 'Email' }).fill(OWNER)
   await page.getByRole('textbox', { name: 'Password' }).fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
+  // Wait for the session before navigating, or the goto below cancels the sign-in and lands back on the form.
+  await page.waitForURL((url) => !url.pathname.startsWith('/sign-in'), { timeout: 15_000 })
 
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
