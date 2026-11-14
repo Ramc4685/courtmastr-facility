@@ -389,6 +389,18 @@ def test_a_draft_made_after_a_later_dated_reversal_holds_it_so_approve_agrees(cl
         assert (approved["line_count"], approved["coach_share_minor"]) == (2, 0)
 
 
+def test_an_adjustment_that_would_overflow_the_statement_total_is_refused(client, tenant, owner, coached):
+    """$7 owed plus an adjustment of 2,147,483,647 passes the field limit but not the int4 total: 422, not a 500."""
+    c = coached
+    _mark(client, tenant, c, "attended")
+    body = {"location_id": c.f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-31"}
+    [payout] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    url = f"{API}/coach-payouts/{payout['id']}"
+    refused = client.post(f"{url}/adjustments", headers=owner, json={"amount_minor": 2_147_483_647, "reason": "Typo"})
+    assert (refused.status_code, refused.json()["code"]) == (422, "payout-total-out-of-range")
+    assert ok(client.get(url, headers=owner), 200)["coach_share_minor"] == 700
+
+
 def test_adjust_approve_and_mark_paid_lock_the_statement_row(client, tenant, owner, coached):
     """Without the lock an adjustment can land on a statement approved a moment before, and paid can run twice."""
     c = coached

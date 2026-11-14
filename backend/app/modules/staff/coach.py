@@ -494,6 +494,10 @@ def add_adjustment(session: Session, principal: Principal, payout_id: UUID, data
     session.add(CoachPayoutLine(coach_payout_id=payout.id, coach_earning_id=line.id))
     session.flush()
     _total(payout, _lines(session, payout.id))
+    totals = (payout.gross_minor, payout.facility_share_minor, payout.coach_share_minor, payout.adjustment_minor)
+    if any(not -(2**31) <= v < 2**31 for v in totals):  # the statement's money columns are int4
+        raise ValidationFailed("This adjustment would take the statement's total beyond the largest amount it holds.",
+                               pointer="/amount_minor", code="payout-total-out-of-range")  # fmt: skip
     audit.record(session, PAYOUT_ADJUST, payout, location_id=payout.location_id,
                  changes=audit.diff(payout) | {"amount_minor": [None, data["amount_minor"]]})  # fmt: skip
     session.flush()

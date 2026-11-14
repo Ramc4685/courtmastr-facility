@@ -203,7 +203,8 @@ first, then each source's in sorted order (`packages.consumed_sources` is sorted
 
 **Payout statements** (`coach_payout`, `coach_payout_line`). A draft per coach, or for every independent coach at
 a location, gathers every unpaid line up to the end date (earlier unpaid lines included). Adjustments need
-`staff.coach_payout.adjust` and a reason; they are ledger lines with a zero gross that move money between the
+`staff.coach_payout.adjust` and a reason, and one that would take the statement's totals past the int4 money
+columns is `422 payout-total-out-of-range`; they are ledger lines with a zero gross that move money between the
 facility's and the coach's share. Draft, approved (`+`, step-up), paid (`+`): paid records the method (bank
 transfer, cheque, other), a reference (scanned for card numbers) and the date. Adjust, approve, mark paid and discard
 lock the statement row and check its state after the lock, so two of them never both pass. **The product moves no money**:
