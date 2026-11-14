@@ -937,16 +937,15 @@ def test_n_the_independent_coach_earns_a_share_and_is_settled_by_payout_statemen
         made = ok(c.post(f"{API}/coach-payouts", headers=owner, json=period))["data"]
         assert [p["staff_payee_id"] for p in made] == [ines["id"]]  # Rowan is never on a payout
         [payout] = made
-        # Every unpaid line up to the end date, earlier ones too; the refund's reversal is dated the refund day (the
-        # next day), so it waits for the next statement.
-        unpaid = [r for r in every() if r["earned_on"] <= day.isoformat()]
+        # Every unpaid line up to the end date, earlier ones too, and the refund's reversal of a lesson the draft
+        # holds, though it is dated the refund day (the next day): the draft and its approval agree.
+        unpaid = [r for r in every() if r["earned_on"] <= day.isoformat() or r["kind"] == "reversal"]
         assert (payout["line_count"], payout["gross_minor"], payout["coach_share_minor"]) == (
             len(unpaid), sum(r["gross_minor"] for r in unpaid), sum(r["coach_share_minor"] for r in unpaid))  # fmt: skip
         assert payout["gross_minor"] == payout["facility_share_minor"] + payout["coach_share_minor"]
         url = f"{API}/coach-payouts/{payout['id']}"
-        # Approve brings the draft up to date: the refund's reversal of a lesson on it comes along, though dated later.
         approved = ok(c.post(f"{url}/approve", headers=owner), 200)
-        assert (approved["status"], approved["coach_share_minor"]) == ("approved", payout["coach_share_minor"] - 3500)
+        assert (approved["status"], approved["coach_share_minor"]) == ("approved", payout["coach_share_minor"])
         paid = ok(c.post(f"{url}/paid", headers=owner, json={
             "paid_on": (day + timedelta(days=1)).isoformat(), "payment_method": "bank_transfer",
             "payment_reference": "CIRQT-INES-1"}), 200)  # fmt: skip

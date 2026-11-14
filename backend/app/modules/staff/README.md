@@ -205,8 +205,9 @@ facility's and the coach's share. Draft, approved (`+`, step-up), paid (`+`): pa
 transfer, cheque, other), a reference (scanned for card numbers) and the date. Adjust, approve, mark paid and discard
 lock the statement row and check its state after the lock, so two of them never both pass. **The product moves no money**:
 the screen, the statement and the API say so. Paid is final; a later refund lands on the next statement as a
-reversing line. Approve first gathers lines that reached the ledger since the draft (earned by the period end, or reversing a
-line already on it), so a stale draft never pays an undone lesson. A statement whose total is below zero is refused
+reversing line. A draft gathers lines earned by the period end and, whatever its date, any reversal of a line it
+holds (repeated until nothing is left), so a draft and its approval agree. Approve gathers again first, for lines that
+reached the ledger since the draft, so a stale draft never pays an undone lesson. A statement whose total is below zero is refused
 (`409 payout-negative`) and stays a draft until later earnings cover it: carrying it forward would need a new
 line kind, and leaving it draft is the smaller change. PDF and CSV per statement. A coach reads their own lines and statements (`own` reach on
 `staff.coach_payout.read`); another coach's statement is 404. Seam for Stripe Connect: `mark_paid` is the one

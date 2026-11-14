@@ -1,7 +1,7 @@
 """Coach revenue share (staff README "Coach revenue share"): engagement, share rules, the earnings ledger that
 follows the lesson money through events, payout statements, the coach's own view and the payroll split."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -330,6 +330,23 @@ def test_approve_gathers_a_reversal_that_arrived_after_the_draft_and_refuses_a_n
     refused = client.post(f"{API}/coach-payouts/{negative['id']}/approve", headers=owner)
     assert (refused.status_code, refused.json()["code"]) == (409, "payout-negative")
     assert ok(client.get(f"{API}/coach-payouts/{negative['id']}", headers=owner), 200)["status"] == "draft"
+
+
+def test_a_draft_made_after_a_later_dated_reversal_holds_it_so_approve_agrees(client, tenant, owner, coached):
+    """Lesson 5 May +$7, undone 9 June -$7: the May draft is $0, as its approval will be, not $7."""
+    c = coached
+    _mark(client, tenant, c, "attended")
+    with clock.freeze(datetime(2031, 6, 9, 12, tzinfo=UTC)):
+        owner = login(client, tenant)
+        ok(client.put(f"{API}/sessions/{c.seat}/attendance", headers=owner,
+                      json={"marks": [{"enrollment_id": c.place["id"], "status": "excused"}]}), 200)  # fmt: skip
+        deliver_events()
+        assert _lines(tenant, c.payee["id"])[-1] == ("reversal", -1000, -300, -700)
+        body = {"location_id": c.f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-31"}
+        [draft] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+        assert (draft["line_count"], draft["coach_share_minor"]) == (2, 0)
+        approved = ok(client.post(f"{API}/coach-payouts/{draft['id']}/approve", headers=owner), 200)
+        assert (approved["line_count"], approved["coach_share_minor"]) == (2, 0)
 
 
 def test_adjust_approve_and_mark_paid_lock_the_statement_row(client, tenant, owner, coached):

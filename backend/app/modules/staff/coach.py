@@ -410,8 +410,11 @@ def _unpaid(session: Session, payout: CoachPayout) -> list[CoachEarning]:
 
 
 def _gather(session: Session, payout: CoachPayout) -> None:
-    session.add_all(CoachPayoutLine(coach_payout_id=payout.id, coach_earning_id=e.id) for e in _unpaid(session, payout))
-    session.flush()
+    """Until nothing is left: a reversal dated after the period joins only once the line it undoes is held, so one
+    pass would leave it for approve, and the draft and its approval would disagree."""
+    while unpaid := _unpaid(session, payout):
+        session.add_all(CoachPayoutLine(coach_payout_id=payout.id, coach_earning_id=e.id) for e in unpaid)
+        session.flush()
     _total(payout, _lines(session, payout.id))
 
 
