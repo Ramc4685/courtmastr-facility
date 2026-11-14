@@ -118,6 +118,27 @@ describe('report centre, wave 4', SCREEN, () => {
     expect(screen.getByRole('button', { name: 'Print' })).toBeInTheDocument()
   })
 
+  it('filters court use by court and charts play against available time', async () => {
+    const user = userEvent.setup()
+    const courtUse = {
+      ...deposits, key: 'court_use', name: 'Court use', supports_detail: false,
+      params_schema: { properties: { resource_ids: { anyOf: [{ type: 'array', items: { type: 'string', format: 'uuid' } }, { type: 'null' }], title: 'Courts' } } },
+      columns: [{ key: 'label', label: 'Court', type: 'text' }, { key: 'utilization_pct', label: 'Utilization', type: 'pct' }],
+      total_columns: [{ key: 'utilization_pct', label: 'Utilization', type: 'pct' }],
+    }
+    const calls = renderAsStaff(<ReportRunPage reportKey="court_use" />, ['reporting.financial.run'], {
+      'GET /api/v1/report-definitions': page([courtUse]),
+      'GET /api/v1/resources': page([{ id: 'c1', name: 'Court 1', parent_id: null }, { id: 'h1', name: 'Court 1 half A', parent_id: 'c1' }]),
+      'POST /api/v1/report-runs': { status: 200, body: { ...run, report_key: 'court_use', totals: { utilization_pct: 18.2, available_hours: 22 } } },
+      'GET /api/v1/report-runs/run1/rows': rows([{ label: 'Court 1', available_hours: 22, played_hours: 4, buffer_hours: 0, blocked_hours: 0, utilization_pct: 18.2 }], courtUse.columns),
+    })
+    await user.click(await screen.findByLabelText('Court 1'))
+    expect(screen.queryByLabelText('Court 1 half A')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run report' }))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ report_key: 'court_use', params: { resource_ids: ['c1'] } })
+    expect(await screen.findByRole('img', { name: 'Utilization 18.2% of 22 available hours' })).toBeInTheDocument()
+  })
+
   it('schedules a saved report for chosen recipients', async () => {
     const user = userEvent.setup()
     const saved = { id: 'sv1', report_key: 'deposits', name: 'Weekly deposits', params: {}, columns: null, is_shared: false, owner_staff_user_id: 's1', last_run_at: null, created_at: '', updated_at: '' }

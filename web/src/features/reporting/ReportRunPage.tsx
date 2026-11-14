@@ -213,6 +213,44 @@ export function RevenueChart({ rows, totals, currency }: { rows: Row[]; totals: 
   )
 }
 
+/** Court use: played, changeover and blocked share of available time per row (court, group or sport). Inline SVG, theme colours. */
+export function CourtUseChart({ rows, totals }: { rows: Row[]; totals: Record<string, unknown> | null | undefined }) {
+  const parts = [
+    { key: 'played_hours', label: 'Played', fill: 'rgb(var(--primary))' },
+    { key: 'buffer_hours', label: 'Changeover', fill: 'rgb(var(--primary) / 0.45)' },
+    { key: 'blocked_hours', label: 'Blocked', fill: 'rgb(var(--danger) / 0.6)' },
+  ]
+  const bars = rows.slice(0, 20).map((r) => ({ label: [r.period_on, r.label].filter(Boolean).join(' '), row: r }))
+  const row = 28, labelW = 190, chartW = 400, valueW = 70, top = 22
+  const height = top + bars.length * row + 4
+  const share = (r: Row, key: string) => { const a = Number(r.available_hours ?? 0); return a > 0 ? Math.min(1, Number(r[key] ?? 0) / a) : 0 }
+  const summary = `Utilization ${formatCell(totals?.utilization_pct, 'pct', '')} of ${formatCell(totals?.available_hours, 'number', '')} available hours`
+  return (
+    <figure className="rounded-lg border border-border bg-surface p-4 shadow-card">
+      <figcaption className="mb-2 text-sm font-medium">{summary}</figcaption>
+      <svg role="img" aria-label={summary} viewBox={`0 0 ${labelW + chartW + valueW} ${height}`} className="w-full max-w-3xl text-fg">
+        {parts.map((p, i) => (
+          <g key={p.key} transform={`translate(${labelW + i * 110} 0)`}>
+            <rect width="12" height="12" y="2" rx="2" fill={p.fill} />
+            <text x="16" y="12" fontSize="11" fill="currentColor">{p.label}</text>
+          </g>
+        ))}
+        {bars.map((b, i) => {
+          let x = labelW
+          return (
+            <g key={`${b.label}-${i}`} transform={`translate(0 ${top + i * row})`}>
+              <text x={labelW - 8} y={row / 2 + 4} textAnchor="end" fontSize="12" fill="currentColor">{b.label.length > 28 ? `${b.label.slice(0, 27)}…` : b.label}</text>
+              <rect x={labelW} y={5} width={chartW} height={row - 10} rx="3" fill="rgb(var(--border))" />
+              {parts.map((p) => { const w = share(b.row, p.key) * chartW; const at = x; x += w; return <rect key={p.key} x={at} y={5} width={w} height={row - 10} fill={p.fill} /> })}
+              <text x={labelW + chartW + 6} y={row / 2 + 4} fontSize="12" fill="currentColor">{formatCell(b.row.utilization_pct, 'pct', '')}</text>
+            </g>
+          )
+        })}
+      </svg>
+    </figure>
+  )
+}
+
 /** Shown only on paper: what was run, for which dates and places, and what the dates mean. */
 function PrintHeader({ run, def }: { run: Run; def: Definition }) {
   const me = useMe()
@@ -251,6 +289,7 @@ function Results({ run, def }: { run: Run; def: Definition }) {
       <PrintHeader run={run} def={def} />
       <Totals def={def} totals={run.totals} />
       {def.key === 'revenue_summary' && !group && !rows.isPending && <RevenueChart rows={data} totals={run.totals} currency={currency} />}
+      {def.key === 'court_use' && !rows.isPending && data.length > 0 && <CourtUseChart rows={data} totals={run.totals} />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{group ? `Details: ${group.label}` : `${run.row_count ?? 0} rows`}</h2>
         <div className="flex gap-2 print:hidden">
