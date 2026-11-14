@@ -18,7 +18,8 @@ export default defineConfig({
   timeout: 30_000,
   retries: 0,
   reporter: [['list']],
-  use: { baseURL: WEB, trace: 'retain-on-failure' },
+  // A click or fill on a missing or disabled control fails here instead of waiting out the whole test timeout.
+  use: { baseURL: WEB, trace: 'retain-on-failure', actionTimeout: 15_000, navigationTimeout: 30_000 },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], timezoneId: process.env.FH_E2E_BROWSER_TZ ?? 'America/Chicago' } },
     { name: 'browser-ahead', testMatch: DATE_SENSITIVE, use: { ...devices['Desktop Chrome'], timezoneId: OFF_DATE_ZONE } },
