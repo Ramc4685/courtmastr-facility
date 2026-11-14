@@ -77,7 +77,7 @@ EMPTY = "tstzmultirange()"
 
 def _base(p: CourtParams, scope: Scope) -> tuple[str, dict]:
     """The shared CTEs: per court and local day its available, peak and used multiranges, and revenue rows."""
-    where, args = ["true"], {"from_on": p.from_on, "to_on": p.to_on}
+    where, args = ["true"], dict[str, object]({"from_on": p.from_on, "to_on": p.to_on})
     if scope.location_ids is not None:
         where.append("location_id = ANY(CAST(:locations AS uuid[]))")
         args["locations"] = list(scope.location_ids)
@@ -183,7 +183,7 @@ def _run(session: Session, sql: str, args: dict) -> list:
     found = session.execute(text(sql + f" LIMIT {MAX_ROWS + 1}"), args).all()
     if len(found) > MAX_ROWS:
         raise too_large()
-    return found
+    return list(found)
 
 
 def _court_days(session: Session, p: CourtParams, scope: Scope) -> list:
@@ -325,7 +325,7 @@ def _heatmap(session: Session, p: CourtParams, scope: Scope) -> dict:
         cells.setdefault(x.hour, {})[x.weekday] = (int(x.available), int(x.played))
     rows, week = [], [0, 0]
     for hour in sorted(cells):
-        row = {"group_key": _key(hour), "hour": f"{hour:02d}:00"}
+        row: dict[str, object] = {"group_key": _key(hour), "hour": f"{hour:02d}:00"}
         available = played = 0
         for weekday, name in enumerate(WEEKDAYS, start=1):
             a, u = cells[hour].get(weekday, (0, 0))

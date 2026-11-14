@@ -630,7 +630,7 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says
 
 ## Added on claude/court-use-report (drift refresh 2026-11-13, reporting)
-Re-run for reporting after court use (migration 2011). Court-use README text matches the code. Items already listed under "reporting" above are not repeated.
+Re-run for reporting after court use (migration 2011). Court-use README text matches the code (rechecked 2026-11-13 after annotation-only edits to courts.py). Items already listed under "reporting" above are not repeated.
 
 ### reporting (+3) — [evidence](drift/reporting.md)
 

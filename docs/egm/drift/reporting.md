@@ -1,5 +1,7 @@
 ## backend/app/modules/reporting/README.md
 
+Rechecked 2026-11-13 after the annotation-only change to `reports/courts.py` (typed query args at :80, `list(found)` at :186, typed heat map row at :328): no behaviour change, no new drift, the 11 items stand.
+
 State read: worktree on `claude/court-use-report`, with the uncommitted court-use change (migration `2011`, `reports/courts.py`, `catalogue.py` family tuple). The registry holds 64 `ReportSpec(` constructions (62 plus the two court-use reports) across eleven family tuples in `catalogue.py:17-30`; `views.py` defines 57 views. The court-use section (README:143-181) was checked against `reports/courts.py` and migration 2011 and matches (sources, top-level court, windows, closures scope `all`, gates, heat map, "not built" list). The `/pos-reports/*` note (README:206-209) matches `pos/router.py:502-525`. The README's event, `RUN_KEYS` gate and view-migration lines are now correct. Items below are the divergences that remain.
 
 - [wording] README:9-11 "`registry.py` holds every `ReportSpec`" is wrong, and README:43 ("New report families go in `reports/` and register in `catalogue.py`") contradicts it. `registry.py` holds only the module-15 specs (14); the catalogue is `catalogue.py:17-30` with builders in `reports/*.py`.
