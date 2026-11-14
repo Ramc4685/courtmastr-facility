@@ -458,65 +458,133 @@ def test_h_no_show_rule(client_module):
 # --- i. utilisation and revenue ------------------------------------------------------------------------------
 
 
-def _report(c, w, key_: str, **params) -> dict:
-    run = ok(c.post(f"{API}/report-runs", headers=w.owner, json={"report_key": key_, "params": {"location_ids": [w.location]} | params}), 200)  # fmt: skip
+def _report(c, headers, location: str, key_: str, **params) -> tuple[dict, list]:
+    run = ok(c.post(f"{API}/report-runs", headers=headers, json={"report_key": key_, "params": {"location_ids": [location]} | params}), 200)  # fmt: skip
     assert run["status"] == "succeeded", run
-    rows = ok(c.get(f"{API}/report-runs/{run['id']}/rows", headers=w.owner), 200)
-    return run | {"rows": rows["data"]}
+    rows = ok(c.get(f"{API}/report-runs/{run['id']}/rows", headers=headers, params={"limit": 200}), 200)["data"]
+    return run, rows
 
 
-def test_i_daily_and_monthly_court_utilisation_and_revenue(client_module, w):
-    c, day = client_module, MON + timedelta(days=7)
-    ok(rent(c, w, w.desk, "Badminton court", "Court 1", day, "10:00", "12:00"))
-    ok(rent(c, w, w.desk, "Volleyball court", "Court 2", day, "18:00", "19:00"))
-    daily = _report(c, w, "resource_utilization", from_on=day.isoformat(), to_on=day.isoformat())
-    by = {r["resource_name"]: r for r in daily["rows"]}
-    # Changeover buffers count as held time: one volleyball hour holds Court 2 for 1h20 (1.33 h).
-    assert by["Court 1"]["held_hours"] == 2 and by["Court 2"]["held_hours"] == 1.33
-    assert by["Court 1"]["open_hours"] is None  # opening hours alone give no utilisation (see the xfail below)
-    # Workaround: an availability window per court matching the opening hours.
-    for court in cirqt.COURTS:
-        ok(c.post(f"{API}/resources/{w.courts[court]}/availability-windows", headers=w.manager, json={
-            "starts_on": TODAY.isoformat(), "weekdays": [1, 2, 3, 4, 5, 6, 7], "start_time": "06:00", "end_time": "23:00",
-        }))  # fmt: skip
-    daily = _report(c, w, "resource_utilization", from_on=day.isoformat(), to_on=day.isoformat())
-    by = {r["resource_name"]: r for r in daily["rows"]}
-    assert by["Court 1"]["open_hours"] == 17 and by["Court 1"]["utilization_pct"] == 11.8  # 2 of 17 hours
-    assert by["Court 4"]["utilization_pct"] in (0, 0.0, None) or by["Court 4"]["held_hours"] == 0
-    first = day.replace(day=1)
-    last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    monthly = _report(c, w, "resource_utilization", from_on=first.isoformat(), to_on=last.isoformat())
-    assert {r["resource_name"] for r in monthly["rows"]} >= set(cirqt.COURTS)
-    assert all(0 <= (r["utilization_pct"] or 0) <= 100 for r in monthly["rows"])
-    revenue = _report(c, w, "revenue_summary", from_on=first.isoformat(), to_on=last.isoformat())
-    rentals = next(r for r in revenue["rows"] if "rental" in (r["revenue_category"] or "").lower())
-    assert rentals["net_minor"] >= 2 * 2400 + 4800  # at least today's two bookings at guest prices
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="The utilisation report measures open time only from per-resource availability "
-    "windows; the location's opening hours (which booking and online availability use) are ignored",
-)
-def test_i_utilisation_from_opening_hours(client_module, w):
-    fresh = cirqt.build(slug=f"cirqt-{uuid4().hex[:8]}", name="CIRQT hours")
+def test_i_court_use_for_a_24_hour_facility_respects_hours_changeover_and_prime(client_module):
+    """A fresh CIRQT open 24 hours a day. The scenario's own rental types and prices (the seed's are switched off,
+    so a change to the seed cannot move these numbers): badminton on all four courts, 20.00 an hour, 30.00 at
+    prime (18:00-22:00, the owner's setting) and 15.00 before noon; volleyball on Courts 2 and 3, 30.00 and 40.00
+    at prime, with a 10-minute changeover either side. A cleaning closure 00:00-02:00 leaves each court 22 hours,
+    4 of them prime. Every figure below is worked out by hand."""
+    c = client_module
+    fresh = cirqt.build(slug=f"cirqt-{uuid4().hex[:8]}", name="CIRQT court use")
     tenant = SimpleNamespace(id=fresh["tenant_id"], slug=fresh["slug"])
-    owner = login(client_module, tenant, f"owner@{fresh['domain']}", cirqt.PASSWORD)
-    [badminton] = [
-        t
-        for t in ok(client_module.get(f"{API}/rental-types", headers=owner), 200)["data"]
-        if t["name"] == "Badminton court"
-    ]
-    ok(client_module.post(f"{API}/rentals", headers=owner | key(), json={
-        "location_id": badminton["location_id"], "rental_type_id": badminton["id"],
-        "client_id": ok(client_module.get(f"{API}/clients", headers=owner), 200)["data"][0]["id"],
-        "resources": [{"resource_id": badminton["resource_ids"][0]}], "starts_at": at(MON, "10:00"),
-        "ends_at": at(MON, "11:00"), "charge": {"decision": "no_charge"},
-    }))  # fmt: skip
-    run = ok(client_module.post(f"{API}/report-runs", headers=owner, json={"report_key": "resource_utilization",
-             "params": {"from_on": MON.isoformat(), "to_on": MON.isoformat()}}), 200)  # fmt: skip
-    rows = ok(client_module.get(f"{API}/report-runs/{run['id']}/rows", headers=owner), 200)["data"]
-    assert rows and all(r["open_hours"] == 17 for r in rows)
+    owner = login(c, tenant, f"owner@{fresh['domain']}", cirqt.PASSWORD)
+    with tenant_session(tenant.id) as session:
+        location = session.scalar(select(Location.id).where(Location.name == "CIRQT"))
+        courts = {r.name: str(r.id) for r in session.scalars(select(Resource).where(Resource.location_id == location))}
+    location = str(location)
+    ok(c.put(f"{API}/locations/{location}/facility-hours", headers=owner, json={"days": [
+        {"weekday": d, "opens_time": "00:00", "closes_time": "24:00", "is_closed": False} for d in range(1, 8)]}), 200)  # fmt: skip
+    for t in ok(c.get(f"{API}/rental-types?location_id={location}", headers=owner), 200)["data"]:
+        ok(c.patch(f"{API}/rental-types/{t['id']}", headers=owner, json={"is_active": False}), 200)
+    categories = ok(c.get(f"{API}/revenue-categories", headers=owner), 200)["data"]
+    category = next(r["id"] for r in categories if r["code"] == "RENTALS")
+
+    def rental_type(name: str, names: list[str], buffer: int, base: int, prime: int, morning: int | None) -> tuple:
+        rtype = ok(c.post(f"{API}/rental-types", headers=owner, json={
+            "location_id": location, "name": name, "revenue_category_id": category, "slot_granularity_min": 30,
+            "resource_ids": [courts[n] for n in names], "buffer_before_min": buffer, "buffer_after_min": buffer}))["id"]  # fmt: skip
+        rules = [{"kind": "rate", "name": "Prime", "start_time": "18:00", "end_time": "22:00", "amount_minor": prime}]
+        if morning:
+            rules.append(
+                {"kind": "rate", "name": "Morning", "start_time": "06:00", "end_time": "12:00", "amount_minor": morning}
+            )
+        rate = ok(c.post(f"{API}/rental-types/{rtype}/rates", headers=owner, json={
+            "name": "Hourly", "amount_minor": base, "basis": "per_hour", "rules": rules}))["id"]  # fmt: skip
+        return rtype, rate
+
+    badminton = rental_type("Badminton (scenario)", cirqt.COURTS, 0, 2000, 3000, 1500)
+    volleyball = rental_type("Volleyball (scenario)", cirqt.VOLLEYBALL_COURTS, 10, 3000, 4000, None)
+    payer = ok(c.get(f"{API}/clients", headers=owner), 200)["data"][0]["id"]
+    day = date(TODAY.year + 1, 6, 1)
+    day += timedelta(days=(7 - day.weekday()) % 7)  # a Monday in June, far from the seed's league season
+
+    def rent_(kind: tuple, court: str, start: str, end: str) -> None:
+        ok(c.post(f"{API}/rentals", headers=owner | key(), json={
+            "location_id": location, "rental_type_id": kind[0], "client_id": payer,
+            "resources": [{"resource_id": courts[court]}], "starts_at": at(day, start), "ends_at": at(day, end),
+            "charge": {"decision": "bill", "rental_rate_id": kind[1]}}))  # fmt: skip
+
+    ok(c.post(f"{API}/blackouts", headers=owner, json={
+        "location_id": location, "name": "Cleaning", "starts_at": at(day, "00:00"), "ends_at": at(day, "02:00")}))  # fmt: skip
+    rent_(badminton, "Court 1", "10:00", "12:00")  # morning: 2 x 15.00
+    rent_(badminton, "Court 1", "18:00", "20:00")  # prime: 2 x 30.00
+    rent_(volleyball, "Court 2", "17:30", "20:00")  # 0.5 x 30.00 + 2 x 40.00 = 95.00; changeover 17:20 and 20:00
+    rent_(badminton, "Court 3", "21:00", "23:00")  # 30.00 prime + 20.00 after
+    ok(c.post(f"{API}/bookings", headers=owner, json={
+        "location_id": location, "kind": "block", "block_kind": "unavailable", "resources": [{"resource_id": courts["Court 4"]}],
+        "starts_at": at(day, "06:00"), "ends_at": at(day, "08:00")}))  # fmt: skip
+
+    run, found = _report(c, owner, location, "court_use", from_on=day.isoformat(), to_on=day.isoformat())
+    by = {r["label"]: r for r in found}
+    pick = (
+        "hours_source",
+        "available_hours",
+        "played_hours",
+        "utilization_pct",
+        "buffer_hours",
+        "blocked_hours",
+        "peak_available_hours",
+        "peak_played_hours",
+        "peak_utilization_pct",
+        "offpeak_utilization_pct",
+        "revenue_minor",
+        "peak_revenue_minor",
+        "revenue_per_available_hour_minor",
+        "revenue_per_sold_hour_minor",
+    )
+    expected = {
+        # 4 h of 22 = 18.18%; prime 2 of 4 h = 50%; off-prime 2 of 18 h = 11.1%; 90.00, prime 60.00;
+        # 90.00 / 22 h = 4.09 an available hour, 90.00 / 4 h = 22.50 a rented hour
+        "Court 1": ("Opening hours", 22.0, 4.0, 18.2, 0.0, 0.0, 4.0, 2.0, 50.0, 11.1, 9000, 6000, 409, 2250),
+        # 2.5 h = 11.36%; prime 18-20 = 2 of 4 h; off 0.5 of 18 h = 2.78%; changeover 20 min (inside the hours);
+        # prime share of 95.00 is 120 of 150 minutes = 76.00; 95.00 / 22 = 4.32, 95.00 / 2.5 = 38.00
+        "Court 2": ("Opening hours", 22.0, 2.5, 11.4, 0.33, 0.0, 4.0, 2.0, 50.0, 2.8, 9500, 7600, 432, 3800),
+        # 2 h = 9.09%; prime 21-22 = 1 of 4 h; off 1 of 18 h = 5.56%; 50.00, prime half of the minutes = 25.00
+        "Court 3": ("Opening hours", 22.0, 2.0, 9.1, 0.0, 0.0, 4.0, 1.0, 25.0, 5.6, 5000, 2500, 227, 2500),
+        # the staff block 06:00-08:00 is shown, not counted as use
+        "Court 4": ("Opening hours", 22.0, 0.0, 0.0, 0.0, 2.0, 4.0, 0.0, 0.0, 0.0, 0, 0, 0, None),
+    }  # fmt: skip
+    assert {name: tuple(by[name][k] for k in pick) for name in cirqt.COURTS} == expected
+    # 8.5 h of 88 = 9.66%; prime 5 of 16 h = 31.25%, half up 31.3%; 235.00 = 2.67 an available hour, 27.65 a rented one
+    totals = run["totals"]
+    assert (totals["available_hours"], totals["played_hours"], totals["utilization_pct"]) == (88.0, 8.5, 9.7)
+    assert (totals["peak_utilization_pct"], totals["revenue_minor"]) == (31.3, 23500)
+    assert (totals["revenue_per_available_hour_minor"], totals["revenue_per_sold_hour_minor"]) == (267, 2765)
+
+    # Prime badminton versus volleyball on Courts 2 and 3: each sport against the 8 prime hours of those courts.
+    _, found = _report(c, owner, location, "court_use", from_on=day.isoformat(), to_on=day.isoformat(),
+                       group_by="sport", resource_ids=[courts["Court 2"], courts["Court 3"]])  # fmt: skip
+    sport = {r["label"]: r for r in found}
+    assert set(sport) == {"Badminton (scenario)", "Volleyball (scenario)", "League and programs"}
+    assert (
+        sport["Badminton (scenario)"]["peak_available_hours"],
+        sport["Badminton (scenario)"]["peak_utilization_pct"],
+    ) == (8.0, 12.5)
+    assert (
+        sport["Volleyball (scenario)"]["peak_played_hours"],
+        sport["Volleyball (scenario)"]["peak_utilization_pct"],
+    ) == (2.0, 25.0)
+    assert sport["Volleyball (scenario)"]["utilization_pct"] == 5.7  # 2.5 of 44 h
+
+    # The month reconciles with its days, to the minute and the cent.
+    first = day.replace(day=1)
+    month = {"from_on": first.isoformat(), "to_on": (first + timedelta(days=29)).isoformat()}  # June has 30 days
+    _, days = _report(c, owner, location, "court_use", **month)
+    _, months = _report(c, owner, location, "court_use", grain="month", **month)
+    assert len(days) == 30 * 4 and len(months) == 4
+    for row in months:
+        daily = [r for r in days if r["label"] == row["label"]]
+        assert sum(round(r["played_hours"] * 60) for r in daily) == round(row["played_hours"] * 60)
+        assert sum(round(r["available_hours"] * 60) for r in daily) == round(row["available_hours"] * 60)
+        assert sum(r["revenue_minor"] for r in daily) == row["revenue_minor"]
+    assert {r["label"]: r["available_hours"] for r in months}["Court 1"] == 30 * 24 - 2  # less the one closure
 
 
 def data(response) -> list:

@@ -8,7 +8,7 @@ This check builds CIRQT in the product and drives it the way the owner would. No
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 16 pass, 0 fail, 9 gaps.** Run on 2026-11-13 against Alembic head 1562.
+**Result: 16 pass, 0 fail, 8 gaps.** Run on 2026-11-13 against Alembic head 1562; scenario i rerun against 2011.
 
 ## Assumptions (owner to confirm)
 
@@ -49,8 +49,7 @@ These are the values the seed uses. Marked items are assumptions.
 | g | Member prices on bookings. | **gap**: everyone pays the guest price |
 | h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass |
 | h | No-show rule for rentals. | **gap** |
-| i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
-| i | Utilisation measured from opening hours. | **gap** |
+| i | Daily and monthly court use and revenue (`court_use`) for a 24-hour site: measured against opening hours less closures, changeover and staff blocks shown apart from play, prime from the price rules, revenue per available and per rented court-hour, sport split, month equal to the sum of its days. | pass |
 | j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. One set-up step is needed first: turn on self sign-up. |
 | k | Staff book several courts for several weeks in one go, on one invoice. | pass |
 | k | A club holds a weekly prime slot for 8 weeks at 15% off ($25.50 a week). | pass |
@@ -75,8 +74,7 @@ These are the values the seed uses. Marked items are assumptions.
    It also has no minor guard on marketing opt-in or on portal invitations.
 5. **No-shows and overstays for rentals.** There is no mark, no fee and no rule.
 6. **Paying independent coaches.** Payroll computes the commission line, but nothing pays out and there is no revenue split at checkout.
-7. **Utilisation from opening hours.** The report needs per-court availability windows.
-8. **League details.** A staff-blocked league night is not usable by the scheduler, and there is no set scoring.
+7. **League details.** A staff-blocked league night is not usable by the scheduler, and there is no set scoring.
 
 ## Setting CIRQT up: screens versus API
 
@@ -92,7 +90,6 @@ Steps that are API-only or easy to miss:
 
 - **Self sign-up** is off by default (`PUT /locations/{id}/portal-settings` with `allows_self_signup`). Without it a newcomer is refused with `signup-disabled`.
 - **The coach's calendar column**, `linked_resource_id` on the staff user. The seed sets it directly.
-- **Utilisation** needs per-court availability windows that copy the opening hours.
 - **The portal shows sessions only 30 days ahead** by default (`visible_range_days`).
 
 ## Building control (door code and court lights)
