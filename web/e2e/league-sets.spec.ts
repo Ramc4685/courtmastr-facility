@@ -64,7 +64,7 @@ test('a competition switches to set scoring, scores a game set by set and holds 
   await expect(night).toContainText('If you move or postpone a game, re-block its old slot.')
   await night.getByLabel('From').fill(`${on}T18:00`)
   await night.getByLabel('Until').fill(`${on}T20:00`)
-  await night.getByRole('checkbox', { name: court.name }).check()
+  await night.getByRole('checkbox', { name: court.name, exact: true }).check()
   await scan(page, 'league night dialog')
   await night.getByRole('button', { name: 'Hold courts' }).click()
   await expect(page.getByText('Courts held for the league.', { exact: false })).toBeVisible()
