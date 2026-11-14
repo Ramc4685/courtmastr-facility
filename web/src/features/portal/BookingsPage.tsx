@@ -13,6 +13,7 @@ import { addDays, formatDateTime, todayIn } from '../../lib/format'
 import { FormError } from '../billing/shared'
 import { PortalPage } from './PortalApp'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { label, PaymentOutcome, RENTAL_TONE, useAttemptKey, usePortal } from './shared'
 
 type Rental = Schemas['PortalRentalOut']
@@ -44,7 +45,7 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
   const { money, zoneOf } = usePortal()
   const pay = usePaymentChoice(checkout.rental.client_id)
   const [save, setSave] = useState(false)
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-rental:${checkout.rental.id}`, checkPortalAttempt)
   const gate = useTermsGate()
   const confirm = useMutation({
     mutationFn: () =>
@@ -54,6 +55,7 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
         idempotencyKey: attempt.key,
       }),
     onSuccess: (c) => {
+      attempt.settle(null)
       void qc.invalidateQueries({ queryKey: ['portal'] })
       onDone(c)
     },
@@ -90,12 +92,15 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
       <p className="font-medium">Due now: {money(checkout.amount_due_minor)}</p>
       {checkout.expires_at && <p className="text-sm text-muted">We are holding this time until {formatDateTime(checkout.expires_at, zoneOf(checkout.rental.location_id))}.</p>}
       <FormError error={confirm.error} />
-      <PaymentChoice choice={pay}>
-        <Checkbox label="Save this card for future payments" checked={save} onChange={(e) => setSave(e.target.checked)} />
-      </PaymentChoice>
-      {gate.box}
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
+        <PaymentChoice choice={pay}>
+          <Checkbox label="Save this card for future payments" checked={save} onChange={(e) => setSave(e.target.checked)} />
+        </PaymentChoice>
+        {gate.box}
+      </AttemptFields>
       <Button type="submit" loading={confirm.isPending} disabled={!pay.ready || !gate.ready}>
-        Pay {money(checkout.amount_due_minor)}
+        {attempt.locked ? 'Try again:' : 'Pay'} {money(checkout.amount_due_minor)}
       </Button>
     </form>
   )

@@ -3491,6 +3491,33 @@
         "title": "Assignment",
         "type": "object"
       },
+      "AttemptOut": {
+        "description": "What became of the payments and refunds made under one Idempotency-Key. `settled` false: the processor's\nanswer is not known yet (a row `initiated` or `unknown`); keep the form as it was and try again or ask later.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "settled": {
+            "title": "Settled",
+            "type": "boolean"
+          },
+          "statuses": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statuses",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settled",
+          "statuses",
+          "amount_minor"
+        ],
+        "title": "AttemptOut",
+        "type": "object"
+      },
       "AttendancePut": {
         "additionalProperties": false,
         "properties": {
@@ -131306,6 +131333,72 @@
         ]
       }
     },
+    "/api/v1/payment-attempts/{key}": {
+      "get": {
+        "description": "What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the\ncaller made none. A form stays as it was until `settled`.",
+        "operationId": "getPaymentAttempt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Payment Attempt",
+        "tags": [
+          "billing"
+        ],
+        "x-api-key-scopes": [
+          "billing.payment.read"
+        ]
+      }
+    },
     "/api/v1/payment-methods": {
       "get": {
         "description": "Expiring cards: filter exp_year and exp_month. Other filters: client_id, kind, status, is_autopay.",
@@ -138277,6 +138370,69 @@
         "summary": "Portal Opt Out Series Auto Renew",
         "tags": [
           "packages"
+        ]
+      }
+    },
+    "/api/v1/portal/payment-attempts/{key}": {
+      "get": {
+        "description": "What became of a payment or purchase the caller sent with this Idempotency-Key, for their own or household\nclients; 404 otherwise. A form stays as it was until `settled`.",
+        "operationId": "getPortalPaymentAttempt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Payment Attempt",
+        "tags": [
+          "billing"
         ]
       }
     },

@@ -164,6 +164,15 @@ class RefundCreate(In):
     release_allocation_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
+class AttemptOut(Out):
+    """What became of the payments and refunds made under one Idempotency-Key. `settled` false: the processor's
+    answer is not known yet (a row `initiated` or `unknown`); keep the form as it was and try again or ask later."""
+
+    settled: bool
+    statuses: list[str]
+    amount_minor: int
+
+
 class RefundOut(Out):
     id: UUID
     payment_id: UUID

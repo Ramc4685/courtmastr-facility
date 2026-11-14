@@ -8838,6 +8838,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payment-attempts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Attempt
+         * @description What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the
+         *     caller made none. A form stays as it was until `settled`.
+         */
+        get: operations["getPaymentAttempt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment-methods": {
         parameters: {
             query?: never;
@@ -10317,6 +10338,27 @@ export interface paths {
         put?: never;
         /** Portal Opt Out Series Auto Renew */
         post: operations["portalOptOutSeriesAutoRenew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payment-attempts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Payment Attempt
+         * @description What became of a payment or purchase the caller sent with this Idempotency-Key, for their own or household
+         *     clients; 404 otherwise. A form stays as it was until `settled`.
+         */
+        get: operations["getPortalPaymentAttempt"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -18231,6 +18273,19 @@ export interface components {
              * @enum {string}
              */
             role: "referee" | "assistant" | "scorekeeper" | "other";
+        };
+        /**
+         * AttemptOut
+         * @description What became of the payments and refunds made under one Idempotency-Key. `settled` false: the processor's
+         *     answer is not known yet (a row `initiated` or `unknown`); keep the form as it was and try again or ask later.
+         */
+        AttemptOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Settled */
+            settled: boolean;
+            /** Statuses */
+            statuses: string[];
         };
         /** AttendancePut */
         AttendancePut: {
@@ -66824,6 +66879,40 @@ export interface operations {
             };
         };
     };
+    getPaymentAttempt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPaymentMethods: {
         parameters: {
             query?: {
@@ -70091,6 +70180,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalPackageSeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalPaymentAttempt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
                 };
             };
             /** @description Validation Error */

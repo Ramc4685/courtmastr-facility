@@ -5,11 +5,13 @@ import { Button } from '../../components/Button'
 import { Input, Select } from '../../components/Field'
 import { useToast } from '../../components/Toast'
 import { formatMoney, parseMoney, toMoneyInput, TENDER_LABEL, PAYMENT_STATUS } from './money'
+import { attemptFailed, checkStaffAttempt, keepsAttemptKey } from './attempt'
 import { PaymentAuthentication, PaymentMethodField } from './PaymentMethodField'
 import { FormDialog, MoneyInput, StatusBadge, useCurrency, useTenderTypes } from './shared'
 
 type Payment = Schemas['PaymentDetail']
-type Row = { id: string; idem: string; tenderTypeId: string; amount: string; methodId: string; token: string; reference: string; result?: Payment; error?: string }
+// `unknown`: the last attempt's outcome is not known, so the row is locked to its key and values (attempt.tsx).
+type Row = { id: string; idem: string; tenderTypeId: string; amount: string; methodId: string; token: string; reference: string; result?: Payment; error?: string; unknown?: boolean }
 
 const newRow = (tenderTypeId: string, amount: string): Row => ({ id: crypto.randomUUID(), idem: crypto.randomUUID(), tenderTypeId, amount, methodId: '', token: '', reference: '' })
 const PROCESSED = new Set(['card', 'bank_debit'])
@@ -20,8 +22,9 @@ const done = (r: Row) => r.result && !['failed', 'cancelled', 'requires_action']
 type Props = { clientId: string; locationId: string; invoiceId?: string; balanceMinor: number; onClose: () => void; onPaid?: () => void }
 
 /** Take one or more payments (split tender). Each tender is its own payment, posted in order; the first one
- * that fails stops the rest so nobody is charged twice for one balance. Each row keeps its idempotency key
- * while it is retried after a lost answer, and gets a fresh one after a decline (a new attempt). */
+ * that fails stops the rest so nobody is charged twice for one balance. Each row follows attempt.tsx's rule: after
+ * a lost answer it keeps its key and is locked to its values until the server reports a final state; a decline
+ * gets a fresh key (a new attempt). */
 export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMinor, onClose, onPaid }: Props) {
   const qc = useQueryClient()
   const toast = useToast()
@@ -49,6 +52,17 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
     const failed = confirmed.status === 'failed' || confirmed.status === 'cancelled'
     update(i, { result: confirmed, error: failed ? (confirmed.failure_message ?? 'The bank check failed.') : undefined, ...(failed ? { idem: crypto.randomUUID() } : {}) })
     void qc.invalidateQueries({ queryKey: ['billing'] })
+  }
+
+  const check = async (i: number, row: Row) => {
+    try {
+      const outcome = await checkStaffAttempt(row.idem)
+      if (!outcome.settled) update(i, { error: 'The processor has not confirmed the earlier attempt yet. Try again with the same details, or check again in a minute.' })
+      else if (outcome.statuses.every(attemptFailed)) update(i, { unknown: false, idem: crypto.randomUUID(), error: 'The earlier attempt did not go through. You can change this tender now.' })
+      else update(i, { error: 'The earlier attempt went through. Continue to see it here; nothing is charged twice.' })
+    } catch (e) {
+      update(i, { error: e instanceof ApiError && e.status === 404 ? 'Nothing was recorded for the earlier attempt yet. Continue with the same details to finish it.' : e instanceof Error ? e.message : 'Could not check.' })
+    }
   }
 
   const submit = async () => {
@@ -87,12 +101,12 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
           },
         })
         const failed = result.status === 'failed' || result.status === 'cancelled'
-        next[i] = { ...row, result, error: failed ? (result.failure_message ?? 'The payment was declined.') : undefined, idem: failed ? crypto.randomUUID() : row.idem }
+        next[i] = { ...row, result, unknown: false, error: failed ? (result.failure_message ?? 'The payment was declined.') : undefined, idem: failed ? crypto.randomUUID() : row.idem }
         if (failed || result.status === 'requires_action') break
       } catch (e) {
-        // A 4xx is a refusal (a fresh attempt next time); anything else may have gone through, so keep the key.
-        const refused = e instanceof ApiError && e.status < 500
-        next[i] = { ...row, error: e instanceof Error ? e.message : 'The payment could not be taken.', idem: refused ? crypto.randomUUID() : row.idem }
+        // The one rule (attempt.tsx): an unknown outcome locks the row to its key; while locked only a decline frees it.
+        const unknown = keepsAttemptKey(e) || (Boolean(row.unknown) && !(e instanceof ApiError && e.status === 402))
+        next[i] = { ...row, error: e instanceof Error ? e.message : 'The payment could not be taken.', unknown, idem: unknown ? row.idem : crypto.randomUUID() }
         break
       }
     }
@@ -114,8 +128,16 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
         const locked = done(row)
         const result = row.result
         return (
-          <fieldset key={row.id} className="space-y-3 rounded border border-border p-4" disabled={locked || busy}>
-            <legend className="px-1 text-sm font-medium">Tender {i + 1}</legend>
+          <fieldset key={row.id} className="space-y-3 rounded border border-border p-4" disabled={locked || busy || row.unknown}>
+            <legend className="px-1 text-sm font-medium">
+              Tender {i + 1}
+              {/* inside the first legend, so the disabled fieldset leaves it usable */}
+              {row.unknown && !busy && (
+                <Button size="sm" variant="secondary" className="ml-2" onClick={() => void check(i, row)}>
+                  Check what happened
+                </Button>
+              )}
+            </legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <Select label="Tender" value={row.tenderTypeId} onChange={(e) => update(i, { tenderTypeId: e.target.value, methodId: '', token: '' })} options={enabled.map((t) => ({ value: t.id, label: t.label || TENDER_LABEL[t.kind] || t.kind }))} />
               <MoneyInput label="Amount" value={row.amount} onChange={(e) => update(i, { amount: e.target.value })} required />
@@ -151,7 +173,7 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
                 {row.error}
               </p>
             )}
-            {current.length > 1 && !row.result && (
+            {current.length > 1 && !row.result && !row.unknown && (
               <Button size="sm" variant="ghost" onClick={() => setRows(current.filter((_, j) => j !== i))}>
                 Remove tender {i + 1}
               </Button>

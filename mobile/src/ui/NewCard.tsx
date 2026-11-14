@@ -18,14 +18,38 @@ const FAKE_CARDS = [
   { token: 'tok_card_unknown', label: 'Test card: processor times out' },
 ];
 
-/** One Idempotency-Key per purchase attempt: kept across a retry after a processor timeout (503, so the server
- * replays instead of charging twice), replaced after any other outcome (a decline is a new attempt). */
-export function useAttemptKey() {
-  const [key, setKey] = useState(() => Crypto.randomUUID());
-  const settle = useCallback((error: unknown) => {
-    if (!(error instanceof ApiError && error.status === 503)) setKey(Crypto.randomUUID());
-  }, []);
-  return { key, settle };
+/** Whether a failed purchase's outcome is unknown (no connection, 5xx, the same key still at work or already used),
+ * so the retry must carry the same Idempotency-Key and the server replays instead of charging twice. Mirrors
+ * web/src/features/billing/attempt.tsx. */
+export function keepsAttemptKey(error: unknown): boolean {
+  if (error === null || error === undefined) return false;
+  if (!(error instanceof ApiError)) return true;
+  return error.status === 0 || error.status >= 500 || (error.status === 409 && (error.code === 'request-in-progress' || error.code === 'idempotency-key-reused'));
+}
+
+// shortcut: in memory only, so restarting the app frees the form; the server still refuses the key with other values.
+const held = new Map<string, string>();
+
+/** One Idempotency-Key per purchase attempt. After an unknown outcome the attempt is LOCKED: same key, and the
+ * screen must keep the same offer and card, offering only "try again", until the server answers (a 2xx or a
+ * decline frees it with a fresh key). `scope` keeps the lock across a remount. */
+export function useAttemptKey(scope = 'buy') {
+  const [key, setKey] = useState(() => held.get(scope) ?? Crypto.randomUUID());
+  const [locked, setLocked] = useState(() => held.has(scope));
+  const settle = useCallback(
+    (error: unknown) => {
+      if (keepsAttemptKey(error)) {
+        held.set(scope, key);
+        setLocked(true);
+      } else if (error === null || error === undefined || !held.has(scope) || (error instanceof ApiError && error.status === 402)) {
+        held.delete(scope);
+        setLocked(false);
+        setKey(Crypto.randomUUID());
+      }
+    },
+    [scope, key],
+  );
+  return { key, locked, settle };
 }
 
 export function useCheckoutProvider() {

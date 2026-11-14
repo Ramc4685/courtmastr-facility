@@ -225,6 +225,17 @@ def list_payments(session: Session, principal: Principal, query: ListQuery) -> d
     )  # fmt: skip
 
 
+def get_attempt(session: Session, principal: Principal, key: str) -> dict:
+    """The outcome of a purchase or payment the caller made with this key, for the caller's own or household
+    clients (purchases are paid by or for them); 404 for anything else. The key is the browser's random one."""
+    found = service.attempt_outcome(
+        session, key, [""], sorted({*_own(session, principal), *_household(session, principal)})
+    )
+    if found is None:
+        raise NotFound()
+    return found
+
+
 def billing_summary(session: Session, principal: Principal, client_id: UUID | None) -> dict:
     return documents.billing_summary(session, _client(session, principal, client_id))
 

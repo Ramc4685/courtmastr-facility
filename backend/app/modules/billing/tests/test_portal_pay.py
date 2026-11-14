@@ -333,3 +333,30 @@ def test_the_portal_reads_the_processor_without_starting_a_setup(api, shop, memb
         "provider": "fake", "publishable_key": None, "account_ref": None,
     }  # fmt: skip
     api("GET", "/portal/payment-methods/processor", None, 403)  # staff are not portal clients
+
+
+def test_the_web_can_ask_what_became_of_its_own_attempt_only(api, shop, member, client, desk):
+    """S1: GET /payment-attempts/{key} (staff) and /portal/payment-attempts/{key} report the outcome of the caller's
+    own attempt under that key; another caller, or a key nobody used, is 404. `settled` is false while the row is
+    `initiated` (the processor's answer is not known)."""
+    location = str(shop.location_id)
+    key = f"web-{uuid4().hex}"
+    body = {"client_id": str(shop.client_id), "location_id": location, "amount_minor": 700, "tender_kind": "cash"}
+    sent = client.post("/api/v1/payments", json=body, headers=shop.owner | {"Idempotency-Key": key})
+    assert sent.status_code == 201, sent.text
+    assert api("GET", f"/payment-attempts/{key}") == {"settled": True, "statuses": ["succeeded"], "amount_minor": 700}
+    api("GET", f"/payment-attempts/{key}", None, 404, headers=desk.front)  # another staff user's key
+    api("GET", f"/payment-attempts/never-{uuid4().hex}", None, 404)
+    member.api("GET", f"/portal/payment-attempts/{key}", None, 404)  # not the member's money
+
+    invoice = _invoice_for(api, shop, member.id)
+    mine = f"portal-{uuid4().hex}"
+    paid = client.post("/api/v1/portal/payments", json={"invoice_ids": [invoice["id"]], "method_token": "tok_card_ok"},
+                       headers=member.headers | {"Idempotency-Key": mine})  # fmt: skip
+    assert paid.status_code == 201, paid.text
+    assert member.api("GET", f"/portal/payment-attempts/{mine}")["statuses"] == ["succeeded"]
+    api("GET", f"/payment-attempts/{mine}", None, 404)  # the owner did not send it
+    with work(shop.tenant) as session:
+        session.execute(text("UPDATE payment SET status = 'initiated' WHERE idempotency_key LIKE :k"), {"k": f"%{mine}"})
+    assert member.api("GET", f"/portal/payment-attempts/{mine}")["settled"] is False
+    assert member.api("GET", f"/portal/payment-attempts/{mine[:-1]}", None, 404) is not None  # no prefix match

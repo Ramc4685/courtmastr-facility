@@ -1429,6 +1429,26 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
         '503': {$ref: '#/components/responses/ProviderUnavailable'}
+  /payment-attempts/{key}:
+    get:
+      operationId: getPaymentAttempt
+      tags: [billing]
+      summary: What became of the caller's own payment or refund attempt sent with this Idempotency-Key
+      description: The web keeps a payment or refund form as it was after an unknown outcome until this says `settled`.
+        Only attempts whose stored key carries the caller's own id are found; anything else is 404.
+      x-priority: P0
+      x-permission: billing.payment.read
+      x-features: [PAY-01, PAY-05]
+      parameters:
+      - {name: key, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}}
+      x-problem-codes: [permission-denied, not-found]
+      responses:
+        '200':
+          description: OK.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AttemptOut'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /payments/{payment_id}:
     get:
       operationId: getPayment
@@ -2219,6 +2239,28 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '429': {$ref: '#/components/responses/RateLimited'}
+  /portal/payment-attempts/{key}:
+    get:
+      operationId: getPortalPaymentAttempt
+      tags: [billing]
+      summary: What became of a payment or purchase the caller sent with this Idempotency-Key
+      description: Found only for the caller's own or household clients; 404 otherwise. The form stays as it was until
+        `settled`.
+      x-priority: P0
+      x-permission: client:can_act_for
+      x-features: [PAY-18, SSP-11]
+      security:
+      - {clientSession: []}
+      - {bearerToken: []}
+      parameters:
+      - {name: key, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}}
+      x-problem-codes: [not-found, rate-limited]
+      responses:
+        '200':
+          description: OK.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AttemptOut'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /portal/payments:
     post:
       operationId: payPortalInvoices
@@ -6443,6 +6485,13 @@ components:
       properties:
         allocations: {type: array, items: {$ref: '#/components/schemas/AllocationInput'}}
         allocate: {type: string, enum: [explicit, oldest_first]}
+    AttemptOut:
+      type: object
+      required: [settled, statuses, amount_minor]
+      properties:
+        settled: {type: boolean, description: false while a row is initiated or unknown (the processor's answer is not known)}
+        statuses: {type: array, items: {type: string}}
+        amount_minor: {type: integer}
     Refund:
       type: object
       required: [id, payment_id, location_id, amount_minor, method, status, refund_on, reason, created_at]

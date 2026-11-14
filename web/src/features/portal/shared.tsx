@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
-import { api, ApiError, type Schemas } from '../../api/client'
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import { api, type Schemas } from '../../api/client'
 import type { Tone } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { Input, Select } from '../../components/Field'
@@ -53,25 +53,7 @@ export function makePortalValue(clients: PortalClient[], actingId: string | null
   }
 }
 
-/** Whether a failed money request's outcome is unknown (network loss, 5xx, another request still at work), so the
- * retry must carry the same Idempotency-Key: the server then replays the same processor charge or refund
- * instead of making a second. A success or a definite refusal (a decline, a validation error) ends the attempt. */
-export function keepsAttemptKey(error: unknown): boolean {
-  if (error === null || error === undefined) return false
-  if (!(error instanceof ApiError)) return true
-  return error.status >= 500 || (error.status === 409 && error.code === 'request-in-progress')
-}
-
-/** One idempotency key per purchase attempt: kept across a retry whose outcome is unknown (keepsAttemptKey),
- * replaced after a success or a definite failure, or by `restart` when the user changes what they are paying. */
-export function useAttemptKey() {
-  const [key, setKey] = useState(() => crypto.randomUUID())
-  const settle = useCallback((error: Error | null) => {
-    if (!keepsAttemptKey(error)) setKey(crypto.randomUUID())
-  }, [])
-  const restart = useCallback(() => setKey(crypto.randomUUID()), [])
-  return { key, settle, restart }
-}
+export { keepsAttemptKey, useAttemptKey } from '../billing/attempt'
 
 /** The processor behind online checkout and the keys Stripe.js mounts with, from the read-only processor
  * route (no setup intent is created just to learn the provider). `provider: null`: none connected. */

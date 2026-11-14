@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -238,6 +238,53 @@ def create_refund(
     if data.get("release_allocation_ids"):  # the composite takes money off items first: the unpay gate too
         authorize(principal, "billing.payment.reallocate", location_id=payment.location_id)
     return refund(session, payment_id, **data, idempotency_key=_staff_key(principal, idempotency_key))
+
+
+def attempt_outcome(
+    session: Session, key: str, scopes: Sequence[str], client_ids: Sequence[UUID] | None = None
+) -> dict | None:
+    """Internal read: what became of the payments and refunds made under the browser's Idempotency-Key `key`.
+
+    A stored key is the caller's key behind a prefix (`staff:<actor>:`, `portal:<identity>:`, `pos:<sale>:<staff>:`)
+    and, for an account-credit refund leg, followed by `:<payment id>`. `scopes` are the prefixes' caller ids that
+    must stand right before the key ("" accepts any prefix: the portal, which narrows by `client_ids` instead).
+    `settled` is false while a row is `initiated` or `unknown` (the processor's answer is not known). None: no row.
+    """
+    tail = key.replace("_", r"\_")  # KEY_PATTERN allows no % or backslash; _ is LIKE's one-character wildcard
+    keys = Payment.idempotency_key, Refund.idempotency_key
+    like = [
+        column.like(pattern, escape="\\")
+        for column in keys
+        for caller in scopes
+        for head in ([f"%:{caller}:"] if caller else ["", "%:"])
+        for pattern in (f"{head}{tail}", f"{head}{tail}:%")
+    ]  # fmt: skip
+    payments = select(Payment.status, Payment.amount_minor).where(or_(*like[: len(like) // 2]))
+    refunds = (
+        select(Refund.status, Refund.amount_minor).join(Payment, Payment.id == Refund.payment_id)
+        .where(or_(*like[len(like) // 2 :]))
+    )  # fmt: skip
+    if client_ids is not None:
+        payments = payments.where(Payment.client_id.in_(client_ids))
+        refunds = refunds.where(Payment.client_id.in_(client_ids))
+    rows = [*session.execute(payments), *session.execute(refunds)]
+    if not rows:
+        return None
+    statuses = sorted({status for status, _ in rows})
+    return {
+        "settled": not {"initiated", "unknown"} & set(statuses), "statuses": statuses,
+        "amount_minor": sum(amount for _, amount in rows),
+    }  # fmt: skip
+
+
+def get_attempt(session: Session, principal: Principal, key: str) -> dict:
+    """Staff: the outcome of this caller's own attempt with this key (the web asks before letting a form change)."""
+    authorize(principal, "billing.payment.read")
+    callers = {str(caller) for caller in (principal.actor_id, principal.staff_user_id) if caller}
+    found = attempt_outcome(session, key, sorted(callers)) if callers else None
+    if found is None:
+        raise NotFound()
+    return found
 
 
 def _staff_key(principal: Principal, idempotency_key: str | None) -> str | None:
@@ -732,9 +779,11 @@ def take_payment(
     `internal_tender` (internal; only post_opening_balance passes it, no router can) lets a billing-owned tender
     (`system_key` set, never enabled) through; any other caller naming one is refused like a disabled tender.
     """
+    # Online checkout (origin "portal" with an invoice_id) raises a fresh invoice on every attempt, so that invoice
+    # is not part of what the key was used for; the portal pay route names its invoices through allocations.
     request_hash = str(uuid5(NAMESPACE_URL, repr((
-        amount_minor, client_id, tender_kind, tender_type_id, payment_method_id, method_token, invoice_id,
-        sorted(allocations or []),
+        amount_minor, client_id, tender_kind, tender_type_id, payment_method_id, method_token,
+        None if origin == "portal" else invoice_id, sorted(allocations or []),
     ))))  # fmt: skip
     payment = _payment_by_key(session, idempotency_key)
     if payment is not None and payment.request_hash not in (None, request_hash):

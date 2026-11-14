@@ -225,6 +225,82 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(confirms[0]?.body).toEqual({ pay_later: false, payment_method_id: 'pm1', method_token: null, coupon_code: null, terms_version_id: null })
   })
 
+  it('keeps the rental confirm key and the card choice after a lost answer (S1)', async () => {
+    const confirms: Call[] = []
+    const type = { id: 'rt2', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 30, min_lead_min: 0, horizon_days: 14, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
+    const rental = { id: 'r2', client_id: 'c1', location_id: 'l1', rental_type_id: 'rt2', title: 'Court rental', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', status: 'tentative', resources: [] }
+    const quote = { lines: [{ description: 'Court rental', amount_minor: 5000 }], tax_minor: 0, total_minor: 5000 }
+    open('/portal/bookings', {
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+      'GET /api/v1/public/rental-availability': page([{ resource_id: 'res1', resource_name: 'Court 3', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', price_minor: 5000 }]),
+      'POST /api/v1/portal/rentals': { status: 201, body: { rental, quote, amount_due_minor: 5000, payment_required: true, expires_at: null, invoice_id: null } },
+      'POST /api/v1/portal/rentals/r2/confirm': (call) => {
+        confirms.push(call)
+        return confirms.length === 1 ? { status: 503, body: { status: 503, code: 'provider-unavailable', detail: 'The card processor did not answer.' } } : { status: 200, body: { rental: { ...rental, status: 'confirmed' }, quote, amount_due_minor: 0, payment_required: false, expires_at: null, invoice_id: 'i1', payment_status: 'succeeded' } }
+      },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    await userEvent.click(await within(dialog).findByRole('button', { name: /Court 3/ }))
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Pay $50.00' }))
+    expect(await within(dialog).findByText(/stays as it was/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('radio', { name: /Saved card/ })).toBeDisabled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again: $50.00' }))
+    expect(await within(dialog).findByText(/Booked: Court rental/)).toBeInTheDocument()
+    expect(confirms[1]?.headers['idempotency-key']).toBe(confirms[0]?.headers['idempotency-key'])
+    expect(confirms[1]?.body).toEqual(confirms[0]?.body)
+  })
+
+  it('keeps the buy-and-book sale key after a lost answer and locks the package choice (S1)', async () => {
+    const buys: Call[] = []
+    open('/portal/sessions', sessionRoutes([listing('s9', '2031-05-06T15:00:00Z')], {
+      'POST /api/v1/portal/enrollments': () => ({ status: 409, body: { status: 409, code: 'entitlement-not-eligible', detail: 'Choose a package to book this session with.' } }),
+      'POST /api/v1/portal/client-packages': (call) => {
+        buys.push(call)
+        return buys.length === 1 ? { status: 503, body: { status: 503, code: 'provider-unavailable', detail: 'The card processor did not answer.' } } : { status: 201, body: sold }
+      },
+    }))
+    await userEvent.click(await screen.findByRole('button', { name: /^Book Private lesson/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Buy a package and book' })
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Pay $450.00 and book' }))
+    expect(await within(dialog).findByText(/stays as it was/)).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Package' })).toBeDisabled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(buys).toHaveLength(2))
+    expect(buys[1]?.headers['idempotency-key']).toBe(buys[0]?.headers['idempotency-key'])
+  })
+
+  it('keeps the basket confirm key after a lost answer and locks the basket (S1)', async () => {
+    const confirms: Call[] = []
+    const basket = {
+      id: 'k9', location_id: 'l1', status: 'open', expires_at: '2031-05-06T15:00:00Z', total_minor: 30000, due_now_minor: 10000, invoice_id: null, completed_at: null, missing_documents: [],
+      items: [{ id: 'i1', client_id: 'c1', client_name: 'Morgan Member', program_group_id: 'g1', program_group_name: 'Summer camp', amount_minor: 30000, status: 'held', hold_expires_at: null }],
+      instalments: [{ due_on: '2031-06-01', amount_minor: 10000 }, { due_on: '2031-07-01', amount_minor: 10000 }],
+    }
+    const group = { id: 'g1', location_id: 'l1', name: 'Summer camp', description: null, starts_on: null, ends_on: null, spots_left: null, registration_state: 'open', closed_message: null, confirmation_message: null, children: [], payment_requirement: 'immediate_card_payment', payment_plan: 'instalments', instalment_count: 3, instalment_unit: 'month', balance_due_on: '2031-05-01', fees: [{ id: 'f1', description: 'Camp', amount_minor: 30000, fee_kind: 'base', deposit_minor: 10000 }] }
+    open('/portal/programs', {
+      'GET /api/v1/public/program-groups': { status: 200, body: [group] },
+      'POST /api/v1/portal/registration-checkouts': { status: 201, body: { ...basket, items: [] } },
+      'POST /api/v1/portal/registration-checkouts/k9/items': { status: 201, body: basket },
+      'POST /api/v1/portal/registration-checkouts/k9/confirm': (call) => {
+        confirms.push(call)
+        return confirms.length === 1 ? { status: 503, body: { status: 503, code: 'provider-unavailable', detail: 'The card processor did not answer.' } } : { status: 200, body: { ...basket, status: 'completed' } }
+      },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Register for Summer camp' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Register for Summer camp' })
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Who is registering?' }), 'c1')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add to basket' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Pay $100.00 and confirm' }))
+    expect(await screen.findByText(/stays as it was/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Remove Morgan Member/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Empty basket' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('You are registered')).toBeInTheDocument()
+    expect(confirms[1]?.headers['idempotency-key']).toBe(confirms[0]?.headers['idempotency-key'])
+  })
+
   it('says when the facility has progress sharing off', async () => {
     open('/portal/progress', {
       'GET /api/v1/portal/assessment-bests': { status: 404, body: { status: 404, code: 'not-found' } },

@@ -5,7 +5,7 @@ from datetime import date
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, Path, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -109,6 +109,15 @@ def take_payment(
     for a bank debit, `failed` for a decline, `unknown` when the processor did not answer). Errors:
     allocation-exceeds-balance, allocation-exceeds-payment, processor-not-connected."""
     return service.take_payment_at_desk(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@router.get("/payment-attempts/{key}", response_model=s.AttemptOut)
+def get_payment_attempt(
+    key: Annotated[str, Path(pattern=KEY_PATTERN)], ctx: Ctx = Depends(require("billing.payment.read"))
+):
+    """What became of the caller's own payment or refund attempt sent with this Idempotency-Key; 404 when the
+    caller made none. A form stays as it was until `settled`."""
+    return service.get_attempt(ctx.session, ctx.principal, key)
 
 
 @router.get("/payments/{payment_id}", response_model=s.PaymentDetail)
@@ -915,6 +924,13 @@ def get_portal_statement_pdf(
     ctx: Client, client_id: UUID | None = None, from_on: date | None = None, to_on: date | None = None
 ):
     return _pdf(portal.statement_pdf(ctx.session, ctx.principal, client_id, from_on, to_on))
+
+
+@router.get("/portal/payment-attempts/{key}", response_model=s.AttemptOut)
+def get_portal_payment_attempt(key: Annotated[str, Path(pattern=KEY_PATTERN)], ctx: Client):
+    """What became of a payment or purchase the caller sent with this Idempotency-Key, for their own or household
+    clients; 404 otherwise. A form stays as it was until `settled`."""
+    return portal.get_attempt(ctx.session, ctx.principal, key)
 
 
 @router.get("/portal/payments", response_model=s.Page[s.PortalPaymentOut])
