@@ -86,6 +86,14 @@ def test_a_league_night_needs_the_game_key_and_courts_at_the_location(client, ow
     bad = night(client, owner, f, comp["id"], [far["id"]])
     assert bad.status_code == 422 and bad.json()["errors"][0]["pointer"] == "/resource_ids"
     assert night(client, owner, f, comp["id"], [f.court], start=22, end=18).status_code == 422
+    long = client.post(f"{API}/competitions/{comp['id']}/league-nights", headers=owner, json={
+        "resource_ids": [f.court], "starts_at": local(f.zone, 2031, 5, 7, 18), "ends_at": local(f.zone, 2031, 5, 8, 19),
+    })  # fmt: skip
+    assert long.status_code == 422 and long.json()["errors"][0]["pointer"] == "/ends_at"  # more than 24 hours
+    draft = league(client, owner, f, activate=False, name="Draft League")
+    assert night(client, owner, f, draft["id"], [f.court]).status_code == 409
+    post(client, owner, f"/competitions/{draft['id']}/archive", {}, 200)
+    assert night(client, owner, f, draft["id"], [f.court]).status_code == 409  # archived
     assert WINDOW["weekday"] == 3  # 2031-05-07 is a Wednesday, the window's day
 
 

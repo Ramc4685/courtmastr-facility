@@ -458,13 +458,15 @@ function ScoringDialog({ competition, onClose }: { competition: Competition; onC
     mutationFn: () => {
       const sets = f.scoring_mode === 'sets'
       const changed = sets !== (competition.scoring_mode === 'sets')
+      const bestOfChanged = num(f.sets_best_of) !== (competition.sets_best_of ?? null)
       return api.patch('/api/v1/competitions/{competition_id}', {
         path: { competition_id: competition.id },
         body: {
           scoring_mode: f.scoring_mode, sets_best_of: num(f.sets_best_of) as 1 | 3 | 5 | null, set_points_to: num(f.set_points_to), set_win_by: num(f.set_win_by) ?? 2,
           set_cap: num(f.set_cap), deciding_set_points_to: num(f.deciding_set_points_to),
-          // switching to sets: a forfeit counts as the sets needed, and standings rank by set and points ratio
-          ...(changed && sets ? { forfeit_score_for: Math.floor(Number(f.sets_best_of) / 2) + 1, standings_sort: SET_SORT } : {}),
+          // a forfeit counts as the sets needed (kept in step with best of); switching to sets ranks by set and points ratio
+          ...(sets && (changed || bestOfChanged) ? { forfeit_score_for: Math.floor(Number(f.sets_best_of) / 2) + 1 } : {}),
+          ...(changed && sets ? { standings_sort: SET_SORT } : {}),
         },
       })
     },

@@ -128,8 +128,9 @@ games to score.
   competition's game is booked or moved into it, `scheduling.service` cancels the block and rebooks what remains
   around the game (`gives_way`), because a hold is one range per booking and resource and cannot have a hole. The
   exclusion constraint still decides every clash. Only blocks made this way count: a block from the calendar has no
-  purpose and stays a clash, and a location closure (blackout) is not carved. Assumption: a carved league night
-  becomes several block bookings with the same title.
+  purpose and stays a clash, and a location closure (blackout) is not carved. A night is at most 24 hours (422) and
+  cannot be held for a draft or archived competition (409). Assumption: a carved league night becomes several block
+  bookings with the same title.
 - **League nights: known limits** (a redesign is planned on a follow-up branch; until then staff work around them):
   1. A game that is rescheduled, postponed or cancelled does not give its old slot back to the night. That slot is
      simply free, so a public booking can take it. Staff re-block the old slot by hand (the dialog says so).

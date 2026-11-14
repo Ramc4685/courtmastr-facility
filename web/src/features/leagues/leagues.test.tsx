@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
-import { page, renderAsStaff, SCREEN } from '../scheduling/testing'
+import { page, renderAsStaff, resource, SCREEN } from '../scheduling/testing'
 import { LeaguePage, LeaguesPage } from './LeaguesPage'
 import { PublicLeaguesPage } from './PublicLeaguesPage'
 
@@ -118,6 +118,32 @@ describe('LeaguesPage', SCREEN, () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
     expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({
       scoring_mode: 'sets', sets_best_of: 5, set_points_to: 25, set_win_by: 2, set_cap: null, deciding_set_points_to: 15,
+      forfeit_score_for: 3, // best of 3 to best of 5: a forfeit now counts as three sets
+    })
+  })
+
+  it('holds a league night on chosen courts and tells staff to re-block a moved game', async () => {
+    const calls = renderAsStaff(at('/leagues/c1', <LeaguePage />), ALL, {
+      'GET /api/v1/competitions/c1': { status: 200, body: competition },
+      'GET /api/v1/competitions/c1/teams': { status: 200, body: [] },
+      'GET /api/v1/games': page([]),
+      'GET /api/v1/resources': page([resource('r1', 'Court 1'), resource('r2', 'Court 2')]),
+      'POST /api/v1/competitions/c1/league-nights': { status: 201, body: {
+        booking_id: 'b1', competition_id: 'c1', title: 'Wednesday Futsal league night', starts_at: '2031-05-07T23:00:00Z', ends_at: '2031-05-08T03:00:00Z', resource_ids: ['r2'],
+      } },
+    })
+    await userEvent.click(await screen.findByRole('tab', { name: 'Schedule & results' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Hold a league night' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Hold a league night' })
+    expect(dialog).toHaveTextContent('If you move or postpone a game, re-block its old slot.')
+    expect(within(dialog).getByRole('button', { name: 'Hold courts' })).toBeDisabled()
+    await userEvent.type(within(dialog).getByLabelText('From'), '2031-05-07T18:00')
+    await userEvent.type(within(dialog).getByLabelText('Until'), '2031-05-07T22:00')
+    await userEvent.click(await within(dialog).findByLabelText('Court 2'))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Hold courts' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      resource_ids: ['r2'], starts_at: new Date('2031-05-07T18:00').toISOString(), ends_at: new Date('2031-05-07T22:00').toISOString(),
     })
   })
 })
