@@ -11,6 +11,8 @@ import { EmptyState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, fullName } from '../../lib/format'
+import { useLocationZone } from '../../lib/locationDate'
+import { toInstant } from '../scheduling/time'
 
 /** Only the confirm action confirms an age; any other date change leaves it unconfirmed (clients README). */
 export const CONFIRM_AGE = 'clients.client.confirm_age'
@@ -83,7 +85,8 @@ export function AgeChecksPage() {
   const qc = useQueryClient()
   const [imported, setImported] = useState(false)
   const [since, setSince] = useState('')
-  const filters = { created_via: imported ? 'import' : undefined, 'created_at[gte]': since ? new Date(`${since}T00:00`).toISOString() : undefined }
+  const zone = useLocationZone() // "joined on or after" a date means from midnight at the facility, not in the browser
+  const filters = { created_via: imported ? 'import' : undefined, 'created_at[gte]': since ? toInstant(since, 0, zone) : undefined }
   const paging = useKeysetQuery([...QUEUE, filters], (cursor) => api.get('/api/v1/client-age-reviews', { query: { cursor, ...filters } }))
   const [chosen, setChosen] = useState<string[]>([])
   const [open, setOpen] = useState(false)

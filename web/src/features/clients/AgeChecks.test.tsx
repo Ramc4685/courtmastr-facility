@@ -10,7 +10,10 @@ import { mockFetch } from '../../test/fetchMock'
 import { AgeCheckBadge, AgeChecksCard, AgeChecksPage } from './AgeChecks'
 
 const keys = vi.hoisted(() => ({ held: new Set<string>() }))
-vi.mock('../../lib/auth', () => ({ useAuth: () => ({ can: (k: string) => keys.held.has(k), me: { locations: [] } }) }))
+vi.mock('../../lib/auth', () => ({
+  useAuth: () => ({ can: (k: string) => keys.held.has(k), me: { locations: [{ id: 'l1', time_zone: 'America/Chicago' }] } }),
+  useCurrentLocation: () => ({ locationId: 'l1' }),
+}))
 
 const client = { id: 'c1', first_name: 'Nia', last_name: 'Newcomer', birth_on: '1994-06-07', age_confirmed: false, merged_into_id: null, erased_at: null } as unknown as Schemas['ClientOut']
 const empty = { next_cursor: null, has_more: false }
@@ -107,7 +110,8 @@ describe('age checks', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Imported only' }))
     await vi.waitFor(() => expect(calls.at(-1)?.url).toContain('created_via=import'))
     await userEvent.type(screen.getByLabelText('Joined on or after'), '2026-11-13')
-    await vi.waitFor(() => expect(calls.at(-1)?.url).toContain('created_at%5Bgte%5D='))
+    // midnight at the facility (Chicago, CST), whatever the browser's zone
+    await vi.waitFor(() => expect(calls.at(-1)?.url).toContain('created_at%5Bgte%5D=2026-11-13T06%3A00%3A00'))
   })
 
   it('offers no selection to staff who confirm one at a time', async () => {
