@@ -790,30 +790,35 @@ async def door_enter(door_id: UUID, location_id: UUID) -> tuple | None:
     at one door are serialised; the queue and turn are the door's own, so one door never takes another's), then wait
     the location's delay. Waiting is BLPOP on the door's wake list and asyncio.sleep: no thread, no polling and no
     database connection is held. A ticket for `door_leave`, or None meaning answer deny at once: the queue is full,
-    the turn never came, or Redis is unreachable (fail closed)."""
+    the turn never came, or Redis is unreachable (fail closed). Whatever ends the wait without a ticket (a deny, a
+    Redis error, the request cancelled mid-wait) leaves the queue and gives up the turn if it was taken."""
     p = ratelimit.PREFIX
     queue, lock, wake = f"{p}:door-queue:{door_id}", f"{p}:door-lock:{door_id}", f"{p}:door-wake:{door_id}"
+    mine, joined, ticket = secrets.token_hex(8), False, None
     try:
         r = _aredis()
         async with r.pipeline() as pipe:
             pipe.incr(queue)
             pipe.expire(queue, 60)
             depth = int((await pipe.execute())[0])
+        joined = True
         if depth > DOOR_QUEUE + 1:
-            await r.decr(queue)
             return None
-        mine, deadline = secrets.token_hex(8), time.monotonic() + DOOR_LOCK_WAIT
+        deadline = time.monotonic() + DOOR_LOCK_WAIT
         while not await r.set(lock, mine, nx=True, px=int((DOOR_LOCK_WAIT + DOOR_DELAYS[-1]) * 1000)):
             left = deadline - time.monotonic()
             if left <= 0:
-                await r.decr(queue)
                 return None
             await r.blpop([wake], timeout=min(1.0, left))  # woken by door_leave; a lost wake costs one second
         await asyncio.sleep(await door_delay(location_id))
-        return (queue, lock, wake, mine)
+        ticket = (queue, lock, wake, mine)
+        return ticket
     except redis.RedisError:
         log.warning("door gate unavailable")
         return None
+    finally:  # also on asyncio.CancelledError
+        if joined and ticket is None:
+            await door_leave((queue, lock, wake, mine))  # frees the lock only if it is ours
 
 
 async def door_leave(ticket: tuple) -> None:

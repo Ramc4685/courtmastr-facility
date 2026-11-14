@@ -861,6 +861,34 @@ def test_the_event_loop_keeps_running_while_verifies_wait(b, monkeypatch):
     assert admitted == [True, True] and ticks >= 25  # ~1 s of waiting, the loop never blocked
 
 
+def test_a_verify_cancelled_while_waiting_leaves_the_queue_and_gives_up_its_turn(b, monkeypatch):
+    import asyncio
+
+    from app.core import ratelimit
+
+    monkeypatch.setattr(building, "DOOR_DELAYS", (5.0,) * 5)
+    door, location = UUID(b.door), UUID(b.location)
+    queue, lock = f"{ratelimit.PREFIX}:door-queue:{door}", f"{ratelimit.PREFIX}:door-lock:{door}"
+
+    async def cancelled_after(seconds: float):
+        task = asyncio.create_task(building.door_enter(door, location))
+        await asyncio.sleep(seconds)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    async def scenario():
+        r = building._aredis()
+        await cancelled_after(0.3)  # cancelled in its delay, holding the turn
+        assert await r.get(lock) is None and int(await r.get(queue)) == 0
+        await r.set(lock, "someone-else")
+        await cancelled_after(0.3)  # cancelled while waiting for a turn it never got
+        assert await r.get(lock) == b"someone-else" and int(await r.get(queue)) == 0
+        await r.delete(lock)
+
+    asyncio.run(scenario())
+
+
 def test_the_ip_bucket_only_ever_applies_to_unknown_credentials(client, b, monkeypatch):
     from app.core import ratelimit
 
