@@ -628,3 +628,12 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:11,20 "one send path"; duplicate-skip row and inbox writes bypass `_deliver` (`service.py:943-966,1451-1458`)
 - [ ] [wording] `router.py:422-423` docstring says a token moves to the new login; code revokes and re-adds (`service.py:1296-1303`)
 - [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says
+
+## Added on claude/court-use-report (drift refresh 2026-11-13, reporting)
+Re-run for reporting after court use (migration 2011). Court-use README text matches the code. Items already listed under "reporting" above are not repeated.
+
+### reporting (+3) — [evidence](drift/reporting.md)
+
+- [ ] [contract] openapi-programs.yaml:6232, 6377, 6440 declare `entitlement-required`, `report-not-implemented` and `version-conflict` that the code never raises (`service.py` `update_saved` has no version check); README:213 lists only the inline run
+- [ ] [wording] docs/status/15-reporting.md:4 says 29 `rpt_*` views; `views.py` defines 57 (migration 2011 added 8)
+- [x] [stale-not-built] The "Registered keys with no route" decision lists `reporting.dashboard.read`; `GET /dashboards/management` is now served (`router.py:144`, `dashboard.py:77`). Entry above is stale, drop the key from it.

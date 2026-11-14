@@ -2,7 +2,18 @@
 `reports/`. Adding a family is one import and one entry in FAMILIES; report keys must stay unique."""
 
 from app.modules.reporting.registry import SPECS, ReportSpec
-from app.modules.reporting.reports import clients, fitness, memberships, money, named, operations, pos, programs, staff
+from app.modules.reporting.reports import (
+    clients,
+    courts,
+    fitness,
+    memberships,
+    money,
+    named,
+    operations,
+    pos,
+    programs,
+    staff,
+)
 
 FAMILIES: tuple[tuple[ReportSpec, ...], ...] = (
     SPECS,
@@ -14,6 +25,7 @@ FAMILIES: tuple[tuple[ReportSpec, ...], ...] = (
     staff.SPECS,
     fitness.SPECS,
     operations.SPECS,
+    courts.SPECS,
     named.SPECS,
 )
 REGISTRY: dict[str, ReportSpec] = {spec.key: spec for family in FAMILIES for spec in family}
