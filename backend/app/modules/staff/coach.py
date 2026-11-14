@@ -240,6 +240,12 @@ def _target(session: Session, source_type: str, source_id: UUID) -> dict | None:
     }  # fmt: skip
 
 
+def _lock(session: Session, key: str) -> None:
+    """A transaction advisory lock; the key carries the tenant, so two tenants never wait on each other."""
+    key = f"{session.info['tenant_id']}:{key}"
+    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0))))
+
+
 def reconcile_source(session: Session, source_type: str, source_id: UUID) -> None:
     """Bring one lesson place's earning lines in line with its money: write the lesson line when it is recognised,
     a reversing line when the credit comes back or the package is refunded (then a new line at the new value).
@@ -247,7 +253,7 @@ def reconcile_source(session: Session, source_type: str, source_id: UUID) -> Non
     if source_type not in ("enrollment", "booking"):
         return
     # The ledger is append-only (no UPDATE grant, so no FOR UPDATE): serialise per source with an advisory lock.
-    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(f"coach-earning:{source_id}", 0))))
+    _lock(session, f"coach-earning:{source_id}")
     lines = list(session.scalars(
         select(CoachEarning).where(CoachEarning.source_type == source_type, CoachEarning.source_id == source_id)
         .order_by(CoachEarning.created_at, CoachEarning.id)
@@ -282,7 +288,9 @@ def _reverse(session: Session, line: CoachEarning) -> None:
 
 def reconcile_package(session: Session, client_package_id: UUID) -> None:
     """A package's charge was reversed, voided or adjusted (a refund starts with a reversal): revalue every lesson
-    it paid for."""
+    it paid for. The package lock first, then the sources in a stable order, so two reconciles never deadlock and a
+    lesson's place among the package's spent credits is read by one reconcile at a time."""
+    _lock(session, f"coach-package:{client_package_id}")
     for source_type, source_id in packages.service.consumed_sources(session, client_package_id):
         reconcile_source(session, source_type, source_id)
 

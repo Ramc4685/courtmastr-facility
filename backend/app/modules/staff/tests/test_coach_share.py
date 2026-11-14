@@ -161,6 +161,33 @@ def test_the_ledger_follows_the_lesson_money_and_replays_change_nothing(client, 
     assert lines[-1] == ("reversal", -1000, -300, -700) and sum(x[3] for x in lines) == 0
 
 
+def test_reconcile_locks_are_tenant_scoped_and_taken_in_a_stable_order(client, tenant, owner, coached):
+    c = coached
+    plan = package_plan(client, owner, tenant, reservation_type_id=c.f.type, fee_minor=50000)
+    pack = ok(client.post(f"{API}/client-packages", headers=owner, json={
+        "client_id": c.person["id"], "location_id": c.f.location, "package_plan_id": plan["id"],
+        "invoice_mode": "deferred"}))  # fmt: skip
+    for seat, place in _lessons(client, owner, c, pack["id"], (17, 19, 21)):
+        _attend(client, tenant, seat, place, "attended")
+    keys: list[str] = []
+
+    def spy(conn, cursor, statement, parameters, *args):
+        if "pg_advisory_xact_lock" in statement:
+            keys.extend(v for v in (parameters or {}).values() if isinstance(v, str) and "coach-" in v)
+
+    ok(client.post(f"{API}/charges/{pack['charge_id']}/void", headers=owner | {"Idempotency-Key": "void-charge-2"},
+                   json={"reason": "Sold in error"}), 200)  # fmt: skip
+    event.listen(Engine, "before_cursor_execute", spy)
+    try:
+        deliver_events()
+    finally:
+        event.remove(Engine, "before_cursor_execute", spy)
+    assert keys and all(k.startswith(f"{tenant.id}:") for k in keys)
+    assert keys[0] == f"{tenant.id}:coach-package:{pack['id']}"
+    sources = [k for k in keys if ":coach-earning:" in k]
+    assert len(sources) == 3 and sources == sorted(sources)
+
+
 def test_credits_added_by_hand_do_not_lower_the_value_of_a_lesson(client, tenant, owner, coached):
     """$100 for ten lessons: a lesson is $10. Adding ten credits later must not re-recognise it at $5."""
     c = coached

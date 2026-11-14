@@ -1495,11 +1495,12 @@ def session_credit_facts(session: Session, source_type: str, source_ids) -> dict
 
 def consumed_sources(session: Session, client_package_id: UUID) -> list[tuple[str, UUID]]:
     """Internal read for coach revenue share: the (source_type, source_id) pairs that ever spent a credit of this
-    package, so a refund of the package can revalue the lessons it paid for."""
+    package, so a refund of the package can revalue the lessons it paid for. Sorted, so callers lock in one order."""
     e = CreditLedgerEntry
     return [tuple(row) for row in session.execute(
         select(e.source_type, e.source_id).distinct()
         .where(e.client_package_id == client_package_id, e.source_id.is_not(None), e.consumed_delta != 0)
+        .order_by(e.source_type, e.source_id)
     )]  # fmt: skip
 
 

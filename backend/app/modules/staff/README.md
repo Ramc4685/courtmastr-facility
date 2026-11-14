@@ -195,7 +195,8 @@ to the gross, a coach share never below zero). `handlers.py` listens to `package
 `coach.reconcile_source`/`reconcile_package`. Each reconcile compares the live line with what the lesson is worth
 now: a credit given back (cancellation, excused, a no-show the policy forgives) a refund (which starts with
 reversing the package charge) or a voided package charge writes a reversing line dated the location's today; a new value writes a new line.
-Replaying an event changes nothing; a per-source advisory lock serialises concurrent events.
+Replaying an event changes nothing. Tenant-scoped advisory locks serialise concurrent events: the package's
+first, then each source's in sorted order (`packages.consumed_sources` is sorted), so two reconciles never deadlock.
 
 **Payout statements** (`coach_payout`, `coach_payout_line`). A draft per coach, or for every independent coach at
 a location, gathers every unpaid line up to the end date (earlier unpaid lines included). Adjustments need
