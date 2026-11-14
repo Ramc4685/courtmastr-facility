@@ -15269,6 +15269,19 @@
         "title": "CoachEngagementWrite",
         "type": "object"
       },
+      "CoachPayoutApprove": {
+        "additionalProperties": false,
+        "properties": {
+          "acknowledge_no_rule_lines": {
+            "default": false,
+            "description": "Required when the statement holds lesson lines with no share rule (they finalise at zero)",
+            "title": "Acknowledge No Rule Lines",
+            "type": "boolean"
+          }
+        },
+        "title": "CoachPayoutApprove",
+        "type": "object"
+      },
       "CoachPayoutCreate": {
         "additionalProperties": false,
         "properties": {
@@ -15372,6 +15385,11 @@
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
+          },
+          "no_rule_line_count": {
+            "description": "Lesson lines written with no share rule in force: they pay the coach nothing unless adjusted",
+            "title": "No Rule Line Count",
+            "type": "integer"
           },
           "notice": {
             "description": "The software moves no money; this is a record of what is owed and paid",
@@ -15485,7 +15503,8 @@
           "payment_method",
           "payment_reference",
           "tax_form_on_file_on",
-          "notice"
+          "notice",
+          "no_rule_line_count"
         ],
         "title": "CoachPayoutOut",
         "type": "object"
@@ -105531,7 +105550,7 @@
     },
     "/api/v1/coach-payouts/{coach_payout_id}/approve": {
       "post": {
-        "description": "Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,\npayout-negative (the total is below zero: it stays a draft), step-up-required.",
+        "description": "Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,\npayout-negative (the total is below zero: it stays a draft showing that total; discard and redraw with a later\nend date, or add a positive adjustment), no-rule-lines-unacknowledged (422: lesson lines with no share rule need\nacknowledge_no_rule_lines), step-up-required.",
         "operationId": "approveCoachPayout",
         "parameters": [
           {
@@ -105564,6 +105583,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CoachPayoutApprove"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -106006,6 +106042,7 @@
     },
     "/api/v1/coach-share-rules/{coach_share_rule_id}": {
       "delete": {
+        "description": "Errors: effective-date-has-sessions (the rule starts before today and an affected coach already has sessions\nfrom its date: removing it would re-price those lessons).",
         "operationId": "deleteCoachShareRule",
         "parameters": [
           {

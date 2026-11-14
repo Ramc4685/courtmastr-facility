@@ -185,6 +185,9 @@ export function PayoutLines({ payout }: { payout: CoachPayout }) {
   )
 }
 
+const noRuleWarning = (count: number) =>
+  `${count} lesson ${count === 1 ? 'line has' : 'lines have'} no share rule and ${count === 1 ? 'pays' : 'pay'} the coach nothing. A rule added later does not change ${count === 1 ? 'it' : 'them'}: add an adjustment if the coach is owed something.`
+
 function PayoutDetail({ payout, onGone }: { payout: CoachPayout; onGone: () => void }) {
   const qc = useQueryClient()
   const { can } = useAuth()
@@ -192,7 +195,11 @@ function PayoutDetail({ payout, onGone }: { payout: CoachPayout; onGone: () => v
   const act = useMutation({
     mutationFn: (action: 'approve' | 'discard') =>
       action === 'approve'
-        ? api.post('/api/v1/coach-payouts/{coach_payout_id}/approve', { path: { coach_payout_id: payout.id } })
+        ? api.post('/api/v1/coach-payouts/{coach_payout_id}/approve', {
+            path: { coach_payout_id: payout.id },
+            // the confirm dialog shows the no-rule warning, so confirming it is the acknowledgement
+            body: { acknowledge_no_rule_lines: payout.no_rule_line_count > 0 },
+          })
         : api.delete('/api/v1/coach-payouts/{coach_payout_id}', { path: { coach_payout_id: payout.id } }),
     onSuccess: (_, action) => {
       setDialog(null)
@@ -216,6 +223,7 @@ function PayoutDetail({ payout, onGone }: { payout: CoachPayout; onGone: () => v
         {draft && can('staff.coach_payout.create') && <Button variant="ghost" onClick={() => setDialog('discard')}>Discard</Button>}
       </div>
       <p className="mb-4 rounded border border-border bg-surface-2 px-3 py-2 text-sm">{payout.notice}</p>
+      {payout.no_rule_line_count > 0 && <p className="mb-4 rounded border border-border bg-surface-2 px-3 py-2 text-sm" role="status">{noRuleWarning(payout.no_rule_line_count)}</p>}
       <PayoutLines payout={payout} />
       {dialog === 'adjust' && <AdjustDialog payout={payout} onClose={() => setDialog(null)} />}
       {dialog === 'paid' && <PaidDialog payout={payout} onClose={() => setDialog(null)} />}
@@ -229,6 +237,8 @@ function PayoutDetail({ payout, onGone }: { payout: CoachPayout; onGone: () => v
         onClose={() => setDialog(null)}
       >
         {dialog === 'approve' ? 'Its lines and adjustments lock. Recording it as paid comes next.' : 'Its lines become unpaid again and go on the next statement.'}
+        {dialog === 'approve' && payout.no_rule_line_count > 0 && <> {noRuleWarning(payout.no_rule_line_count)} Approving confirms you have checked them.</>}
+        {act.error && <p className="mt-2 text-sm text-danger" role="alert">{act.error.message}</p>}
       </ConfirmDialog>
     </Card>
   )

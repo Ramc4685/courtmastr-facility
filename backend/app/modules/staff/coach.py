@@ -346,11 +346,17 @@ def _payout(session: Session, principal: Principal, payout_id: UUID, key: str, *
     return payout
 
 
+def _no_rule_count(lines: list[CoachEarning]) -> int:
+    """Lesson lines written with no share rule in force (no percent) and not undone on the same statement."""
+    undone = {e.reverses_coach_earning_id for e in lines}
+    return sum(1 for e in lines if e.kind == "lesson" and e.coach_share_pct is None and e.id not in undone)
+
+
 def payout_view(session: Session, payout: CoachPayout) -> dict:
     payee = session.get_one(StaffPayee, payout.staff_payee_id)
     return {c.key: getattr(payout, c.key) for c in CoachPayout.__table__.columns} | {
         "coach_name": payee.display_name, "tax_form_on_file_on": payee.tax_form_on_file_on,
-        "notice": NO_MONEY_MOVED,
+        "notice": NO_MONEY_MOVED, "no_rule_line_count": _no_rule_count(_lines(session, payout.id)),
     }  # fmt: skip
 
 
@@ -503,10 +509,11 @@ def _not_negative(payout: CoachPayout, *, persist: bool = False) -> None:
         )  # fmt: skip
 
 
-def approve_payout(session: Session, principal: Principal, payout_id: UUID) -> dict:
+def approve_payout(session: Session, principal: Principal, payout_id: UUID, data: dict | None = None) -> dict:
     """Approve a draft after bringing it up to date: lines that reached the ledger since it was drafted (a reversal
     of a lesson on it, say) are gathered first. A statement whose total is below zero is refused and stays a draft;
-    the gathered lines are kept (the error commits), so the draft shows its true total."""
+    the gathered lines are kept (the error commits), so the draft shows its true total. Lessons with no share rule
+    finalise at a zero coach share, so a statement holding any needs `acknowledge_no_rule_lines`."""
     payout = _draft(session, principal, payout_id, PAYOUT_APPROVE)
     _gather(session, payout)
     if payout.coach_share_minor < 0:
@@ -514,6 +521,13 @@ def approve_payout(session: Session, principal: Principal, payout_id: UUID) -> d
                      changes=audit.diff(payout) | {"refused": "payout-negative"})  # fmt: skip
         session.flush()
         _not_negative(payout, persist=True)
+    no_rule = _no_rule_count(_lines(session, payout.id))
+    if no_rule and not (data or {}).get("acknowledge_no_rule_lines"):
+        raise ValidationFailed(
+            f"{no_rule} lesson line(s) had no share rule and pay the coach nothing. Add an adjustment if they are "
+            "owed something, then approve with acknowledge_no_rule_lines.",
+            pointer="/acknowledge_no_rule_lines", code="no-rule-lines-unacknowledged",
+        )  # fmt: skip
     payout.status, payout.approved_at, payout.approved_by_staff_user_id = (
         "approved",
         clock.now(),

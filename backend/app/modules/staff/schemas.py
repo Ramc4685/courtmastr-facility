@@ -531,6 +531,9 @@ class CoachPayoutOut(Out):
     payment_reference: str | None
     tax_form_on_file_on: date | None
     notice: str = Field(description="The software moves no money; this is a record of what is owed and paid")
+    no_rule_line_count: int = Field(
+        description="Lesson lines written with no share rule in force: they pay the coach nothing unless adjusted"
+    )
 
 
 class CoachPayoutList(Out):
@@ -547,6 +550,12 @@ class CoachPayoutCreate(In):
 class CoachAdjustmentCreate(In):
     amount_minor: Annotated[int, Field(ge=-_INT4, le=_INT4, description="Positive raises the coach's share")]
     reason: Reason
+
+
+class CoachPayoutApprove(In):
+    acknowledge_no_rule_lines: bool = Field(
+        False, description="Required when the statement holds lesson lines with no share rule (they finalise at zero)"
+    )
 
 
 class CoachPayoutPaid(In):

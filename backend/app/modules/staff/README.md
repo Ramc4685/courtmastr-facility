@@ -166,7 +166,10 @@ optional court fee kept by the facility, flat per session or per hour, taken off
 coach's share. Precedence: coach and lesson type, then coach, then lesson type, then the tenant default (rules
 have no location, so the tenant default is also every location's default). With no rule in force the lesson is
 still recorded, wholly the facility's (coach share 0, no percent), described "... (no share rule)", so the gap
-shows on the coach's next draft statement, where an adjustment can settle it. A coach never sees or changes a
+shows on the coach's next draft statement, where an adjustment can settle it. The statement counts these lines
+(`no_rule_line_count`, shown with a warning on the statement screen), and approving one that holds any needs
+`acknowledge_no_rule_lines: true` in the request (else `422 no-rule-lines-unacknowledged`), because approve and paid
+finalise them at a zero coach share. A rule added later does not re-value them: staff adjust instead. A coach never sees or changes a
 rule: the routes need the pay-rate keys, which coaches do not hold.
 
 **Back-dated terms.** An engagement or share rule dated before today at the coach's location is refused with

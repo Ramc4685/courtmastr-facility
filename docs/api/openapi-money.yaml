@@ -5852,6 +5852,9 @@ paths:
       x-features: [COACH-SHARE]
       parameters:
       - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: false
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachPayoutApprove'}}}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
   /coach-payouts/{coach_payout_id}/paid:
@@ -8321,6 +8324,10 @@ components:
       properties:
         amount_minor: {type: integer, minimum: -2147483647, maximum: 2147483647, description: Positive raises the coach's share; the gross is unchanged.}
         reason: {type: string, maxLength: 500}
+    CoachPayoutApprove:
+      type: object
+      properties:
+        acknowledge_no_rule_lines: {type: boolean, default: false, description: 'Required (true) when the statement holds lesson lines with no share rule; else 422 no-rule-lines-unacknowledged.'}
     CoachPayoutPaid:
       type: object
       required: [paid_on, payment_method]

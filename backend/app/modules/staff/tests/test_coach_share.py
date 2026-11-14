@@ -248,6 +248,22 @@ def test_a_lesson_with_no_share_rule_is_recorded_wholly_the_facilitys(client, te
     assert earning["description"].endswith("(no share rule)") and earning["coach_share_pct"] is None
 
 
+def test_approving_a_statement_with_no_rule_lines_needs_an_acknowledgement(client, tenant, owner, coached):
+    """A $10 lesson taught with no rule in force pays the coach $0: the statement counts it and approve asks."""
+    c = coached
+    [rule] = ok(client.get(f"{API}/coach-share-rules", headers=owner), 200)["data"]
+    ok(client.delete(f"{API}/coach-share-rules/{rule['id']}", headers=owner), 204)
+    _mark(client, tenant, c, "attended")
+    body = {"location_id": c.f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-31"}
+    [payout] = ok(client.post(f"{API}/coach-payouts", headers=owner, json=body))["data"]
+    assert (payout["no_rule_line_count"], payout["coach_share_minor"]) == (1, 0)
+    url = f"{API}/coach-payouts/{payout['id']}/approve"
+    for refused in (client.post(url, headers=owner), client.post(url, headers=owner, json={})):
+        assert (refused.status_code, refused.json()["code"]) == (422, "no-rule-lines-unacknowledged")
+    approved = ok(client.post(url, headers=owner, json={"acknowledge_no_rule_lines": True}), 200)
+    assert (approved["status"], approved["no_rule_line_count"]) == ("approved", 1)
+
+
 def test_an_independent_coach_is_never_on_payroll_and_an_employee_earns_no_share(client, tenant, owner, coached):
     c = coached
     ok(client.put(f"{API}/staff-payees/{c.payee['id']}/pay-rates/default", headers=owner,

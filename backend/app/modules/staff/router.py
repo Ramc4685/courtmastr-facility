@@ -443,11 +443,14 @@ def add_coach_payout_adjustment(coach_payout_id: UUID, body: s.CoachAdjustmentCr
 
 
 @router.post("/coach-payouts/{coach_payout_id}/approve", response_model=s.CoachPayoutOut)
-def approve_coach_payout(coach_payout_id: UUID, ctx: Ctx = PayoutApprove):
+def approve_coach_payout(
+    coach_payout_id: UUID, body: s.CoachPayoutApprove | None = None, ctx: Ctx = PayoutApprove
+):
     """Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,
     payout-negative (the total is below zero: it stays a draft showing that total; discard and redraw with a later
-    end date, or add a positive adjustment), step-up-required."""
-    return coach.approve_payout(ctx.session, ctx.principal, coach_payout_id)
+    end date, or add a positive adjustment), no-rule-lines-unacknowledged (422: lesson lines with no share rule need
+    acknowledge_no_rule_lines), step-up-required."""
+    return coach.approve_payout(ctx.session, ctx.principal, coach_payout_id, body.model_dump() if body else None)
 
 
 @router.post("/coach-payouts/{coach_payout_id}/paid", response_model=s.CoachPayoutOut)

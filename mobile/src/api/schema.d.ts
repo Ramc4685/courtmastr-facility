@@ -3894,7 +3894,9 @@ export interface paths {
         /**
          * Approve Coach Payout
          * @description Step-up required. Gathers lines that reached the ledger since the draft first. Errors: invalid-state-transition,
-         *     payout-negative (the total is below zero: it stays a draft), step-up-required.
+         *     payout-negative (the total is below zero: it stays a draft showing that total; discard and redraw with a later
+         *     end date, or add a positive adjustment), no-rule-lines-unacknowledged (422: lesson lines with no share rule need
+         *     acknowledge_no_rule_lines), step-up-required.
          */
         post: operations["approveCoachPayout"];
         delete?: never;
@@ -3992,7 +3994,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Coach Share Rule */
+        /**
+         * Delete Coach Share Rule
+         * @description Errors: effective-date-has-sessions (the rule starts before today and an affected coach already has sessions
+         *     from its date: removing it would re-price those lessons).
+         */
         delete: operations["deleteCoachShareRule"];
         options?: never;
         head?: never;
@@ -22304,6 +22310,15 @@ export interface components {
              */
             engagement: "employee" | "independent";
         };
+        /** CoachPayoutApprove */
+        CoachPayoutApprove: {
+            /**
+             * Acknowledge No Rule Lines
+             * @description Required when the statement holds lesson lines with no share rule (they finalise at zero)
+             * @default false
+             */
+            acknowledge_no_rule_lines: boolean;
+        };
         /** CoachPayoutCreate */
         CoachPayoutCreate: {
             /**
@@ -22358,6 +22373,11 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /**
+             * No Rule Line Count
+             * @description Lesson lines written with no share rule in force: they pay the coach nothing unless adjusted
+             */
+            no_rule_line_count: number;
             /**
              * Notice
              * @description The software moves no money; this is a record of what is owed and paid
@@ -54632,7 +54652,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CoachPayoutApprove"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
