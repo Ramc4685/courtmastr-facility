@@ -813,10 +813,11 @@ def test_n_staff_coach_and_independent_coach(client_module, w):
     assert rowan["staff_user_id"] and ines["staff_user_id"] is None  # Ines has no sign-in
     rates = lambda p: data(c.get(f"{API}/staff-payees/{p['id']}/pay-rates", headers=w.owner))  # noqa: E731
     assert any(r.get("rate_60_minor") == 3000 for r in rates(rowan)), rates(rowan)
-    assert any(
-        r.get("session_commission_pct") not in (None, 0, "0") and float(r["session_commission_pct"]) == 70
-        for r in rates(ines)
-    )
+    # Ines is engaged as an independent coach on a 70% revenue share; Rowan has no engagement row, so he is staff.
+    terms = lambda p: ok(c.get(f"{API}/staff-payees/{p['id']}/engagements", headers=w.owner), 200)  # noqa: E731
+    assert [t["engagement"] for t in terms(ines)] == ["independent"] and terms(rowan) == []
+    shares = data(c.get(f"{API}/coach-share-rules?staff_payee_id={ines['id']}", headers=w.owner))
+    assert [float(r["coach_share_pct"]) for r in shares] == [70]
     coach = login(c, w.tenant, f"coach@{w.mail}", cirqt.PASSWORD, "staff")
     assert ok(c.get(f"{API}/me", headers=coach), 200)["linked_resource_id"] == rowan["resource_id"]  # his own column
     # Signed in, the coach sees his sessions, his shifts, the payee names and the client list, but no pay rates
@@ -831,9 +832,11 @@ def test_n_staff_coach_and_independent_coach(client_module, w):
             f"/staff-payees/{rowan['id']}/pay-rates",
             f"/staff-payees/{ines['id']}/pay-rates",
             "/payroll-runs",
+            "/coach-share-rules",
+            f"/staff-payees/{ines['id']}/engagements",
         )
     }
-    assert list(seen.values()) == [200, 200, 200, 200, 403, 403, 403], seen
+    assert list(seen.values()) == [200, 200, 200, 200, 403, 403, 403, 403, 403], seen
 
 
 def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(client_module, w):
@@ -875,4 +878,91 @@ def test_n_the_coaches_pay_shows_on_the_time_clock_and_the_payroll_preview(clien
     pay = lambda field, *who: sum(s[field] for s in statements if {s["staff_payee_id"], s["staff_user_id"]} & set(who))  # noqa: E731
     assert pay("session_pay_minor", rowan["id"], rowan["staff_user_id"]) == 3000  # his lesson
     assert pay("hourly_pay_minor", rowan["id"], rowan["staff_user_id"]) == 2250  # 07:00-08:00 and 08:30-09:00 only
-    assert pay("commission_minor", ines["id"]) == 3500  # 70% of the $50 lesson
+    # Ines is independent: her lesson is shared on her earnings ledger (next test), never paid through payroll.
+    assert [s for s in statements if s["staff_payee_id"] == ines["id"]] == []
+
+
+def test_n_the_independent_coach_earns_a_share_and_is_settled_by_payout_statement(client_module, w):
+    """Ines keeps 70% of her lesson money. A paid one-lesson package ($50) and one lesson of a five-lesson package
+    ($225, so $45 a lesson) each make an earning line when attended; refunding the single lesson reverses its line.
+    The payout statement totals what is left, is approved and recorded as paid (no money moves in the product).
+    Rowan, a staff coach, never earns a share and never appears on a payout."""
+    from app.modules.memberships.tests.support import deliver_events
+
+    c, day = client_module, TODAY + timedelta(days=4)
+    found = payees(c, w)
+    rowan, ines = found["Rowan (staff coach)"], found["Ines (independent coach)"]
+    plans = {p["name"]: p["id"] for p in data(c.get(f"{API}/package-plans", headers=w.owner))}
+    lessons = []
+    for plan, start, end in (("One lesson", "13:00", "14:00"), ("Five lessons", "14:00", "15:00")):
+        session_id = coached_session(c, w, day, start, end, "Court 2", coach="Ines (independent coach)")
+        bought = ok(c.post(f"{API}/portal/client-packages", headers=w.member_portal | key(), json={
+            "package_plan_id": plans[plan], "location_id": w.location, "client_id": w.member,
+            "method_token": "tok_card_ok"}))  # fmt: skip
+        enrolled = ok(c.post(f"{API}/enrollments", headers=w.owner, json={
+            "session_id": session_id, "client_id": w.member, "client_package_id": bought["id"]}))  # fmt: skip
+        lessons.append((session_id, enrolled["id"], bought["id"]))
+    rowan_session = coached_session(c, w, day, "16:00", "17:00", "Court 3")
+    rowan_pack = ok(c.post(f"{API}/portal/client-packages", headers=w.member_portal | key(), json={
+        "package_plan_id": plans["One lesson"], "location_id": w.location, "client_id": w.member,
+        "method_token": "tok_card_ok"}))  # fmt: skip
+    rowan_place = ok(c.post(f"{API}/enrollments", headers=w.owner, json={
+        "session_id": rowan_session, "client_id": w.member, "client_package_id": rowan_pack["id"]}))  # fmt: skip
+    with clock.freeze(datetime.combine(day + timedelta(days=1), time(12), ZONE)):
+        owner = login(c, w.tenant, f"owner@{w.mail}", cirqt.PASSWORD, "staff")
+        every = lambda: data(c.get(f"{API}/coach-earnings?staff_payee_id={ines['id']}&limit=50", headers=owner))  # noqa: E731
+        deliver_events()  # the earlier scenario's lesson lands on her ledger first
+        before = {r["id"] for r in every()}
+        earned = lambda: [r for r in every() if r["id"] not in before]  # noqa: E731
+        for session_id, enrollment_id, _ in lessons:
+            ok(c.put(f"{API}/sessions/{session_id}/attendance", headers=owner,
+                     json={"marks": [{"enrollment_id": enrollment_id, "status": "attended"}]}), 200)  # fmt: skip
+        deliver_events()
+
+        def split(rows):
+            return sorted(
+                (r["kind"], r["gross_minor"], r["facility_share_minor"], r["coach_share_minor"]) for r in rows
+            )
+
+        assert split(earned()) == [("lesson", 4500, 1350, 3150), ("lesson", 5000, 1500, 3500)]
+        member = ok(c.get(f"{API}/clients/{w.member}", headers=owner), 200)
+        label = f"Lesson with {member['first_name']} {member['last_name'][0]}."  # first name and last initial only
+        assert {r["description"] for r in earned()} == {label}
+        # A refund of the single lesson starts with reversing its package charge: the line is reversed.
+        single = ok(c.get(f"{API}/client-packages/{lessons[0][2]}", headers=owner), 200)
+        ok(c.post(f"{API}/charges/{single['charge_id']}/reverse", headers=owner | key(), json={"reason": "Refund"}))
+        deliver_events()
+        assert split(earned()) == [("lesson", 4500, 1350, 3150), ("lesson", 5000, 1500, 3500),
+                                   ("reversal", -5000, -1500, -3500)]  # fmt: skip
+        assert data(c.get(f"{API}/coach-earnings?staff_payee_id={rowan['id']}", headers=owner)) == []
+        period = {"location_id": w.location, "period_starts_on": day.isoformat(), "period_ends_on": day.isoformat()}
+        made = ok(c.post(f"{API}/coach-payouts", headers=owner, json=period))["data"]
+        assert [p["staff_payee_id"] for p in made] == [ines["id"]]  # Rowan is never on a payout
+        [payout] = made
+        # Every unpaid line up to the end date, earlier ones too; the refund's reversal is dated the refund day (the
+        # next day), so it waits for the next statement.
+        unpaid = [r for r in every() if r["earned_on"] <= day.isoformat()]
+        assert (payout["line_count"], payout["gross_minor"], payout["coach_share_minor"]) == (
+            len(unpaid), sum(r["gross_minor"] for r in unpaid), sum(r["coach_share_minor"] for r in unpaid))  # fmt: skip
+        assert payout["gross_minor"] == payout["facility_share_minor"] + payout["coach_share_minor"]
+        url = f"{API}/coach-payouts/{payout['id']}"
+        assert ok(c.post(f"{url}/approve", headers=owner), 200)["status"] == "approved"
+        paid = ok(c.post(f"{url}/paid", headers=owner, json={
+            "paid_on": (day + timedelta(days=1)).isoformat(), "payment_method": "bank_transfer",
+            "payment_reference": "CIRQT-INES-1"}), 200)  # fmt: skip
+        assert (paid["status"], paid["coach_share_minor"]) == ("paid", payout["coach_share_minor"])
+        # Paid is final; the refund lands on the next statement as a correction.
+        later = period | {
+            "period_starts_on": (day + timedelta(days=1)).isoformat(),
+            "period_ends_on": (day + timedelta(days=1)).isoformat(),
+        }
+        [correction] = ok(c.post(f"{API}/coach-payouts", headers=owner, json=later))["data"]
+        assert (correction["line_count"], correction["coach_share_minor"]) == (1, -3500)
+        # Rowan's lesson the same day goes through payroll, as a staff coach's always has.
+        ok(c.put(f"{API}/sessions/{rowan_session}/attendance", headers=owner,
+                 json={"marks": [{"enrollment_id": rowan_place["id"], "status": "attended"}]}), 200)  # fmt: skip
+        deliver_events()
+        assert data(c.get(f"{API}/coach-earnings?staff_payee_id={rowan['id']}", headers=owner)) == []
+        run = ok(c.post(f"{API}/payroll-runs", headers=owner, json=period))
+        statements = data(c.get(f"{API}/payroll-runs/{run['id']}/statements", headers=owner))
+    assert {s["staff_payee_id"] for s in statements} & {rowan["id"], ines["id"]} == {rowan["id"]}

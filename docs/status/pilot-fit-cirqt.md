@@ -61,7 +61,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 | m | A child cannot be booked on a court without a parent on the booking. | pass (closed on `claude/rentals-pilot`): a minor never holds a rental; the parent holds it and names the child as a player |
 | m | A child the parent added in the portal (`manager` authority) never holds a court online; the parent books and names the child. | pass |
 | m | A dependant with no birth date cannot hold a court online (unknown is not an adult online). | pass |
-| n | Staff coach versus independent coach: pay rates, the time clock, the payroll preview and what the coach sees. | pass (see below) |
+| n | Staff coach versus independent coach: pay rates, the time clock, the payroll preview, the independent coach's revenue share and payout statement, and what the coach sees. | pass (see below) |
 
 ## What is missing, ranked for CIRQT
 
@@ -76,7 +76,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 
    It also has no minor guard on marketing opt-in or on portal invitations.
 5. **No-shows and overstays for rentals.** There is no mark, no fee and no rule.
-6. **Paying independent coaches.** Payroll computes the commission line, but nothing pays out and there is no revenue split at checkout.
+6. **Paying independent coaches.** The revenue share and payout statements are built (staff README "Coach revenue share"); the product still moves no money, so CIRQT pays the coach by transfer or cheque and records it.
 7. **Utilisation from opening hours.** The report needs per-court availability windows.
 8. ~~**League details.**~~ Closed: league nights the scheduler fills, and set-by-set scoring with set and points ratio in the standings. League nights work for scheduling, with three known limits until a follow-up redesign (leagues README, "League nights: known limits"):
    - a game that is rescheduled, postponed or cancelled does not give its slot back to the night, so a public booking can take it; staff re-block the old slot;
@@ -148,17 +148,18 @@ Nothing in the product drives a door or a light today. The access module reserve
 The seed sets up two coaches:
 
 - **Rowan, staff coach.** A staff sign-in with the coach role, linked to his own trainer column, paid $30 per session through payroll pay rates (the owner pays coaches per session). His only time-clock job is "Upkeep and front desk (not lessons)" at $15 an hour (assumed), for other work. If he stays clocked in through a lesson, payroll does not count the clocked minutes inside it, so the lesson is paid once.
-- **Ines, independent coach.** A client record so she can rent courts, plus a payee and trainer column with no sign-in, and a 70% commission rate.
-- **Payroll preview.** A calculated draft run for the day shows Rowan's $30 lesson, his clocked opening hour and the half hour before the lesson at $15 (the clocked lesson hour is left out), and Ines's $35 commission on a $50 lesson.
+- **Ines, independent coach.** A client record so she can rent courts, plus a payee and trainer column with no sign-in, engaged as independent on a 70% revenue share. Lessons are sold as "One lesson" ($50) or "Five lessons" ($225, assumed).
+- **Payroll preview.** A calculated draft run for the day shows Rowan's $30 lesson, his clocked opening hour and the half hour before the lesson at $15 (the clocked lesson hour is left out). Ines is not on payroll.
+- **Ines's earnings.** Her attended $50 lesson earns her $35 and CIRQT $15; a lesson from the five-lesson package is worth $45 and earns her $31.50. Refunding the single lesson writes a reversing line. Her payout statement totals the unpaid lines, is approved and recorded as paid by bank transfer; the refund goes on the next statement. Rowan never earns a share or appears on a payout.
 
 | Question | Answer in the product |
 |---|---|
 | Who creates the lesson | Staff. They create a session booking with the coach's column and a court. A coach with a sign-in can see the calendar, but an independent coach without one cannot create anything. |
 | Who sets the price | The facility, through a package plan (here "One lesson", $50). The coach cannot set their own price. |
 | Where the student's money goes | To CIRQT. The portal sells the package, and the money is facility revenue in the RENTALS category. |
-| How the coach is paid | Payroll runs compute a per-session amount or a percentage commission line. Nothing pays out. The alternative is that the coach rents the court like anyone and collects from students themselves, outside the product. |
+| How the coach is paid | A staff coach through payroll (per session). An independent coach through payout statements: each attended lesson splits the lesson money (70% to Ines); the owner approves a statement and records it paid. Nothing pays out inside the product. The alternative is that the coach rents the court like anyone and collects from students themselves. |
 | What a signed-in coach sees | The whole facility schedule (all courts and both coaches, with a New booking button; screenshot 18), their own sessions, their shifts, the payee names and the client list. They do not see pay rates (their own included) or payroll runs. |
-| What it cannot do | Payouts to coaches, revenue share at checkout, coach-set prices, or coach self-service for an independent coach without a staff seat. |
+| What it cannot do | Move the money (no Stripe Connect yet), coach-set prices, or coach self-service for an independent coach without a staff seat (a coach with a sign-in sees "My earnings": their own lessons and statements, never their share rule). |
 
 ## Recurring and bulk pricing
 

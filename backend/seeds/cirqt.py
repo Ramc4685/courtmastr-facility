@@ -381,13 +381,15 @@ def _coaching(session, actor, location, category, mail: str) -> None:
     """Two coaches, to show the difference the owner asked about. Rowan is a staff coach: a staff sign-in (coach
     role) linked to his trainer column, paid $30 per session through payroll (the owner pays coaches per session),
     with one clock job for non-coaching work only, `UPKEEP_JOB` at $15 an hour (assumed). Ines is an independent coach: a client
-    record (she rents courts like anyone), plus a trainer column and a payee with no sign-in whose pay is 70% of the
-    lesson money as a commission line on the payroll run (the product computes it; paying her happens outside).
-    Lessons are a "Private lesson" type sold as a one-lesson package online ($50, assumed)."""
+    record (she rents courts like anyone), plus a trainer column and a payee with no sign-in, engaged as an
+    independent coach on a 70% revenue share (staff README "Coach revenue share"): her lessons land on her earnings
+    ledger and payout statements, never on payroll; paying her happens outside the product. Lessons are a "Private
+    lesson" type sold as a one-lesson package online ($50, assumed) or five for $225 (assumed)."""
     from app.modules.packages import service as packages
     from app.modules.packages.models import PackagePlan
     from app.modules.scheduling import service as scheduling
     from app.modules.scheduling.models import ReservationType
+    from app.modules.staff import coach
     from app.modules.staff import schemas as ss
     from app.modules.staff import service as staffing
     from app.modules.staff.models import StaffPayee
@@ -398,14 +400,19 @@ def _coaching(session, actor, location, category, mail: str) -> None:
     rowan = session.scalar(
         select(StaffUser).join(Identity, Identity.id == StaffUser.identity_id).where(Identity.email == f"coach@{mail}")
     )
-    for name, user, rate in (("Rowan (staff coach)", rowan, {"pay_basis": "per_session", "rate_60_minor": 3000}),
-                             ("Ines (independent coach)", None, {"pay_basis": "per_session", "session_commission_pct": Decimal(70)})):  # fmt: skip
+    for name, user in (("Rowan (staff coach)", rowan), ("Ines (independent coach)", None)):
         payee = staffing.create_payee(session, actor, ss.StaffPayeeCreate(
             kind="trainer", display_name=name, location_id=location.id, resource_group_id=group.id,
             staff_user_id=user.id if user else None).model_dump())  # fmt: skip
-        staffing.put_default_pay_rate(session, actor, payee.id, ss.PayRateWrite(**rate).model_dump())
         if user is not None:
             user.linked_resource_id = payee.resource_id  # the coach's own calendar column
+            rate = ss.PayRateWrite(pay_basis="per_session", rate_60_minor=3000)
+            staffing.put_default_pay_rate(session, actor, payee.id, rate.model_dump())
+        else:
+            start = date(2026, 1, 1)
+            coach.set_engagement(session, actor, payee.id, {"engagement": "independent", "effective_from_on": start})
+            coach.put_share_rule(session, actor, ss.CoachShareRuleWrite(
+                staff_payee_id=payee.id, effective_from_on=start, coach_share_pct=Decimal(70)).model_dump())  # fmt: skip
     # Lessons are paid per session from the payee rate above; the clock is for other work, and payroll never counts
     # clocked minutes inside a paid session, so a lesson is paid once even if he stays clocked in.
     job = staffing.create_job_classification(session, actor, {"name": UPKEEP_JOB})
@@ -419,12 +426,13 @@ def _coaching(session, actor, location, category, mail: str) -> None:
             "location_id": location.id, "name": "Private lesson", "default_capacity": 1, "default_duration_min": 60,
             "default_allows_free_booking": False, "color": "#2563eb",
         })  # fmt: skip
-    if not session.scalar(select(PackagePlan.id).where(PackagePlan.name == "One lesson")):
-        packages.create_plan(session, actor, {
-            "reservation_type_id": lesson.id, "name": "One lesson", "session_mode": "fixed", "session_count": 1,
-            "fee_minor": 5000, "fee_basis": "per_package", "revenue_category_id": category.id,
-            "online_sale_mode": "paid_in_full", "validity_count": 3, "validity_unit": "month",
-        })  # fmt: skip
+    for name, count, fee in (("One lesson", 1, 5000), ("Five lessons", 5, 22500)):
+        if not session.scalar(select(PackagePlan.id).where(PackagePlan.name == name)):
+            packages.create_plan(session, actor, {
+                "reservation_type_id": lesson.id, "name": name, "session_mode": "fixed", "session_count": count,
+                "fee_minor": fee, "fee_basis": "per_package", "revenue_category_id": category.id,
+                "online_sale_mode": "paid_in_full", "validity_count": 3, "validity_unit": "month",
+            })  # fmt: skip
 
 
 def seed() -> None:
