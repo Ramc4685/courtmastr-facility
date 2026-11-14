@@ -14,7 +14,7 @@ Checked 2026-11-13 on `claude/coach-share` against the module code and `docs/api
 
 ### [undocumented]
 
-- Gates (README:25-36) omit that the schedule and recipients routes use `reporting.report.export` (`router.py:113-141`) and the dashboard uses `reporting.dashboard.read` (`router.py:23`, `dashboard.py:21`).
+- Gates (README:25-36) omit that the schedule and recipients routes use `reporting.report.export` (`router.py:113-141`) and the dashboard uses `reporting.dashboard.read` (`router.py:23`, `dashboard.py:25`).
 - The 13 permission keys (`permissions.py:15-39`) and their role defaults are not listed. Only `report_schedule.manage` is described (README:156).
 - The README never lists the 62 reports by family key or the report categories. `invoices`, `attendance`, `attendance_overview` and `daily_register` have no assumption entry.
 - `export_job.notify_on_complete` (`models.py:128`) is a third extra column. README:179-180 names only `progress` and `partial`.
@@ -24,7 +24,7 @@ Checked 2026-11-13 on `claude/coach-share` against the module code and `docs/api
 
 - README:9 says `registry.py` holds every `ReportSpec`. It holds the module-15 specs only; the rest come through the family tuples in `catalogue.py:9-20` and builders in `reports/*.py` (README:43 says this itself).
 - README:14 names the test `test_view_columns_match_the_contract`. The test is `test_views_match_their_column_contract_and_run_as_the_invoker` (`tests/test_reporting.py:115`).
-- README:89 and :122 refer to "chip A's", "chip B" and "chip C", which the code does not define.
+- README:89 and :122 refer to "chip A's", "chip B" and "chip C". The code uses them only as build-phase comments (`registry.py:429`, `registry.py:569`), which mean nothing to a reader.
 - ADR 0010 says specs live in `reporting/catalog/<owning_context>.py` (`docs/adr/0010-reporting.md`). The code has `reporting/reports/<family>.py`; README:43 describes the code without noting the ADR differs.
 
 ### [stale-not-built]

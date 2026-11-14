@@ -140,6 +140,7 @@ def test_catalogue_lists_only_what_the_caller_may_run(client, tenant, owner):
         "attendance", "attendance_overview", "unused_session_value", "package_summary", "expiring_packages",
         "renewal_candidates", "package_sales", "check_in_summary", "check_in_details",
         "trainer_performance", "resource_utilization", "peak_times", "class_popularity", "payroll_statements",
+        "coach_revenue_split", "coach_liability",  # own reach: a coach sees only their own lines
     }  # fmt: skip
     assert code(client.get(f"{API}/report-definitions/revenue_summary", headers=desk), 403) == "permission-denied"
     assert code(client.get(f"{API}/report-definitions/nope", headers=owner), 404) == "not-found"
