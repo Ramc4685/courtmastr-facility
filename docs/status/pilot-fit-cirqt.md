@@ -64,7 +64,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 
 ## What is missing, ranked for CIRQT
 
-1. **Building control: door codes and court lights.** There is no adapter, no booking-bound code, no booking start or end trigger and no remote unlock route. For an unmanned site this is the blocker. Details are below.
+1. **Building control: door codes and court lights.** Built on branch `claude/building-control` against a simulated controller only: a code per booking, minute-tick lights per court, staff and member unlock. The blocker now is hardware: no vendor adapter exists. Details are below.
 2. **Member prices on rentals.** *Closed on `claude/rentals-pilot`: one pricing function for quote and charge, member prices online through `/portal/rental-availability` (rentals README).* Before: rentals priced every payer as a guest; screenshot 05 shows a member billed $54 (guest $24 + $30) for 17:00-19:00, and the portal (screenshot 15) tells a member "members pay less" while quoting the guest $24. The member price and membership-type rules are stored but never used on bookings. Rentals are the main revenue, so this matters more than anything except the door.
 3. **Recurring and bulk booking online, and a contract object for clubs.** Staff can book a recurring weekly slot on a discounted rate, but:
    - a member or club cannot do it themselves;
@@ -100,6 +100,15 @@ Steps that are API-only or easy to miss:
 
 ## Building control (door code and court lights)
 
+**Update (branch `claude/building-control`).** Built in the access module behind `app/ports/building_control.py`, with a
+simulated adapter only: a personal code per person on a booking, never shared (a rental's holder, each session
+participant; league players get none; 15 minutes before to 10 after, location settings),
+revoked on cancel and reissued on reschedule, emailed and shown in the portal with the location phone; a device
+verify endpoint and a door check-in; staff remote unlock (`access.door.unlock`) and member "open the door"; lights per
+court computed every minute from holds on the booked time (not the changeover buffer), with overrides and a
+reconciliation line. The CIRQT seed adds a front door and four court zones. Still missing: a real door and relay
+adapter, and SMS. The text below describes the state before that branch.
+
 Nothing in the product drives a door or a light today. The access module reserves a `door` check-in channel, but nothing writes to it. The permissions `access.door.unlock` and `access.device.manage` are registered with no route behind them (CHK-15 and CHK-16 are deferred).
 
 **What an adapter could hook into today:**
@@ -116,7 +125,7 @@ Nothing in the product drives a door or a light today. The access module reserve
 **What a booking-bound one-time code needs:**
 
 - A validity window around the booking, for example 15 minutes before the start until the end. It must be in the location's zone and must account for the changeover buffers.
-- A choice between one code per booking (shared with the group) and one per participant. For rentals the booker is known and, since `claude/rentals-pilot`, any household players named on the booking (`rental_party`).
+- One code per person, never shared (decided; access README): a code goes to one adult (a rental's holder, or each adult enrolled on a session) and checks in only that person. Other players on a rental (`rental_party`, since `claude/rentals-pilot`) get no code; the holder lets them in.
 - Revocation when the booking is cancelled, plus reissue when it is rescheduled.
 - Issuing at or shortly before arrival, through the notification port.
 - An audit record of each issue and use.
@@ -196,7 +205,7 @@ This was not built.
 ## Open questions for the owner
 
 1. Should members pay the member price on rentals and guests pay more, or should everyone pay one price? This decides how urgent gap 2 is.
-2. Who issues door codes, and how early before a booking? One code per booking or per person? Which door or lighting hardware is installed?
+2. Who issues door codes, and how early before a booking? Which door or lighting hardware is installed? (Settled: a code is personal to one adult and never shared, see the access README.)
 3. Do independent coaches sell lessons through CIRQT (you collect and pay them), or do they rent courts and collect from students themselves?
 4. Is a club's weekly slot a fixed-term agreement (for example a season with a renewal), or open-ended?
 5. From what age may a child play without a parent present?

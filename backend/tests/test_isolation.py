@@ -427,6 +427,11 @@ _BODIES = {
     "runSync": {},
     # platform OIDC (Phase 8 S3)
     "updateIdentityProvider": {"display_name": "Renamed"},
+    # building control (access, CHK-15, CHK-16)
+    "updateDoorDevice": {"name": "Renamed"},
+    "unlockDoorDevice": {"reason": "Locked out"},
+    "updateLightingZone": {"name": "Renamed"},
+    "overrideLightingZone": {"is_on": None},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip

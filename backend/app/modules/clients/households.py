@@ -11,11 +11,13 @@ from datetime import timedelta
 from uuid import UUID
 
 from sqlalchemy import or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.ids import new_id
 from app.core.settings import get_settings
 from app.modules import platform
 from app.modules.clients import service
@@ -54,18 +56,19 @@ SYSTEM_TYPES = {
 
 
 def ensure_relationship_types(session: Session) -> None:
-    """The system types are seeded per tenant on first use."""
+    """The system types are seeded per tenant on first use. Two first callers at once both insert with ON CONFLICT
+    DO NOTHING (the second waits on the first's rows), then link inverses from what is there."""
     if session.scalar(select(RelationshipType.id).where(RelationshipType.is_system).limit(1)):
         return
-    rows = {}
-    for code, (label, _, grants, guardian) in SYSTEM_TYPES.items():
-        rows[code] = RelationshipType(
-            code=code, label=label, grants_acting_rights=grants, is_guardianship=guardian, is_system=True
-        )
-        session.add(rows[code])
-    session.flush()
+    session.execute(pg_insert(RelationshipType).values([
+        {"id": new_id(), "tenant_id": session.info["tenant_id"], "code": code, "label": label,
+         "grants_acting_rights": grants, "is_guardianship": guardian, "is_system": True}
+        for code, (label, _, grants, guardian) in SYSTEM_TYPES.items()
+    ]).on_conflict_do_nothing(constraint="uq_relationship_type_code"))  # fmt: skip
+    rows = {r.code: r for r in session.scalars(select(RelationshipType).where(
+        RelationshipType.is_system, RelationshipType.code.in_(SYSTEM_TYPES)))}  # fmt: skip
     for code, (_, inverse, _, _) in SYSTEM_TYPES.items():
-        if inverse:
+        if inverse and code in rows and inverse in rows and rows[code].inverse_type_id is None:
             rows[code].inverse_type_id = rows[inverse].id
     session.flush()
 

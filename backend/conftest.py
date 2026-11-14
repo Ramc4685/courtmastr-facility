@@ -293,6 +293,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_program_forms(client, headers, post, tenant, location["id"])
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
+    space |= _populate_building(post, tenant, location["id"], space)
     _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(
@@ -1300,6 +1301,32 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
         "kiosk_device_id": device["kiosk_device_id"], "check_in_station_id": station["id"],
         "id_card_template_id": card["id"],
     }  # fmt: skip
+
+
+def _populate_building(post, tenant, location_id, space) -> dict:
+    """Building control (CHK-15, CHK-16): a door, a court's lighting zone, one remote unlock (an activity row) and
+    an entry code for populate()'s booking, written directly (the booking is not inside the issue window)."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.core import crypto
+    from app.modules.access.models import EntryCode, EntryCodeHold
+    from app.modules.clients.models import Client
+
+    door = post("/door-devices", {"location_id": location_id, "name": "Main door", "device_ref": "door-1"})
+    zone = post("/lighting-zones", {"location_id": location_id, "name": "Court 1 lights", "zone_ref": "relay-1",
+                                    "resource_ids": [space["resource_id"]]})  # fmt: skip
+    post(f"/door-devices/{door['id']}/unlock", {"reason": "Populate"})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        now, person = clock.now(), session.scalar(select(Client.id).order_by(Client.id).limit(1))
+        session.add(EntryCode(
+            location_id=location_id, booking_id=space["booking_id"], client_id=person, code_hash=f"pop-{uuid4().hex}",
+            code_ciphertext=crypto.encrypt("12345678", tenant.id), valid_from_at=now, valid_until_at=now + timedelta(hours=1),
+        ))  # fmt: skip
+        session.add(EntryCodeHold(location_id=location_id, booking_id=space["booking_id"], client_id=person,
+                                  reason="age-not-confirmed"))  # fmt: skip
+    return {"door_device_id": door["id"], "lighting_zone_id": zone["id"]}
 
 
 def _populate_pos_desk(client, headers, post, tenant, location_id, product_category_id) -> None:

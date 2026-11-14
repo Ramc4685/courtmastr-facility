@@ -91,6 +91,8 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     league-post:      {limit: 10, window_sec: 3600, closed: true}   # classifieds and pickup games posted, per IP
     league-post-contact: {limit: 20, window_sec: 900, closed: true} # relay messages to posters, per IP
     league-post-contact-sender: {limit: 10, window_sec: 3600, closed: true}  # relay messages, per signed-in identity
+    door-auth:        {limit: 20, window_sec: 60,   closed: true}   # failed door credentials (building control), per IP
+    door-member-unlock: {limit: 6, window_sec: 300,  closed: true}   # portal "open the door", per signed-in identity
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months
@@ -116,6 +118,8 @@ storage:
   clamd_host: 127.0.0.1
   clamd_port: 53310                   # docker compose --profile scan (ClamAV)
   public_base_url: null               # bucket or CDN origin serving t/*/public/* (logos); null: the app's /public/objects route
+building_control: {}                  # doors and court lights (access). adapter: simulated | none; unset is simulated
+                                      # in dev and test, none elsewhere; simulated is refused outside dev and test
 imports:                              # CSV imports (Phase 8 I1)
   max_opening_balance_minor: 10000000 # one opening balance at most 100,000.00 in the account currency
   stalled_minutes: 60                 # a running import with no progress this long is marked failed

@@ -27,6 +27,8 @@ from app.core.db.platform import resolve_tenant
 from app.core.db.session import tenant_session
 from app.core.settings import get_settings
 from app.modules import billing, clients, leagues, memberships, rentals, resources
+from app.modules.access import building
+from app.modules.access.models import DoorDevice
 from app.modules.billing.models import Invoice, RevenueCategory
 from app.modules.clients.models import Client, ClientEmail
 from app.modules.leagues import depth
@@ -124,6 +126,7 @@ def build(slug: str = SLUG, name: str = NAME) -> dict:
             platform_service.replace_facility_hours(session, actor, location.id, HOURS)
         _staff(session, location, mail)
         courts = _courts(session, actor, location)
+        _building(session, actor, location, courts)
         categories = _categories(session)
         types = _memberships(session, actor, categories)
         _rentals(session, actor, location, courts, categories["RENTALS"], types)
@@ -179,6 +182,20 @@ def _courts(session, actor, location) -> dict:
                 "sort_order": order,
             })["id"]  # fmt: skip
     return {name: have[name] for name in COURTS}
+
+
+def _building(session, actor, location, courts: dict) -> None:
+    """The front door and one lighting zone per court on the simulated controller (CHK-15, CHK-16)."""
+    if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location.id)):
+        return
+    building.create_door(
+        session,
+        actor,
+        {"location_id": location.id, "name": "Front door", "device_ref": "door-front", "is_entrance": True},
+    )
+    for number, court in enumerate(COURTS, start=1):
+        building.create_zone(session, actor, {"location_id": location.id, "name": f"{court} lights",
+                                              "zone_ref": f"relay-{number}", "resource_ids": [courts[court]]})  # fmt: skip
 
 
 def _categories(session) -> dict:

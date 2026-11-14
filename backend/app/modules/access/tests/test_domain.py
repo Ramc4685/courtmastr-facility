@@ -59,3 +59,16 @@ def test_qr_codes_rotate_and_verify_for_two_steps_only():
 def test_parse_rejects_anything_else():
     for text in ("", "12345", "fhq.not-a-uuid.1.x", "fhq.a.b", f"fhq.{uuid4()}.x.y", f"zzz.{uuid4()}.1.x"):
         assert cards.parse(text) is None
+
+
+def test_a_booked_entry_ignores_membership_rules_but_not_the_person():
+    from app.modules.access.domain.evaluate import for_booking
+
+    for reason in ("frozen", "suspended", "depleted", "cancelled"):
+        d = for_booking(evaluate(Facts(client_active=True, membership_reason=reason, membership_contract_id=uuid4())))
+        assert d.would_grant and d.denial_reason is None and "access_denied" not in d.alerts and not d.counts_visit
+    outside = Facts(client_active=True, membership_reason=None, membership_contract_id=uuid4(), schedule_open=False)
+    assert for_booking(evaluate(outside)).would_grant
+    assert for_booking(evaluate(Facts(client_active=False, membership_reason=None))).denial_reason == "client_disabled"
+    banned = Facts(client_active=True, membership_reason=None, access_mode="always_deny")
+    assert for_booking(evaluate(banned)).denial_reason == "access_mode_deny"

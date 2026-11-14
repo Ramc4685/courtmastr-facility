@@ -394,6 +394,17 @@ def _booked(session: Db, booking_ids) -> dict[UUID, list[BookingResource]]:
     return grouped
 
 
+def resource_ids_at(session: Db, location_id: UUID, ids) -> set[UUID]:
+    """Internal (access, which may not import resources): which of `ids` are active resources at the location."""
+    return {r.id for r in resources.service.in_location(session, location_id, ids=list(ids))}
+
+
+def resource_descendants(session: Db, ids) -> dict[UUID, list[UUID]]:
+    """Internal (access): root -> its active descendants. Holds land on a booked resource and its descendants,
+    never its ancestors (hold_plan), so a consumer watching a parent court must also watch what lies below it."""
+    return resources.service.descendants(session, ids)
+
+
 def hold_plan(session: Db, rows: list[tuple[UUID, str]]) -> list[tuple[UUID, str, UUID]]:
     """(resource_id, origin, source_resource_id) for a booking's resources: self plus every descendant of the
     primary (`booked`) and of each additional resource (`linked`), de-duplicated with precedence booked,

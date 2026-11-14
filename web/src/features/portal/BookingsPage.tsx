@@ -11,6 +11,7 @@ import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { addDays, formatDateTime, todayIn } from '../../lib/format'
 import { FormError } from '../billing/shared'
+import { PortalEntryCodes } from '../access/PortalEntryCodes'
 import { PortalPage } from './PortalApp'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
 import { label, PaymentOutcome, RENTAL_TONE, useAttemptKey, usePortal } from './shared'
@@ -342,10 +343,12 @@ export function BookingsPage() {
     },
   })
   const cancelType = types.data?.find((t) => t.id === cancelling?.rental_type_id)
+  const selfNotice = clients.find((c) => c.authority === 'self')?.entry_code_notice
 
   return (
     <PortalPage title="Bookings" description="Your household's court and space rentals." actions={<Button onClick={() => setBooking(true)}>Book a rental</Button>}>
-      <EntryCodeNotice notice={clients.find((c) => c.authority === 'self')?.entry_code_notice} />
+      <EntryCodeNotice notice={selfNotice} />
+      <PortalEntryCodes zoneOf={zoneOf} showHeld={!selfNotice} />
       <Table
         caption="Rentals"
         paging={paging}

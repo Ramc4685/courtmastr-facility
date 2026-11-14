@@ -215,12 +215,29 @@ class AccessSettingsOut(Out):
     hidden_detail_fields: list[DetailField]
     staff_early_minutes: int
     staff_late_minutes: int
+    entry_code_early_min: int
+    entry_code_grace_min: int
+    light_lead_in_min: int
+    light_run_on_min: int
+    requires_paid_entry: bool = Field(
+        description="Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges)."
+    )
+    door_alert_bad_codes_per_hour: int
 
 
 class AccessSettingsWrite(In):
     hidden_detail_fields: list[DetailField] | None = None
     staff_early_minutes: int | None = Field(None, ge=0, le=1440)
     staff_late_minutes: int | None = Field(None, ge=0, le=1440)
+    entry_code_early_min: int | None = Field(None, ge=0, le=240)
+    entry_code_grace_min: int | None = Field(None, ge=0, le=240)
+    light_lead_in_min: int | None = Field(None, ge=0, le=120)
+    light_run_on_min: int | None = Field(None, ge=0, le=120)
+    requires_paid_entry: bool | None = Field(
+        None,
+        description="Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
+    )
+    door_alert_bad_codes_per_hour: int | None = Field(None, ge=1, le=10000)
 
 
 class AccessRuleIn(In):
@@ -533,3 +550,151 @@ class PortalWalletPassOut(Out):
     client_id: UUID
     device_label: str | None
     issued_at: datetime
+
+
+# --- building control (CHK-15, CHK-16) ------------------------------------------------------------------------
+
+DeviceRef = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
+
+class DoorDeviceCreate(In):
+    location_id: UUID
+    name: Name
+    device_ref: DeviceRef
+    unlock_seconds: int = Field(5, ge=1, le=60)
+    is_entrance: bool = False  # members may open it from the portal or the app
+
+
+class DoorDeviceUpdate(In):
+    name: Name | None = None
+    device_ref: DeviceRef | None = None
+    unlock_seconds: int | None = Field(None, ge=1, le=60)
+    is_entrance: bool | None = None
+    is_active: bool | None = None
+
+
+class DoorDeviceOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    device_ref: str
+    unlock_seconds: int
+    is_entrance: bool
+    is_active: bool
+    has_credential: bool
+    last_seen_at: datetime | None
+    created_at: datetime
+
+
+class DoorDeviceIssued(DoorDeviceOut):
+    credential: str  # shown once: the controller sends it as `Authorization: Bearer`
+
+
+class DoorUnlockRequest(In):
+    reason: Reason
+
+
+class LightingZoneCreate(In):
+    location_id: UUID
+    name: Name
+    zone_ref: DeviceRef
+    resource_ids: list[UUID] = Field(min_length=1, max_length=50)
+
+
+class LightingZoneUpdate(In):
+    name: Name | None = None
+    zone_ref: DeviceRef | None = None
+    is_active: bool | None = None
+    resource_ids: list[UUID] | None = Field(None, min_length=1, max_length=50)
+
+
+class LightingZoneOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    zone_ref: str
+    is_active: bool
+    resource_ids: list[UUID]
+    override_is_on: bool | None
+    override_until_at: datetime | None
+    commanded_is_on: bool | None
+    commanded_at: datetime | None
+    failure_count: int
+    created_at: datetime
+
+
+class LightingZoneOverride(In):
+    is_on: bool | None  # null clears the override (back to the bookings)
+    until_at: AwareDatetime | None = None
+    reason: Reason | None = None  # required to hold a zone on or off
+    confirm_in_progress: bool = False  # required to hold a zone off while a booking is in play on it
+
+
+class BuildingEventOut(Out):
+    id: UUID
+    location_id: UUID
+    occurred_at: datetime
+    local_on: date
+    kind: str
+    door_device_id: UUID | None
+    lighting_zone_id: UUID | None
+    entry_code_id: UUID | None
+    check_in_id: UUID | None
+    staff_user_id: UUID | None
+    detail: str | None
+    created_at: datetime
+
+
+class LightingZoneStatus(LightingZoneOut):
+    should_be_on: bool
+    reason: str  # override, booking:<number>, idle or inactive
+    is_in_sync: bool  # the last command matches what should be on now
+    sync_state: Literal["in_sync", "out_of_sync", "adapter_not_configured"]
+
+
+class DoorStatus(DoorDeviceOut):
+    sync_state: Literal["in_sync", "codes_pending", "adapter_not_configured"]  # codes pending: a push or revoke due
+
+
+class HeldCodeOut(Out):
+    """A code held back for one person and booking until staff act (an age check)."""
+
+    booking_id: UUID
+    client_id: UUID
+    reason: Literal["age-not-confirmed"]
+    held_at: datetime
+
+
+class BuildingStatusOut(Out):
+    location_id: UUID
+    as_of: datetime
+    adapter: str
+    zones: list[LightingZoneStatus]
+    doors: list[DoorStatus]
+    held_codes: list[HeldCodeOut]
+
+
+class DoorVerifyRequest(In):
+    code: Annotated[str, StringConstraints(pattern=r"^[0-9]{4,12}$")]
+
+
+class DoorVerifyResult(Out):
+    result: Literal["allow", "deny"]
+    unlock_seconds: int
+
+
+class PortalEntryCodeOut(Out):
+    booking_id: UUID
+    location_id: UUID
+    location_phone: str | None  # call it when the code fails: staff unlock remotely
+    code: str | None  # None while held (held_reason)
+    held_reason: Literal["age-not-confirmed"] | None  # the code waits on staff confirming the caller's age once
+    message: str | None  # what to tell the member while held, with the location phone
+    valid_from_at: datetime
+    valid_until_at: datetime
+    is_open_now: bool
+
+
+class PortalDoorUnlockResult(Out):
+    result: Literal["allow"]
+    occurred_at: datetime

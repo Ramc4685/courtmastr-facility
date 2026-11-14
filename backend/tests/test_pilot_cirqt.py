@@ -721,6 +721,76 @@ def test_j_staff_confirm_a_newcomers_age_once_and_the_confirmed_event_fires(clie
     assert ok(c.get(f"{API}/clients/{w.member}", headers=w.desk), 200)["age_confirmed"] is True
 
 
+def _tick(w) -> None:
+    from app.modules.access import jobs
+
+    jobs.run_building_control.fn(str(w.tenant.id))
+
+
+def _codes(w, booking_id: str):
+    from app.modules.access.models import EntryCode
+
+    with tenant_session(w.tenant.id) as session:
+        return [(str(r.client_id), r.status) for r in session.scalars(
+            select(EntryCode).where(EntryCode.booking_id == UUID(booking_id)).order_by(EntryCode.id))]  # fmt: skip
+
+
+def test_j_unmanned_end_to_end_held_confirmed_and_the_door_opens_only_in_the_window(client_module, w, mailbox):
+    """The whole unmanned path: sign up, book and pay, the code is held (told once), staff confirm, the code is
+    issued and emailed, and the front door admits it inside the booking window and refuses it after."""
+    import re
+
+    from app.modules import clients
+    from app.modules.access import handlers
+
+    c, day = client_module, TODAY + timedelta(days=2)
+    me, mine = newcomer(c, w, mailbox)
+    ok(c.post(f"{API}/portal/membership-contracts", headers=me | key(), json={
+        "client_id": mine["id"], "location_id": w.location, "membership_plan_id": w.plans["Adult monthly"],
+        "method_token": "tok_card_ok",
+    }))  # fmt: skip
+    checkout = ok(c.post(f"{API}/portal/rentals", headers=me, json={
+        "rental_type_id": w.types["Pickleball court"], "client_id": mine["id"], "resource_id": w.courts["Court 4"],
+        "starts_at": at(day, "10:00"), "ends_at": at(day, "11:00"),
+    }))  # fmt: skip
+    ok(c.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm", headers=me | key(),
+              json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
+    booking = str(checkout["rental"]["booking_id"])
+    mailbox.clear()
+    _tick(w)
+    _tick(w)
+    assert _codes(w, booking) == []  # held: no code before staff saw the ID
+    told = [m for m in mailbox if m.to == mine["primary_email"]]
+    assert len(told) == 1 and clients.service.ENTRY_CODE_NOTICE in told[0].body  # once, in the one wording
+    [held] = data(c.get(f"{API}/portal/entry-codes", headers=me))
+    assert held["code"] is None and held["held_reason"] == "age-not-confirmed"
+    mailbox.clear()
+    ok(c.post(f"{API}/clients/{mine['id']}/age-confirmation", headers=w.desk, json={}), 200)
+    handlers.on_age_confirmed.fn(str(w.tenant.id), str(uuid4()), {"client_id": mine["id"]})
+    assert _codes(w, booking) == [(mine["id"], "active")]
+    [sent] = [m for m in mailbox if m.to == mine["primary_email"]]
+    digits = re.search(r" is (\d{8})\.", sent.body).group(1)
+    doors = data(c.get(f"{API}/door-devices?location_id={w.location}", headers=w.owner))
+    front = next(d for d in doors if d["name"] == "Front door")
+    device = {"Authorization": "Bearer " + ok(c.post(f"{API}/door-devices/{front['id']}/credential",
+                                                     headers=w.owner))["credential"]}  # fmt: skip
+    starts = datetime.fromisoformat(at(day, "10:00").replace("Z", "+00:00"))
+    with clock.freeze(starts + timedelta(minutes=5)):
+        assert ok(c.post(f"{API}/door/verify", headers=device, json={"code": digits}), 200)["result"] == "allow"
+    with clock.freeze(starts + timedelta(hours=4)):  # well past the end and its grace
+        assert ok(c.post(f"{API}/door/verify", headers=device, json={"code": digits}), 200)["result"] == "deny"
+
+
+def test_j_a_child_listed_on_a_parents_rental_never_gets_a_code(client_module, w, mailbox):
+    """The code goes to the holder (always an adult); players on the rental, children included, get none."""
+    day = TODAY + timedelta(days=3)
+    made = ok(rent(client_module, w, w.desk, "Badminton court", "Court 1", day, "10:00", "11:00",
+                   client_id=w.parent, parties=[{"client_id": kid} for kid in w.kids]))  # fmt: skip
+    booking = str(made["rental"]["booking_id"])
+    _tick(w)
+    assert _codes(w, booking) == [(w.parent, "active")]
+
+
 # --- k. bulk booking -----------------------------------------------------------------------------------------
 
 
