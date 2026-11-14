@@ -226,7 +226,9 @@ def _rentals(session, actor, location, courts, category, types) -> None:
         # Base = guest off-peak, member price = member off-peak. Rules: the first matching rate rule by sort_order
         # wins, so the peak band has one rule per membership type (member price) before the guest rule. Managers
         # change the band's start and end times on the rental setup screen (rate rules "Prime" and "Member prime").
-        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1]}, prime)] if prime != off else []
+        bands = (
+            [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1], "is_peak": True}, prime)] if prime != off else []
+        )
         rules = []
         for label, band, member_price in bands:
             for type_id in member_types:

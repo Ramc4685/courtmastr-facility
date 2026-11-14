@@ -10,7 +10,7 @@ Status per feature: `docs/status/15-reporting.md`.
   (its JSON Schema is served on the definition and drives the web form), columns, totals, detail columns and the
   builder. Adding a report is one spec plus one builder.
 - **Read models.** Builders read other contexts only through the `rpt_*` views (`views.py`: migration
-  `0953_reporting_core` created the first 13; `rpt_locker` came with 1461, the rest with 1621, 1641 and 1661). The views are `security_invoker`, so RLS on the base tables still applies; each view
+  `0953_reporting_core` created the first 13; `rpt_locker` came with 1461, the rest with 1621, 1641, 1661 and 2011 (court use)). The views are `security_invoker`, so RLS on the base tables still applies; each view
   carries `tenant_id`. `test_view_columns_match_the_contract` pins their columns.
 - **Runs** (`report_run`) execute inline in the request, store the result (summary rows, totals and detail
   rows) as a JSON file through `platform.files` (purpose `report_result`), and keep the totals on the row. Rows
@@ -138,7 +138,90 @@ Status per feature: `docs/status/15-reporting.md`.
   platform and version. Screen views, sessions and active-user counts are not recorded anywhere.
 - **Utilization (RPT-40)**: booked hours are confirmed holds on their local start day (unavailable blocks out);
   available hours from active availability windows per day, honouring every-n-weeks repeats. Overlapping windows
-  double count, blackouts are not subtracted, and bookings outside windows can push past 100%.
+  double count, blackouts are not subtracted, and bookings outside windows can push past 100%. It stays for
+  trainers and virtual rooms (trainer hours in `trainer_performance` read the same view); courts use `court_use`.
+- **Court use (`court_use`, `court_use_heatmap`; pilot fit CIRQT scenario i).** Views from migration 2011; one SQL
+  statement (two by sport) builds tstzmultiranges per court and local day (`reports/courts.py`).
+  - *Court*: a top-level venue. Holds on its halves and quarters roll up into it and a minute counts once
+    when any part is held (two halves rented at once is 100%, not 200%). An archived court keeps its history: it
+    counts up to the moment it was archived (its last change; archiving is the last thing done to a court) and
+    drops out after, so past periods do not change when a court is retired (tested).
+  - *Available time*: the weekday's facility hours in the location's zone (24:00 closes at midnight; hours past
+    midnight are one day ending 24:00 and the next starting 00:00; a weekday with no row is open all day, as in
+    scheduling). Whole-location closures (blackouts, scope `all`) are taken out; online-only closures are not.
+    There is no holiday calendar: a holiday is a closure. Any time rented or played outside that (past closing,
+    during a closure) is added back, so play always has hours under it: no revenue without hours, utilization
+    never over 100% and never empty on a day with play. `outside_hours` still shows that play.
+    A 23 or 25 hour day comes out at 23 or 25 hours. Wall times (hours, peak bands) are the instants of the
+    local day whose wall clock reads inside them: on a spring-forward day a time the clocks skip has none (a band
+    02:30-03:00 vanishes, opening at 02:30 opens at 03:00), on a fall-back day a repeated time counts both times.
+    Tested in America/Chicago and Australia/Sydney.
+  - *Court windows do not narrow the hours* (rule found and chosen, 2026-11-13). Availability windows are
+    advisory: scheduling neither refuses nor warns on a staff booking outside them (scheduling README rule 9:
+    "the calendar shades them"), staff rentals accept any time, and only the free-time search behind online
+    rentals and slot offers keeps to them (`scheduling.free_ranges`). A window narrows a court only where
+    bookings are prevented outside it, which is nowhere a staff member books, so the report ignores windows:
+    an expired or future-dated window cannot zero a court. Open question for the owner (not changed here):
+    should staff rentals refuse or warn outside a court's windows?
+  - *Used time*, confirmed holds only, each minute in one category in this order: rented (rentals), league and
+    programs (sessions and games), blocked (staff blocks of any kind, maintenance included), changeover (the
+    buffers of rentals and program bookings). Utilization is rented plus league and program minutes inside the
+    available time over the available time; blocks and changeover are shown, not counted. Play outside the
+    available time is `outside_hours`, never in the ratio.
+  - *Peak*: the bands the owner marks peak on the price rules (`rental_rate_rule.is_peak`, the "Peak time" tick
+    on the rental setup screen), whatever their price: a band priced as the base is still peak if marked, a
+    dearer band is not unless marked. A marked rule with no times makes its whole day peak; weekdays and dates
+    apply. Only active rates of active rental types count. A court's peak window is the union over the active
+    rental types it offers (a sport row uses the same court window); no marked band means no peak hours.
+    Migration 2010 marked the rules the report used to infer (a time-banded rate rule dearer than its base), so
+    existing data kept its meaning.
+  - *By sport*: one row per active rental type the chosen courts offer, plus "League and programs", each against
+    the available time of the courts that offer it (every court for league and programs). Sports can overlap one
+    another on a court; the totals are always the physical courts.
+  - *Revenue*: net (after discounts, before tax) of each posted rental charge, its reversal and its adjustment;
+    voided charges are out. Revenue is dated by the local day the court is played, not by the charge's revenue
+    date: a weekly series billed on one combined line earns on each occurrence, and a booking across midnight or a
+    month end earns on both days. A charge's net is split over the items it pays for (occurrence and court, by
+    their share of the line), then each item's part over its local days, its rate's price bands and the peak and
+    off-peak segments, weighted by minutes times the price the rate charges there (the first matching price rule
+    by sort order, else the base price, as rentals prices it; minutes alone for per-booking and flat rates). So
+    peak revenue is what the peak minutes were billed, not a minutes share of a blended total: 16:30-17:30 at 40.00
+    then 50.00 gives 25.00 peak, not 22.50. Member-only rules and discount rules are not followed in that weight
+    (member bookings split at the public band prices' ratio) and the rate's current prices are used. Both splits
+    are largest remainder in whole minor units (ties to the earlier item, day, peak first),
+    so the parts always add up to the posted amount, days add up to months to the cent (the cent drift of the
+    earlier per-row rounding of adjustment shares is gone), and a reversal mirrors
+    its charge exactly (a cancelled occurrence nets to zero on its day). A charge kept after a cancellation stays
+    on the occurrence's day with no rented hours. League fees, memberships and lessons are not court revenue. Per
+    available hour and per rented hour divide by those hours, half up to the minor unit.
+  - *Rounding*: hours to 0.01 and percentages to 0.1, half up, from summed minutes, so days, weeks and months
+    reconcile to the minute and the cent (tested). Weeks are ISO weeks (Monday).
+  - *Heat map*: buckets are real hours from local midnight (two 01:00 buckets on a 25 hour day), the average is
+    played over available minutes summed over the courts and days chosen, and an hour never open is left out.
+  - *Gates*: `court_use` shows revenue, so it is in the financial family (`reporting.financial.run`); the heat map
+    is attendance. Locations as every report.
+  - *Cost* (measured 2026-11-13 on a perf tenant of 40 courts, 87,600 holds, charges and items in one year, on a
+    dev laptop under load average 5 to 9): by court, 4 courts for a month 9.6 s, a year 9.6 to 11.2 s, 40 courts for
+    a year 12.8 s; by sport, 4 courts for a year 17.7 s, 40 courts 27.0 s; heat map, 4 courts for a year 6.6 s, 40
+    courts 11.0 s. Most of a small run is fixed: the statement reads every hold and every rental charge item of the
+    location (hash joins), so cost grows with the location's bookings, not with the courts or days asked for. The
+    target of 2 s for 4 courts for a year is not met. Under RLS the planner guesses a few rows per tenant and
+    nested loops went quadratic (a year at 4 courts did not finish in 300 s), so the statement runs with
+    `enable_nestloop` off, keyed day joins (`rv_day`, `hold_day`) and the revenue view joined on keys only. No index
+    was added: every join is on an existing key, and an index would not shorten a scan of the whole location.
+  - *Limits*: a run over 15,000 court-days (courts times the widest location's days; by sport also courts times
+    rental types plus one times days) is refused with 422 `report-too-large` before any report statement runs, so
+    40 courts for a year fits and by sport, with one rental type, about 13. Every statement is read through a
+    server-side cursor that fetches at most bound + 1 rows, where the bound is the most rows it can return (courts x
+    days; rental types plus one x days; 7 x 24 for the heat map), and one row over is refused with the same code. A
+    SQL `LIMIT` is not used: it steers the planner to a fast-start plan that timed out even on test-sized data. Each statement is stopped after 30 s
+    (`statement_timeout`, in a savepoint) with the same code and "took too long". There is no background build: export jobs render a finished run's snapshot, so a larger ask
+    must be split by courts or dates. Scheduled runs build the same way and hit the same limits. The 50,000-row
+    snapshot cap (`MAX_ROWS`) counts the report's rows after court-days are added up to the grain, not court-days.
+  - *Isolation*: every `rpt_*` view is listed from the catalogue and read as a tenant with no data: each is empty
+    (`tests/test_view_isolation.py`).
+  - *Not built*: a rental-type filter (group by sport instead), detail rows, a reversal of an adjustment (only the
+    charge's own reversal and adjustment are followed).
 - **Named reports (RPT-41)**: the map from discovery names to keys and gaps is in `docs/status/15-reporting.md`.
 - **Renewal candidates (RPT-23)** take the last booked session of the same service (client and reservation
   type) and count distinct clients, not names. **Attrition** counts a contract starting on the first of a month as

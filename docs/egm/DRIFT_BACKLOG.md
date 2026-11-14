@@ -675,3 +675,12 @@ Leagues re-run after set scoring (migration 2001) and league nights. Items alrea
 - [ ] [wording] README:51-52 "closure blocks never count"; every block is excluded (`service.py:1038`)
 - [ ] [wording] README:129 `rpt_booking`; reporting has `rpt_booking_start` (`reporting/views.py:212`)
 - [ ] [wording] README:15 "40 operations of tag `scheduling`"; the tag has 46, the router serves 40 at the contract path
+
+## Added on claude/court-use-report (drift refresh 2026-11-13, reporting)
+Re-run for reporting after court use (migration 2011). Court-use README text matches the code (rechecked 2026-11-13 after annotation-only edits to courts.py). Items already listed under "reporting" above are not repeated.
+
+### reporting (+3) — [evidence](drift/reporting.md)
+
+- [ ] [contract] openapi-programs.yaml:6232, 6377, 6440 declare `entitlement-required`, `report-not-implemented` and `version-conflict` that the code never raises (`service.py` `update_saved` has no version check); README:213 lists only the inline run
+- [ ] [wording] docs/status/15-reporting.md:4 says 29 `rpt_*` views; `views.py` defines 57 (migration 2011 added 8)
+- [x] [stale-not-built] The "Registered keys with no route" decision lists `reporting.dashboard.read`; `GET /dashboards/management` is now served (`router.py:144`, `dashboard.py:77`). Entry above is stale, drop the key from it.

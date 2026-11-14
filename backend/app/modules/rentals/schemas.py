@@ -111,6 +111,7 @@ class RateRule(In):
     amount_minor: Money | None = None
     discount_pct: Pct | None = None
     discount_minor: Annotated[int, Field(gt=0, le=100_000_000)] | None = None
+    is_peak: bool = Field(False, description="The band is peak time (court-use report), whatever its price")
 
 
 class RateRuleOut(Out):
@@ -127,6 +128,7 @@ class RateRuleOut(Out):
     amount_minor: int | None
     discount_pct: Decimal | None
     discount_minor: int | None
+    is_peak: bool
 
 
 class RentalRateWrite(In):

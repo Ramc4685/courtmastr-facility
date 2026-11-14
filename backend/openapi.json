@@ -64754,6 +64754,12 @@
             ],
             "title": "Ends On"
           },
+          "is_peak": {
+            "default": false,
+            "description": "The band is peak time (court-use report), whatever its price",
+            "title": "Is Peak",
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "rate",
@@ -64903,6 +64909,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_peak": {
+            "title": "Is Peak",
+            "type": "boolean"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -64978,7 +64988,8 @@
           "membership_type_id",
           "amount_minor",
           "discount_pct",
-          "discount_minor"
+          "discount_minor",
+          "is_peak"
         ],
         "title": "RateRuleOut",
         "type": "object"

@@ -8,7 +8,7 @@ This check builds CIRQT in the product and drives it the way the owner would. Th
 - Scenarios: `backend/tests/test_pilot_cirqt.py`. Every gap is a strict `xfail` whose reason states the gap, so a test turns red the day its gap closes.
 - Screenshots: `docs/status/pilot-cirqt/`.
 
-**Result: 25 pass, 0 fail, 5 gaps** (re-run on 2026-11-13 after merging `main`: league set scoring and league nights closed two gaps). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot`, which re-ran the scenarios with the owner's real prices and 24-hour opening; the minors follow-up added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
+**Result: 25 pass, 0 fail, 4 gaps** (re-run on 2026-11-13 after merging `main`: league set scoring and league nights closed two gaps; the court use report on `claude/court-use-report` closed utilisation from opening hours, scenario i, against head 2011). First run on 2026-11-13 against Alembic head 1562; member prices and the minors rule were closed on branch `claude/rentals-pilot`, which re-ran the scenarios with the owner's real prices and 24-hour opening; the minors follow-up added the two portal-child rows below and made the guest-price scenarios use a dedicated walk-in guest (every seeded adult is a member).
 
 ## Owner's numbers and assumptions
 
@@ -48,8 +48,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
 | g | Member prices on bookings. | pass (closed on `claude/rentals-pilot`): members pay the member rate per band; quote and charge share one pricing function |
 | h | Cancellation cut-off and late fee. The paid amount becomes account credit; a manager can waive the fee. | pass (a walk-in guest pays the guest off-peak price, $18) |
 | h | No-show rule for rentals. | **gap** |
-| i | Daily and monthly utilisation and revenue reports. | pass, via a workaround: an availability window per court. Changeover minutes count as held time. |
-| i | Utilisation measured from opening hours. | **gap** |
+| i | Daily and monthly court use and revenue (`court_use`) for a 24-hour site: measured against opening hours less closures, changeover and staff blocks shown apart from play, prime from the price rules, revenue per available and per rented court-hour, sport split, month equal to the sum of its days. | pass |
 | j | A newcomer goes from finding CIRQT to signing up, paying the membership and paying for a court, with no staff involved. | pass. The seed turns self sign-up on. Sign-up asks for a birth date and a declaration that it is true; a self-declared adult books and pays at once and sees "Your entry code will be sent once our staff have confirmed your age. This is a one-time check." with the CIRQT phone. The person cannot change the date. |
 | j | Staff confirm a newcomer's age once (owner decision "Staff confirm once"). | pass. The newcomer is in the age-check queue; the desk confirms with `clients.client.confirm_age`, `clients.client.age_confirmed` fires once and the notice goes. Seeded adults were confirmed by the owner through the same action. Building-control (not built) issues the held entry code on that event. |
 | k | Staff book several courts for several weeks in one go, on one invoice. | pass |
@@ -77,7 +76,7 @@ These are the values the seed uses. The owner gave the court prices, hours and m
    It also has no minor guard on marketing opt-in or on portal invitations.
 5. **No-shows and overstays for rentals.** There is no mark, no fee and no rule.
 6. **Paying independent coaches.** Payroll computes the commission line, but nothing pays out and there is no revenue split at checkout.
-7. **Utilisation from opening hours.** The report needs per-court availability windows.
+7. ~~**Utilisation from opening hours.**~~ Closed on `claude/court-use-report`: the `court_use` report measures against opening hours less closures, with changeover and staff blocks shown apart from play.
 8. ~~**League details.**~~ Closed: league nights the scheduler fills, and set-by-set scoring with set and points ratio in the standings. League nights work for scheduling, with three known limits until a follow-up redesign (leagues README, "League nights: known limits"):
    - a game that is rescheduled, postponed or cancelled does not give its slot back to the night, so a public booking can take it; staff re-block the old slot;
    - with a night on a parent court and a game on one half, the sibling half opens for that hour;
@@ -97,7 +96,6 @@ Steps that are API-only or easy to miss:
 
 - **Self sign-up** is off by default for a new location (`PUT /locations/{id}/portal-settings` with `allows_self_signup`); the CIRQT seed turns it on. Without it a newcomer is refused with `signup-disabled`.
 - **The coach's calendar column**, `linked_resource_id` on the staff user. The seed sets it directly.
-- **Utilisation** needs per-court availability windows that copy the opening hours.
 - **The portal shows sessions only 30 days ahead** by default (`visible_range_days`).
 
 ## Building control (door code and court lights)
