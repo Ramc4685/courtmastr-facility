@@ -57,6 +57,20 @@ The service pre-checks to build the friendly list, then inserts the holds in a s
 constraint `ex_resource_hold_overlap` is the arbiter: a writer that lost a race gets the same 409 with the
 winner named. Moves delete and re-insert the booking's holds in one transaction (constraint not deferrable).
 
+`create_booking` and `reschedule_booking` take `gives_way=(context, type, id)`: when the only bookings in the way
+are confirmed blocks with that source (a league night held for one competition), each is cancelled (reason `other`)
+and rebooked with zero buffers: its resources the newcomer's hold plan touches as the pieces before and after the
+newcomer's padded range, the others as one piece over the block's whole span. Then the holds are written as usual. A hold has one range per
+booking and resource, so a block cannot keep a hole. Anything else in the way, and nothing is carved. If the carve
+still clashes (a concurrent carve cancelled the pieces it read), it re-reads the current pieces and tries once more,
+then raises the usual `booking-conflict`.
+
+Known limits of `gives_way` (redesign on a follow-up branch; details in the leagues README): a carved booking that
+is later moved or cancelled does not hand its range back to the block, so that range is free to anyone; a newcomer
+on one half of a parent court keeps the block only around it on the parent, so the sibling half opens for that time;
+two carves at once can still end in a false clash after that one retry (the loser is refused, never
+double-booked).
+
 ## Assumptions and deviations (ADR 0004 and the data model unless noted)
 
 1. **Preview is a pre-check, not a rolled-back real run**, for creates (any size, synchronous). It reads
@@ -101,7 +115,10 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
     `materialise_slot` and then `reserve_seat`. Releasing the last seat cancels the session, returning the
     time to the window. A window whose offer has live slot sessions cannot be deleted (FK `RESTRICT`,
     409 `slot-offer-in-use`); pause the offer instead.
-14. **Changing a pattern (SCH-09).** `PATCH /booking-series/{id}/rules/{rule_id}` cancels the rule's live
+14. **Owned series.** Adding or changing a pass (`POST .../rules`, `PATCH .../rules/{rule_id}`) on a series
+    whose template carries an owner's `source` (a rental) is 409 `series-owned-by-rental`: the owner extends it
+    through `add_rule` with its own checks, so these routes never copy its source data forward.
+    **Changing a pattern (SCH-09).** `PATCH /booking-series/{id}/rules/{rule_id}` cancels the rule's live
     occurrences from `start_on` (today or later, location time) and books the new pattern from there, in one
     transaction; `preview` rolls both halves back. Cancellations publish the usual events, so programs
     drops their enrolments. Because it cancels, it also needs `scheduling.booking.delete_series`. The new

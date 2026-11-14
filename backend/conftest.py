@@ -677,7 +677,7 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
                                 "allows_self_signup": True})  # fmt: skip
     assert response.status_code == 200, response.text
     signup = {"location_id": location_id, "email": f"new-{uuid4().hex[:8]}@{tenant.slug}.example.com",
-              "first_name": "Nia", "last_name": "Newcomer"}  # fmt: skip
+              "first_name": "Nia", "last_name": "Newcomer", "birth_on": "1990-01-02", "birth_on_declared": True}  # fmt: skip
     response = client.post("/api/v1/public/portal-signups", headers={"X-Tenant-Slug": tenant.slug}, json=signup)
     assert response.status_code == 202, response.text  # portal_signup (SSP-05)
     video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",

@@ -35,6 +35,7 @@ class Context:
     today: date  # at the job's location (overview 3.7)
     job_id: UUID
     submitted_by: UUID | None = None  # the staff user who started the import (audit attribution)
+    is_dry_run: bool = False
 
 
 @dataclass
@@ -204,6 +205,8 @@ def _apply_client(session: Session, data: dict, ctx: Context) -> Applied:
         session, {k: v for k, v in row.items() if v is not None}, import_job_id=ctx.job_id
     )
     warnings: Errors = []
+    if data["birth_date"] and not client.age_confirmed_at and not ctx.is_dry_run:  # information: never confirmed
+        warnings.append(("birth_date", "age-not-confirmed", "Imported, age not confirmed."))
     email_marketing = data["email_marketing"]
     if email_marketing and data["email"] and data["email"] != (client.primary_email or "").lower():
         # The file's address was added as a secondary one; its consent does not carry to the kept primary.

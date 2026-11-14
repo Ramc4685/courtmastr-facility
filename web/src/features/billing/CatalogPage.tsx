@@ -9,7 +9,8 @@ import { EmptyState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
-import { formatMoney, parseMoney, toMoneyInput, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { formatMoney, parseMoney, toMoneyInput } from './money'
 import { FormDialog, ListTable, LocationSelect, Money, MoneyInput, StatusBadge, TextArea, useCurrency, useLocationRef, useRevenueCategories } from './shared'
 
 type Item = Schemas['CatalogItemOut']
@@ -184,7 +185,7 @@ export function SellItemDialog({ clientId, onClose }: { clientId: string; onClos
   const items = useQuery({ queryKey: ['billing', 'catalog-items', 'all'], queryFn: () => api.get('/api/v1/catalog-items', { query: { limit: 200, sort: 'description' } }) })
   const active = (items.data?.data ?? []).filter((i) => i.is_active)
   const [itemId, setItemId] = useState('')
-  const [startsOn, setStartsOn] = useState(today())
+  const [startsOn, setStartsOn] = useState(useLocationToday())
   const [fee, setFee] = useState('')
   const item = active.find((i) => i.id === itemId)
   const sell = useMutation({

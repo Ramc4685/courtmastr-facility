@@ -4,7 +4,8 @@ import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Checkbox, Input, Select } from '../../components/Field'
 import { useToast } from '../../components/Toast'
 import { useDebounced } from '../../lib/useDebounced'
-import { formatMoney, parseMoney, toMoneyInput, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { formatMoney, parseMoney, toMoneyInput } from './money'
 import { FormDialog, LocationSelect, MoneyInput, TextArea, useCurrency, useRevenueCategories, useTaxes } from './shared'
 
 type Charge = Schemas['ChargeOut']
@@ -59,7 +60,7 @@ export function ReasonDialog({
 }
 
 export function ReverseChargeDialog({ charge, onClose }: { charge: Charge; onClose: () => void }) {
-  const [revenueOn, setRevenueOn] = useState(today())
+  const [revenueOn, setRevenueOn] = useState(useLocationToday(charge.location_id))
   return (
     <ReasonDialog
       title={`Reverse "${charge.description}"?`}
@@ -211,7 +212,7 @@ export function AddChargeDialog({ clientId, defaultLocationId, onClose }: { clie
   const [locationId, setLocationId] = useState(defaultLocationId)
   const [categoryId, setCategoryId] = useState('')
   const [coupon, setCoupon] = useState('')
-  const [revenueOn, setRevenueOn] = useState(today())
+  const [revenueOn, setRevenueOn] = useState(useLocationToday(defaultLocationId))
   const [form, setForm] = useState<ItemForm>({ description: '', additional: '', quantity: '1', price: '', discountMode: 'amount', discount: '0.00', pct: '', remarks: '', reason: '', excluded: [] })
   const priceInput = { location_id: locationId, quantity: form.quantity || '1', unit_price_minor: parseMoney(form.price) ?? 0, discount_minor: 0, ...discountBody(form), revenue_category_id: categoryId || null, exclude_tax_ids: form.excluded }
   const debounced = useDebounced(JSON.stringify(priceInput), 300)

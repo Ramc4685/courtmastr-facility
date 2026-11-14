@@ -113,13 +113,14 @@ def test_portal_invite_profile_and_dependents(client, tenant, owner, location_id
 
     kid = client.post(f"{API}/portal/dependents", headers=portal, json={
         "relationship_type_id": types["parent_of"]["id"], "first_name": "Kit", "last_name": "Mom",
-        "email": "mom@example.com",
+        "email": "mom@example.com", "birth_on": "2019-02-03", "birth_on_declared": True,
     })  # fmt: skip
     assert kid.status_code == 201, kid.text
     kid = kid.json()
     assert kid["authority"] == "manager" and kid["can_edit"]
     sibling_type = client.post(f"{API}/portal/dependents", headers=portal, json={
-        "relationship_type_id": types["sibling_of"]["id"], "first_name": "No", "last_name": "Rights"})  # fmt: skip
+        "relationship_type_id": types["sibling_of"]["id"], "first_name": "No", "last_name": "Rights",
+        "birth_on": "2019-02-03", "birth_on_declared": True})  # fmt: skip
     assert sibling_type.status_code == 422
     listed = client.get(f"{API}/portal/clients", headers=portal).json()["data"]
     assert [c["id"] for c in listed] == [mom["id"], kid["id"]]

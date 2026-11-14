@@ -535,6 +535,17 @@ def location_name(session: Session, location_id: UUID) -> str:
     return name
 
 
+def location_contact(session: Session, location_id: UUID) -> tuple[str | None, str | None]:
+    """Internal: (phone, alert address) of a location for notices to clients and alerts to its staff; the alert
+    address falls back to the location's public email."""
+    row = session.execute(
+        select(Location.phone, Location.alert_email, Location.email).where(Location.id == location_id)
+    ).one_or_none()
+    if row is None:
+        raise NotFound()
+    return row.phone, row.alert_email or row.email
+
+
 def active_staff_emails(session: Session, staff_user_ids) -> dict[UUID, str]:
     """Internal: sign-in email of each active staff user among the ids (engagement's staff alerts)."""
     rows = session.execute(

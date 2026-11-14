@@ -178,6 +178,9 @@ def test_schedule_generator_books_courts_and_reports_clashes(client, owner, f):
     after = {g["id"]: g for g in get(client, owner, f"/schedule-runs/{run['id']}/games")["data"]}
     assert after[first["id"]]["status"] == "unschedulable"
     assert after[first["id"]]["conflict_note"]["reason"] == "booking-conflict"
+    assert (
+        "is already held by booking #" in after[first["id"]]["conflict_note"]["detail"]
+    )  # staff see what was in the way
     booked = [g for g in after.values() if g["status"] == "scheduled"]
     assert len(booked) == 5 and all(g["booking_id"] for g in booked)
     clash = book(client, owner, f, [f.court], booked[0]["starts_at"], booked[0]["ends_at"])

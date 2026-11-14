@@ -65,11 +65,12 @@ export function Select({
   )
 }
 
-export function Checkbox({ label, hint, className = '', ...rest }: { label: ReactNode; hint?: ReactNode } & InputHTMLAttributes<HTMLInputElement>) {
+export function Checkbox({ label, hint, error, className = '', ...rest }: { label: ReactNode; hint?: ReactNode; error?: string } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId()
+  const describedBy = [hint && `${id}-hint`, error !== undefined && `${id}-error`].filter(Boolean).join(' ') || undefined
   return (
     <div className={`flex items-start gap-2 ${className}`}>
-      <input id={id} type="checkbox" className="mt-0.5 h-4 w-4 rounded border-border accent-[rgb(var(--primary))]" aria-describedby={hint ? `${id}-hint` : undefined} {...rest} />
+      <input id={id} type="checkbox" className="mt-0.5 h-4 w-4 rounded border-border accent-[rgb(var(--primary))]" aria-describedby={describedBy} aria-invalid={error ? true : undefined} {...rest} />
       <div>
         {/* The padding grows the click target to 24 px without moving anything (WCAG 2.5.8). */}
         <label htmlFor={id} className="-my-1 block py-1 text-sm">
@@ -78,6 +79,12 @@ export function Checkbox({ label, hint, className = '', ...rest }: { label: Reac
         {hint && (
           <p id={`${id}-hint`} className="text-xs text-muted">
             {hint}
+          </p>
+        )}
+        {/* Mounted whenever the caller can show an error (error="" until then), so it is announced when it appears. */}
+        {error !== undefined && (
+          <p id={`${id}-error`} aria-live="polite" className={error ? 'text-xs font-medium text-danger' : 'sr-only'}>
+            {error}
           </p>
         )}
       </div>

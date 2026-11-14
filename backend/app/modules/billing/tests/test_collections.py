@@ -202,6 +202,11 @@ def test_portal_post_routes_are_each_locked_or_deliberately_open():
     }
     assert posts == collections.PORTAL_PURCHASE_ROUTES | OPEN_PORTAL_POSTS
     assert not collections.PORTAL_PURCHASE_ROUTES & OPEN_PORTAL_POSTS
+    # The guard covers POSTs only, deliberately: reads such as GET /portal/rental-availability (member-priced open
+    # times) buy nothing, and the checkout POST /portal/rentals that follows is locked, so a past-due payer sees the
+    # times and is refused at the till.
+    assert "/portal/rentals" in collections.PORTAL_PURCHASE_ROUTES
+    assert "/portal/rental-availability" not in posts
 
 
 def test_tags_profiles_and_the_collections_report(api, shop, desk):

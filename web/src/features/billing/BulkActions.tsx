@@ -6,8 +6,8 @@ import { Badge } from '../../components/Badge'
 import { Checkbox, Input, Select } from '../../components/Field'
 import { EmptyState } from '../../components/States'
 import { Table, useKeysetQuery } from '../../components/Table'
+import { useLocationToday } from '../../lib/locationDate'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
-import { today } from './money'
 import { ClientName, FormDialog, Money } from './shared'
 
 type BulkAction = Schemas['BulkActionOut']
@@ -107,7 +107,7 @@ export function BulkStatusView({ started, caption, previewLabel = 'Will be done'
 
 /** Bulk invoicing: preview first (dry run), then create. One invoice per client, never mixed. */
 export function BulkInvoiceDialog({ scope, onClose }: { scope: Scope; onClose: () => void }) {
-  const [dueOn, setDueOn] = useState(today())
+  const [dueOn, setDueOn] = useState(useLocationToday(scope.location_id))
   const [autopay, setAutopay] = useState(false)
   const run = useStartBulk()
   const action = run.data
@@ -140,7 +140,7 @@ export function BulkInvoiceDialog({ scope, onClose }: { scope: Scope; onClose: (
 /** Reverse many items at once, each with the same reason and revenue date (BIL-02, BIL-07). Stays open on its result. */
 export function BulkReverseDialog({ scope, onClose }: { scope: Scope; onClose: () => void }) {
   const [reason, setReason] = useState('')
-  const [revenueOn, setRevenueOn] = useState(today())
+  const [revenueOn, setRevenueOn] = useState(useLocationToday(scope.location_id))
   const run = useStartBulk()
   const cap = overCap(scope.charge_ids?.length ?? 0)
   return (

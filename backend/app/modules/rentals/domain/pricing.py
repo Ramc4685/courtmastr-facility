@@ -1,6 +1,7 @@
 """The rental pricing function (data-model-core 5.1, RNT-02): pure, deterministic, no database.
 
-1. Unit price = the member price when the payer is an active member and it is set, else the rate amount.
+1. Unit price = the member price when the payer is an active member and it is set, else the rate amount. A line
+   is a member price when that member amount or a membership-type rule set its unit.
 2. `per_hour` occurrences are cut into segments at every rule's time band and at local midnight; the other
    bases are one segment per occurrence (`flat`: one for the whole request). In each segment the first matching
    `rate` rule by sort_order replaces the unit price; every matching `discount` rule adds its per-unit discount.
@@ -89,6 +90,7 @@ class _Segment:
     unit: int
     discount: Decimal  # per segment, unrounded
     rule: UUID | None
+    member: bool  # priced by the member amount or a membership-type rule
 
 
 def _matches(rule: Rule, start: datetime, end: datetime, member_types: frozenset) -> bool:
@@ -122,18 +124,16 @@ def _cuts(rules: tuple[Rule, ...], start: datetime, end: datetime) -> list[datet
     return sorted(p for p in points if start <= p <= end)
 
 
-def _segments(
-    rate: Rate, occurrences: list[Occurrence], is_member: bool, member_types: frozenset
-) -> tuple[list[_Segment], bool]:
+def _segments(rate: Rate, occurrences: list[Occurrence], is_member: bool, member_types: frozenset) -> list[_Segment]:
     base = rate.member_amount_minor if is_member and rate.member_amount_minor is not None else rate.amount_minor
     rules = tuple(sorted(rate.rules, key=lambda r: r.sort_order))
     per_resource = rate.multi_resource_mode == "per_resource"
 
-    def priced(start: datetime, end: datetime) -> tuple[int, Decimal, UUID | None]:
-        unit, rule_id = base, None
+    def priced(start: datetime, end: datetime) -> tuple[int, Decimal, UUID | None, bool]:
+        unit, rule_id, member = base, None, base != rate.amount_minor
         for rule in rules:
             if rule.kind == "rate" and _matches(rule, start, end, member_types):
-                unit, rule_id = rule.amount_minor, rule.id
+                unit, rule_id, member = rule.amount_minor, rule.id, rule.membership_type_id is not None
                 break
         discount = Decimal(0)
         for rule in rules:
@@ -141,7 +141,7 @@ def _segments(
                 discount += (
                     Decimal(unit) * rule.discount_pct / 100 if rule.discount_pct is not None else rule.discount_minor
                 )
-        return unit, min(discount, Decimal(unit)), rule_id
+        return unit, min(discount, Decimal(unit)), rule_id, member
 
     pieces: list[tuple[int, datetime, datetime, Decimal]] = []  # (occurrence, start, end, quantity)
     if rate.basis == "flat":
@@ -160,11 +160,11 @@ def _segments(
     resources = {o.index: o.resource_ids for o in occurrences}
     segments = []
     for index, start, end, quantity in pieces:
-        unit, discount, rule_id = priced(start, end)
+        unit, discount, rule_id, member = priced(start, end)
         targets = resources[index] if per_resource else resources[index][:1]
         for resource in targets:
-            segments.append(_Segment(index, resource, quantity, unit, discount * quantity, rule_id))
-    return segments, base != rate.amount_minor
+            segments.append(_Segment(index, resource, quantity, unit, discount * quantity, rule_id, member))
+    return segments
 
 
 def _largest_remainder(total: int, weights: list[Decimal]) -> list[int]:
@@ -193,15 +193,15 @@ def price(
         return []
     occurrences = sorted(occurrences, key=lambda o: o.index)
     grouping = "combined" if rate.basis == "flat" else grouping or rate.line_grouping
-    segments, member_priced = _segments(rate, occurrences, is_member, member_types)
+    segments = _segments(rate, occurrences, is_member, member_types)
     by_resource = grouping in ("per_resource", "per_resource_occurrence")
     by_occurrence = grouping in ("per_occurrence", "per_resource_occurrence")
     groups: dict[tuple, list[_Segment]] = defaultdict(list)
     for seg in segments:
-        key = (seg.resource if by_resource else None, seg.occurrence if by_occurrence else None, seg.unit)
+        key = (seg.resource if by_resource else None, seg.occurrence if by_occurrence else None, seg.unit, seg.member)
         groups[key].append(seg)
     lines = []
-    for (resource, occurrence, unit), segs in groups.items():
+    for (resource, occurrence, unit, member_priced), segs in groups.items():
         quantity = sum((s.quantity for s in segs), Decimal(0)).quantize(CENT, rounding=ROUND_HALF_UP)
         gross = half_up(quantity * unit)
         discount = min(half_up(sum((s.discount for s in segs), Decimal(0))), gross)

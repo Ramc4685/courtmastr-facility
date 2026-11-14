@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTermsGate } from '../entry/FacilityApp'
 import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
@@ -26,6 +26,27 @@ function timeIn(iso: string, timeZone?: string) {
   return new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone }).format(new Date(iso))
 }
 
+type Slot = Schemas['PortalRentalSlot']
+
+// Location-local bands for the open-times search; prime time sits in the evening.
+const BANDS: { value: string; label: string; from_time?: string; to_time?: string }[] = [
+  { value: 'any', label: 'Any time' },
+  { value: 'morning', label: 'Morning (before noon)', to_time: '12:00' },
+  { value: 'afternoon', label: 'Afternoon (noon to 5 pm)', from_time: '12:00', to_time: '17:00' },
+  { value: 'evening', label: 'Evening (from 5 pm)', from_time: '17:00' },
+]
+
+/** Slots arrive ordered by court then start; keep that order and group them per court. */
+function byCourt(slots: Slot[]) {
+  const groups = new Map<string, { name: string; slots: Slot[] }>()
+  for (const s of slots) {
+    const group = groups.get(s.resource_id) ?? { name: s.resource_name, slots: [] }
+    group.slots.push(s)
+    groups.set(s.resource_id, group)
+  }
+  return [...groups.entries()]
+}
+
 const span = (m: number) => (m % 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}`)
 
 /** The type's effective online limits (location defaults already applied by the server), as one sentence. */
@@ -40,7 +61,7 @@ function bookingLimits(t: Pick<RentalType, 'min_lead_min' | 'max_length_min' | '
 }
 
 /** Pay the held checkout. The hold is the server's; we only show what it answers. */
-function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Checkout) => void }) {
+function PayCheckout({ checkout, quotedMinor, onDone }: { checkout: Checkout; quotedMinor: number | null; onDone: (c: Checkout) => void }) {
   const qc = useQueryClient()
   const { money, zoneOf } = usePortal()
   const pay = usePaymentChoice(checkout.rental.client_id)
@@ -73,6 +94,7 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
         if (pay.ready && gate.ready) confirm.mutate()
       }}
     >
+      <EntryCodeNotice notice={checkout.entry_code_notice} />
       <ul className="divide-y divide-border text-sm">
         {q.lines.map((l, i) => (
           <li key={i} className="flex justify-between gap-4 py-1.5">
@@ -89,6 +111,11 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
           <span>{money(q.total_minor)}</span>
         </li>
       </ul>
+      {quotedMinor !== null && quotedMinor !== q.subtotal_minor && (
+        <p role="status" className="rounded-md border border-warning bg-warning/10 px-3 py-2 text-sm">
+          The price changed since you picked this time: it is {money(q.subtotal_minor)} before tax, not {money(quotedMinor)}. This happens when a membership no longer covers the date. You pay the price shown here.
+        </p>
+      )}
       <p className="font-medium">Due now: {money(checkout.amount_due_minor)}</p>
       {checkout.expires_at && <p className="text-sm text-muted">We are holding this time until {formatDateTime(checkout.expires_at, zoneOf(checkout.rental.location_id))}.</p>}
       <FormError error={confirm.error} />
@@ -108,7 +135,16 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
 
 function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
-  const { actingFor, money, zoneOf, locations } = usePortal()
+  const { actingFor, clients, money, zoneOf, locations } = usePortal()
+  // A rental is held and paid by an adult with a birth date on file; a child plays only on a guardian's booking
+  // (the minors rule, rentals README). The server decides both (`is_adult`, `is_my_ward`), never the authority.
+  const self = clients.find((c) => c.authority === 'self') ?? actingFor
+  const holder = actingFor.is_adult ? actingFor : self
+  const forChild = holder.id !== actingFor.id
+  const mayPlay = (c: typeof actingFor) => (c.is_adult ? c.authority !== 'delegate' : holder.id === self.id && Boolean(c.is_my_ward))
+  const household = clients.filter((c) => c.id !== holder.id && mayPlay(c))
+  const [players, setPlayers] = useState<string[]>(() => (forChild && mayPlay(actingFor) ? [actingFor.id] : []))
+  const [quoted, setQuoted] = useState<number | null>(null)
   const types = useRentalTypes()
   const [typeId, setTypeId] = useState('')
   const type: RentalType | undefined = types.data?.find((t) => t.id === typeId) ?? types.data?.[0]
@@ -120,14 +156,27 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<Checkout | null>(null)
   const attempt = useAttemptKey()
 
-  const slots = useQuery({
-    queryKey: ['portal', 'availability', type?.id, on, minutes],
-    queryFn: () => api.get('/api/v1/public/rental-availability', { query: { rental_type_id: type?.id, on, length_min: minutes, limit: 60 } }),
-    enabled: Boolean(type && on),
+  const [court, setCourt] = useState('')
+  const [bandValue, setBandValue] = useState('any')
+  const band = BANDS.find((b) => b.value === bandValue)
+  // The whole day for the chosen court and band, page by page: never silently cut off (the server pages by court).
+  // Priced with the ticked players, as the checkout charges them; ticking or unticking someone re-quotes.
+  const slots = useInfiniteQuery({
+    queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes, court, bandValue, players],
+    queryFn: ({ pageParam }) =>
+      api.get('/api/v1/portal/rental-availability', {
+        query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, resource_id: court || undefined, from_time: band?.from_time, to_time: band?.to_time, player_client_ids: players.length ? players : undefined, cursor: pageParam },
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => (last.page.has_more ? (last.page.next_cursor ?? undefined) : undefined),
+    enabled: Boolean(type && on && holder.is_adult),
   })
+  const openTimes = slots.data?.pages.flatMap((p) => p.data) ?? []
   const hold = useMutation({
-    mutationFn: (slot: Schemas['RentalSlot']) =>
-      api.post('/api/v1/portal/rentals', { body: { client_id: actingFor.id, rental_type_id: type?.id ?? '', resource_id: slot.resource_id, starts_at: slot.starts_at, ends_at: slot.ends_at }, idempotencyKey: attempt.key }),
+    mutationFn: (slot: Slot) => {
+      setQuoted(slot.price_minor)
+      return api.post('/api/v1/portal/rentals', { body: { client_id: holder.id, rental_type_id: type?.id ?? '', resource_id: slot.resource_id, starts_at: slot.starts_at, ends_at: slot.ends_at, player_client_ids: players }, idempotencyKey: attempt.key })
+    },
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: ['portal', 'rentals'] })
       if (c.payment_required) setCheckout(c)
@@ -161,16 +210,34 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
         </div>
       )
     }
-    if (checkout) return <PayCheckout checkout={checkout} onDone={setResult} />
+    if (checkout) return <PayCheckout checkout={checkout} quotedMinor={quoted} onDone={setResult} />
     if (types.isPending) return <LoadingState />
     if (types.isError) return <ErrorState error={types.error} />
     if (!type) return <EmptyState title="Nothing can be booked online right now" />
+    if (!holder.is_adult)
+      return (
+        <p role="note" className="rounded-md border border-border px-3 py-2 text-sm">
+          {self.birth_on
+            ? 'Court bookings are held by an adult. Ask a parent or guardian to book the court and add you as a player.'
+            : 'Add your birth date in your profile before booking a court online: courts are booked and paid by an adult.'}
+        </p>
+      )
     return (
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Select label="Rental" value={type.id} onChange={(e) => setTypeId(e.target.value)} options={types.data.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${locations.find((l) => l.id === t.location_id)?.public_name ?? ''})` : t.name }))} />
+          <Select
+            label="Rental"
+            value={type.id}
+            onChange={(e) => {
+              setTypeId(e.target.value)
+              setCourt('')
+            }}
+            options={types.data.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${locations.find((l) => l.id === t.location_id)?.public_name ?? ''})` : t.name }))}
+          />
           <Input label="Date" type="date" value={on} min={todayIn(zone)} max={type.horizon_days ? addDays(todayIn(zone), type.horizon_days) : undefined} onChange={(e) => setOn(e.target.value)} />
           <Select label="Length" value={String(minutes)} onChange={(e) => setLength(Number(e.target.value))} options={lengths.map((m) => ({ value: String(m), label: span(m) }))} />
+          <Select label="Court" value={court} onChange={(e) => setCourt(e.target.value)} options={[{ value: '', label: 'All courts' }, ...type.resources.map((r) => ({ value: String(r.id), label: String(r.name) }))]} />
+          <Select label="Time of day" value={bandValue} onChange={(e) => setBandValue(e.target.value)} options={BANDS.map((b) => ({ value: b.value, label: b.label }))} />
         </div>
         {type.online_description && <p className="text-sm text-muted">{type.online_description}</p>}
         <p className="text-sm text-muted">{bookingLimits(type)}</p>
@@ -179,44 +246,93 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
             Cancel at least {type.cancel_cutoff_hours} hours ahead{type.late_cancel_fee_pct ? `; later cancellations keep ${Number(type.late_cancel_fee_pct)}% as a fee` : ''}.
           </p>
         )}
+        {forChild && (
+          <p role="note" className="rounded-md border border-border px-3 py-2 text-sm">
+            {mayPlay(actingFor)
+              ? `Children cannot hold a court booking on their own. This books the court in your name, ${self.preferred_name || self.first_name}, with ${actingFor.preferred_name || actingFor.first_name} playing; you pay and come along.`
+              : `Only a parent or guardian can bring ${actingFor.preferred_name || actingFor.first_name} to a court booking. This books the court in your name, ${self.preferred_name || self.first_name}, for you and any adults you add.`}
+          </p>
+        )}
+        {household.length > 0 && (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Who else is playing (optional)</legend>
+            <div className="flex flex-wrap gap-4">
+              {household.map((c) => (
+                <Checkbox
+                  key={c.id}
+                  label={c.preferred_name || c.first_name}
+                  checked={players.includes(c.id)}
+                  onChange={(e) => setPlayers((now) => (e.target.checked ? [...now, c.id] : now.filter((id) => id !== c.id)))}
+                />
+              ))}
+            </div>
+          </fieldset>
+        )}
         <FormError error={hold.error} />
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Available times{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}</legend>
+          {openTimes.some((s) => s.is_member_price) && (
+            <p className="mb-2 text-sm text-muted">Member prices are for your membership on the day you play, checked again when you book.</p>
+          )}
           {slots.isPending ? (
             <LoadingState label="Finding open times" />
           ) : slots.isError ? (
             <ErrorState error={slots.error} onRetry={() => slots.refetch()} />
-          ) : slots.data.data.length === 0 ? (
-            <p className="text-muted">No open times on this date. Try another day.</p>
+          ) : openTimes.length === 0 ? (
+            <p className="text-muted">No open times for this choice. Try another day, court or time of day.</p>
           ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {slots.data.data.map((s) => (
-                <li key={`${s.resource_id}-${s.starts_at}`}>
-                  <Button variant="secondary" className="w-full justify-between" disabled={hold.isPending} onClick={() => hold.mutate(s)}>
-                    <span>
-                      {timeIn(s.starts_at, zone)} · {s.resource_name}
-                    </span>
-                    <span>{money(s.price_minor)}</span>
-                  </Button>
-                </li>
+            <div className="space-y-4">
+              {byCourt(openTimes).map(([id, group]) => (
+                <div key={id} role="group" aria-labelledby={`court-${id}`}>
+                  <h3 id={`court-${id}`} className="mb-2 text-sm font-semibold">
+                    {group.name}
+                  </h3>
+                  <ul className="grid gap-2 sm:grid-cols-3">
+                    {group.slots.map((s) => (
+                      <li key={s.starts_at}>
+                        <Button variant="secondary" className="w-full justify-between" disabled={hold.isPending} onClick={() => hold.mutate(s)}>
+                          <span>
+                            {timeIn(s.starts_at, zone)}
+                            <span className="sr-only"> · {s.resource_name}</span>
+                          </span>
+                          <span>
+                            {money(s.price_minor)}
+                            {s.is_member_price && <span className="ml-1 text-xs text-muted">member price</span>}
+                          </span>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+              {slots.hasNextPage && (
+                <Button variant="secondary" loading={slots.isFetchingNextPage} onClick={() => void slots.fetchNextPage()}>
+                  Show more times
+                </Button>
+              )}
+            </div>
           )}
         </fieldset>
       </div>
     )
   }
   return (
-    <Dialog open onClose={close} size="lg" title="Book a rental" description={`Booking for ${actingFor.preferred_name || actingFor.first_name}.`} footer={<Button variant="secondary" onClick={close}>{result ? 'Done' : 'Cancel'}</Button>}>
+    <Dialog open onClose={close} size="lg" title="Book a rental" description={`Booking for ${holder.preferred_name || holder.first_name}.`} footer={<Button variant="secondary" onClick={close}>{result ? 'Done' : 'Cancel'}</Button>}>
       {body()}
     </Dialog>
   )
 }
 
+/** A self-declared birth date waits for the one-time staff check before the entry code is sent (rentals README). */
+function EntryCodeNotice({ notice }: { notice?: string | null }) {
+  if (!notice) return null
+  return <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{notice}</p>
+}
+
 export function BookingsPage() {
   const qc = useQueryClient()
   const toast = useToast()
-  const { zoneOf, nameOf, money } = usePortal()
+  const { zoneOf, nameOf, money, clients } = usePortal()
   const types = useRentalTypes()
   const [booking, setBooking] = useState(false)
   const [cancelling, setCancelling] = useState<Rental | null>(null)
@@ -234,6 +350,7 @@ export function BookingsPage() {
 
   return (
     <PortalPage title="Bookings" description="Your household's court and space rentals." actions={<Button onClick={() => setBooking(true)}>Book a rental</Button>}>
+      <EntryCodeNotice notice={clients.find((c) => c.authority === 'self')?.entry_code_notice} />
       <Table
         caption="Rentals"
         paging={paging}

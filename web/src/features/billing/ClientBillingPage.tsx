@@ -12,13 +12,14 @@ import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth, useCurrentLocation } from '../../lib/auth'
-import { formatDateTime, fullName } from '../../lib/format'
+import { addDays, formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
 import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from './attempt'
 import { ClientItemSales, SellItemDialog } from './CatalogPage'
 import { CollectionsTab } from './CollectionsPage'
-import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
@@ -51,7 +52,7 @@ function CreateInvoiceDialog({ clientId, chargeIds, onClose }: { clientId: strin
   const qc = useQueryClient()
   const toast = useToast()
   const navigate = useNavigate()
-  const [dueOn, setDueOn] = useState(today())
+  const [dueOn, setDueOn] = useState(useLocationToday())
   const [autopay, setAutopay] = useState(false)
   const [comments, setComments] = useState('')
   const m = useMutation({
@@ -409,8 +410,8 @@ export function RefundCreditDialog({ clientId, max, onClose }: { clientId: strin
 function StatementTab({ clientId }: { clientId: string }) {
   const { can } = useAuth()
   const toast = useToast()
-  const yearAgo = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10)
-  const [range, setRange] = useState({ from_on: yearAgo, to_on: today(), date_basis: 'invoice_date' as 'invoice_date' | 'due_date' })
+  const today = useLocationToday()
+  const [range, setRange] = useState({ from_on: addDays(today, -90), to_on: today,date_basis: 'invoice_date' as 'invoice_date' | 'due_date' })
   const statement = useQuery({ queryKey: ['billing', 'statement', clientId, range], queryFn: () => api.get('/api/v1/clients/{client_id}/statement', { path: { client_id: clientId }, query: range }) })
   const send = useMutation({
     mutationFn: () => api.post('/api/v1/clients/{client_id}/statement/deliveries', { path: { client_id: clientId }, body: range }),
