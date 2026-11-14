@@ -7,7 +7,7 @@ else is a staff command with both gates.
 
 import csv
 import io
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -74,9 +74,26 @@ def list_engagements(session: Session, principal: Principal, payee_id: UUID) -> 
     ))  # fmt: skip
 
 
+def _refuse_backdated(session: Session, payees, day: date) -> None:
+    """A change of terms dated before today at the coach's location, when the coach already has sessions on or after
+    that date, would pay those lessons twice or not at all: the ledger is not re-run. Forward-dated is fine."""
+    for payee in payees:
+        if day >= platform.service.location_today(session, payee.location_id):
+            continue
+        zone = ZoneInfo(platform.service.location_time_zone(session, payee.location_id))
+        since = datetime.combine(day, time(), zone)
+        if session.scalar(select(scheduling.service.booking_ids(resource_id=payee.resource_id, starts_from=since)
+                                 .exists())):  # fmt: skip
+            raise ValidationFailed(
+                f"{payee.display_name} already has sessions on or after this date: choose today or a later date.",
+                pointer="/effective_from_on", code="effective-date-has-sessions",
+            )
+
+
 def set_engagement(session: Session, principal: Principal, payee_id: UUID, data: dict) -> CoachEngagement:
     """Staff coach (employee) or independent coach from a date on. A row for the same date is replaced."""
     payee = _trainer(session, principal, payee_id, PAY_MANAGE)
+    _refuse_backdated(session, [payee], data["effective_from_on"])
     row = session.scalar(select(CoachEngagement).where(
         CoachEngagement.staff_payee_id == payee.id, CoachEngagement.effective_from_on == data["effective_from_on"]
     ))  # fmt: skip
@@ -127,6 +144,12 @@ def put_share_rule(session: Session, principal: Principal, data: dict) -> CoachS
         except NotFound:
             raise ValidationFailed("Unknown coach.", pointer="/staff_payee_id") from None
         location_id = payee.location_id
+        affected = [payee]
+    else:  # a default or lesson-type rule reaches every coach who is, or was, independent
+        affected = list(session.scalars(select(StaffPayee).where(StaffPayee.id.in_(
+            select(CoachEngagement.staff_payee_id).where(CoachEngagement.engagement == "independent")
+        )).order_by(StaffPayee.id)))  # fmt: skip
+    _refuse_backdated(session, affected, data["effective_from_on"])
     if data.get("reservation_type_id"):
         try:
             scheduling.service.get_type(session, principal, data["reservation_type_id"])
@@ -167,7 +190,7 @@ def delete_share_rule(session: Session, principal: Principal, rule_id: UUID) -> 
 def _target(session: Session, source_type: str, source_id: UUID) -> dict | None:
     """What one lesson place should earn now, or None: the credit must be spent (attended, or a no-show the package
     charges), from a bought package, on a session whose trainer column belongs to a coach who was independent that
-    day and has a share rule in force."""
+    day. With no share rule in force the line is still written, wholly the facility's, so the gap shows."""
     credit = packages.service.session_credit_facts(session, source_type, [source_id]).get(source_id)
     if credit is None or credit["is_complimentary"]:
         return None
@@ -192,25 +215,27 @@ def _target(session: Session, source_type: str, source_id: UUID) -> dict | None:
     if engagement_on(session, payee.id, day) != "independent":
         return None
     rule = share.pick_rule(list(session.scalars(select(CoachShareRule))), payee.id, view["reservation_type_id"], day)
-    if rule is None:
-        return None
     package_id = credit["client_package_id"]
     net = billing.service.source_totals(session, "packages", "client_package", [package_id])
     lessons = packages.service.package_lessons(session, package_id)
     number = lessons["lessons"].index((source_type, source_id)) + 1
     gross = share.lesson_value(net.get(package_id, {}).get("net_minor", 0), lessons["sold"], number)
     minutes = int((view["ends_at"] - view["starts_at"]).total_seconds() // 60)
-    fee = share.court_fee(rule.court_fee_minor, rule.court_fee_basis, minutes)
-    facility, coach = share.split(gross, rule.coach_share_pct, fee, rule.court_fee_applies)
-    label = "Lesson"
+    label, pct, fee, facility, coach = "Lesson", None, 0, gross, 0
+    if rule is not None:  # no rule: the lesson is still recorded, all the facility's, so the gap shows on the statement
+        pct = rule.coach_share_pct
+        fee = share.court_fee(rule.court_fee_minor, rule.court_fee_basis, minutes)
+        facility, coach = share.split(gross, rule.coach_share_pct, fee, rule.court_fee_applies)
     if client_id is not None:
         person = clients.service.get(session, client_id)
         minor = person.birth_on is None or clients.service.is_minor(person, day, platform.service.minor_age(session))
         label = share.client_label(person.first_name, person.last_name, minor)
+    if rule is None:
+        label = f"{label} (no share rule)"
     return {
         "location_id": view["location_id"], "staff_payee_id": payee.id, "earned_on": day,
         "reservation_type_id": view["reservation_type_id"], "description": label, "gross_minor": gross,
-        "facility_share_minor": facility, "coach_share_minor": coach, "coach_share_pct": rule.coach_share_pct,
+        "facility_share_minor": facility, "coach_share_minor": coach, "coach_share_pct": pct,
         "court_fee_minor": fee,
     }  # fmt: skip
 

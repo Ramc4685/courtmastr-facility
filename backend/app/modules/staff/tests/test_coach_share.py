@@ -173,6 +173,31 @@ def test_credits_added_by_hand_do_not_lower_the_value_of_a_lesson(client, tenant
     assert _lines(tenant, c.payee["id"])[-1] == ("lesson", 1000, 300, 700)
 
 
+def test_terms_dated_before_today_are_refused_once_the_coach_has_sessions(client, tenant, owner, coached):
+    """The lesson on 5 May is already taught by 6 May: new terms from 1 May would pay it twice or not at all."""
+    c = coached
+    rule = {"staff_payee_id": c.payee["id"], "effective_from_on": "2031-05-01", "coach_share_pct": "90"}
+    with clock.freeze(DAY + timedelta(days=1)):
+        owner = login(client, tenant)
+        for path, method, body in ((f"{API}/coach-share-rules", client.put, rule),
+                                   (f"{API}/coach-share-rules", client.put, rule | {"staff_payee_id": None}),
+                                   (f"{API}/staff-payees/{c.payee['id']}/engagements", client.post,
+                                    {"engagement": "employee", "effective_from_on": "2031-05-01"})):  # fmt: skip
+            refused = method(path, headers=owner, json=body)
+            assert (refused.status_code, refused.json()["code"]) == (422, "effective-date-has-sessions")
+        ok(client.put(f"{API}/coach-share-rules", headers=owner, json=rule | {"effective_from_on": "2031-05-07"}), 200)
+
+
+def test_a_lesson_with_no_share_rule_is_recorded_wholly_the_facilitys(client, tenant, owner, coached):
+    c = coached
+    [rule] = ok(client.get(f"{API}/coach-share-rules", headers=owner), 200)["data"]
+    ok(client.delete(f"{API}/coach-share-rules/{rule['id']}", headers=owner), 204)
+    _mark(client, tenant, c, "attended")
+    assert _lines(tenant, c.payee["id"]) == [("lesson", 1000, 1000, 0)]
+    earning = ok(client.get(f"{API}/coach-earnings", headers=owner), 200)["data"][0]
+    assert earning["description"].endswith("(no share rule)") and earning["coach_share_pct"] is None
+
+
 def test_an_independent_coach_is_never_on_payroll_and_an_employee_earns_no_share(client, tenant, owner, coached):
     c = coached
     ok(client.put(f"{API}/staff-payees/{c.payee['id']}/pay-rates/default", headers=owner,

@@ -163,9 +163,16 @@ identifier is stored anywhere.
 
 **Share rules** (`coach_share_rule`, effective-dated): a percent of net lesson revenue for the coach, and an
 optional court fee kept by the facility, flat per session or per hour, taken off before the split or off the
-coach's share. Precedence: coach and lesson type, then coach, then lesson type, then the tenant default. No rule
-in force means no earning (the lesson stays wholly the facility's). A coach never sees or changes a rule: the
-routes need the pay-rate keys, which coaches do not hold.
+coach's share. Precedence: coach and lesson type, then coach, then lesson type, then the tenant default (rules
+have no location, so the tenant default is also every location's default). With no rule in force the lesson is
+still recorded, wholly the facility's (coach share 0, no percent), described "... (no share rule)", so the gap
+shows on the coach's next draft statement, where an adjustment can settle it. A coach never sees or changes a
+rule: the routes need the pay-rate keys, which coaches do not hold.
+
+**Back-dated terms.** An engagement or share rule dated before today at the coach's location is refused with
+`422 effective-date-has-sessions` when the coach already has a booking on their calendar column on or after that
+date: the ledger is not re-run, so such a change would pay those lessons twice or not at all. A default or
+lesson-type rule checks every coach who has ever been independent. Today and later dates are always allowed.
 
 **Valuation** (written down, owner to confirm):
 - A lesson paid from a package is worth the package's net revenue (after discounts and any refunds, before tax:
