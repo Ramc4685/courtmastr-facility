@@ -1,14 +1,16 @@
 """The pure league rules: round-robin pairing, bye modes and slot placement with preferences, standings with
-tie-breaks, bracket layouts (single, double elimination, three games guaranteed) and formula stats."""
+tie-breaks, bracket layouts (single, double elimination, three games guaranteed), formula stats and set scoring."""
 
+import json
 from collections import Counter
 from datetime import date, time
 from decimal import Decimal
 from itertools import combinations
+from pathlib import Path
 
 import pytest
 
-from app.modules.leagues.domain import bracket, formula, roundrobin, standings
+from app.modules.leagues.domain import bracket, formula, roundrobin, sets, standings
 from app.modules.leagues.models import DEFAULT_SORT
 
 SCORING = {
@@ -226,3 +228,97 @@ def test_formula_parses_validates_and_evaluates_without_eval():
                          ("X + 1", "Unknown stat: X"), ("G" + "+G" * 150, "at most"), ("(" * 40 + "G" + ")" * 40, "deeply")]:  # fmt: skip
         with pytest.raises(formula.FormulaError, match=message):
             formula.validate(bad, {"G", "A"})
+
+
+# --- set scoring (badminton, volleyball, pickleball) --------------------------------------------------------------
+
+BADMINTON = {"sets_best_of": 3, "set_points_to": 21, "set_win_by": 2, "set_cap": 30, "deciding_set_points_to": None}
+VOLLEYBALL = {"sets_best_of": 5, "set_points_to": 25, "set_win_by": 2, "set_cap": None, "deciding_set_points_to": 15}
+
+
+@pytest.mark.parametrize("a, b, fmt, legal", [
+    (21, 19, BADMINTON, True), (21, 20, BADMINTON, False), (22, 20, BADMINTON, True), (23, 20, BADMINTON, False),
+    (29, 27, BADMINTON, True), (30, 29, BADMINTON, True), (30, 28, BADMINTON, True), (31, 29, BADMINTON, False),
+    (20, 18, BADMINTON, False), (18, 21, BADMINTON, True), (21, 21, BADMINTON, False), (21, 0, BADMINTON, True),
+    (25, 23, VOLLEYBALL, True), (31, 29, VOLLEYBALL, True), (25, 24, VOLLEYBALL, False), (15, 13, VOLLEYBALL, False),
+])  # fmt: skip
+def test_a_set_is_complete_only_at_a_legal_score(a, b, fmt, legal):
+    assert sets.complete(a, b, fmt["set_points_to"], fmt["set_win_by"], fmt["set_cap"]) is legal
+
+
+def test_a_match_ends_when_one_side_has_the_sets_it_needs():
+    assert sets.sets_won(BADMINTON, [21, 18, 21], [19, 21, 15]) == (2, 1)
+    assert sets.sets_won(BADMINTON, [21, 21], [10, 12]) == (2, 0)
+    assert sets.sets_won(VOLLEYBALL, [25, 20, 25, 13, 15], [20, 25, 22, 25, 11]) == (3, 2)  # deciding set to 15
+    assert sets.sets_won(VOLLEYBALL | {"sets_best_of": 3}, [25, 20, 15], [20, 25, 10]) == (2, 1)
+    for home, away, message in [
+        ([21, 21, 21], [10, 12, 5], "already won"),  # an extra set after the match was decided
+        ([21, 18], [19, 21], "not finished"),
+        ([21], [19, 21], "same number"),
+        ([21, 20], [19, 23], "not a finished set"),  # 23-20 overshoots the win-by-two at 22
+        ([], [], "at least one set"),
+    ]:
+        with pytest.raises(ValueError, match=message):
+            sets.sets_won(BADMINTON, home, away)
+    with pytest.raises(ValueError, match="not a finished set"):
+        sets.sets_won(VOLLEYBALL, [25, 20, 25, 13, 25], [20, 25, 22, 25, 20])  # the fifth set is played to 15
+
+
+def test_sets_won_alone_must_be_a_finished_match():
+    sets.check_sets_won(BADMINTON, 2, 1)
+    sets.check_sets_won(VOLLEYBALL, 0, 3)
+    for home, away in [(2, 2), (1, 1), (3, 0), (1, 0)]:
+        with pytest.raises(ValueError):
+            sets.check_sets_won(BADMINTON, home, away)
+
+
+def test_set_line_reads_from_the_home_side():
+    assert sets.line([21, 19, 21], [18, 21, 15]) == "21-18, 19-21, 21-15"
+    assert sets.line([], []) is None
+
+
+def _sets_side(team, won, scores):
+    return side(team, won, set_scores=scores)
+
+
+def test_sets_standings_count_sets_and_rally_points_and_rank_by_ratio():
+    scoring = SCORING | {"scoring_mode": "sets", "forfeit_score_for": 2}
+    games = [
+        {"home": _sets_side("a", 2, [21, 21]), "away": _sets_side("b", 0, [15, 19])},
+        {"home": _sets_side("b", 2, [21, 19, 21]), "away": _sets_side("c", 1, [10, 21, 12])},
+        {"home": _sets_side("c", 2, [21, 22]), "away": _sets_side("a", 0, [19, 20])},
+        {"home": side("a", None), "away": side("c", None, "forfeit")},
+    ]
+    sort = [{"metric": "PTS"}, {"metric": "SR"}, {"metric": "PR"}]
+    rows = {r["competition_team_id"]: r for r in standings.compute(["a", "b", "c"], games, scoring, sort, {})}
+    a, b, c = rows["a"], rows["b"], rows["c"]
+    assert (a["goals_for"], a["goals_against"]) == (4, 2)  # sets won and lost; the forfeit counts as 2-0
+    assert (a["set_points_for"], a["set_points_against"]) == (81, 77)  # rally points from played sets only
+    assert standings.metric(a, "SW") == 4 and standings.metric(a, "SL") == 2
+    assert standings.metric(a, "SR") == 2 and standings.metric(b, "PR") == Decimal(95) / 85
+    assert standings.metric(standings._blank("z") | {"goals_for": 3}, "SR") > 1000  # no set lost ranks first
+    assert [a["rank"], b["rank"], c["rank"]] == [1, 3, 2]  # b and c on 3 points: c's set ratio 3/4 beats 2/3
+
+
+def test_points_standings_are_unchanged_by_set_scoring():
+    """The golden file was written by the points-only compute before set scoring existed; a points competition
+    must produce exactly the same rows, with no new fields."""
+    golden = json.loads((Path(__file__).parent / "points_standings_golden.json").read_text())
+    teams = ["t1", "t2", "t3", "t4", "t5", "t6"]
+    games = [
+        {"home": side("t1", 4), "away": side("t2", 2)},
+        {"home": side("t3", 1), "away": side("t4", 1, sportsmanship=Decimal("4.5"))},
+        {"home": side("t5", 2, overtime=True), "away": side("t6", 3)},
+        {"home": side("t2", None, "forfeit"), "away": side("t3", None)},
+        {"home": side("t4", None, "default"), "away": side("t5", None, "forfeit")},
+        {"home": side("t6", 0, bonus_points=Decimal("0.5")), "away": side("t1", 0)},
+        {"home": side("t1", 2, sportsmanship=3), "away": side("t3", 5)},
+    ]
+    sorts = (DEFAULT_SORT, [{"metric": "PTS"}, {"metric": "H2H"}, {"metric": "GA", "direction": "asc"}])
+    for scoring in (SCORING, SCORING | {"scoring_mode": "points"}):
+        got = [
+            [{k: (str(v) if isinstance(v, Decimal) else v) for k, v in r.items()}
+             for r in standings.compute(teams, games, scoring, sort, {"t2": Decimal("1.5")})]
+            for sort in sorts
+        ]  # fmt: skip
+        assert got == golden

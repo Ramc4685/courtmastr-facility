@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, delete, func, insert, or_, select
+from sqlalchemy import and_, delete, func, insert, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
@@ -460,11 +460,46 @@ def _blocking(session: Db, resource_ids, during: Range, booking_id: UUID) -> lis
     return found
 
 
-def _write_holds(session: Db, booking: Booking) -> None:
+def _give_way(session: Db, found: list[dict], plan_ids: set[UUID], during: Range, owner: tuple) -> list[dict]:
+    """Blocks held for `owner` (a block whose source is it, such as a league night held for one competition)
+    give way: each is cancelled and rebooked as what remains around `during`, so the newcomer's holds fit and the
+    rest of the night stays held. Holds cannot have holes (one range per booking and resource), hence the split.
+    Returns the conflicts left; nothing is carved while any other booking is in the way."""
+    ids = {UUID(c["booking_id"]) for c in found}
+    blocks = {
+        b.id: b for b in session.scalars(select(Booking).where(
+            Booking.id.in_(ids), Booking.kind == "block", Booking.status == "confirmed",
+            tuple_(Booking.source_context, Booking.source_type, Booking.source_id) == owner,
+        ).with_for_update())
+    }  # fmt: skip
+    if not blocks or len(blocks) < len(ids):
+        return found
+    for block in blocks.values():
+        rows = [(row.resource_id, row.role) for row in _booked(session, [block.id])[block.id]]
+        hit = [r for r, _ in rows if {p for p, _, _ in hold_plan(session, [(r, "primary")])} & plan_ids]
+        rest = [r for r, _ in rows if r not in hit]
+        span = _padded(block)
+        pieces = [(rest, span.lower, span.upper)] if rest else []
+        around = ((span.lower, during.lower), (during.upper, span.upper))
+        pieces += [(hit, start, end) for start, end in around if start < end]
+        cancel_booking(session, block, reason="other")
+        for resource_ids, start, end in pieces:
+            create_booking(
+                session, location_id=block.location_id, kind="block", block_kind=block.block_kind, starts_at=start,
+                ends_at=end, resource_ids=resource_ids, include_linked=False, title=block.title,
+                public_title=block.public_title, notes=block.notes, buffer_before_min=0, buffer_after_min=0,
+                source=owner, created_via=block.created_via, created_by_staff_user_id=block.created_by_staff_user_id,
+            )  # fmt: skip
+    return find_conflicts(session, plan_ids, during)
+
+
+def _write_holds(session: Db, booking: Booking, gives_way: tuple[str, str, UUID] | None = None) -> None:
     rows = [(row.resource_id, row.role) for row in _booked(session, [booking.id])[booking.id]]
     plan, during = hold_plan(session, rows), _padded(booking)
     resource_ids = [resource_id for resource_id, _, _ in plan]
     found = _blocking(session, resource_ids, during, booking.id)
+    if found and gives_way is not None:
+        found = _give_way(session, found, set(resource_ids), during, gives_way)
     if found:
         raise _conflict(found)
     try:
@@ -614,11 +649,12 @@ def create_booking(
     session_input: dict | None = None, source: tuple[str, str, UUID] | None = None, created_via: str = "system",
     created_by_staff_user_id: UUID | None = None, hold_minutes: int | None = None, override_policy: bool = False,
     series: tuple[UUID, UUID, int] | None = None, local: tuple[date, str, int] | None = None,
-    slot: tuple[UUID, datetime] | None = None,
+    slot: tuple[UUID, datetime] | None = None, gives_way: tuple[str, str, UUID] | None = None,
 ) -> Booking:  # fmt: skip
     """Write one occurrence with its holds, atomically across its resources. Raises Conflict
     `booking-conflict` (naming the conflicting bookings) or `resource-blacked-out`. `hold_minutes` makes it a
-    tentative checkout hold. `local` is (date, wall time, nominal minutes) when a series supplies them."""
+    tentative checkout hold. `local` is (date, wall time, nominal minutes) when a series supplies them.
+    `gives_way` names a source whose blocks make room (`_give_way`): a league night held for a competition."""
     _check_span(starts_at, ends_at)
     rows = _resolve_resources(session, location_id, resource_ids, include_linked)
     rtype = _reservation_type(session, location_id, kind, reservation_type_id)
@@ -646,7 +682,7 @@ def create_booking(
     session.add(booking)
     session.flush()
     _set_resources(session, booking, rows)
-    _write_holds(session, booking)
+    _write_holds(session, booking, gives_way)
     events.publish(session, ev.BookingCreated(**_event_fields(booking)), booking.id)
     if kind == "session":
         given = session_input or {}
@@ -680,6 +716,7 @@ def get_booking(session: Db, booking_id: UUID) -> Booking:
 def reschedule_booking(
     session: Db, booking: Booking, *, starts_at: datetime, ends_at: datetime, resource_ids: list[UUID] | None = None,
     override_policy: bool = False, local: tuple[date, str, int] | None = None,
+    gives_way: tuple[str, str, UUID] | None = None,
 ) -> Booking:  # fmt: skip
     """Move, resize or re-resource one occurrence: its holds are deleted and re-derived in this transaction,
     so the booking never collides with its own old range and a clash names the rival."""
@@ -698,7 +735,7 @@ def reschedule_booking(
     booking.occurrence_on, booking.local_start_time, booking.duration_min = local
     booking.version += 1
     session.flush()
-    _write_holds(session, booking)
+    _write_holds(session, booking, gives_way)
     events.publish(session, ev.BookingRescheduled(**_event_fields(booking)), booking.id)
     return booking
 

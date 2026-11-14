@@ -628,3 +628,33 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:11,20 "one send path"; duplicate-skip row and inbox writes bypass `_deliver` (`service.py:943-966,1451-1458`)
 - [ ] [wording] `router.py:422-423` docstring says a token moves to the new login; code revokes and re-adds (`service.py:1296-1303`)
 - [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says
+
+## Added on claude/league-set-scoring (drift refresh 2026-11-13)
+Leagues re-run after set scoring (migration 2001) and league nights. Items already listed above (alert.send, rate limits, file map, competition_of, YAML departures, single-elimination wording) still hold and are not repeated.
+
+### leagues — [evidence](drift/leagues.md)
+
+- [ ] [missing] README:120-122 says set-scoring presets are buttons on the competition screen and values in the CIRQT seed; `web/src` has no preset buttons, set-score dialog or league-night form, and `backend/seeds/cirqt.py` sets no scoring fields.
+- [ ] [wording] README:8 names migrations 1101 and 1441 (16 + 6 tables) but not 1421 (8 more, 30 in all).
+- [ ] [undocumented] Set scoring: problem code `invalid-set-score` (`service.py:1393`), result view `sets` (`service.py:1299`), game view `sets_best_of` (`schemas.py:533`), public competition `scoring_mode` (`schemas.py:916`), sets game card boxes (`depth.py:685`).
+- [ ] [undocumented] League nights: nothing carved while another booking is in the way, block is `unavailable` with no buffers, carved original cancelled with reason `other` (`scheduling/service.py:467-485`, `leagues/service.py:1049-1051`).
+- [ ] [wording] README security table (55-68) has no row for league nights or the B2 surface; `tests/test_site.py` is not cited.
+
+## scheduling (refresh 2026-11-13, README with the `gives_way` paragraph; evidence in `drift/scheduling.md`)
+
+- [ ] [stale-not-built] README:127-129 files the public schedule routes under "Not built"; they are served (`backend/app/modules/integrations/router.py:431,437,446`)
+- [ ] [stale-not-built] README:129 files calendar feeds (SCH-19) under "Not built"; `integrations/feeds.py:1-9` implements them
+- [ ] [missing] README:32,104-105 say programs' portal flow calls `materialise_slot` then `reserve_seat`; nothing outside scheduling calls `offers.materialise_slot` or `book_slot` (`scheduling/offers.py:275,326`)
+- [ ] [contract] README:15 "eight more" unrouted contract operations; only `createSlotOfferDirectLink` is unrouted (`docs/api/openapi-core.yaml:3443-3445`), two more sit at other paths
+- [ ] [contract] `resolveDirectLink` is `GET /public/direct-links/{token}` in the contract (`openapi-core.yaml:3458`), `POST /public/direct-links/resolve` with the token in the body in code, session only (`scheduling/router.py:355-361`)
+- [ ] [contract] `mergeBookingSeries` is `/booking-series/{id}/merge` in the contract (`openapi-core.yaml:3504`), `/bookings/{id}/merge` in code (`scheduling/router.py:396`)
+- [ ] [contract] `direct-link/regenerate` and the four booking-participant routes have no yaml operation (`scheduling/router.py:341,368-387`)
+- [ ] [contract] path parameter is `session_id` in the yaml (`openapi-core.yaml:3414`) but `schedule_session_id` in code (`scheduling/router.py:288,333`)
+- [ ] [contract] `packages/handlers.py:32` subscribes to `scheduling.booking.completed`, which scheduling never publishes (`scheduling/events.py`)
+- [ ] [undocumented] five emitted events missing from README:17 (`events.py:90,108,112,116,123`); integrations also subscribes (`integrations/handlers.py:24,30`)
+- [ ] [undocumented] `booking_participant` missing from the README:9 table (`models.py:380`); `sharing.py` missing from the file table (README:7-18)
+- [ ] [undocumented] interface block omits `get_sessions`, `get_type`, `hold_plan`, `reservation_type_exists`, `reservation_type_location`, `hours_warnings` (`scheduling/service.py:898,250,397,1997,1027,1281`); signatures omit `gives_way`, `local`, `slot` (`service.py:652,719`)
+- [ ] [wording] README:60-63 `gives_way`: only resources the newcomer touches are split, the rest keep the whole span; pieces have zero buffers and cancel reason `other` (`service.py:480-492`)
+- [ ] [wording] README:51-52 "closure blocks never count"; every block is excluded (`service.py:1038`)
+- [ ] [wording] README:129 `rpt_booking`; reporting has `rpt_booking_start` (`reporting/views.py:212`)
+- [ ] [wording] README:15 "40 operations of tag `scheduling`"; the tag has 46, the router serves 40 at the contract path

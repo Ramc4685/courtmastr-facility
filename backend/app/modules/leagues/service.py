@@ -30,7 +30,7 @@ from app.core.pagination import ListQuery, paginate
 from app.modules import billing, clients, platform, resources, scheduling
 from app.modules.leagues import events as ev
 from app.modules.leagues.domain import bracket as bracket_layout
-from app.modules.leagues.domain import roundrobin, standings
+from app.modules.leagues.domain import roundrobin, sets, standings
 from app.modules.leagues.models import (
     DEFAULT_COLUMNS,
     DEFAULT_SORT,
@@ -90,9 +90,13 @@ CONSTRAINT_CODES.update({
 _SCORING = (
     "points_win", "points_tie", "points_loss", "points_overtime_loss", "points_forfeit_win", "points_forfeit_loss",
     "points_default_loss", "forfeit_score_for", "tracks_sportsmanship", "standings_columns", "standings_sort",
+    "scoring_mode", "sets_best_of", "set_points_to", "set_win_by", "set_cap", "deciding_set_points_to",
 )  # fmt: skip
+_SET_FORMAT = ("sets_best_of", "set_points_to", "set_win_by", "set_cap", "deciding_set_points_to")
+_SET_NULLABLE = ("sets_best_of", "set_points_to", "set_cap", "deciding_set_points_to")
 _PLACED = ("scheduled", "played", "postponed")
 _SOURCE = ("leagues", "game")
+_NIGHT = ("leagues", "competition")  # a block held for one competition (league night)
 
 
 # --- shared helpers ---------------------------------------------------------------------------------------------
@@ -210,6 +214,7 @@ def create_sport(session: Db, principal: Principal, data: dict) -> Sport:
     data.setdefault("standings_columns", DEFAULT_COLUMNS)
     data.setdefault("standings_sort", DEFAULT_SORT)
     row = Sport(**data)
+    _check_scoring(row)
     session.add(row)
     session.flush()
     audit.record(session, MANAGE, row, changes={"name": [None, row.name]})
@@ -219,7 +224,8 @@ def create_sport(session: Db, principal: Principal, data: dict) -> Sport:
 def update_sport(session: Db, principal: Principal, sport_id: UUID, data: dict) -> Sport:
     authorize_tenant_wide(principal, MANAGE)
     row = _get(session, Sport, sport_id, lock=True)
-    changes = _apply(row, _given(_layout(data), ("default_team_fee_minor", "fees_text", "rules_text")))
+    changes = _apply(row, _given(_layout(data), ("default_team_fee_minor", "fees_text", "rules_text", *_SET_NULLABLE)))
+    _check_scoring(row)
     audit.record(session, MANAGE, row, changes=changes)
     session.flush()
     return row
@@ -296,7 +302,7 @@ _COMPETITION_FIELDS = (
 _COMPETITION_NULLABLE = (
     "age_group_id", "season_id", "ends_on", "division_label", "team_fee_minor", "revenue_category_id",
     "max_defaults", "max_forfeits", "min_sportsmanship", "team_fee_text", "more_info", "rules_text",
-    "registration_url", "color",
+    "registration_url", "color", *_SET_NULLABLE,
 )  # fmt: skip
 _TRANSITIONS = {
     "activate": (("draft",), "active"),
@@ -321,6 +327,20 @@ def _check_shape(row: Competition) -> None:
         raise ValidationFailed("A league is a round robin or a ladder.", pointer="/format")
     if row.ends_on is not None and row.ends_on < row.starts_on:
         raise ValidationFailed("The end date is before the start date.", pointer="/ends_on")
+    _check_scoring(row)
+
+
+def _check_scoring(row: Sport | Competition) -> None:
+    """A sets format needs best of 1, 3 or 5 and points to win a set; a cap sits above that target (the table's
+    `sets` check says the same, so a race cannot slip past)."""
+    if row.scoring_mode != "sets":
+        return
+    if row.sets_best_of not in (1, 3, 5):
+        raise ValidationFailed("Sets are best of 1, 3 or 5.", pointer="/sets_best_of")
+    if row.set_points_to is None:
+        raise ValidationFailed("Give the points that win a set.", pointer="/set_points_to")
+    if row.set_cap is not None and row.set_cap <= row.set_points_to:
+        raise ValidationFailed("The cap must be above the points that win a set.", pointer="/set_cap")
 
 
 def list_competitions(session: Db, principal: Principal, query: ListQuery) -> dict:
@@ -942,23 +962,31 @@ def _names(session: Db, ids) -> dict[UUID, str]:
 def game_views(session: Db, games: list[Game]) -> list[dict]:
     names = _names(session, [g.home_team_id for g in games] + [g.away_team_id for g in games])
     scores: dict[UUID, dict] = defaultdict(dict)
+    per_set: dict[UUID, dict] = defaultdict(dict)
     titles: dict = {}
     if games:
         for row in session.scalars(select(GameResult).where(GameResult.game_id.in_([g.id for g in games]))):
             scores[row.game_id][row.side] = row.score
+            per_set[row.game_id][row.side] = row.set_scores
         ids = {g.competition_id for g in games}
         titles = {
-            i: (n, sp)
-            for i, n, sp in session.execute(
-                select(Competition.id, Competition.name, Competition.sport_id).where(Competition.id.in_(ids))
+            i: (n, sp, best_of if mode == "sets" else None)
+            for i, n, sp, mode, best_of in session.execute(
+                select(
+                    Competition.id, Competition.name, Competition.sport_id, Competition.scoring_mode,
+                    Competition.sets_best_of,
+                ).where(Competition.id.in_(ids))
             )
-        }
+        }  # fmt: skip
+    none = (None, None, None)
     return [
         _columns(g) | {
             "home_name": names.get(g.home_team_id), "away_name": names.get(g.away_team_id),
             "home_score": scores[g.id].get("home"), "away_score": scores[g.id].get("away"),
-            "competition_name": titles.get(g.competition_id, (None, None))[0],
-            "sport_id": titles.get(g.competition_id, (None, None))[1],
+            "set_scores": sets.line(per_set[g.id].get("home") or [], per_set[g.id].get("away") or []),
+            "competition_name": titles.get(g.competition_id, none)[0],
+            "sport_id": titles.get(g.competition_id, none)[1],
+            "sets_best_of": titles.get(g.competition_id, none)[2],
         }
         for g in games
     ]  # fmt: skip
@@ -985,13 +1013,17 @@ def _place(
     length = length_min or game.length_min
     ends_at = starts_at + timedelta(minutes=length)
     held = list(venue.resource_ids) if venue is not None else [resource_id]
+    night = (*_NIGHT, game.competition_id)  # the competition's league nights make room for its games
     if game.booking_id is not None:
         booking = scheduling.service.get_booking(session, game.booking_id)
-        scheduling.service.reschedule_booking(session, booking, starts_at=starts_at, ends_at=ends_at, resource_ids=held)
+        scheduling.service.reschedule_booking(
+            session, booking, starts_at=starts_at, ends_at=ends_at, resource_ids=held, gives_way=night
+        )
     else:
         booking = scheduling.service.create_booking(
             session, location_id=game.location_id, kind="game", starts_at=starts_at, ends_at=ends_at,
             resource_ids=held, title=_title(session, game), source=(*_SOURCE, game.id), created_via="staff",
+            gives_way=night,
         )  # fmt: skip
         game.booking_id = booking.id
     game.venue_id = venue.id if venue is not None else None
@@ -1003,6 +1035,30 @@ def _place(
         update(GameOfficial).where(GameOfficial.game_id == game.id).values(during=_range(starts_at, ends_at))
     )
     session.flush()
+
+
+def block_league_night(session: Db, principal: Principal, competition_id: UUID, data: dict) -> dict:
+    """Hold courts for a competition ahead of its schedule: a block whose source is the competition. Rentals and
+    other competitions' games clash with it as with any block; this competition's games take their slots out of
+    it when booked (`scheduling.service` splits the block around each game), and the rest stays held."""
+    competition = _competition(session, principal, competition_id, GAMES)
+    found = {r.id for r in resources.service.in_location(session, competition.location_id, ids=data["resource_ids"])}
+    if found != set(data["resource_ids"]):
+        raise ValidationFailed("Unknown resource at this location.", pointer="/resource_ids")
+    booking = scheduling.service.create_booking(
+        session, location_id=competition.location_id, kind="block", block_kind="unavailable",
+        starts_at=data["starts_at"], ends_at=data["ends_at"], resource_ids=data["resource_ids"], include_linked=False,
+        title=f"{competition.name} league night", notes=data.get("notes"), buffer_before_min=0, buffer_after_min=0,
+        source=(*_NIGHT, competition.id), created_via="staff", created_by_staff_user_id=principal.staff_user_id,
+    )  # fmt: skip
+    audit.record(
+        session, GAMES, competition, location_id=competition.location_id,
+        changes={"league_night": [None, f"{booking.starts_at.isoformat()}/{booking.ends_at.isoformat()}"]},
+    )  # fmt: skip
+    return {
+        "booking_id": booking.id, "competition_id": competition.id, "title": booking.title,
+        "starts_at": booking.starts_at, "ends_at": booking.ends_at, "resource_ids": list(data["resource_ids"]),
+    }  # fmt: skip
 
 
 def _release(session: Db, game: Game, status: str) -> None:
@@ -1239,7 +1295,8 @@ def _result_view(session: Db, game: Game) -> dict:
     def side(mine, theirs):
         if mine is None or theirs is None:
             return None
-        return _columns(mine) | {"outcome": standings.outcome(_columns(mine), _columns(theirs))}
+        outcome = standings.outcome(_columns(mine), _columns(theirs))
+        return _columns(mine) | {"outcome": outcome, "sets": mine.set_scores or []}
 
     return {
         "game_id": game.id, "status": game.status, "home": side(home, away), "away": side(away, home),
@@ -1273,6 +1330,8 @@ def put_game_result(session: Db, principal: Principal, game_id: UUID, data: dict
     for name, (_, given) in sides.items():
         if given.get("sportsmanship") is not None and not competition.tracks_sportsmanship:
             raise ValidationFailed("This competition does not track sportsmanship.", pointer=f"/{name}/sportsmanship")
+    _score_sets(competition, data, played)
+    for name, (_, given) in sides.items():
         if played and given.get("score") is None:
             raise ValidationFailed("A score is required.", pointer=f"/{name}/score")
     slot = _slot_of(session, game)
@@ -1301,6 +1360,35 @@ def put_game_result(session: Db, principal: Principal, game_id: UUID, data: dict
     _publish(session, game, ev.GameResultRecorded)
     rebuild_standings(session, competition)
     return _result_view(session, game)
+
+
+def _score_sets(competition: Competition, data: dict, played: bool) -> None:
+    """Per-set points are checked against the competition's format and become the score (sets won); a score
+    given as sets won alone must be a finished match. A forfeit or default takes no sets."""
+    home, away = data["home"], data["away"]
+    home_sets, away_sets = home.pop("sets", None) or [], away.pop("sets", None) or []
+    given = bool(home_sets or away_sets)
+    if competition.scoring_mode != "sets":
+        if given:
+            raise ValidationFailed("This competition does not score by sets.", pointer="/home/sets")
+        return
+    if given and not played:
+        raise ValidationFailed("A forfeit or default takes no set scores.", pointer="/home/sets")
+    home["set_scores"], away["set_scores"] = home_sets, away_sets
+    if not played:
+        return
+    fmt = {name: getattr(competition, name) for name in _SET_FORMAT}
+    try:
+        if given:
+            won = sets.sets_won(fmt, home_sets, away_sets)
+            for side, count in zip((home, away), won, strict=True):
+                if side.get("score") not in (None, count):
+                    raise ValueError("The score must be the number of sets won.")
+                side["score"] = count
+        elif home.get("score") is not None and away.get("score") is not None:
+            sets.check_sets_won(fmt, home["score"], away["score"])
+    except ValueError as exc:
+        raise ValidationFailed(str(exc), pointer="/home/sets", code="invalid-set-score") from None
 
 
 def delete_game_result(session: Db, principal: Principal, game_id: UUID) -> None:
@@ -2077,7 +2165,7 @@ def list_public_games(session: Db, competition_id: UUID) -> list[dict]:
             "id": v["id"], "starts_at": v["starts_at"], "ends_at": v["ends_at"], "venue": venues.get(v["resource_id"]),
             "status": v["status"], "round_label": v["round_label"],
             "home_name": v["home_name"] or v["home_label"], "away_name": v["away_name"] or v["away_label"],
-            "home_score": v["home_score"], "away_score": v["away_score"],
+            "home_score": v["home_score"], "away_score": v["away_score"], "set_scores": v["set_scores"],
         }
         for v in game_views(session, list(games))
     ]  # fmt: skip

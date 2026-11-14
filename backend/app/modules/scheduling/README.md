@@ -57,6 +57,12 @@ The service pre-checks to build the friendly list, then inserts the holds in a s
 constraint `ex_resource_hold_overlap` is the arbiter: a writer that lost a race gets the same 409 with the
 winner named. Moves delete and re-insert the booking's holds in one transaction (constraint not deferrable).
 
+`create_booking` and `reschedule_booking` take `gives_way=(context, type, id)`: when the only bookings in the way
+are confirmed blocks with that source (a league night held for one competition), each is cancelled (reason `other`)
+and rebooked with zero buffers: its resources the newcomer's hold plan touches as the pieces before and after the
+newcomer's padded range, the others as one piece over the block's whole span. Then the holds are written as usual. A hold has one range per
+booking and resource, so a block cannot keep a hole. Anything else in the way, and nothing is carved.
+
 ## Assumptions and deviations (ADR 0004 and the data model unless noted)
 
 1. **Preview is a pre-check, not a rolled-back real run**, for creates (any size, synchronous). It reads
