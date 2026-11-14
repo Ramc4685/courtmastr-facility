@@ -433,6 +433,18 @@
       },
       "AccessSettingsOut": {
         "properties": {
+          "door_alert_bad_codes_per_hour": {
+            "title": "Door Alert Bad Codes Per Hour",
+            "type": "integer"
+          },
+          "entry_code_early_min": {
+            "title": "Entry Code Early Min",
+            "type": "integer"
+          },
+          "entry_code_grace_min": {
+            "title": "Entry Code Grace Min",
+            "type": "integer"
+          },
           "hidden_detail_fields": {
             "items": {
               "enum": [
@@ -446,10 +458,23 @@
             "title": "Hidden Detail Fields",
             "type": "array"
           },
+          "light_lead_in_min": {
+            "title": "Light Lead In Min",
+            "type": "integer"
+          },
+          "light_run_on_min": {
+            "title": "Light Run On Min",
+            "type": "integer"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
+          },
+          "requires_paid_entry": {
+            "description": "Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
+            "title": "Requires Paid Entry",
+            "type": "boolean"
           },
           "staff_early_minutes": {
             "title": "Staff Early Minutes",
@@ -464,7 +489,13 @@
           "location_id",
           "hidden_detail_fields",
           "staff_early_minutes",
-          "staff_late_minutes"
+          "staff_late_minutes",
+          "entry_code_early_min",
+          "entry_code_grace_min",
+          "light_lead_in_min",
+          "light_run_on_min",
+          "requires_paid_entry",
+          "door_alert_bad_codes_per_hour"
         ],
         "title": "AccessSettingsOut",
         "type": "object"
@@ -472,6 +503,45 @@
       "AccessSettingsWrite": {
         "additionalProperties": false,
         "properties": {
+          "door_alert_bad_codes_per_hour": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Door Alert Bad Codes Per Hour"
+          },
+          "entry_code_early_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Early Min"
+          },
+          "entry_code_grace_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Grace Min"
+          },
           "hidden_detail_fields": {
             "anyOf": [
               {
@@ -491,6 +561,44 @@
               }
             ],
             "title": "Hidden Detail Fields"
+          },
+          "light_lead_in_min": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Light Lead In Min"
+          },
+          "light_run_on_min": {
+            "anyOf": [
+              {
+                "maximum": 120.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Light Run On Min"
+          },
+          "requires_paid_entry": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
+            "title": "Requires Paid Entry"
           },
           "staff_early_minutes": {
             "anyOf": [
@@ -7587,6 +7695,175 @@
           "locations"
         ],
         "title": "BrandingOut",
+        "type": "object"
+      },
+      "BuildingEventOut": {
+        "properties": {
+          "check_in_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "door_device_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Door Device Id"
+          },
+          "entry_code_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lighting_zone_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lighting Zone Id"
+          },
+          "local_on": {
+            "format": "date",
+            "title": "Local On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "occurred_at",
+          "local_on",
+          "kind",
+          "door_device_id",
+          "lighting_zone_id",
+          "entry_code_id",
+          "check_in_id",
+          "staff_user_id",
+          "detail",
+          "created_at"
+        ],
+        "title": "BuildingEventOut",
+        "type": "object"
+      },
+      "BuildingStatusOut": {
+        "properties": {
+          "adapter": {
+            "title": "Adapter",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "doors": {
+            "items": {
+              "$ref": "#/components/schemas/DoorStatus"
+            },
+            "title": "Doors",
+            "type": "array"
+          },
+          "held_codes": {
+            "items": {
+              "$ref": "#/components/schemas/HeldCodeOut"
+            },
+            "title": "Held Codes",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "zones": {
+            "items": {
+              "$ref": "#/components/schemas/LightingZoneStatus"
+            },
+            "title": "Zones",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "as_of",
+          "adapter",
+          "zones",
+          "doors",
+          "held_codes"
+        ],
+        "title": "BuildingStatusOut",
         "type": "object"
       },
       "BulkActionCreate": {
@@ -22216,6 +22493,390 @@
         "title": "DocumentTokenIn",
         "type": "object"
       },
+      "DoorDeviceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "device_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "is_entrance": {
+            "default": false,
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "default": 5,
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "device_ref"
+        ],
+        "title": "DoorDeviceCreate",
+        "type": "object"
+      },
+      "DoorDeviceIssued": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credential": {
+            "title": "Credential",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at",
+          "credential"
+        ],
+        "title": "DoorDeviceIssued",
+        "type": "object"
+      },
+      "DoorDeviceOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at"
+        ],
+        "title": "DoorDeviceOut",
+        "type": "object"
+      },
+      "DoorDeviceUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "device_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Ref"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_entrance": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Entrance"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "unlock_seconds": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlock Seconds"
+          }
+        },
+        "title": "DoorDeviceUpdate",
+        "type": "object"
+      },
+      "DoorStatus": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sync_state": {
+            "enum": [
+              "in_sync",
+              "codes_pending",
+              "adapter_not_configured"
+            ],
+            "title": "Sync State",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at",
+          "sync_state"
+        ],
+        "title": "DoorStatus",
+        "type": "object"
+      },
+      "DoorUnlockRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "DoorUnlockRequest",
+        "type": "object"
+      },
+      "DoorVerifyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[0-9]{4,12}$",
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "DoorVerifyRequest",
+        "type": "object"
+      },
+      "DoorVerifyResult": {
+        "properties": {
+          "result": {
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "result",
+          "unlock_seconds"
+        ],
+        "title": "DoorVerifyResult",
+        "type": "object"
+      },
       "DrawerClose": {
         "additionalProperties": false,
         "properties": {
@@ -29083,6 +29744,39 @@
         "title": "HealthStatus",
         "type": "object"
       },
+      "HeldCodeOut": {
+        "description": "A code held back for one person and booking until staff act (an age check).",
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "held_at": {
+            "format": "date-time",
+            "title": "Held At",
+            "type": "string"
+          },
+          "reason": {
+            "const": "age-not-confirmed",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "client_id",
+          "reason",
+          "held_at"
+        ],
+        "title": "HeldCodeOut",
+        "type": "object"
+      },
       "HistoryOut": {
         "properties": {
           "action": {
@@ -33695,6 +34389,393 @@
           "color"
         ],
         "title": "LegendType",
+        "type": "object"
+      },
+      "LightingZoneCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "zone_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Zone Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "zone_ref",
+          "resource_ids"
+        ],
+        "title": "LightingZoneCreate",
+        "type": "object"
+      },
+      "LightingZoneOut": {
+        "properties": {
+          "commanded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded At"
+          },
+          "commanded_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded Is On"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failure_count": {
+            "title": "Failure Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "override_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Is On"
+          },
+          "override_until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Until At"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "zone_ref": {
+            "title": "Zone Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "zone_ref",
+          "is_active",
+          "resource_ids",
+          "override_is_on",
+          "override_until_at",
+          "commanded_is_on",
+          "commanded_at",
+          "failure_count",
+          "created_at"
+        ],
+        "title": "LightingZoneOut",
+        "type": "object"
+      },
+      "LightingZoneOverride": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm_in_progress": {
+            "default": false,
+            "title": "Confirm In Progress",
+            "type": "boolean"
+          },
+          "is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is On"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until At"
+          }
+        },
+        "required": [
+          "is_on"
+        ],
+        "title": "LightingZoneOverride",
+        "type": "object"
+      },
+      "LightingZoneStatus": {
+        "properties": {
+          "commanded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded At"
+          },
+          "commanded_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commanded Is On"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "failure_count": {
+            "title": "Failure Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_in_sync": {
+            "title": "Is In Sync",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "override_is_on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Is On"
+          },
+          "override_until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Until At"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "should_be_on": {
+            "title": "Should Be On",
+            "type": "boolean"
+          },
+          "sync_state": {
+            "enum": [
+              "in_sync",
+              "out_of_sync",
+              "adapter_not_configured"
+            ],
+            "title": "Sync State",
+            "type": "string"
+          },
+          "zone_ref": {
+            "title": "Zone Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "zone_ref",
+          "is_active",
+          "resource_ids",
+          "override_is_on",
+          "override_until_at",
+          "commanded_is_on",
+          "commanded_at",
+          "failure_count",
+          "created_at",
+          "should_be_on",
+          "reason",
+          "is_in_sync",
+          "sync_state"
+        ],
+        "title": "LightingZoneStatus",
+        "type": "object"
+      },
+      "LightingZoneUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Ids"
+          },
+          "zone_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Ref"
+          }
+        },
+        "title": "LightingZoneUpdate",
         "type": "object"
       },
       "LimitUsage": {
@@ -43247,6 +44328,26 @@
         "title": "Page[BrandOut]",
         "type": "object"
       },
+      "Page_BuildingEventOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/BuildingEventOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[BuildingEventOut]",
+        "type": "object"
+      },
       "Page_BulkActionItemOut_": {
         "properties": {
           "data": {
@@ -43725,6 +44826,26 @@
           "page"
         ],
         "title": "Page[DocumentTemplateVersionOut]",
+        "type": "object"
+      },
+      "Page_DoorDeviceOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DoorDeviceOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[DoorDeviceOut]",
         "type": "object"
       },
       "Page_DrawerSessionOut_": {
@@ -44225,6 +45346,26 @@
           "page"
         ],
         "title": "Page[LedgerEntryOut]",
+        "type": "object"
+      },
+      "Page_LightingZoneOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/LightingZoneOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[LightingZoneOut]",
         "type": "object"
       },
       "Page_LocationContactOut_": {
@@ -44865,6 +46006,26 @@
           "page"
         ],
         "title": "Page[PortalEnrollmentOut]",
+        "type": "object"
+      },
+      "Page_PortalEntryCodeOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalEntryCodeOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalEntryCodeOut]",
         "type": "object"
       },
       "Page_PortalInboxItem_": {
@@ -50943,6 +52104,26 @@
         "title": "PortalDocumentAcceptanceOut",
         "type": "object"
       },
+      "PortalDoorUnlockResult": {
+        "properties": {
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "result": {
+            "const": "allow",
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "occurred_at"
+        ],
+        "title": "PortalDoorUnlockResult",
+        "type": "object"
+      },
       "PortalEnrollmentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -51126,6 +52307,92 @@
           "cancel_kind"
         ],
         "title": "PortalEnrollmentOut",
+        "type": "object"
+      },
+      "PortalEntryCodeOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "held_reason": {
+            "anyOf": [
+              {
+                "const": "age-not-confirmed",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Reason"
+          },
+          "is_open_now": {
+            "title": "Is Open Now",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "location_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Phone"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "valid_from_at": {
+            "format": "date-time",
+            "title": "Valid From At",
+            "type": "string"
+          },
+          "valid_until_at": {
+            "format": "date-time",
+            "title": "Valid Until At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "location_id",
+          "location_phone",
+          "code",
+          "held_reason",
+          "message",
+          "valid_from_at",
+          "valid_until_at",
+          "is_open_now"
+        ],
+        "title": "PortalEntryCodeOut",
         "type": "object"
       },
       "PortalFavorite": {
@@ -65066,6 +66333,12 @@
             ],
             "title": "Ends On"
           },
+          "is_peak": {
+            "default": false,
+            "description": "The band is peak time (court-use report), whatever its price",
+            "title": "Is Peak",
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "rate",
@@ -65215,6 +66488,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_peak": {
+            "title": "Is Peak",
+            "type": "boolean"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -65290,7 +66567,8 @@
           "membership_type_id",
           "amount_minor",
           "discount_pct",
-          "discount_minor"
+          "discount_minor",
+          "is_peak"
         ],
         "title": "RateRuleOut",
         "type": "object"
@@ -93655,6 +94933,214 @@
         ]
       }
     },
+    "/api/v1/building-events": {
+      "get": {
+        "description": "Entries, denied attempts, unlocks, light switches, overrides, codes and failed commands. Filters:\nlocation_id, local_on, kind, door_device_id, lighting_zone_id.",
+        "operationId": "listBuildingEvents",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BuildingEventOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Building Events",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      }
+    },
+    "/api/v1/building-status": {
+      "get": {
+        "description": "Per zone: should it be on now, what was last commanded, and whether the two agree. Per door: its state.",
+        "operationId": "getBuildingStatus",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildingStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Building Status",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      }
+    },
     "/api/v1/calendar": {
       "get": {
         "description": "Not paginated: one window of at most 42 days, one query. Serves the day, week, month and resource\nviews; `legend` carries the colour and fill vocabulary.",
@@ -111169,6 +112655,383 @@
         ]
       }
     },
+    "/api/v1/door-devices": {
+      "get": {
+        "operationId": "listDoorDevices",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DoorDeviceOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Door Devices",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      },
+      "post": {
+        "description": "Register a door controller; its bearer credential is shown once.",
+        "operationId": "createDoorDevice",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorDeviceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorDeviceIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Door Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door-devices/{door_device_id}": {
+      "patch": {
+        "description": "Rename, re-address or retire a door (retiring drops its credential).",
+        "operationId": "updateDoorDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "door_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Door Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorDeviceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Door Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door-devices/{door_device_id}/credential": {
+      "post": {
+        "description": "A new bearer credential for the controller; the old one stops working at once.",
+        "operationId": "rotateDoorDeviceCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "door_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Door Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorDeviceIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Door Device Credential",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door-devices/{door_device_id}/unlock": {
+      "post": {
+        "description": "Open the door now for someone standing at it (the help line when a code fails). Reason required.",
+        "operationId": "unlockDoorDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "door_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Door Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorUnlockRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildingEventOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlock Door Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/door/verify": {
+      "post": {
+        "description": "A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the\ncredential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied\nunevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held\n(`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the\nrequest transaction, one activity row and one audit row.",
+        "operationId": "verifyDoorCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoorVerifyResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Door Code",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/drawer-sessions": {
       "get": {
         "description": "Filters: register_id, location_id, status, opened_at. Sort: opened_at.",
@@ -122800,6 +124663,277 @@
         ],
         "x-api-key-scopes": [
           "billing.ledger.read"
+        ]
+      }
+    },
+    "/api/v1/lighting-zones": {
+      "get": {
+        "operationId": "listLightingZones",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_LightingZoneOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Lighting Zones",
+        "tags": [
+          "access"
+        ],
+        "x-api-key-scopes": [
+          "access.checkin.read"
+        ]
+      },
+      "post": {
+        "description": "A light circuit and the courts whose bookings switch it.",
+        "operationId": "createLightingZone",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightingZoneCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightingZoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Lighting Zone",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/lighting-zones/{lighting_zone_id}": {
+      "patch": {
+        "operationId": "updateLightingZone",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lighting_zone_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lighting Zone Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightingZoneUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightingZoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Lighting Zone",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/lighting-zones/{lighting_zone_id}/override": {
+      "put": {
+        "description": "Hold a zone on or off until a time (cleaning, an event); `is_on: null` hands it back to the bookings.",
+        "operationId": "overrideLightingZone",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lighting_zone_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lighting Zone Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LightingZoneOverride"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LightingZoneOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Override Lighting Zone",
+        "tags": [
+          "access"
         ]
       }
     },
@@ -135648,6 +137782,69 @@
         ]
       }
     },
+    "/api/v1/portal/bookings/{booking_id}/door-unlock": {
+      "post": {
+        "description": "Open the location's entrance doors from the portal, inside the booking's code window only.",
+        "operationId": "unlockPortalBookingDoor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalDoorUnlockResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlock Portal Booking Door",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/portal/calendar-feeds": {
       "delete": {
         "description": "Stop my schedule feed: every address I handed out stops working. Making a new feed also retires the old.",
@@ -137939,6 +140136,59 @@
         "summary": "Join Portal Virtual Session",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/portal/entry-codes": {
+      "get": {
+        "description": "Live door codes of the caller's (and dependants') bookings: the portal and the app show them.",
+        "operationId": "listPortalEntryCodes",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalEntryCodeOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Entry Codes",
+        "tags": [
+          "access"
         ]
       }
     },

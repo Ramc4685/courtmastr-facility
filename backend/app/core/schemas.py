@@ -23,8 +23,9 @@ NOT_FREE_TEXT = frozenset({
     "account_id", "account_reference", "asset_code", "client_id", "code", "coupon_code", "external_id", "external_ref",
     "host_external_user_id", "jersey_number", "member_number", "member_number_prefix",
     "number", "plan_code", "product_code", "realm_id", "sku", "terms_version_id", "pairing_code",
-    # access credentials and card scans: a fob or member-card number is a long digit run by design
-    "value", "card_payload", "combination", "exit_pin", "staff_pin",
+    # access credentials and card scans: a fob or member-card number is a long digit run by design; the door verify
+    # `code` (above) is a secret entry code; building controller addresses are installer-given device channels
+    "value", "card_payload", "combination", "exit_pin", "staff_pin", "device_ref", "zone_ref",
     # secrets and tokens (never prose; never logged either)
     "client_secret", "credential_value", "current_password", "new_password", "owner_password", "password", "passcode",
     "direct_link_token", "guest_token", "match_token", "mfa_token", "method_token", "provider_confirmation_token",

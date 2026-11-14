@@ -261,7 +261,7 @@ _RATE_FIELDS = (
 )  # fmt: skip
 _RULE_FIELDS = (
     "kind", "name", "sort_order", "start_time", "end_time", "starts_on", "ends_on", "weekdays", "membership_type_id",
-    "amount_minor", "discount_pct", "discount_minor",
+    "amount_minor", "discount_pct", "discount_minor", "is_peak",
 )  # fmt: skip
 
 
@@ -318,7 +318,9 @@ def _set_rate_parts(session: Db, rate: RentalRate, data: dict) -> dict:
                 raise ValidationFailed("A time band has a start and an end.", pointer=f"/rules/{index}/end_time")
             session.add(
                 RentalRateRule(
-                    rental_rate_id=rate.id, **{k: rule.get(k) for k in _RULE_FIELDS} | {"name": rule.get("name") or ""}
+                    rental_rate_id=rate.id,
+                    **{k: rule.get(k) for k in _RULE_FIELDS}
+                    | {"name": rule.get("name") or "", "is_peak": bool(rule.get("is_peak"))},
                 )
             )
         changes["rules"] = [None, len(data["rules"])]

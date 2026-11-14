@@ -27,6 +27,8 @@ from app.core.db.platform import resolve_tenant
 from app.core.db.session import tenant_session
 from app.core.settings import get_settings
 from app.modules import billing, clients, leagues, memberships, rentals, resources
+from app.modules.access import building
+from app.modules.access.models import DoorDevice
 from app.modules.billing.models import Invoice, RevenueCategory
 from app.modules.clients.models import Client, ClientEmail
 from app.modules.leagues import depth
@@ -124,6 +126,7 @@ def build(slug: str = SLUG, name: str = NAME) -> dict:
             platform_service.replace_facility_hours(session, actor, location.id, HOURS)
         _staff(session, location, mail)
         courts = _courts(session, actor, location)
+        _building(session, actor, location, courts)
         categories = _categories(session)
         types = _memberships(session, actor, categories)
         _rentals(session, actor, location, courts, categories["RENTALS"], types)
@@ -181,6 +184,20 @@ def _courts(session, actor, location) -> dict:
     return {name: have[name] for name in COURTS}
 
 
+def _building(session, actor, location, courts: dict) -> None:
+    """The front door and one lighting zone per court on the simulated controller (CHK-15, CHK-16)."""
+    if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location.id)):
+        return
+    building.create_door(
+        session,
+        actor,
+        {"location_id": location.id, "name": "Front door", "device_ref": "door-front", "is_entrance": True},
+    )
+    for number, court in enumerate(COURTS, start=1):
+        building.create_zone(session, actor, {"location_id": location.id, "name": f"{court} lights",
+                                              "zone_ref": f"relay-{number}", "resource_ids": [courts[court]]})  # fmt: skip
+
+
 def _categories(session) -> dict:
     billing.service.ensure_defaults(session)
     have = {c.code: c for c in session.scalars(select(RevenueCategory))}
@@ -226,7 +243,9 @@ def _rentals(session, actor, location, courts, category, types) -> None:
         # Base = guest off-peak, member price = member off-peak. Rules: the first matching rate rule by sort_order
         # wins, so the peak band has one rule per membership type (member price) before the guest rule. Managers
         # change the band's start and end times on the rental setup screen (rate rules "Prime" and "Member prime").
-        bands = [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1]}, prime)] if prime != off else []
+        bands = (
+            [("Prime", {"start_time": PRIME[0], "end_time": PRIME[1], "is_peak": True}, prime)] if prime != off else []
+        )
         rules = []
         for label, band, member_price in bands:
             for type_id in member_types:

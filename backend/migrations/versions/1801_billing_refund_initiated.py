@@ -4,14 +4,14 @@
 answered", which a retry or the reconciliation sweep finishes.
 
 Revision ID: 1801
-Revises: 1985
+Revises: 1980
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "1801"
-down_revision = "1985"
+down_revision = "1980"
 
 _OLD = "status IN ('pending', 'succeeded', 'failed', 'cancelled')"
 _NEW = "status IN ('initiated', 'pending', 'succeeded', 'failed', 'cancelled')"

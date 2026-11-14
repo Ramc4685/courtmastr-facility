@@ -58,3 +58,21 @@ class ClientAccessModeChanged(Event):
     type: Literal["access.client_access.changed"] = "access.client_access.changed"
     client_id: UUID
     access_mode: str
+
+
+class _EntryCodeEvent(Event):
+    """A booking's door code (CHK-16). Ids only: the code itself never leaves access."""
+
+    aggregate_type: ClassVar[str] = "entry_code"
+    entry_code_id: UUID
+    booking_id: UUID
+    location_id: UUID
+
+
+class EntryCodeIssued(_EntryCodeEvent):
+    type: Literal["access.entry_code.issued"] = "access.entry_code.issued"
+
+
+class EntryCodeRevoked(_EntryCodeEvent):
+    type: Literal["access.entry_code.revoked"] = "access.entry_code.revoked"
+    reason: str

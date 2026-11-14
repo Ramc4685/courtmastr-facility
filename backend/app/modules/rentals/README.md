@@ -26,6 +26,9 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   every band edge and local midnight; first matching `rate` rule by sort_order replaces the unit; every
   matching `discount` rule adds up, capped at the unit; quantity is real elapsed time (DST-safe); a line never
   mixes prices; amount half-up once per line; occurrence shares are a largest-remainder split.
+- **Peak bands**: a rule's `is_peak` marks its band (whole day when it has no times) as the owner's peak time
+  for the court-use report, whatever its price; pricing ignores it. Default off; migration 2010 marked the
+  existing time-banded rate rules dearer than their base.
 - **Charges** go only through billing internals: one `rental_booking_charge` and one billing charge per line,
   source ('rentals', 'rental_booking_charge', line id), so a retried request or job never bills twice
   (`post_charge` is idempotent by source; the route also honours `Idempotency-Key`). Routing: `new_single`,

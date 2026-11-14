@@ -183,6 +183,15 @@ class Support(BaseModel):
     operator_email: str = "support@facilityhub.localhost"  # ONB-03 support requests go here
 
 
+class BuildingControl(BaseModel):
+    """Door and court-light controller (access, CHK-15, CHK-16). simulated: in-memory, dev and test only;
+    none: every command fails and is surfaced (no vendor adapter exists yet). Unset: simulated in dev and test,
+    none elsewhere (get_settings)."""
+
+    adapter: Literal["simulated", "none"] | None = None
+    command_timeout_seconds: float = 5.0  # per push or revoke at one door: the caller holds the code's row lock
+
+
 class Imports(BaseModel):
     """CSV imports (Phase 8 I1)."""
 
@@ -213,6 +222,7 @@ class Settings(BaseModel):
     entitlements: Entitlements = Entitlements()
     support: Support = Support()
     imports: Imports = Imports()
+    building_control: BuildingControl = BuildingControl()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
@@ -353,4 +363,9 @@ def get_settings() -> Settings:
         _refuse_plaintext_backends(settings)
     if env not in ("dev", "test") and settings.storage.scanner == "noop":
         raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
+    if env not in ("dev", "test") and settings.building_control.adapter == "simulated":
+        raise RuntimeError("outside dev and test, building_control.adapter must not be simulated: it opens no door")
+    settings.building_control.adapter = settings.building_control.adapter or (
+        "simulated" if env in ("dev", "test") else "none"
+    )
     return settings

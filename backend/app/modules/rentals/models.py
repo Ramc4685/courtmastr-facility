@@ -325,6 +325,7 @@ class RentalRateRule(TenantOwned, Timestamps, Base):
     amount_minor: Mapped[int | None] = mapped_column(info={"audit": "value"})
     discount_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), info={"audit": "value"})
     discount_minor: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    is_peak: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})  # owner's peak band
 
 
 class RentalBooking(TenantOwned, Timestamps, Base):

@@ -7,7 +7,7 @@ always admit); then the location's outcome for the membership's condition (froze
 second visit of the day), then the membership type's admitting locations, then its time-of-day schedule.
 Everything that does not deny is still raised as an alert."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 
 # Attendance is auto-marked for sessions starting this long before or after a staff check-in (CHK-01); a
@@ -109,3 +109,16 @@ def evaluate(facts: Facts) -> Decision:
 def in_schedule(ranges: list[tuple[int, str, str]], weekday: int, wall: str) -> bool:
     """`wall` ('HH:MM', the location's local time) on ISO `weekday` falls inside one of the ranges."""
     return any(day == weekday and starts <= wall < ends for day, starts, ends in ranges)
+
+
+PERSON_DENIALS = ("client_disabled", "access_mode_deny")  # about the person, never their membership
+
+
+def for_booking(decision: Decision) -> Decision:
+    """The entry a booking's door code makes: the person paid for the slot and was allowed to book it, so no
+    membership rule (frozen, suspended, used up, cancelled, wrong location, outside its schedule) refuses it; only
+    the person does (disabled, banned). Alerts are kept."""
+    if decision.would_grant or decision.denial_reason in PERSON_DENIALS:
+        return decision
+    alerts = [code for code in decision.alerts if code != "access_denied"]
+    return replace(decision, would_grant=True, denial_reason=None, alerts=alerts)

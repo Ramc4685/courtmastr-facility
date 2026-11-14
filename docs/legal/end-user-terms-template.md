@@ -64,7 +64,7 @@ Effective: [DATE]. These terms are between [FACILITY LEGAL NAME] ("we", "the Fac
 
 6.1 Some or all of the Facility may be open without staff on site. You may enter only during the time you have booked or the hours your membership allows.
 
-6.2 One code per booking. Entry codes and credentials are personal to the booking or member they are issued to. Do not share, post or sell a code. You are responsible for who enters using your code.
+6.2 Codes are personal. Each entry code or credential is issued to one adult and is valid for that person only. Do not share, post or sell a code. Others in your party do not get their own code; you let them in yourself, and you are responsible for who enters with you.
 
 6.3 No tailgating. Do not hold the door open for, or let in, anyone who has not used their own valid code or credential. Do not prop doors open.
 

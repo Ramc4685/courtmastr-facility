@@ -1775,6 +1775,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/building-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Building Events
+         * @description Entries, denied attempts, unlocks, light switches, overrides, codes and failed commands. Filters:
+         *     location_id, local_on, kind, door_device_id, lighting_zone_id.
+         */
+        get: operations["listBuildingEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/building-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Building Status
+         * @description Per zone: should it be on now, what was last commanded, and whether the two agree. Per door: its state.
+         */
+        get: operations["getBuildingStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/calendar": {
         parameters: {
             query?: never;
@@ -4931,6 +4972,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/door-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Door Devices */
+        get: operations["listDoorDevices"];
+        put?: never;
+        /**
+         * Create Door Device
+         * @description Register a door controller; its bearer credential is shown once.
+         */
+        post: operations["createDoorDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door-devices/{door_device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Door Device
+         * @description Rename, re-address or retire a door (retiring drops its credential).
+         */
+        patch: operations["updateDoorDevice"];
+        trace?: never;
+    };
+    "/api/v1/door-devices/{door_device_id}/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Door Device Credential
+         * @description A new bearer credential for the controller; the old one stops working at once.
+         */
+        post: operations["rotateDoorDeviceCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door-devices/{door_device_id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlock Door Device
+         * @description Open the door now for someone standing at it (the help line when a code fails). Reason required.
+         */
+        post: operations["unlockDoorDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/door/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Door Code
+         * @description A keypad's code: allow (with how long to release the lock) or deny, and nothing else. In order: (1) the
+         *     credential (401 at once when unknown or retired); (2) input that is not exactly CODE_DIGITS digits is denied
+         *     unevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held
+         *     (`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the
+         *     request transaction, one activity row and one audit row.
+         */
+        post: operations["verifyDoorCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/drawer-sessions": {
         parameters: {
             query?: never;
@@ -7101,6 +7247,64 @@ export interface paths {
          */
         get: operations["listLedgerEntries"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lighting-zones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Lighting Zones */
+        get: operations["listLightingZones"];
+        put?: never;
+        /**
+         * Create Lighting Zone
+         * @description A light circuit and the courts whose bookings switch it.
+         */
+        post: operations["createLightingZone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lighting-zones/{lighting_zone_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Lighting Zone */
+        patch: operations["updateLightingZone"];
+        trace?: never;
+    };
+    "/api/v1/lighting-zones/{lighting_zone_id}/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Override Lighting Zone
+         * @description Hold a zone on or off until a time (cleaning, an event); `is_on: null` hands it back to the bookings.
+         */
+        put: operations["overrideLightingZone"];
         post?: never;
         delete?: never;
         options?: never;
@@ -9524,6 +9728,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/bookings/{booking_id}/door-unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlock Portal Booking Door
+         * @description Open the location's entrance doors from the portal, inside the booking's code window only.
+         */
+        post: operations["unlockPortalBookingDoor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/calendar-feeds": {
         parameters: {
             query?: never;
@@ -9979,6 +10203,26 @@ export interface paths {
          *     invalid-state-transition, policy-violation.
          */
         post: operations["joinPortalVirtualSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/entry-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Entry Codes
+         * @description Live door codes of the caller's (and dependants') bookings: the portal and the app show them.
+         */
+        get: operations["listPortalEntryCodes"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -17306,13 +17550,28 @@ export interface components {
         };
         /** AccessSettingsOut */
         AccessSettingsOut: {
+            /** Door Alert Bad Codes Per Hour */
+            door_alert_bad_codes_per_hour: number;
+            /** Entry Code Early Min */
+            entry_code_early_min: number;
+            /** Entry Code Grace Min */
+            entry_code_grace_min: number;
             /** Hidden Detail Fields */
             hidden_detail_fields: ("balance_due" | "membership_dates" | "visit_counts" | "staff_notes")[];
+            /** Light Lead In Min */
+            light_lead_in_min: number;
+            /** Light Run On Min */
+            light_run_on_min: number;
             /**
              * Location Id
              * Format: uuid
              */
             location_id: string;
+            /**
+             * Requires Paid Entry
+             * @description Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).
+             */
+            requires_paid_entry: boolean;
             /** Staff Early Minutes */
             staff_early_minutes: number;
             /** Staff Late Minutes */
@@ -17320,8 +17579,23 @@ export interface components {
         };
         /** AccessSettingsWrite */
         AccessSettingsWrite: {
+            /** Door Alert Bad Codes Per Hour */
+            door_alert_bad_codes_per_hour?: number | null;
+            /** Entry Code Early Min */
+            entry_code_early_min?: number | null;
+            /** Entry Code Grace Min */
+            entry_code_grace_min?: number | null;
             /** Hidden Detail Fields */
             hidden_detail_fields?: ("balance_due" | "membership_dates" | "visit_counts" | "staff_notes")[] | null;
+            /** Light Lead In Min */
+            light_lead_in_min?: number | null;
+            /** Light Run On Min */
+            light_run_on_min?: number | null;
+            /**
+             * Requires Paid Entry
+             * @description Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).
+             */
+            requires_paid_entry?: boolean | null;
             /** Staff Early Minutes */
             staff_early_minutes?: number | null;
             /** Staff Late Minutes */
@@ -19824,6 +20098,69 @@ export interface components {
             locations: components["schemas"]["LocationLogoOut"][];
             /** Tenant Logo Url */
             tenant_logo_url: string | null;
+        };
+        /** BuildingEventOut */
+        BuildingEventOut: {
+            /** Check In Id */
+            check_in_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Detail */
+            detail: string | null;
+            /** Door Device Id */
+            door_device_id: string | null;
+            /** Entry Code Id */
+            entry_code_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Lighting Zone Id */
+            lighting_zone_id: string | null;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Staff User Id */
+            staff_user_id: string | null;
+        };
+        /** BuildingStatusOut */
+        BuildingStatusOut: {
+            /** Adapter */
+            adapter: string;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Doors */
+            doors: components["schemas"]["DoorStatus"][];
+            /** Held Codes */
+            held_codes: components["schemas"]["HeldCodeOut"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Zones */
+            zones: components["schemas"]["LightingZoneStatus"][];
         };
         /**
          * BulkActionCreate
@@ -24163,6 +24500,164 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** DoorDeviceCreate */
+        DoorDeviceCreate: {
+            /** Device Ref */
+            device_ref: string;
+            /**
+             * Is Entrance
+             * @default false
+             */
+            is_entrance: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Unlock Seconds
+             * @default 5
+             */
+            unlock_seconds: number;
+        };
+        /** DoorDeviceIssued */
+        DoorDeviceIssued: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Credential */
+            credential: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
+        /** DoorDeviceOut */
+        DoorDeviceOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
+        /** DoorDeviceUpdate */
+        DoorDeviceUpdate: {
+            /** Device Ref */
+            device_ref?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Entrance */
+            is_entrance?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Unlock Seconds */
+            unlock_seconds?: number | null;
+        };
+        /** DoorStatus */
+        DoorStatus: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Sync State
+             * @enum {string}
+             */
+            sync_state: "in_sync" | "codes_pending" | "adapter_not_configured";
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
+        /** DoorUnlockRequest */
+        DoorUnlockRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /** DoorVerifyRequest */
+        DoorVerifyRequest: {
+            /** Code */
+            code: string;
+        };
+        /** DoorVerifyResult */
+        DoorVerifyResult: {
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "allow" | "deny";
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
         /** DrawerClose */
         DrawerClose: {
             /** Counted Cash Minor */
@@ -26361,6 +26856,32 @@ export interface components {
              */
             status: "ok" | "degraded" | "unavailable";
         };
+        /**
+         * HeldCodeOut
+         * @description A code held back for one person and booking until staff act (an age check).
+         */
+        HeldCodeOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Held At
+             * Format: date-time
+             */
+            held_at: string;
+            /**
+             * Reason
+             * @constant
+             */
+            reason: "age-not-confirmed";
+        };
         /** HistoryOut */
         HistoryOut: {
             /** Action */
@@ -27953,6 +28474,128 @@ export interface components {
              * Format: uuid
              */
             reservation_type_id: string;
+        };
+        /** LightingZoneCreate */
+        LightingZoneCreate: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Zone Ref */
+            zone_ref: string;
+        };
+        /** LightingZoneOut */
+        LightingZoneOut: {
+            /** Commanded At */
+            commanded_at: string | null;
+            /** Commanded Is On */
+            commanded_is_on: boolean | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Failure Count */
+            failure_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Override Is On */
+            override_is_on: boolean | null;
+            /** Override Until At */
+            override_until_at: string | null;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Zone Ref */
+            zone_ref: string;
+        };
+        /** LightingZoneOverride */
+        LightingZoneOverride: {
+            /**
+             * Confirm In Progress
+             * @default false
+             */
+            confirm_in_progress: boolean;
+            /** Is On */
+            is_on: boolean | null;
+            /** Reason */
+            reason?: string | null;
+            /** Until At */
+            until_at?: string | null;
+        };
+        /** LightingZoneStatus */
+        LightingZoneStatus: {
+            /** Commanded At */
+            commanded_at: string | null;
+            /** Commanded Is On */
+            commanded_is_on: boolean | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Failure Count */
+            failure_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is In Sync */
+            is_in_sync: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Override Is On */
+            override_is_on: boolean | null;
+            /** Override Until At */
+            override_until_at: string | null;
+            /** Reason */
+            reason: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Should Be On */
+            should_be_on: boolean;
+            /**
+             * Sync State
+             * @enum {string}
+             */
+            sync_state: "in_sync" | "out_of_sync" | "adapter_not_configured";
+            /** Zone Ref */
+            zone_ref: string;
+        };
+        /** LightingZoneUpdate */
+        LightingZoneUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Resource Ids */
+            resource_ids?: string[] | null;
+            /** Zone Ref */
+            zone_ref?: string | null;
         };
         /**
          * LimitUsage
@@ -30844,6 +31487,12 @@ export interface components {
             data: components["schemas"]["BrandOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[BuildingEventOut] */
+        Page_BuildingEventOut_: {
+            /** Data */
+            data: components["schemas"]["BuildingEventOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[BulkActionItemOut] */
         Page_BulkActionItemOut_: {
             /** Data */
@@ -30986,6 +31635,12 @@ export interface components {
         Page_DocumentTemplateVersionOut_: {
             /** Data */
             data: components["schemas"]["DocumentTemplateVersionOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[DoorDeviceOut] */
+        Page_DoorDeviceOut_: {
+            /** Data */
+            data: components["schemas"]["DoorDeviceOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[DrawerSessionOut] */
@@ -31136,6 +31791,12 @@ export interface components {
         Page_LedgerEntryOut_: {
             /** Data */
             data: components["schemas"]["LedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LightingZoneOut] */
+        Page_LightingZoneOut_: {
+            /** Data */
+            data: components["schemas"]["LightingZoneOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[LocationContactOut] */
@@ -31328,6 +31989,12 @@ export interface components {
         Page_PortalEnrollmentOut_: {
             /** Data */
             data: components["schemas"]["PortalEnrollmentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalEntryCodeOut] */
+        Page_PortalEntryCodeOut_: {
+            /** Data */
+            data: components["schemas"]["PortalEntryCodeOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalInboxItem] */
@@ -33423,6 +34090,19 @@ export interface components {
             /** Signer Role */
             signer_role: string;
         };
+        /** PortalDoorUnlockResult */
+        PortalDoorUnlockResult: {
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Result
+             * @constant
+             */
+            result: "allow";
+        };
         /** PortalEnrollmentCreate */
         PortalEnrollmentCreate: {
             /**
@@ -33489,6 +34169,39 @@ export interface components {
             status: string;
             /** Target Kind */
             target_kind: string;
+        };
+        /** PortalEntryCodeOut */
+        PortalEntryCodeOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Code */
+            code: string | null;
+            /** Held Reason */
+            held_reason: "age-not-confirmed" | null;
+            /** Is Open Now */
+            is_open_now: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Location Phone */
+            location_phone: string | null;
+            /** Message */
+            message: string | null;
+            /**
+             * Valid From At
+             * Format: date-time
+             */
+            valid_from_at: string;
+            /**
+             * Valid Until At
+             * Format: date-time
+             */
+            valid_until_at: string;
         };
         /** PortalFavorite */
         PortalFavorite: {
@@ -38159,6 +38872,12 @@ export interface components {
             /** Ends On */
             ends_on?: string | null;
             /**
+             * Is Peak
+             * @description The band is peak time (court-use report), whatever its price
+             * @default false
+             */
+            is_peak: boolean;
+            /**
              * Kind
              * @enum {string}
              */
@@ -38196,6 +38915,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Is Peak */
+            is_peak: boolean;
             /** Kind */
             kind: string;
             /** Membership Type Id */
@@ -48893,6 +49614,83 @@ export interface operations {
             };
         };
     };
+    listBuildingEvents: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_BuildingEventOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBuildingStatus: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildingStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getCalendar: {
         parameters: {
             query: {
@@ -57159,6 +57957,219 @@ export interface operations {
             };
         };
     };
+    listDoorDevices: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DoorDeviceOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createDoorDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorDeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorDeviceIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDoorDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                door_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorDeviceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotateDoorDeviceCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                door_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorDeviceIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlockDoorDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                door_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorUnlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildingEventOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verifyDoorCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorVerifyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listDrawerSessions: {
         parameters: {
             query?: {
@@ -62734,6 +63745,152 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_LedgerEntryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLightingZones: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LightingZoneOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLightingZone: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightingZoneCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightingZoneOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLightingZone: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                lighting_zone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightingZoneUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightingZoneOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overrideLightingZone: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                lighting_zone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightingZoneOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightingZoneOut"];
                 };
             };
             /** @description Validation Error */
@@ -68813,6 +69970,40 @@ export interface operations {
             };
         };
     };
+    unlockPortalBookingDoor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                booking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalDoorUnlockResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalCalendarFeeds: {
         parameters: {
             query?: never;
@@ -69884,6 +71075,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JoinOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalEntryCodes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalEntryCodeOut_"];
                 };
             };
             /** @description Validation Error */

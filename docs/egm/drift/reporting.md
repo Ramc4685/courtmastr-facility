@@ -1,5 +1,23 @@
 ## backend/app/modules/reporting/README.md
 
+Rechecked 2026-11-13 after the annotation-only change to `reports/courts.py` (typed query args at :80, `list(found)` at :186, typed heat map row at :328): no behaviour change, no new drift, the 11 items stand.
+
+State read: worktree on `claude/court-use-report`, with the uncommitted court-use change (migration `2011`, `reports/courts.py`, `catalogue.py` family tuple). The registry holds 64 `ReportSpec(` constructions (62 plus the two court-use reports) across eleven family tuples in `catalogue.py:17-30`; `views.py` defines 57 views. The court-use section (README:143-181) was checked against `reports/courts.py` and migration 2011 and matches (sources, top-level court, windows, closures scope `all`, gates, heat map, "not built" list). The `/pos-reports/*` note (README:206-209) matches `pos/router.py:502-525`. The README's event, `RUN_KEYS` gate and view-migration lines are now correct. Items below are the divergences that remain.
+
+- [wording] README:9-11 "`registry.py` holds every `ReportSpec`" is wrong, and README:43 ("New report families go in `reports/` and register in `catalogue.py`") contradicts it. `registry.py` holds only the module-15 specs (14); the catalogue is `catalogue.py:17-30` with builders in `reports/*.py`.
+- [undocumented] The Gates section (README:25-36) omits that exports, the recipients route and the five schedule routes use `reporting.report.export` (`router.py:22,113-141`), and the dashboard uses `reporting.dashboard.read` (`router.py:23,144`). The dashboard refuses API keys (`dashboard.py:77-78`, via `service._staff`); the definition routes never call `_staff`.
+- [undocumented] The 13 permission keys (`permissions.py:15-39`) are not listed, nor that `reporting.dashboard.read` and the run keys default to Admin and Manager, `report.export` also to league admin, `payroll.run` to admin, front desk and coach own. Only `report_schedule.manage` is described (README:196).
+- [contract] README:47 says results live 7 days (`service.py:32`), but the contract says the snapshot expires after 24 h (`docs/api/openapi-programs.yaml:6264`). "Deviations from the contract" (README:211-221) does not list it.
+- [contract] Six served routes are not in `openapi-programs.yaml`: `GET /report-definitions/{key}/recipients` and the five `/report-schedules*` routes (`router.py:113-141`). README:63-71 describes schedules, but the Deviations list never says the contract lacks them.
+- [contract] The contract declares problem codes the code never raises: `entitlement-required` and `report-not-implemented` on `createReportRun` (`openapi-programs.yaml:6232`), `version-conflict` on `updateSavedReport` (:6377; `service.update_saved` has no version check) and `entitlement-required` on `createExportJob` (:6440). README:213 lists only the inline run and missing dedupe.
+- [undocumented] `export_job.notify_on_complete` (`models.py:128`, set only by `schedules.py:211`, read at `service.py:432,615`) is not in the README's two-extra-columns note (README:219-220, which names `progress` and `partial`). `ExportJobCreate` (`schemas.py`) has no such field, so the API cannot set it.
+- [undocumented] The `report_schedule` table (`models.py`, migration 1601) is not in `docs/architecture/data-model-programs.md` (only `export_job` and `report_run` appear, lines 2214-2215), and the README does not say so.
+- [undocumented] No list of the 64 reports by key and family permission, or of the report categories. The README only names reports in individual assumptions (court use at README:143 is the newest).
+- [wording] README:12-14 attributes `rpt_*` views to migrations but gives no count. `docs/status/15-reporting.md:4` says "29 after phase 12", while `views.py` now defines 57 (court use added 8 in migration 2011).
+- [wording] Module docstrings still describe the old set: `service.py:1` ("the P0 reports live in registry.py"), `registry.py:1-5`, `__init__.py:1-3`, `views.py:1` and `models.py:2` (views credited to migration 0953), `router.py:1-2` ("every route needs a family key"; exports, schedules and the dashboard use other keys).
+
+## Earlier check (main, before court use)
+
 Checked 2026-11-13 on `claude/fix-ci-midnight` against the module code and `docs/api/openapi-programs.yaml` (tag `reporting`). Scope is README versus code and contract; the status docs and code comments were not re-read. The catalogue is 62 reports in ten family tuples (`catalogue.py:9-20`). Not checked: each builder's SQL against the per-report assumptions.
 
 ### [contract]
