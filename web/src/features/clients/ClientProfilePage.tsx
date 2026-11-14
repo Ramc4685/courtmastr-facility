@@ -18,6 +18,7 @@ import { ClientDocumentsTab, WaiverBadge } from '../documents/ClientDocumentsTab
 import { ClientMembershipsTab } from '../memberships/ClientMembershipsTab'
 import { ClientPackagesTab } from '../packages/ClientPackagesTab'
 import { formatDate, formatDateTime, formatMoney, fullName } from '../../lib/format'
+import { AgeCheckBadge } from './AgeChecks'
 import { ClientPicker, type ClientSummary } from './ClientPicker'
 import { NoteAttachments, PhotoCard } from './ClientFiles'
 import { useCategories } from './ClientsPage'
@@ -427,6 +428,7 @@ export function ClientProfilePage() {
             )}
             {client.member_number && <span className="tabular">#{client.member_number}</span>}
             <WaiverBadge clientId={client.id} />
+            <AgeCheckBadge client={client} />
           </span>
         }
         actions={

@@ -88,8 +88,8 @@ x-features-without-endpoints: {BIL-03: P1. Filters on GET /charges (is_invoiced=
     stub GET /coupons/{id}/redemptions.', POS-14: 'P1. Receipt header is location contact data, footer is billing-settings.receipt_footer;
     no new path.', POS-15: v2-adapter. Browser print in v1., POS-19: 'P1. `package_plan_id` on POST /pos-sales/{id}/lines.',
   POS-20: P2. Covered in intent by drawer sessions., POS-21: v2-adapter., POS-22: 'P1. GET /products?is_below_reorder_level=true
-    plus reporting-context views; alert email is pos-settings.', POS-23: v2-adapter., CHK-15: v2-adapter. CredentialReader
-    port; credential kinds exist., CHK-16: v2-adapter. DoorController port; access.door.unlock has no route in v1., CHK-17: P2.
+    plus reporting-context views; alert email is pos-settings.', POS-23: v2-adapter., CHK-15: P1. Door entry codes per
+    booking behind the BuildingController port (simulated adapter only)., CHK-16: P1. Remote unlock, court lights from holds, overrides; simulated adapter only., CHK-17: P2.
     Not built., CHK-20: P1. Reporting-context report over rpt_check_in., CHK-21: P1. Alerts already return in CheckInResult.alerts
     with an `action` hint; remediation deep-links to billing and memberships routes., STF-11: 'P1. Reporting-context report
     (rpt_trainer_session), own-reach scoped through staff_payee.staff_user_id.', STF-12: P1. Flags on StaffPayee; delivery
@@ -1220,7 +1220,9 @@ paths:
       operationId: createBillingBulkAction
       tags: [billing]
       summary: Start a bulk action from the workbench
-      description: The key shown is for `create_invoices`. Other actions require their own key instead.
+      description: The key shown is for `create_invoices`. Other actions require their own key instead. At most 1000
+        subjects. The Idempotency-Key is bound to the request body and replays this action for as long as it is
+        stored (it does not expire after 24 hours). 404 when `preview_id` names no action.
       x-priority: P0
       x-permission: billing.invoice.bulk_create
       x-permission-also:
@@ -1228,19 +1230,21 @@ paths:
       - {key: billing.invoice.send, when: action = email_invoices or render_invoices}
       - {key: billing.charge.create, when: action = add_catalog_item}
       x-features: [BIL-02, BIL-10]
-      x-idempotent: optional
+      x-idempotent: required
       parameters:
-      - {$ref: '#/components/parameters/IdempotencyKey'}
+      - {$ref: '#/components/parameters/IdempotencyKeyRequired'}
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/BillingBulkActionCreate'}}}
-      x-problem-codes: [permission-denied, validation-failed, request-in-progress, idempotency-key-reused]
+      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused,
+        bulk-preview-stale]
       responses:
         '202':
           description: Accepted; work continues in a job.
           content: {application/json: {schema: {$ref: '#/components/schemas/BillingBulkAction'}}}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
   /billing-bulk-actions/{billing_bulk_action_id}:
@@ -1309,6 +1313,28 @@ paths:
         '200':
           description: Keyset page.
           content: {application/json: {schema: {$ref: '#/components/schemas/HistoryEntryPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /unmatched-provider-events:
+    get:
+      operationId: listUnmatchedProviderEvents
+      tags: [billing]
+      summary: Processor charges and refunds with no payment or refund here
+      description: Events the retry sweep gave up on (Phase 9 S5). Provider reference and time only; the stored
+        event carries no amount. A location-scoped caller sees its locations' provider accounts only.
+      x-priority: P1
+      x-permission: billing.history.read
+      x-features: [PAY-11]
+      parameters:
+      - {$ref: '#/components/parameters/Limit'}
+      - {$ref: '#/components/parameters/Cursor'}
+      - {$ref: '#/components/parameters/Include'}
+      x-problem-codes: [permission-denied]
+      responses:
+        '200':
+          description: Keyset page, newest first.
+          content: {application/json: {schema: {$ref: '#/components/schemas/UnmatchedProviderEventPage'}}}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -1425,6 +1451,28 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
         '503': {$ref: '#/components/responses/ProviderUnavailable'}
+  /payment-attempts/{key}:
+    get:
+      operationId: getPaymentAttempt
+      tags: [billing]
+      summary: What became of the caller's own payment or refund attempt sent with this Idempotency-Key
+      description: The web keeps a payment or refund form as it was after an unknown outcome until this says `settled`.
+        Only attempts whose stored key is anchored on this staff identity (staff, mark-paid and POS keys) are found;
+        anything else is 404, indistinguishable from a key nobody used. Rate limited per caller (429 rate-limited).
+      x-priority: P0
+      x-permission: billing.payment.read
+      x-features: [PAY-01, PAY-05]
+      parameters:
+      - {name: key, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}}
+      x-problem-codes: [permission-denied, not-found, rate-limited]
+      responses:
+        '200':
+          description: OK.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AttemptOut'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
   /payments/{payment_id}:
     get:
       operationId: getPayment
@@ -1724,7 +1772,7 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/CreditApplyRequest'}}}
-      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, insufficient-credit,
+      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, allocation-exceeds-payment,
         allocation-exceeds-balance]
       responses:
         '200':
@@ -1750,8 +1798,8 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/CreditRefundRequest'}}}
-      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, insufficient-credit,
-        provider-unavailable, period-locked]
+      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, refund-exceeds-unapplied,
+        provider-unavailable, period-locked, refund-plan-incomplete]
       responses:
         '201':
           description: Created.
@@ -2215,6 +2263,30 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '429': {$ref: '#/components/responses/RateLimited'}
+  /portal/payment-attempts/{key}:
+    get:
+      operationId: getPortalPaymentAttempt
+      tags: [billing]
+      summary: What became of a payment or purchase the caller sent with this Idempotency-Key
+      description: Found only for attempts this identity made (a payer acting for a dependant made it themselves);
+        never another household member's, never a key from another surface; 404 otherwise. Carries only the state
+        and the amount. Rate limited per identity (429 rate-limited). The form stays as it was until `settled`.
+      x-priority: P0
+      x-permission: client:can_act_for
+      x-features: [PAY-18, SSP-11]
+      security:
+      - {clientSession: []}
+      - {bearerToken: []}
+      parameters:
+      - {name: key, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}}
+      x-problem-codes: [not-found, rate-limited]
+      responses:
+        '200':
+          description: OK.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AttemptOut'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
   /portal/payments:
     post:
       operationId: payPortalInvoices
@@ -2650,40 +2722,6 @@ paths:
       x-priority: P1
       x-permission: billing.ledger.export
       x-features: [PAY-16]
-      responses:
-        default: {$ref: '#/components/responses/NotSpecified'}
-  /disputes:
-    get:
-      operationId: listDisputes
-      tags: [billing]
-      summary: Chargebacks and returned debits
-      x-priority: P1
-      x-permission: billing.dispute.manage
-      x-features: [PAY-17]
-      responses:
-        default: {$ref: '#/components/responses/NotSpecified'}
-  /disputes/{dispute_id}:
-    get:
-      operationId: getDispute
-      tags: [billing]
-      summary: Get a dispute
-      x-priority: P1
-      x-permission: billing.dispute.manage
-      x-features: [PAY-17]
-      parameters:
-      - {name: dispute_id, in: path, required: true, schema: {type: string, format: uuid}}
-      responses:
-        default: {$ref: '#/components/responses/NotSpecified'}
-  /disputes/{dispute_id}/evidence:
-    post:
-      operationId: submitDisputeEvidence
-      tags: [billing]
-      summary: Submit evidence through the provider port
-      x-priority: P1
-      x-permission: billing.dispute.manage
-      x-features: [PAY-17]
-      parameters:
-      - {name: dispute_id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
   /public/invoice-links/lookup:
@@ -4590,6 +4628,170 @@ paths:
       - {name: check_in_station_id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices:
+    get:
+      operationId: listDoorDevices
+      tags: [access]
+      summary: 'Door controllers at a location'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: location_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: createDoorDevice
+      tags: [access]
+      summary: 'Register a door controller; its bearer credential is returned once'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-15, CHK-16]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices/{door_device_id}:
+    patch:
+      operationId: updateDoorDevice
+      tags: [access]
+      summary: 'Rename, re-address or retire a door (retiring drops its credential)'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: door_device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices/{door_device_id}/credential:
+    post:
+      operationId: rotateDoorDeviceCredential
+      tags: [access]
+      summary: 'New bearer credential; the old one stops at once'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: door_device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door-devices/{door_device_id}/unlock:
+    post:
+      operationId: unlockDoorDevice
+      tags: [access]
+      summary: 'Staff remote unlock, reason required, audited; 409 device-unavailable when the controller fails'
+      x-priority: P1
+      x-permission: access.door.unlock
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: door_device_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /lighting-zones:
+    get:
+      operationId: listLightingZones
+      tags: [access]
+      summary: 'Court lighting zones at a location'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-16]
+      parameters:
+      - {name: location_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: createLightingZone
+      tags: [access]
+      summary: 'A light circuit and the resources whose bookings switch it'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-16]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /lighting-zones/{lighting_zone_id}:
+    patch:
+      operationId: updateLightingZone
+      tags: [access]
+      summary: 'Rename, re-map or retire a zone'
+      x-priority: P1
+      x-permission: access.device.manage
+      x-features: [CHK-16]
+      parameters:
+      - {name: lighting_zone_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /lighting-zones/{lighting_zone_id}/override:
+    put:
+      operationId: overrideLightingZone
+      tags: [access]
+      summary: 'Hold a zone on or off until a time within seven days; is_on null clears it'
+      x-priority: P1
+      x-permission: access.lighting.override
+      x-features: [CHK-16]
+      parameters:
+      - {name: lighting_zone_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /building-events:
+    get:
+      operationId: listBuildingEvents
+      tags: [access]
+      summary: 'Entries, denied attempts, unlocks, light switches, overrides, codes and failures; filter by location_id, local_on, kind, door_device_id, lighting_zone_id'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-15, CHK-16]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /building-status:
+    get:
+      operationId: getBuildingStatus
+      tags: [access]
+      summary: 'Reconciliation per zone (should be on now versus last commanded) and each door'
+      x-priority: P1
+      x-permission: access.checkin.read
+      x-features: [CHK-15, CHK-16]
+      parameters:
+      - {name: location_id, in: query, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /portal/entry-codes:
+    get:
+      operationId: listPortalEntryCodes
+      tags: [access]
+      summary: 'Live door codes of the caller''s and dependants'' bookings, with the location phone'
+      x-priority: P1
+      x-permission: client:can_act_for
+      x-features: [CHK-16]
+      security:
+      - {clientSession: []}
+      - {bearerToken: []}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /portal/bookings/{booking_id}/door-unlock:
+    post:
+      operationId: unlockPortalBookingDoor
+      tags: [access]
+      summary: 'Open the door inside the booking''s code window; 409 entry-refused names the location phone'
+      x-priority: P1
+      x-permission: client:can_act_for
+      x-features: [CHK-16]
+      parameters:
+      - {name: booking_id, in: path, required: true, schema: {type: string, format: uuid}}
+      security:
+      - {clientSession: []}
+      - {bearerToken: []}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /door/verify:
+    post:
+      operationId: verifyDoorCode
+      tags: [access]
+      summary: 'A keypad code: allow (with unlock seconds) or deny only. Door bearer credential, 30 per minute per door, five bad codes lock the keypad for five minutes'
+      x-priority: P1
+      x-permission: door-device
+      x-features: [CHK-15, CHK-16]
+      security:
+      - {bearerToken: []}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
   /occupancy:
     get:
       operationId: getOccupancy
@@ -5683,6 +5885,208 @@ paths:
       x-features: [STF-15]
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
+  /staff-payees/{staff_payee_id}/engagements:
+    get:
+      operationId: listCoachEngagements
+      tags: [staff]
+      summary: A coach's engagement history (employee or independent, effective-dated)
+      x-priority: P1
+      x-permission: staff.pay_rate.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: staff_payee_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: setCoachEngagement
+      tags: [staff]
+      summary: Set the engagement from a date (same date replaces)
+      description: 'Independent coaches are never on payroll from that date; their lessons earn a revenue share instead.'
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: staff_payee_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachEngagementWrite'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /staff-payees/{staff_payee_id}/tax-form:
+    put:
+      operationId: setCoachTaxForm
+      tags: [staff]
+      summary: Record whether a tax form is on file (a date, never a tax id)
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: staff_payee_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachTaxFormWrite'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-share-rules:
+    get:
+      operationId: listCoachShareRules
+      tags: [staff]
+      summary: "Share rules (default, per lesson type, per coach, per coach and type)"
+      x-priority: P1
+      x-permission: staff.pay_rate.read
+      x-features: [COACH-SHARE]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    put:
+      operationId: putCoachShareRule
+      tags: [staff]
+      summary: Create or replace the rule for a key and start date
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachShareRuleWrite'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-share-rules/{coach_share_rule_id}:
+    delete:
+      operationId: deleteCoachShareRule
+      tags: [staff]
+      summary: Remove a rule (earning lines keep the share they were made with)
+      x-priority: P1
+      x-permission: staff.pay_rate.manage
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_share_rule_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-earnings:
+    get:
+      operationId: listCoachEarnings
+      tags: [staff]
+      summary: "Earning lines (immutable; refunds and corrections are reversing lines), own reach for coaches"
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts:
+    get:
+      operationId: listCoachPayouts
+      tags: [staff]
+      summary: Payout statements. Own reach for coaches
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    post:
+      operationId: createCoachPayouts
+      tags: [staff]
+      summary: Draft statements of unpaid lines, one coach or every independent coach at a location
+      description: 'Records what the facility owes and paid; the product moves no money (a Stripe Connect payout would plug in here later).'
+      x-priority: P1
+      x-permission: staff.coach_payout.create
+      x-features: [COACH-SHARE]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachPayoutCreate'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}:
+    get:
+      operationId: getCoachPayout
+      tags: [staff]
+      summary: One statement
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+    delete:
+      operationId: deleteCoachPayout
+      tags: [staff]
+      summary: Discard a draft (its lines become unpaid again)
+      x-priority: P1
+      x-permission: staff.coach_payout.create
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/lines:
+    get:
+      operationId: listCoachPayoutLines
+      tags: [staff]
+      summary: The earning lines on a statement
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/adjustments:
+    post:
+      operationId: addCoachPayoutAdjustment
+      tags: [staff]
+      summary: Add a manual adjustment with a reason (draft only)
+      x-priority: P1
+      x-permission: staff.coach_payout.adjust
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachAdjustmentCreate'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/approve:
+    post:
+      operationId: approveCoachPayout
+      tags: [staff]
+      summary: Approve a draft (step-up)
+      x-priority: P1
+      x-permission: staff.coach_payout.approve
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: false
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachPayoutApprove'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/paid:
+    post:
+      operationId: markCoachPayoutPaid
+      tags: [staff]
+      summary: Record an approved statement as paid outside the product (step-up); paid is final
+      description: 'Records what the facility owes and paid; the product moves no money (a Stripe Connect payout would plug in here later).'
+      x-priority: P1
+      x-permission: staff.coach_payout.pay
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CoachPayoutPaid'}}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
+  /coach-payouts/{coach_payout_id}/document:
+    get:
+      operationId: getCoachPayoutDocument
+      tags: [staff]
+      summary: The statement as PDF or CSV (`format=pdf|csv`)
+      x-priority: P1
+      x-permission: staff.coach_payout.read
+      x-features: [COACH-SHARE]
+      parameters:
+      - {name: coach_payout_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        default: {$ref: '#/components/responses/NotSpecified'}
 components:
   securitySchemes:
     staffSession: {type: apiKey, in: cookie, name: fh_session, description: Opaque staff session cookie; unsafe methods
@@ -5718,7 +6122,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      schema: {type: string, maxLength: 255}
+      schema: {type: string, minLength: 8, maxLength: 255, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}
       description: Required. Replays return the stored response for 24 hours.
     IdempotencyKey:
       name: Idempotency-Key
@@ -6159,8 +6563,8 @@ components:
         invoice_id: {type: [string, 'null'], format: uuid}
     ChargeUpdate:
       type: object
-      description: Text and service-period fields update in place. Any money field posts an `adjustment` charge and needs
-        `reason`.
+      description: Text and service-period fields update in place. Any money field, the revenue date or the revenue
+        category posts an `adjustment` charge and needs `reason`.
       properties:
         description: {type: string}
         additional_description: {type: [string, 'null']}
@@ -6173,6 +6577,7 @@ components:
         discount_minor: {type: [integer, 'null'], format: int64}
         excluded_tax_ids: {type: array, items: {type: string, format: uuid}}
         revenue_on: {type: string, format: date}
+        revenue_category_id: {type: string, format: uuid}
         reason: {type: string}
     ChargePreview:
       type: object
@@ -6330,15 +6735,22 @@ components:
       properties:
         location_id: {type: string, format: uuid}
         action: {type: string, enum: [create_invoices, reverse_charges, email_invoices, render_invoices, add_catalog_item]}
-        charge_ids: {type: array, items: {type: string, format: uuid}}
-        invoice_ids: {type: array, items: {type: string, format: uuid}}
-        client_ids: {type: array, items: {type: string, format: uuid}}
+        charge_ids: {type: array, maxItems: 1000, items: {type: string, format: uuid}}
+        invoice_ids: {type: array, maxItems: 1000, items: {type: string, format: uuid}}
+        client_ids: {type: array, maxItems: 1000, items: {type: string, format: uuid}}
+        only_mine:
+          type: boolean
+          description: '`create_invoices` with no `charge_ids`: only the uninvoiced items the caller added (BIL-03).'
         params: {type: object, additionalProperties: true}
         is_dry_run: {type: boolean}
+        preview_id:
+          type: [string, 'null']
+          format: uuid
+          description: The dry run this run was previewed as; 409 `bulk-preview-stale` when a subject or its amount,
+            or any of the params (autopay, due date, item, reason), changed since.
     BillingBulkAction:
       type: object
-      required: [id, location_id, action, is_dry_run, status, item_count, done_count, failed_count, requested_by_staff_user_id,
-        created_at]
+      required: [id, location_id, action, is_dry_run, status, item_count, done_count, failed_count, created_at]
       properties:
         id: {type: string, format: uuid}
         location_id: {type: string, format: uuid}
@@ -6348,7 +6760,7 @@ components:
         item_count: {type: integer}
         done_count: {type: integer}
         failed_count: {type: integer}
-        requested_by_staff_user_id: {type: string, format: uuid}
+        requested_by_staff_user_id: {type: [string, 'null'], format: uuid}
         finished_at: {type: [string, 'null'], format: date-time}
         created_at: {type: string, format: date-time}
     BillingBulkActionItem:
@@ -6356,12 +6768,19 @@ components:
       required: [id, subject_type, subject_id, status]
       properties:
         id: {type: string, format: uuid}
-        subject_type: {type: string, enum: [charge, invoice]}
+        subject_type: {type: string, enum: [charge, invoice, client]}
+        group_client_id: {type: [string, 'null'], format: uuid}
         subject_id: {type: string, format: uuid}
+        amount_minor: {type: [integer, 'null'], format: int64, description: What the subject was priced at.}
         status: {type: string, enum: [pending, done, failed, skipped]}
         result_type: {type: [string, 'null']}
         result_id: {type: [string, 'null'], format: uuid}
-        error_code: {type: [string, 'null']}
+        error_code:
+          type: [string, 'null']
+          description: Why the item was skipped or failed. Skipped when the action was created
+            (`charge-not-invoiceable`, `charge-not-reversible`, `charge-has-no-client`, `invoice-not-found`,
+            `client-not-found`); failed while it ran (`no-email-address`, `not-processed`, `requester-not-allowed`,
+            `bulk-price-changed` (an added item's price changed after the action priced it), `internal-error`, or the code of the domain error the item raised).
     AllocationInput:
       type: object
       required: [charge_id, amount_minor]
@@ -6458,6 +6877,13 @@ components:
       properties:
         allocations: {type: array, items: {$ref: '#/components/schemas/AllocationInput'}}
         allocate: {type: string, enum: [explicit, oldest_first]}
+    AttemptOut:
+      type: object
+      required: [settled, statuses, amount_minor]
+      properties:
+        settled: {type: boolean, description: false while a row is initiated or unknown (the processor's answer is not known)}
+        statuses: {type: array, items: {type: string}}
+        amount_minor: {type: integer}
     Refund:
       type: object
       required: [id, payment_id, location_id, amount_minor, method, status, refund_on, reason, created_at]
@@ -6468,7 +6894,7 @@ components:
         location_id: {type: string, format: uuid}
         amount_minor: {type: integer, format: int64}
         method: {type: string, enum: [original, external]}
-        status: {type: string, enum: [pending, succeeded, failed, cancelled]}
+        status: {type: string, enum: [initiated, pending, succeeded, failed, cancelled]}
         refund_on: {type: string, format: date}
         reason: {type: string}
         comments: {type: [string, 'null']}
@@ -6478,8 +6904,9 @@ components:
         created_at: {type: string, format: date-time}
     RefundCreate:
       type: object
-      description: '`amount_minor` is bounded by the payment''s `unapplied_minor`. `original` goes through the provider
-        port (PAY-05).'
+      description: '`amount_minor` is bounded by the payment''s `unapplied_minor`, after releasing the allocations in
+        `release_allocation_ids` (release-then-refund, which also needs `billing.payment.reallocate`). `original`
+        goes through the provider port (PAY-05).'
       required: [amount_minor, method, reason]
       properties:
         amount_minor: {type: integer, format: int64}
@@ -6487,6 +6914,7 @@ components:
         reason: {type: string}
         comments: {type: [string, 'null']}
         refund_on: {type: string, format: date}
+        release_allocation_ids: {type: array, maxItems: 100, items: {type: string, format: uuid}}
     AccountCredit:
       type: object
       description: Credit is the pooled unapplied remainder of the client's payments.
@@ -6523,10 +6951,12 @@ components:
         comments: {type: [string, 'null']}
     RefundBatch:
       type: object
-      required: [refund_batch_id, amount_minor, refunds]
+      description: amount_minor is what was asked; refunded_minor what the processor has refunded (succeeded legs). Each leg carries its own status, so a declined or pending leg is never read as success.
+      required: [refund_batch_id, amount_minor, refunded_minor, refunds]
       properties:
         refund_batch_id: {type: string, format: uuid}
         amount_minor: {type: integer, format: int64}
+        refunded_minor: {type: integer, format: int64}
         refunds: {type: array, items: {$ref: '#/components/schemas/Refund'}}
     ClientBillingSummary:
       type: object
@@ -6849,6 +7279,22 @@ components:
       required: [data, page]
       properties:
         data: {type: array, items: {$ref: '#/components/schemas/HistoryEntry'}}
+        page: {$ref: '#/components/schemas/Page'}
+    UnmatchedProviderEventPage:
+      type: object
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, provider, received_at]
+            properties:
+              id: {type: string, format: uuid}
+              provider: {type: string}
+              kind: {type: [string, 'null'], enum: [payment, refund, null]}
+              provider_ref: {type: [string, 'null']}
+              received_at: {type: string, format: date-time}
         page: {$ref: '#/components/schemas/Page'}
     BillingNoticePage:
       type: object
@@ -8083,6 +8529,56 @@ components:
         commission_basis: {type: string, enum: [invoiced, paid]}
         includes: {type: array, items: {type: string}}
         scope_staff_payee_id: {type: [string, 'null'], format: uuid}
+    CoachEngagementWrite:
+      type: object
+      required: [engagement, effective_from_on]
+      properties:
+        engagement: {type: string, enum: [employee, independent]}
+        effective_from_on: {type: string, format: date}
+    CoachTaxFormWrite:
+      type: object
+      required: [tax_form_on_file_on]
+      properties:
+        tax_form_on_file_on: {type: [string, 'null'], format: date, description: When a tax form was received; never a
+            tax identifier.}
+    CoachShareRuleWrite:
+      type: object
+      description: Precedence is coach and type, then coach, then type, then the default. Net lesson revenue is after
+        discounts and refunds and before tax; a package lesson is the package's net divided by its sessions.
+      required: [effective_from_on, coach_share_pct]
+      properties:
+        staff_payee_id: {type: [string, 'null'], format: uuid}
+        reservation_type_id: {type: [string, 'null'], format: uuid}
+        effective_from_on: {type: string, format: date}
+        coach_share_pct: {type: string, description: 'Decimal 0 to 100'}
+        court_fee_minor: {type: integer, minimum: 0, maximum: 2147483647}
+        court_fee_basis: {type: string, enum: [session, hour]}
+        court_fee_applies: {type: string, enum: [before_split, after_split]}
+    CoachPayoutCreate:
+      type: object
+      required: [location_id, period_starts_on, period_ends_on]
+      properties:
+        location_id: {type: string, format: uuid}
+        period_starts_on: {type: string, format: date}
+        period_ends_on: {type: string, format: date}
+        staff_payee_id: {type: [string, 'null'], format: uuid}
+    CoachAdjustmentCreate:
+      type: object
+      required: [amount_minor, reason]
+      properties:
+        amount_minor: {type: integer, minimum: -2147483647, maximum: 2147483647, description: Positive raises the coach's share; the gross is unchanged.}
+        reason: {type: string, maxLength: 500}
+    CoachPayoutApprove:
+      type: object
+      properties:
+        acknowledge_no_rule_lines: {type: boolean, default: false, description: 'Required (true) when the statement holds lesson lines with no share rule; else 422 no-rule-lines-unacknowledged.'}
+    CoachPayoutPaid:
+      type: object
+      required: [paid_on, payment_method]
+      properties:
+        paid_on: {type: string, format: date}
+        payment_method: {type: string, enum: [bank_transfer, cheque, other]}
+        payment_reference: {type: [string, 'null'], maxLength: 120, description: Scanned for card numbers.}
     PayStatementLine:
       type: object
       required: [id, kind, occurred_on, source_type, source_id, description, quantity, amount_minor, was_paid_before]

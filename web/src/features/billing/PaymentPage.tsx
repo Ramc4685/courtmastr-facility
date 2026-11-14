@@ -11,29 +11,35 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
+import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from './attempt'
 import { ReasonDialog } from './ChargeDialogs'
 import { HistoryList } from './InvoicePage'
-import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, toMoneyInput } from './money'
+import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, toMoneyInput } from './money'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useCurrency, useLocationRef } from './shared'
 
 type Payment = Schemas['PaymentDetail']
 const PROCESSED = new Set(['card', 'bank_debit'])
 
-function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => void }) {
+export function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const currency = useCurrency()
   const refundable = payment.unapplied_minor
-  const [amount, setAmount] = useState(toMoneyInput(refundable))
-  const [method, setMethod] = useState<'original' | 'external'>(PROCESSED.has(payment.tender_kind) ? 'original' : 'external')
-  const [reason, setReason] = useState('')
-  const [comments, setComments] = useState('')
+  type Values = { amount: string; method: 'original' | 'external'; reason: string; comments: string }
+  // a retry replays the refund, never pays twice; a reopened locked dialog sends the values its key was used for
+  const attempt = useAttemptKey<Values>(`refund:${payment.id}`, checkStaffAttempt)
+  const [amount, setAmount] = useState(attempt.saved?.amount ?? toMoneyInput(refundable))
+  const [method, setMethod] = useState<'original' | 'external'>(attempt.saved?.method ?? (PROCESSED.has(payment.tender_kind) ? 'original' : 'external'))
+  const [reason, setReason] = useState(attempt.saved?.reason ?? '')
+  const [comments, setComments] = useState(attempt.saved?.comments ?? '')
   const [tried, setTried] = useState(false)
   const m = useMutation({
-    mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null } }),
+    mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null }, idempotencyKey: attempt.key }),
+    onSettled: (_data, error) => attempt.settle(error, { amount, method, reason, comments }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
-      toast('success', r.status === 'pending' ? 'Refund sent to the processor; it settles shortly.' : 'Refund recorded.')
+      const outcome = refundOutcome([r], currency)
+      toast(outcome.tone, outcome.message)
       onClose()
     },
   })
@@ -42,7 +48,7 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
     <FormDialog
       title={`Refund payment #${payment.receipt_number}`}
       description={`Up to ${formatMoney(refundable, currency)} (the money not applied to any item) can be refunded. To refund money applied to an item, reverse the item first: that moves the money to account credit.`}
-      submitLabel="Refund"
+      submitLabel={attempt.locked ? 'Try again' : 'Refund'}
       danger
       busy={m.isPending}
       error={m.error}
@@ -52,11 +58,13 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
         if (reason.trim()) m.mutate()
       }}
     >
-      <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => setAmount(e.target.value)} />
+      <AttemptLock attempt={attempt} />
+      <AttemptFields attempt={attempt}>
+      <MoneyInput label="Amount" value={amount} error={errors.amount_minor} onChange={(e) => { setAmount(e.target.value); attempt.restart() }} />
       <Select
         label="Refund to"
         value={method}
-        onChange={(e) => setMethod(e.target.value as 'original' | 'external')}
+        onChange={(e) => { setMethod(e.target.value as 'original' | 'external'); attempt.restart() }}
         options={[
           ...(PROCESSED.has(payment.tender_kind) ? [{ value: 'original', label: 'The original card or account (through the processor)' }] : []),
           { value: 'external', label: 'Paid out another way (cash, cheque): record only' },
@@ -64,6 +72,7 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
       />
       <TextArea label="Reason" required value={reason} onChange={setReason} error={tried && !reason.trim() ? 'A reason is required.' : errors.reason} />
       <Input label="Comments" value={comments} onChange={(e) => setComments(e.target.value)} />
+      </AttemptFields>
     </FormDialog>
   )
 }

@@ -12,6 +12,7 @@ import { ClientMembershipsTab } from './ClientMembershipsTab'
 
 vi.mock('../../lib/auth', () => ({
   useAuth: () => ({ can: () => true, me: { tenant: { currency: 'USD' }, locations: [{ id: 'l1', name: 'Main', time_zone: 'America/Chicago' }] } }),
+  useCurrentLocation: () => ({ locationId: null }),
 }))
 
 const wrap = (ui: React.ReactNode) =>

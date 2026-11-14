@@ -11,7 +11,8 @@ import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
-import { addDays, formatDate, todayIn, toMinor } from '../../lib/format'
+import { addDays, formatDate, toMinor } from '../../lib/format'
+import { useLocationToday } from '../../lib/locationDate'
 import { ClosesTab, RatesTab } from './PostBilled'
 import { ClientLink, PACKAGE_TONE, RequiredDocument, StatusBadge, UNITS, moneyText, useClientNames, useMoney, useRevenueCategories, type PackageOut } from '../memberships/shared'
 
@@ -310,7 +311,7 @@ function ExpiringTab() {
   const settings = useQuery({ queryKey: ['package-settings'], queryFn: () => api.get('/api/v1/package-settings') })
   const [days, setDays] = useState<string | null>(null)
   const span = days ?? String(settings.data?.expiry_notice_days ?? 14)
-  const until = addDays(todayIn(), Number(span))
+  const until = addDays(useLocationToday(), Number(span))
   const paging = useKeysetQuery(['client-packages', 'expiring', until], (cursor) => api.get('/api/v1/client-packages', { query: { cursor, status: 'active', expires_on_or_before: until } }))
   const names = useClientNames((paging.query.data?.data ?? []).map((p) => p.owner_client_id))
   const renew = useMutation({

@@ -366,7 +366,7 @@ function AvailabilityDialog({ resource, timeZone, canManage, onClose }: { resour
   const toast = useToast()
   const key = ['resources', 'windows', resource.id]
   const windows = useQuery({ queryKey: key, queryFn: () => api.get('/api/v1/resources/{resource_id}/availability-windows', { path: { resource_id: resource.id } }) })
-  const [form, setForm] = useState({ weekdays: [1, 2, 3, 4, 5], start_time: '09:00', end_time: '17:00', starts_on: todayIn(), ends_on: '', interval_weeks: '1', note: '' })
+  const [form, setForm] = useState({ weekdays: [1, 2, 3, 4, 5], start_time: '09:00', end_time: '17:00', starts_on: todayIn(timeZone), ends_on: '', interval_weeks: '1', note: '' })
   const refresh = () => void qc.invalidateQueries({ queryKey: key })
   const add = useMutation({
     mutationFn: () =>

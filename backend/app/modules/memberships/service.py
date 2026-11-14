@@ -647,7 +647,11 @@ def _sale_view(session: Session, contract: MembershipContract, invoice, payment)
 def sell_contract(session: Session, principal: Principal, data: dict, idempotency_key: str | None = None) -> dict:
     """Sell a membership (MEM-07): contract snapshot, full schedule, add-ons, shares, the plan's document, what
     is due now billed onto one invoice and, optionally, a payment. A contract that starts today and has no open
-    document gate is active in this transaction."""
+    document gate is active in this transaction. A retry with the Idempotency-Key of a sale that went through
+    returns that sale and sells nothing new."""
+    idempotency_key = billing.service.staff_key(principal, idempotency_key)  # this caller's, as staff payments
+    if data.get("payment") and (replayed := _replayed_sale(session, principal, data, idempotency_key)) is not None:
+        return replayed
     contract, invoice = _sell(session, principal, data, "staff")
     payment = None
     if data.get("payment"):
@@ -655,9 +659,48 @@ def sell_contract(session: Session, principal: Principal, data: dict, idempotenc
             raise ValidationFailed("Nothing is due now, so there is nothing to pay.", pointer="/payment")
         payment = billing.service.take_payment(
             session, client_id=contract.owner_client_id, location_id=contract.location_id, invoice_id=invoice.id,
-            idempotency_key=idempotency_key, **data["payment"],
+            idempotency_key=idempotency_key, sale=_sale_ref("memberships", data), **data["payment"],
         )  # fmt: skip
+        if payment.status in ("succeeded", "processing") and not billing.service.paid_sources(session, payment.id):
+            payment = billing.service.allocate(session, payment.id, invoice_id=invoice.id)  # the earlier charge pays
     return _sale_view(session, contract, invoice, payment)
+
+
+def _replayed_sale(session: Session, principal: Principal, data: dict, key: str | None) -> dict | None:
+    """The sale a finished payment under `key` paid for, or None when the key took no payment yet (or only an
+    `initiated` one, which this sale then finishes, or a settled one that pays for nothing yet: the request died
+    after the charge and the sweep settled it, so this sale is sold and takes that payment). Selling again would
+    add a contract the payment does not cover."""
+    authorize(principal, _SELL, location_id=data["location_id"])
+    prior = billing.service.find_payment(session, key) if key else None
+    if prior is None or prior.status == "initiated":
+        return None
+    payment = billing.service.take_payment(  # the request-hash check only: a finished payment is replayed, never charged
+        session, client_id=data["client_id"], location_id=data["location_id"], idempotency_key=key,
+        sale=_sale_ref("memberships", data), **data["payment"],
+    )  # fmt: skip
+    sources = billing.service.paid_sources(session, payment.id)
+    if not sources and payment.status in ("succeeded", "processing"):
+        return None
+    for context, kind, source_id, invoice_id in sources:
+        period = (
+            session.get(Period, source_id) if (context, kind) == ("memberships", "billing_schedule_period") else None
+        )
+        if period is not None:
+            contract = session.get(MembershipContract, period.membership_contract_id)
+            return contract_view(session, contract) | {
+                "invoice_id": invoice_id, "payment_id": payment.id, "payment_status": payment.status,
+            }  # fmt: skip
+    raise Conflict(  # declined, cancelled or still unknown: it paid for nothing, so nothing to return or reuse
+        "This Idempotency-Key already finished a sale. Check what happened to that attempt before selling again.",
+        code="idempotency-key-reused",
+    )  # fmt: skip
+
+
+def _sale_ref(context: str, data: dict) -> str:
+    """What a staff sale sells (the request body without its payment): each attempt raises a fresh invoice, so the
+    payment's Idempotency-Key is bound to this instead (billing.take_payment `sale`)."""
+    return repr((context, sorted((k, v) for k, v in data.items() if k != "payment")))
 
 
 def import_contract(session: Session, data: dict) -> tuple[MembershipContract, bool]:
@@ -1845,6 +1888,37 @@ def eligibility(session: Session, client_id: UUID, on: date | None = None) -> di
 def is_member(session: Session, client_id: UUID, on: date | None = None) -> bool:
     """Holds an active membership, as owner or through a share. Internal (member-only pricing and plans)."""
     return eligibility(session, client_id, on)["is_member"]
+
+
+def member_on(session: Session, client_id: UUID, on: date) -> dict | None:
+    """Internal (no principal): the contract that made the client a member on the date `on`, for pricing what
+    happens on that date. Unlike `eligibility` (today's standing) it also answers for a past date a since-cancelled
+    or expired contract covered (arrears billing), and treats an auto-renewing live contract as covering past its
+    `end_on` until it is cancelled or a renewal fails (the failed renewal ends it, and later dates are not covered).
+    Freezes, suspensions and an unmet activation gate still exclude a date. Shares count while not revoked.
+    A contract cancelled on or before its start date was un-sold (everything billed reversed): it never made the
+    client a member. Returns {"contract_id", "membership_type_id"} or None."""
+    c = MembershipContract
+    shared = select(MembershipShare.membership_contract_id).where(
+        MembershipShare.client_id == client_id, MembershipShare.revoked_at.is_(None)
+    )
+    stmt = select(c).where(c.start_on <= on, or_(c.owner_client_id == client_id, c.id.in_(shared)))
+    for contract in session.scalars(stmt.order_by(c.start_on, c.id)):
+        if contract.cancel_reason and contract.end_on <= contract.start_on:
+            continue  # un-sold, not a one-day membership
+        renewing = contract.is_auto_renew and contract.status in LIVE and not contract.cancel_reason
+        end = date.max if renewing else contract.end_on
+        if on > end:
+            continue
+        freezes, suspensions = _spans(session, contract.id)
+        status = domain.effective_status(
+            contract.status if contract.status in LIVE else "active", contract.start_on, end,
+            [(f.during.lower, f.during.upper) for f in freezes], [(s.during.lower, s.during.upper) for s in suspensions],
+            on, is_gated=contract.status == "upcoming" and _is_gated(session, contract),
+        )  # fmt: skip
+        if status == "active":
+            return {"contract_id": contract.id, "membership_type_id": contract.membership_type_id}
+    return None
 
 
 def list_standings(session: Session, principal: Principal, client_ids: list[UUID]) -> list[dict]:

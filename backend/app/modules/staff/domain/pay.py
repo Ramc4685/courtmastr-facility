@@ -140,6 +140,17 @@ def off_hours_minutes(
     return total
 
 
+def overlap_minutes(starts: datetime, ends: datetime, spans: Iterable[tuple[datetime, datetime]]) -> int:
+    """Minutes of [starts, ends) covered by any of `spans`, each minute once even where spans overlap each other."""
+    total, reach = 0, starts
+    for a, b in sorted(spans):
+        a, b = max(a, reach), min(b, ends)
+        if b > a:
+            total += int((b - a).total_seconds() // 60)
+            reach = b
+    return total
+
+
 def off_hours_bonus(minutes: int, rate_minor: int) -> int:
     """The off-hours bonus is an extra hourly rate over the minutes inside the window."""
     return per_hour(rate_minor, minutes)

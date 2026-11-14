@@ -12,6 +12,7 @@ import { useToast } from '../../components/Toast'
 import { formatDate, formatDateTime, formatMoney } from '../../lib/format'
 import { programError, REGISTRATION_STATE } from '../programs/queries'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { clientName, CouponField, useAttemptKey, usePortal, usePortalClients } from './shared'
 
 type Program = Schemas['PublicProgramGroup']
@@ -84,7 +85,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
   const [mode, setMode] = useState<'later' | 'now'>('later')
   const payLater = mode === 'later' && !planned
   const [coupon, setCoupon] = useState('')
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-basket:${basket.id}`, checkPortalAttempt)
   const gate = useTermsGate()
   const remove = useMutation({
     mutationFn: (itemId: string) => api.delete('/api/v1/portal/registration-checkouts/{checkout_id}/items/{item_id}', { path: { checkout_id: basket.id, item_id: itemId } }),
@@ -99,6 +100,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
         body: payLater ? { pay_later: true, terms_version_id: gate.versionId } : { pay_later: false, ...choice.body, coupon_code: planned ? null : coupon || null, terms_version_id: gate.versionId },
       }),
     onSuccess: (b) => {
+      attempt.settle(null)
       void qc.invalidateQueries({ queryKey: ['portal'] })
       onDone(b)
     },
@@ -126,7 +128,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="tabular">{formatMoney(i.amount_minor)}</span>
-                  <Button size="sm" variant="ghost" aria-label={`Remove ${i.client_name} from ${i.program_group_name}`} onClick={() => remove.mutate(i.id)}>
+                  <Button size="sm" variant="ghost" aria-label={`Remove ${i.client_name} from ${i.program_group_name}`} disabled={attempt.locked} onClick={() => remove.mutate(i.id)}>
                     Remove
                   </Button>
                 </span>
@@ -162,6 +164,8 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
             A required document still needs to be signed before you can confirm. Sign it from your documents, then come back.
           </p>
         )}
+        <AttemptLock attempt={attempt} />
+        <AttemptFields attempt={attempt}>
         {basket.items.length > 0 && !planned && (
           <Select label="Payment" value={mode} onChange={(e) => setMode(e.target.value as 'later' | 'now')} options={[{ value: 'later', label: 'Pay later' }, { value: 'now', label: 'Pay now' }]} />
         )}
@@ -178,11 +182,12 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
           </p>
         )}
         {gate.box}
+        </AttemptFields>
         <div className="flex flex-wrap gap-2">
           <Button disabled={basket.items.length === 0 || (!payLater && !choice.ready) || !gate.ready} loading={confirm.isPending} onClick={() => confirm.mutate()}>
-            {!payLater && basket.due_now_minor > 0 ? `Pay ${money(basket.due_now_minor)} and confirm` : 'Confirm registration'}
+            {attempt.locked ? 'Try again' : !payLater && basket.due_now_minor > 0 ? `Pay ${money(basket.due_now_minor)} and confirm` : 'Confirm registration'}
           </Button>
-          <Button variant="secondary" loading={abandon.isPending} onClick={() => abandon.mutate()}>
+          <Button variant="secondary" loading={abandon.isPending} disabled={attempt.locked} onClick={() => abandon.mutate()}>
             Empty basket
           </Button>
         </div>

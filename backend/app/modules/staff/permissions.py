@@ -26,4 +26,11 @@ register(
     _p("payroll_run.create", L, "Run payroll and commission reports", "W", _AD),
     _p("payroll_run.approve", L, "Finalize and void payroll runs", "W +", _AD),
     _p("payroll_run.export", L, "Export payroll runs", "W X", _AD),
+    # Independent coaches' revenue share (staff README "Coach revenue share"). Engagement and share rules are pay
+    # rules: `pay_rate.read` and `pay_rate.manage`, so a coach never sees or changes their own share.
+    _p("coach_payout.read", L, "View coach earnings and payout statements", "W", {**_AD, "coach": "own"}, own=True),
+    _p("coach_payout.create", L, "Run and discard coach payout statements", "W", _AD),
+    _p("coach_payout.adjust", L, "Add manual adjustments to coach payouts", "W", _AD),
+    _p("coach_payout.approve", L, "Approve coach payout statements", "W +", _AD),
+    _p("coach_payout.pay", L, "Record a coach payout as paid", "W +", _AD),
 )  # fmt: skip

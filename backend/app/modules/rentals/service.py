@@ -9,6 +9,8 @@ functions only: post_charge (idempotent by source), reverse, create_invoice_for_
 take_payment.
 """
 
+import base64
+import json
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -21,7 +23,7 @@ from sqlalchemy.orm import Session as Db
 from app.core import audit, clock, dates, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
-from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
@@ -61,6 +63,7 @@ TYPES, PLANS, SELL, REMOVE = (
 PUBLISH = "rentals.public_listing.publish"
 SHARE, LOCKER_RENT = "rentals.rental_plan.share", "rentals.locker_rental.manage"
 PORTAL_SETTINGS = "rentals.portal_setting.manage"
+OVERRIDE_MINOR = "rentals.booking.override_minor"
 SOURCE = ("rentals", "rental_booking")
 CONSTRAINT_CODES["uq_rental_type_name"] = "already-exists"
 CONSTRAINT_CODES["uq_rental_rate_name"] = "already-exists"
@@ -258,7 +261,7 @@ _RATE_FIELDS = (
 )  # fmt: skip
 _RULE_FIELDS = (
     "kind", "name", "sort_order", "start_time", "end_time", "starts_on", "ends_on", "weekdays", "membership_type_id",
-    "amount_minor", "discount_pct", "discount_minor",
+    "amount_minor", "discount_pct", "discount_minor", "is_peak",
 )  # fmt: skip
 
 
@@ -315,7 +318,9 @@ def _set_rate_parts(session: Db, rate: RentalRate, data: dict) -> dict:
                 raise ValidationFailed("A time band has a start and an end.", pointer=f"/rules/{index}/end_time")
             session.add(
                 RentalRateRule(
-                    rental_rate_id=rate.id, **{k: rule.get(k) for k in _RULE_FIELDS} | {"name": rule.get("name") or ""}
+                    rental_rate_id=rate.id,
+                    **{k: rule.get(k) for k in _RULE_FIELDS}
+                    | {"name": rule.get("name") or "", "is_peak": bool(rule.get("is_peak"))},
                 )
             )
         changes["rules"] = [None, len(data["rules"])]
@@ -390,7 +395,10 @@ def _rate_input(session: Db, rate: RentalRate) -> pricing.Rate:
 class _Priced:
     """A charge decision priced: the lines, the taxes they will carry and what billing gets told."""
 
-    def __init__(self, session: Db, rtype: RentalType, decision: dict, occurrences: list[pricing.Occurrence], on: date):
+    def __init__(
+        self, session: Db, rtype: RentalType, decision: dict, occurrences: list[pricing.Occurrence], on: date,
+        client_id: UUID | None, players: tuple[UUID, ...] = (),
+    ):  # fmt: skip
         custom = decision.get("custom_rate")
         if custom:
             self.rate = pricing.Rate(
@@ -411,7 +419,9 @@ class _Priced:
             selected = session.scalars(select(RentalRateTax.tax_id).where(RentalRateTax.rental_rate_id == row.id)).all()
         if decision.get("tax_ids") is not None:
             selected = decision["tax_ids"]
-        self.lines = pricing.price(self.rate, occurrences, grouping=decision.get("line_grouping"))
+        self.lines = _price_for(
+            session, self.rate, occurrences, client_id, decision.get("line_grouping"), players=players
+        )
         try:
             pricing.apply_discount(self.lines, decision.get("discount_minor") or 0)
         except ValueError:
@@ -442,6 +452,62 @@ class _Priced:
         }  # fmt: skip
 
 
+def _member_pricing(
+    session: Db, client_id: UUID | None, on: date, players: tuple[UUID, ...] = ()
+) -> tuple[bool, frozenset]:
+    """Whether the rental earns member prices on a local date, and under which membership types: the holder is a
+    member that date, or every listed player is a covered member that date AND has the holder as a guardian (the
+    minors rule's `guardian_ids`; owner: "a child can be on the parent's membership too"). An unrelated member
+    listed as a player never lowers a guest holder's price. Membership is
+    memberships' `member_on`, the date-aware form of the owner-decision-13 definition (an active contract, owned or
+    shared, at any location, overdue or used up; never suspended or frozen on that date). It covers a past date a
+    since-ended contract covered and an auto-renewing contract past its end date. One uncovered player with a
+    non-member holder means guest prices."""
+    if client_id is None:
+        return False, frozenset()
+    found = memberships.service.member_on(session, client_id, on)
+    if found:
+        return True, frozenset({found["membership_type_id"]})
+    others = [p for p in dict.fromkeys(players) if p != client_id]
+    if not others or any(client_id not in clients.households.guardian_ids(session, p) for p in others):
+        return False, frozenset()
+    covered = [memberships.service.member_on(session, p, on) for p in others]
+    if all(covered):
+        return True, frozenset(c["membership_type_id"] for c in covered)
+    return False, frozenset()
+
+
+def _price_for(
+    session: Db,
+    rate: pricing.Rate,
+    occurrences: list[pricing.Occurrence],
+    client_id: UUID | None,
+    grouping: str | None = None,
+    status: dict[date, tuple[bool, frozenset]] | None = None,
+    players: tuple[UUID, ...] = (),
+) -> list[pricing.Line]:
+    """The rental price for quote and charge alike: each occurrence at the payer's member status on its own
+    local date (a recurring rental that outlives a membership pays the guest price after it). `flat` is one
+    charge for the whole request, priced on the first date. `status` caches the payer's member status by date
+    across calls in one request (open times price every slot of a day)."""
+    groups: dict[tuple, list[pricing.Occurrence]] = {}
+    status = {} if status is None else status
+    first = min(occurrences, key=lambda o: o.index).starts_at.date()
+    for occurrence in occurrences:
+        on = first if rate.basis == "flat" else occurrence.starts_at.date()
+        if on not in status:
+            status[on] = _member_pricing(session, client_id, on, players)
+        groups.setdefault(status[on], []).append(occurrence)
+    lines = [
+        line
+        for (is_member, types), group in groups.items()
+        for line in pricing.price(rate, group, is_member=is_member, member_types=types, grouping=grouping)
+    ]
+    return sorted(
+        lines, key=lambda line: (line.occurrence_index or 0, str(line.resource_id or ""), -line.unit_amount_minor)
+    )
+
+
 def _currency(session: Db) -> str:
     return platform.service.get_tenant(session).currency
 
@@ -461,6 +527,7 @@ def _on_booking(session: Db, booking, data: dict) -> None:
         id=booking.source_id, location_id=booking.location_id, booking_id=booking.id,
         rental_type_id=UUID(data["rental_type_id"]), charge_state=data.get("charge_state") or "unbilled",
         booked_via=data["booked_via"], starts_at=booking.starts_at, ends_at=booking.ends_at,
+        minor_override_reason=data.get("minor_override_reason"),
     )  # fmt: skip
     session.add(row)
     session.flush()
@@ -512,7 +579,7 @@ def _views(session: Db, rows: list[RentalBooking]) -> list[dict]:
                 "booked_via": row.booked_via, "cancelled_at": row.cancelled_at,
                 "amount_minor": amounts[row.id] if row.id in amounts else None, "charge_ids": list(dict.fromkeys(charges[row.id])),
                 "invoice_ids": invoices, "is_on_public_schedule": row.is_on_public_schedule, "title": booking["title"],
-                "version": booking["version"],
+                "version": booking["version"], "minor_override_reason": row.minor_override_reason,
             }
         )  # fmt: skip
     return views
@@ -669,9 +736,12 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
         or (
             purchase.client_id != client_id
             and not (plan.is_shareable and client_id in _shared_with(session, purchase.id))
+            and not _guardian_spends_players_plan(session, purchase.client_id, client_id, rows, rtype)
         )  # a plan made unshareable later ignores its old share rows
     ):
         raise ValidationFailed("Unknown plan for this client.", pointer=pointer)
+    # The waiver gate for a holder spending someone else's plan (a share or a guardian) ran before the booking was
+    # written: `_share_holder_documents`.
     allowed = set(
         session.scalars(
             select(RentalTypeRentalPlan.rental_plan_id).where(RentalTypeRentalPlan.rental_type_id == rtype.id)
@@ -690,6 +760,21 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
     ):
         raise Conflict("The plan is not valid on these dates.", code="plan-not-valid")
     return purchase
+
+
+def _guardian_spends_players_plan(
+    session: Db, owner: UUID, holder: UUID, rows: list[RentalBooking], rtype: RentalType
+) -> bool:
+    """A plan bought in a child's name: the child never holds a rental (the minors rule), so a guardian holding the
+    rental may spend it, but only while the owner is a minor (on the first date; an unknown birth date is not, so
+    this fails closed) and only on occurrences the child plays, every one of them."""
+    first = min(r.starts_at for r in rows).astimezone(_zone(session, rtype.location_id)).date()
+    if not _is_minor(session, owner, first) or holder not in clients.households.guardian_ids(session, owner):
+        return False
+    played = select(RentalParty.rental_booking_id).where(
+        RentalParty.rental_booking_id.in_([r.id for r in rows]), RentalParty.client_id == owner
+    )
+    return set(session.scalars(played)) == {r.id for r in rows}
 
 
 def _cover(session: Db, purchase_id: UUID, client_id: UUID, rtype: RentalType, rows: list[RentalBooking]) -> Decimal:
@@ -736,14 +821,16 @@ def _decide(
             raise ValidationFailed("Choose the plan.", pointer="/charge/rental_plan_purchase_id")
         _cover(session, decision["rental_plan_purchase_id"], client_id, rtype, rows)
         return None, []
-    priced = _price_rows(session, rtype, decision, rows)
+    priced = _price_rows(session, rtype, decision, rows, client_id)
     posted = _post_lines(session, priced, rows, rtype, client_id, decision)
     return priced.quote(_currency(session), rtype.deposit_pct), _route(session, decision, posted, client_id)
 
 
-def _price_rows(session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking]) -> _Priced:
+def _price_rows(session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking], client_id: UUID) -> _Priced:
     occurrences = _occurrence_inputs(session, rows, _type_resources(session, rtype.id))
-    return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date())
+    players = tuple(session.scalars(select(RentalParty.client_id).distinct().where(
+        RentalParty.rental_booking_id.in_([r.id for r in rows]))))  # fmt: skip
+    return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date(), client_id, players)
 
 
 def _check_override(principal: Principal, decision: dict, location_id: UUID) -> None:
@@ -752,6 +839,43 @@ def _check_override(principal: Principal, decision: dict, location_id: UUID) -> 
 
 
 # --- staff commands: create, preview, bill selected, extend ----------------------------------------------
+
+
+def _is_minor(session: Db, client_id: UUID, on: date, *, unknown_is_minor: bool = False) -> bool:
+    """The one minor lookup for rentals: under the tenant's minor age (`platform.service.minor_age`, which Phase 13
+    consolidates households' `age_of_majority` into) on the rental's local date. An unknown birth date counts as
+    an adult at the desk (`clients.service.is_minor`, ADR 0002 section 5) but as a minor online
+    (`unknown_is_minor`), where nobody is there to look."""
+    client = clients.service.get(session, client_id)
+    if client.birth_on is None:
+        return unknown_is_minor
+    return clients.service.is_minor(client, on, platform.service.minor_age(session))
+
+
+def _check_minors(
+    session: Db, holder: UUID, parties, on: date, pointer: str = "/parties", *, online: bool = False
+) -> None:
+    """The minors rule (pilot): a minor never holds a rental; a minor may play (an uncharged party) only on a
+    rental held, and so paid, by one of their guardians (`clients.households.guardian_ids`: a guardianship
+    relationship, never a delegate's acting rights). Online the holder needs a birth date on file."""
+    if online and clients.service.get(session, holder).birth_on is None:
+        raise ValidationFailed(
+            "Add your birth date to your profile before booking a court online.",
+            pointer="/client_id", code="birth-date-required",
+        )  # fmt: skip
+    if _is_minor(session, holder, on):
+        raise ValidationFailed(
+            "A child cannot hold a court booking. Book it in a parent's name and add the child as a player.",
+            pointer="/client_id", code="minor-cannot-hold-rental",
+        )  # fmt: skip
+    for index, party in enumerate(parties):
+        if _is_minor(session, party["client_id"], on, unknown_is_minor=online) and (
+            party.get("is_charged") or holder not in clients.households.guardian_ids(session, party["client_id"])
+        ):
+            raise ValidationFailed(
+                "A child can play only on a booking held and paid by their parent or guardian.",
+                pointer=f"{pointer}/{index}", code="minor-needs-guardian",
+            )  # fmt: skip
 
 
 def _parties(session: Db, data: dict) -> list[dict]:
@@ -784,6 +908,12 @@ def _rental_template(session: Db, principal: Principal, data: dict) -> tuple[Ren
         authorize(principal, scheduling.service.OVERRIDE, location_id=location_id)
     _check_override(principal, data["charge"], location_id)
     clients.service.require_active(session, data["client_id"])
+    reason = data.get("minor_override_reason")
+    if reason:
+        authorize(principal, OVERRIDE_MINOR, location_id=location_id)
+    else:
+        on = data["starts_at"].astimezone(_zone(session, location_id)).date()
+        _check_minors(session, data["client_id"], data.get("parties") or (), on)
     template = scheduling.service.template_for(
         session, location_id,
         {
@@ -799,7 +929,8 @@ def _rental_template(session: Db, principal: Principal, data: dict) -> tuple[Ren
     template["client_id"] = str(data["client_id"])
     template["source"] = {
         "context": "rentals", "type": "rental_booking",
-        "data": {"rental_type_id": str(rtype.id), "booked_via": "staff", "charge_state": state, "parties": _parties(session, data)},
+        "data": {"rental_type_id": str(rtype.id), "booked_via": "staff", "charge_state": state, "parties": _parties(session, data),
+                 "minor_override_reason": reason},
     }  # fmt: skip
     return rtype, template
 
@@ -821,13 +952,21 @@ def preview_rental(session: Db, principal: Principal, data: dict) -> dict:
             if o["status"] == "ok"
         ]  # fmt: skip
         if occurrences:
-            quote = _Priced(session, rtype, data["charge"], occurrences, occurrences[0].starts_at.date()).quote(
-                _currency(session), rtype.deposit_pct
-            )
+            players = tuple(UUID(str(p["client_id"])) for p in data.get("parties") or ())
+            quote = _Priced(
+                session, rtype, data["charge"], occurrences, occurrences[0].starts_at.date(), data["client_id"], players
+            ).quote(_currency(session), rtype.deposit_pct)
     return {
         "occurrences": result["occurrences"], "requested_count": result["requested_count"],
-        "conflict_count": result["conflict_count"], "quote": quote,
+        "conflict_count": result["conflict_count"], "quote": quote, "birth_on_unknown": _birth_on_unknown(session, data),
     }  # fmt: skip
+
+
+def _birth_on_unknown(session: Db, data: dict) -> list[UUID]:
+    """The holder and players with no birth date: the desk keeps ADR 0002 section 5 (unknown counts as an adult)
+    but is told, so staff can check before booking."""
+    ids = [data["client_id"], *(p["client_id"] for p in data.get("parties") or [])]
+    return [i for i in ids if clients.service.get(session, i).birth_on is None]
 
 
 def create_rental(session: Db, principal: Principal, data: dict) -> dict:
@@ -851,13 +990,17 @@ def create_rental(session: Db, principal: Principal, data: dict) -> dict:
     )
     rows = session.scalars(select(RentalBooking).where(RentalBooking.booking_id.in_(booking_ids))).all()
     quote, invoice_ids = _decide(session, rtype, data["client_id"], rows, decision)
+    flag = {"minor_override_reason": True} if data.get("minor_override_reason") else {}  # free text: flag only
     for row in rows:
         audit.record(
             session, CREATE, row, location_id=row.location_id,
-            changes={"charge_state": [None, row.charge_state], "rental_type_id": [None, str(row.rental_type_id)]},
+            changes={"charge_state": [None, row.charge_state], "rental_type_id": [None, str(row.rental_type_id)]} | flag,
         )  # fmt: skip
     first = min(rows, key=lambda r: r.starts_at)
-    return result | {"rental": _view(session, first), "quote": quote, "invoice_ids": invoice_ids}
+    return result | {
+        "rental": _view(session, first), "quote": quote, "invoice_ids": invoice_ids,
+        "birth_on_unknown": _birth_on_unknown(session, data),
+    }  # fmt: skip
 
 
 def bill_selected(session: Db, principal: Principal, data: dict) -> dict:
@@ -885,7 +1028,7 @@ def bill_selected(session: Db, principal: Principal, data: dict) -> dict:
     if data.get("preview"):
         if decision["decision"] != "bill":
             raise ValidationFailed("Only a bill decision has a quote.", pointer="/charge/decision")
-        quote = _price_rows(session, rtype, decision, sorted(rows, key=lambda r: r.starts_at)).quote(
+        quote = _price_rows(session, rtype, decision, sorted(rows, key=lambda r: r.starts_at), client_id).quote(
             _currency(session), rtype.deposit_pct
         )
         return {"quote": quote, "rentals": _views(session, rows), "invoice_ids": []}
@@ -909,8 +1052,23 @@ def extend_rental(session: Db, principal: Principal, rental_id: UUID, data: dict
             "Only a recurring rental can be extended; book a new rental instead.", pointer="/rule", code="not-a-series"
         )
     _check_type_resources(session, row.rental_type_id, data.get("resources") or ())
+    # The minors rule again for the new dates: an override is never inherited from the original booking.
+    reason = data.pop("minor_override_reason", None)
+    if reason:
+        authorize(principal, OVERRIDE_MINOR, location_id=row.location_id)
+    else:  # the new occurrences copy the series' players, so they are checked again too
+        players = session.scalars(select(RentalParty).where(RentalParty.rental_booking_id == row.id))
+        parties = [{"client_id": p.client_id, "is_charged": p.is_charged} for p in players]
+        _check_minors(session, booking["client_id"], parties, data["start_on"])
     result = scheduling.service.add_rule(
-        session, booking["booking_series_id"], data, principal.staff_user_id, principal=principal, key=UPDATE
+        session,
+        booking["booking_series_id"],
+        data,
+        principal.staff_user_id,
+        principal=principal,
+        key=UPDATE,
+        source_data={"minor_override_reason": reason},
+        extra_changes={"minor_override_reason": True} if reason else None,  # free text: flag only
     )
     if data.get("preview"):
         return {"booking_series_id": booking["booking_series_id"], "created_count": 0, "conflict_count": 0} | result
@@ -1280,10 +1438,23 @@ def _check_online_slot(session: Db, rtype: RentalType, starts_at: datetime, ends
 
 
 def search_availability(
-    session: Db, type_id: UUID, on: date, *, length_min: int | None = None, resource_id: UUID | None = None
+    session: Db,
+    type_id: UUID,
+    on: date,
+    *,
+    length_min: int | None = None,
+    resource_id: UUID | None = None,
+    client_id: UUID | None = None,
+    from_time: time | None = None,
+    to_time: time | None = None,
+    players: tuple[UUID, ...] = (),
 ) -> list[dict]:
     """Advisory slots (RNT-06): free ranges of the type's resources on a local date, snapped to the grid,
-    with room for the type's buffers, priced with the online rate. The hold insert at checkout decides."""
+    with room for the type's buffers, priced with the online rate for `client_id` (anonymous: the guest
+    price) through the same `_price_for` as the charge. The hold insert at checkout decides. The whole day,
+    or the slots starting in the local band [from_time, to_time), grouped by court then start."""
+    if from_time and to_time and to_time <= from_time:
+        raise ValidationFailed("The band must end after it starts.", pointer="/to_time")
     rtype = _online_type(session, type_id)
     limits = _limits(session, rtype)
     length = length_min or rtype.default_length_min or rtype.min_length_min
@@ -1296,6 +1467,8 @@ def search_availability(
     zone = _zone(session, rtype.location_id)
     start = datetime.combine(on, time(0), zone)
     end = datetime.combine(on + timedelta(days=1), time(0), zone)
+    band_from = datetime.combine(on, from_time, zone) if from_time else start
+    band_to = datetime.combine(on, to_time, zone) if to_time else end
     free = scheduling.service.free_ranges(session, rtype.location_id, start, end, resource_ids=ids)
     names = {r.id: r.name for r in resources.service.get_many(session, ids)}
     rate = _rate_input(session, session.get(RentalRate, rtype.online_rental_rate_id))
@@ -1306,24 +1479,51 @@ def search_availability(
     )
     latest = clock.now() + timedelta(days=limits["horizon_days"]) if limits["horizon_days"] else None
     slots = []
+    member_status: dict[date, tuple[bool, frozenset]] = {}  # one membership read per date, not per slot
     for column in free["resources"]:
         for gap in column["free"]:
             cursor = start
             while cursor < gap["starts_at"] + before:
                 cursor += step
             while cursor + timedelta(minutes=length) + after <= gap["ends_at"]:
-                if cursor >= earliest and (latest is None or cursor < latest):
+                if max(earliest, band_from) <= cursor < band_to and (latest is None or cursor < latest):
                     finish = cursor + timedelta(minutes=length)
-                    lines = pricing.price(rate, [pricing.Occurrence(0, cursor, finish, (column["resource_id"],))])
+                    occurrence = pricing.Occurrence(0, cursor, finish, (column["resource_id"],))
+                    lines = _price_for(session, rate, [occurrence], client_id, status=member_status, players=players)
                     slots.append(
                         {
                             "starts_at": cursor, "ends_at": finish, "resource_id": column["resource_id"],
                             "resource_name": names.get(column["resource_id"], ""),
-                            "price_minor": sum(line.amount_minor for line in lines), "is_member_price": False,
+                            "price_minor": sum(line.amount_minor for line in lines),
+                            "is_member_price": any(line.is_member_price for line in lines),
                         }
                     )  # fmt: skip
                 cursor += step
-    return sorted(slots, key=lambda s: (s["starts_at"], s["resource_name"]))
+    return sorted(slots, key=_slot_key)
+
+
+def _slot_key(slot: dict) -> tuple:
+    return slot["resource_name"], str(slot["resource_id"]), slot["starts_at"]
+
+
+def slot_page(slots: list[dict], limit: int, cursor: str | None) -> dict:
+    """Keyset page over the day's slots (court, then start), so nothing is ever cut off silently."""
+    if cursor:
+        try:  # anonymous input: exactly [court name, court id, aware start], else 400, never a 500
+            name, rid, at = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+            after = (name, str(UUID(rid)), datetime.fromisoformat(at))
+            if not isinstance(name, str) or after[2].tzinfo is None:
+                raise ValueError
+        except (ValueError, TypeError, AttributeError):
+            raise DomainError("Invalid cursor", status=400, code="bad-request") from None
+        slots = [s for s in slots if _slot_key(s) > after]
+    page, more = slots[:limit], len(slots) > limit
+    last = _slot_key(page[-1]) if more else None
+    next_cursor = (
+        base64.urlsafe_b64encode(json.dumps([last[0], last[1], last[2].isoformat()]).encode()).decode()
+        if last else None
+    )  # fmt: skip
+    return {"data": page, "page": {"next_cursor": next_cursor, "has_more": more}}
 
 
 def _portal_client(session: Db, principal: Principal, client_id: UUID) -> UUID:
@@ -1332,6 +1532,29 @@ def _portal_client(session: Db, principal: Principal, client_id: UUID) -> UUID:
     if client_id not in clients.service.client_ids_for_identity(session, principal.identity_id):
         raise NotFound()
     return client_id
+
+
+def _portal_players(session: Db, principal: Principal, client_id: UUID, ids) -> tuple[UUID, ...]:
+    """The players a portal holder names: people the signed-in identity may act for (else 404), active, never
+    the holder. The availability quote and the checkout read the same list, so quote and charge agree."""
+    players = []
+    for player in dict.fromkeys(ids or ()):
+        if player == client_id:
+            continue
+        if clients.households.can_act_for(session, principal.identity_id, player) is None:
+            raise NotFound()
+        clients.service.require_active(session, player, pointer="/player_client_ids")
+        players.append(player)
+    return tuple(players)
+
+
+def portal_availability(
+    session: Db, principal: Principal, client_id: UUID, type_id: UUID, on: date, *, player_client_ids=(), **kw
+) -> list:
+    """The open times priced for the holder and the players they will name, as the checkout charges."""
+    holder = _portal_client(session, principal, client_id)
+    players = _portal_players(session, principal, holder, player_client_ids)
+    return search_availability(session, type_id, on, client_id=holder, players=players, **kw)
 
 
 def _portal_rental(
@@ -1375,9 +1598,10 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     client_id = _portal_client(session, principal, data["client_id"])
     rtype = _online_type(session, data["rental_type_id"])
     # active_members and paid_up_members read the same: non-payment suspends a contract, so it is no longer active.
-    # Membership is read on the rental's own date, so a contract that ends before it does not pass.
+    # Membership is read on the rental's own date (`member_on`): a contract that ends before it does not pass, an
+    # auto-renewing one does.
     rental_on = data["starts_at"].astimezone(_zone(session, rtype.location_id)).date()
-    if rtype.eligibility != "everyone" and not _is_member(session, client_id, rental_on):
+    if rtype.eligibility != "everyone" and memberships.service.member_on(session, client_id, rental_on) is None:
         raise ValidationFailed(
             "Online booking of this rental is for members.", pointer="/rental_type_id", code="membership-required"
         )
@@ -1385,6 +1609,11 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         raise ValidationFailed("This resource is not offered for this rental type.", pointer="/resource_id")
     _check_online_slot(session, rtype, data["starts_at"], data["ends_at"])
     clients.service.require_active(session, client_id)
+    players = [
+        {"client_id": p, "is_charged": False}
+        for p in _portal_players(session, principal, client_id, data.get("player_client_ids"))
+    ]
+    _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids", online=True)
     plan = data.get("rental_plan_purchase_id")
     _share_holder_documents(session, plan, client_id, online=True)
     hold = None
@@ -1397,7 +1626,8 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         buffer_before_min=rtype.buffer_before_min, buffer_after_min=rtype.buffer_after_min,
         source=(*SOURCE, rental_id), created_via="portal", hold_minutes=hold,
     )  # fmt: skip
-    _on_booking(session, booking, {"rental_type_id": str(rtype.id), "booked_via": "portal"})
+    parties = [{"client_id": str(p["client_id"]), "is_charged": False} for p in players]
+    _on_booking(session, booking, {"rental_type_id": str(rtype.id), "booked_via": "portal", "parties": parties})
     row = session.get(RentalBooking, rental_id)
     if plan:
         decision = {"decision": "plan", "rental_plan_purchase_id": plan}
@@ -1408,13 +1638,16 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     if hold and due == 0:
         scheduling.service.confirm_booking(session, booking.id)
     audit.record(session, CREATE, row, location_id=row.location_id, changes={"booked_via": [None, "portal"]})
+    # only once the rental is written: a refusal above (some commit, like document-required) must not tell staff
+    clients.service.note_unconfirmed_booking(session, client_id, data["starts_at"], rtype.location_id)
     return _checkout(
-        session, row, booking, quote, invoice_ids[0] if invoice_ids else None, hold is not None and due > 0
+        session, principal, row, booking, quote, invoice_ids[0] if invoice_ids else None, hold is not None and due > 0
     )
 
 
 def _checkout(
     session: Db,
+    principal: Principal,
     row: RentalBooking,
     booking,
     quote: dict | None,
@@ -1426,7 +1659,15 @@ def _checkout(
     return {
         "rental": _view(session, row), "quote": quote or empty, "expires_at": booking.expires_at, "invoice_id": invoice_id,
         "payment_required": required, "amount_due_minor": _amount_due(quote) if required else 0, "payment_status": status,
+        "entry_code_notice": _entry_code_notice(session, principal, booking.client_id, row.location_id),
     }  # fmt: skip
+
+
+def _entry_code_notice(session: Db, principal: Principal, client_id: UUID, location_id: UUID) -> str | None:
+    """An age signal: only the person themselves is told, never someone booking in their name."""
+    if clients.households.can_act_for(session, principal.identity_id, client_id) != "self":
+        return None
+    return clients.service.entry_code_notice(session, clients.service.get(session, client_id), location_id)
 
 
 def _checkout_quote(session: Db, row: RentalBooking) -> tuple[dict, UUID | None]:
@@ -1461,7 +1702,7 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
     row, booking = _portal_rental(session, principal, rental_id, lock=True)
     quote, invoice_id = _checkout_quote(session, row)
     if booking.status == "confirmed":  # an idempotent replay of a paid confirm: already acknowledged
-        return _checkout(session, row, booking, quote, invoice_id, False)
+        return _checkout(session, principal, row, booking, quote, invoice_id, False)
     if booking.status != "tentative" or booking.expires_at <= clock.now():
         raise Conflict("The hold on this time has expired.", code="hold-expired")
     clients.terms.acknowledge(session, client_id=booking.client_id, terms_version_id=data.get("terms_version_id"),
@@ -1478,7 +1719,7 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
     )  # fmt: skip
     booking = scheduling.service.confirm_booking(session, booking.id)
     audit.record(session, UPDATE, row, location_id=row.location_id, changes={"status": ["tentative", "confirmed"]})
-    return _checkout(session, row, booking, quote, invoice_id, False, payment.status if payment else None)
+    return _checkout(session, principal, row, booking, quote, invoice_id, False, payment.status if payment else None)
 
 
 def abandon_portal_rental(session: Db, principal: Principal, rental_id: UUID) -> None:
@@ -1699,17 +1940,30 @@ def _share_holder_documents(session: Db, purchase_id: UUID | None, client_id: UU
     refusal can keep the document it issues. The owner, or a client the plan is not shared with, passes here and
     is decided by the coverage check. The acceptance is consumed against the share row (one per source)."""
     purchase = session.get(RentalPlanPurchase, purchase_id) if purchase_id else None
-    share = purchase and session.scalar(select(RentalPlanShare).where(
+    if purchase is None or purchase.client_id == client_id:
+        return
+    plan = session.get(RentalPlan, purchase.rental_plan_id)
+    share = session.scalar(select(RentalPlanShare).where(
         RentalPlanShare.rental_plan_purchase_id == purchase.id, RentalPlanShare.client_id == client_id,
         RentalPlanShare.revoked_at.is_(None),
     ))  # fmt: skip
-    if share is None or purchase.client_id == client_id:
-        return
-    plan = session.get(RentalPlan, purchase.rental_plan_id)
-    if plan.is_shareable:
+    if share is not None and plan.is_shareable:
         used = ("rentals", "rental_plan_share", share.id)
-        if source := _require_documents(session, plan, client_id, online=online, used_by=used):
-            documents.service.consume(session, [source], used)
+    elif _guardian_of_minor_owner(session, purchase, client_id):
+        # A guardian spending a child's plan (`_guardian_spends_players_plan`) signs too, once per purchase; the
+        # players check needs the written booking and runs later in `_purchase_for`.
+        used = ("rentals", "rental_plan_purchase", purchase.id)
+    else:
+        return
+    if source := _require_documents(session, plan, client_id, online=online, used_by=used):
+        documents.service.consume(session, [source], used)
+
+
+def _guardian_of_minor_owner(session: Db, purchase: RentalPlanPurchase, client_id: UUID) -> bool:
+    today = clock.now().astimezone(_zone(session, purchase.location_id)).date()
+    return _is_minor(session, purchase.client_id, today) and client_id in clients.households.guardian_ids(
+        session, purchase.client_id
+    )
 
 
 def _plan_of(decision: dict) -> UUID | None:

@@ -10,14 +10,15 @@ import logging
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, PrimaryKeyConstraint, UniqueConstraint, text
+from sqlalchemy import ForeignKey, Index, PrimaryKeyConstraint, UniqueConstraint, select, text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.core import clock
 from app.core.db.base import Base
 from app.core.db.platform import platform_engine
 from app.core.ids import new_id
+from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 
 log = logging.getLogger("app.inbound_webhooks")
@@ -147,6 +148,35 @@ def purge_payloads() -> int:
     if made := sum(unfinished):  # never processed: an operator should know these were given up on
         log.warning("retention made %d unfinished inbound webhook events terminal", made)
     return len(unfinished)
+
+
+def given_up(tenant_id: UUID, error_code: str, query: ListQuery, account_refs: list[str] | None = None) -> dict:
+    """One keyset page of a tenant's events that failed with `error_code` and that the retry sweep has stopped
+    trying (attempt cap reached). Read as fh_platform like stale(), always filtered to the tenant the caller's
+    session belongs to; `account_refs` narrows it to those provider accounts (a location-scoped caller). Returns
+    the provider, payload kind and object reference and the time only: the payload holds nothing else."""
+    e = InboundWebhookEvent
+    stmt = select(e).where(
+        e.tenant_id == tenant_id, e.status == "failed", e.attempt_count >= RETRY_ATTEMPTS,
+        e.error.contains(f"({error_code})", autoescape=True),
+    )  # fmt: skip
+    if account_refs is not None:
+        stmt = stmt.where(e.provider_account_id.in_(account_refs))
+    with Session(platform_engine()) as session:
+        page = paginate(
+            session,
+            stmt,
+            query,
+            id_column=e.id,
+            sort_fields={"received_at": e.received_at},
+            default_sort="-received_at",
+        )
+        page["data"] = [
+            {"id": row.id, "provider": row.provider, "kind": row.payload.get("kind"),
+             "provider_ref": row.payload.get("object"), "received_at": row.received_at}
+            for row in page["data"]
+        ]  # fmt: skip
+    return page
 
 
 def get(row_id: UUID):

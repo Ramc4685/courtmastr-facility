@@ -33,7 +33,8 @@ def seed(session: Session) -> None:
     }
     category = session.scalar(select(RevenueCategory).where(RevenueCategory.code == "RENTALS"))
     tax = session.scalar(select(Tax).where(Tax.code == "SALES"))
-    people = {c.last_name: c.id for c in session.scalars(select(Client))}
+    # Newest first so the first-seeded adult wins a shared surname (Morgan Member, not the child Mia Member).
+    people = {c.last_name: c.id for c in session.scalars(select(Client).order_by(Client.id.desc()))}
     rtype = service.create_type(session, actor, {
         "location_id": location.id, "name": "Court rental", "revenue_category_id": category.id, "color": "#0e7490",
         "buffer_after_min": 10, "resource_ids": list(courts.values()), "default_length_min": 60, "min_length_min": 60,
@@ -44,7 +45,7 @@ def seed(session: Session) -> None:
     rate = service.create_rate(session, actor, rtype["id"], {
         "name": "Standard", "amount_minor": 4000, "member_amount_minor": 3200, "basis": "per_hour", "tax_ids": [tax.id],
         "rules": [
-            {"kind": "rate", "name": "Evening peak", "sort_order": 1, "start_time": "17:00", "end_time": "22:00", "amount_minor": 5000},
+            {"kind": "rate", "name": "Evening peak", "sort_order": 1, "start_time": "17:00", "end_time": "22:00", "amount_minor": 5000, "is_peak": True},
             {"kind": "rate", "name": "Weekend", "sort_order": 0, "weekdays": [6, 7], "amount_minor": 5500},
         ],
     })  # fmt: skip
@@ -74,7 +75,8 @@ def seed(session: Session) -> None:
            recurrence={"pattern": "weekly", "range_type": "count", "occurrence_limit": 4})  # fmt: skip
     rental("Reyes", "Court 3", monday + timedelta(days=3), "18:00", 90, {"decision": "unbilled"})
     purchase = service.sell_plan(session, actor, {"rental_plan_id": plan.id, "client_id": people["Okafor"]})
-    rental("Okafor", "Court 2", monday + timedelta(days=4), "07:00", 120, {"decision": "plan", "rental_plan_purchase_id": purchase["id"]})  # fmt: skip
+    # Never before today: the plan starts on the sale date, so on a weekend this week's Friday is already invalid.
+    rental("Okafor", "Court 2", max(monday + timedelta(days=4), today), "07:00", 120, {"decision": "plan", "rental_plan_purchase_id": purchase["id"]})  # fmt: skip
     _lockers(session, actor, location, today, people)
 
 

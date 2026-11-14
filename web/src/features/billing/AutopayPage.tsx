@@ -12,20 +12,22 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth, useCurrentLocation, useMe } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
-import { ATTEMPT_STATUS, formatMoney, today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
+import { ATTEMPT_STATUS, formatMoney } from './money'
 import { ClientName, Facts, FormDialog, ListTable, LocationSelect, Money, StatusBadge, useCurrency } from './shared'
 
 type Attempt = Schemas['AutopayAttemptOut']
 type Run = Schemas['AutopayRunOut']
 
-function StartRunDialog({ onClose }: { onClose: () => void }) {
+export function StartRunDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const me = useMe()
   const currency = useCurrency()
   const { locationId } = useCurrentLocation()
   const [location, setLocation] = useState(locationId ?? me.locations?.[0]?.id ?? '')
-  const [businessOn, setBusinessOn] = useState(today())
+  const locationToday = useLocationToday(location)
+  const [businessOn, setBusinessOn] = useState(locationToday)
   const run = useMutation({
     mutationFn: (dry: boolean) => api.post('/api/v1/autopay-runs', { body: { location_id: location, business_on: businessOn || null, is_dry_run: dry } }),
     onSuccess: (r) => {
@@ -188,7 +190,7 @@ export function AutopayPage() {
 
 export function AgeingPage() {
   const { locationId } = useCurrentLocation()
-  const [asOf, setAsOf] = useState(today())
+  const [asOf, setAsOf] = useState(useLocationToday(locationId))
   const [location, setLocation] = useState(locationId ?? '')
   const report = useQuery({ queryKey: ['billing', 'ageing', asOf, location], queryFn: () => api.get('/api/v1/receivables-ageing', { query: { as_of: asOf, location_id: location || undefined } }) })
   const cols: [keyof Schemas['AgeingTotals'], string][] = [

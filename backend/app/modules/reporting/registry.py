@@ -40,6 +40,8 @@ class Scope:
     # Every location the caller may see (None: all), whatever the run selects; for checks such as "has a newer
     # contract" that must neither leak another location nor ignore one the caller could have picked.
     permitted_location_ids: tuple[UUID, ...] | None = None
+    # `own` reach by sign-in rather than calendar column: the coach-share reports, which follow staff.coach.
+    own_staff_user_id: UUID | None = None
 
 
 class Params(BaseModel):

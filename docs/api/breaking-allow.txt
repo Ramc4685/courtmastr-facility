@@ -27,3 +27,66 @@ PUT /api/v1/locations/{location_id}/portal-settings removed the required propert
 GET /api/v1/public/portal-config removed the required property `locations/items/allows_online_rentals` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_text` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_version` from the response with the `200` status
+
+# Phase 9 orphans: refunds gain the `initiated` status (a row written before the processor call, PAY-05), and
+# POST /billing-bulk-actions now takes a stored, location-scoped action (BIL-02) and answers 202. The only client is
+# the web workbench, updated in the same change. Remove after merge.
+POST /api/v1/billing-bulk-actions request property `action` was restricted to a list of enum values
+POST /api/v1/billing-bulk-actions the request property `action` became required
+POST /api/v1/billing-bulk-actions the request property `location_id` became required
+POST /api/v1/billing-bulk-actions request property `charge_ids` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/billing-bulk-actions request property `location_id` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/billing-bulk-actions the `charge_ids` request property's maxItems was set to `1000`
+POST /api/v1/billing-bulk-actions removed the success response with the status `200`
+POST /api/v1/clients/{client_id}/account-credit/refund added the new `initiated` enum value to the `items/status` response property for the response status `201`
+GET /api/v1/clients/{client_id}/statement added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/invoices/{invoice_id}/mark-paid added the new `initiated` enum value to the `refunds/items/status` response property for the response status `201`
+POST /api/v1/payments added the new `initiated` enum value to the `refunds/items/status` response property for the response status `201`
+GET /api/v1/payments/{payment_id} added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/allocations added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+DELETE /api/v1/payments/{payment_id}/allocations/{payment_allocation_id} added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/cancel added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/confirm added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/refunds added the new `initiated` enum value to the `status` response property for the response status `201`
+POST /api/v1/payments/{payment_id}/void added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/portal/payments added the new `initiated` enum value to the `payment/anyOf[subschema #1: PortalPaymentDetail]/refunds/items/status` response property for the response status `201`
+POST /api/v1/portal/payments/{payment_id}/confirm added the new `initiated` enum value to the `payment/anyOf[subschema #1: PortalPaymentDetail]/refunds/items/status` response property for the response status `200`
+GET /api/v1/refunds added the new `initiated` enum value to the `data/items/status` response property for the response status `200`
+# Phase 9 orphans, risk review: bulk actions need an Idempotency-Key (an API-key client could otherwise run an
+# add-item twice and double-sell); the header gets the same bounds as every other required key.
+POST /api/v1/billing-bulk-actions the `header` request parameter `idempotency-key` became required
+POST /api/v1/billing-bulk-actions `header` request parameter `idempotency-key` list-of-types was narrowed by removing types `null`
+POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotency-key`, the maxLength was set to `255`
+POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotency-key`, the minLength was set to `8`
+POST /api/v1/billing-bulk-actions added the pattern `^[A-Za-z0-9_.:\-]{1,255}$` to the `header` request parameter `idempotency-key`
+# S1 (phase 9 orphans): the account-credit refund answers its contract's RefundBatch (refunded total and each leg's status) instead of a bare list; the staff web page is its only client and moves with it.
+POST /api/v1/clients/{client_id}/account-credit/refund the response's body `type` changed from `array<object>` to `object` for status `201`
+# Phase 9 orphans: int4 columns get their int4 range in the schema (a larger number was a 500, now a 422); no value
+# the database could store is refused.
+POST /api/v1/age-groups the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+POST /api/v1/age-groups the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+PATCH /api/v1/age-groups/{age_group_id} the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/age-groups/{age_group_id} the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+POST /api/v1/competitions/{competition_id}/divisions the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+POST /api/v1/competitions/{competition_id}/divisions the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+PATCH /api/v1/divisions/{division_id} the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/divisions/{division_id} the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+POST /api/v1/sports the `default_team_fee_minor/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/sports/{sport_id} the `default_team_fee_minor/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+# Phase 9 orphans (3c02d75): booking numbers are int4; a larger one was a 500, now a 422. No storable int4 number is refused.
+POST /api/v1/bookings/{booking_id}/merge the `booking_number` request property's max was set to `2147483647.00`
+# Phase 9 orphans: location sort_order is int4 (2^31 was a 500, now a 422); no storable number is refused.
+POST /api/v1/locations the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+POST /api/v1/locations the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+PATCH /api/v1/locations/{location_id} the `sort_order/anyOf[subschema #1]` request property's max was set to `2147483647.00`
+PATCH /api/v1/locations/{location_id} the `sort_order/anyOf[subschema #1]` request property's min was set to `-2147483648.00`
+# Owner decision "Staff confirm once" (claude/rentals-pilot): a self-typed birth date is required with a declaration
+# that it is true at public sign-up, guest checkout and for a portal dependant, so every self-service adult has a
+# date the booking rule can read; staff then confirm it once. Web and mobile send both. Remove after merge.
+POST /api/v1/portal/dependents added the new required request property `birth_on_declared`
+POST /api/v1/portal/dependents the request property `birth_on` became required
+POST /api/v1/portal/dependents request property `birth_on` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/public/guest-checkouts added the new required request property `birth_on_declared`
+POST /api/v1/public/portal-signups added the new required request property `birth_on_declared`
+POST /api/v1/public/portal-signups the request property `birth_on` became required
+POST /api/v1/public/portal-signups request property `birth_on` list-of-types was narrowed by removing types `null` from media type `application/json`

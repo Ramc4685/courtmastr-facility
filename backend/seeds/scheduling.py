@@ -46,7 +46,8 @@ BLOCKS = {
 
 def seed(session: Session) -> None:
     actor = session.info["actor"]
-    clients = {c.last_name: c.id for c in session.scalars(select(Client))}
+    # Newest first so the first-seeded adult wins a shared surname (Morgan Member, not the child Mia Member).
+    clients = {c.last_name: c.id for c in session.scalars(select(Client).order_by(Client.id.desc()))}
     for location in session.scalars(select(Location).where(Location.slug.in_(CLASSES))):
         zone = ZoneInfo(location.time_zone)
         resources = {r.name: r.id for r in session.scalars(select(Resource).where(Resource.location_id == location.id))}

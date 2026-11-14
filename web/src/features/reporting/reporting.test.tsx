@@ -118,6 +118,52 @@ describe('report centre, wave 4', SCREEN, () => {
     expect(screen.getByRole('button', { name: 'Print' })).toBeInTheDocument()
   })
 
+  it('filters court use by court and charts play against available time', async () => {
+    const user = userEvent.setup()
+    const courtUse = {
+      ...deposits, key: 'court_use', name: 'Court use', supports_detail: false,
+      params_schema: { properties: { resource_ids: { anyOf: [{ type: 'array', items: { type: 'string', format: 'uuid' } }, { type: 'null' }], title: 'Courts' } } },
+      columns: [{ key: 'label', label: 'Court', type: 'text' }, { key: 'utilization_pct', label: 'Utilization', type: 'pct' }],
+      total_columns: [{ key: 'utilization_pct', label: 'Utilization', type: 'pct' }],
+    }
+    const calls = renderAsStaff(<ReportRunPage reportKey="court_use" />, ['reporting.financial.run'], {
+      'GET /api/v1/report-definitions': page([courtUse]),
+      'GET /api/v1/resources': page([{ id: 'c1', name: 'Court 1', parent_id: null }, { id: 'h1', name: 'Court 1 half A', parent_id: 'c1' }]),
+      'POST /api/v1/report-runs': { status: 200, body: { ...run, report_key: 'court_use', totals: { utilization_pct: 18.2, available_hours: 22, played_hours: 4, buffer_hours: 0, blocked_hours: 0 } } },
+      'GET /api/v1/report-runs/run1/rows': rows([{ label: 'Court 1', available_hours: 22, played_hours: 4, buffer_hours: 0, blocked_hours: 0, utilization_pct: 18.2 }], courtUse.columns),
+    })
+    await user.click(await screen.findByLabelText('Court 1'))
+    expect(screen.queryByLabelText('Court 1 half A')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run report' }))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ report_key: 'court_use', params: { resource_ids: ['c1'] } })
+    expect(await screen.findByRole('img', { name: 'Utilization 18.2% of 22 available hours' })).toBeInTheDocument()
+    // 4 of 22 hours played is 18.2%; the segments carry patterns and the chart reads as text too
+    expect(screen.getByText('In all: played 18.2%, changeover 0.0% and blocked 0.0% of 22 available hours. Busiest: Court 1 at 18.2%.')).toBeInTheDocument()
+    expect(document.querySelectorAll('svg pattern')).toHaveLength(2)
+  })
+
+  it('shows the heat map as a grid with the value in each cell', async () => {
+    const heat = {
+      ...deposits, key: 'court_use_heatmap', name: 'Court use heat map', supports_detail: false, params_schema: { properties: {} },
+      columns: [{ key: 'hour', label: 'Hour', type: 'text' }, { key: 'monday_pct', label: 'Monday', type: 'pct' }],
+      total_columns: [{ key: 'utilization_pct', label: 'Utilization', type: 'pct' }],
+    }
+    const week = { monday_pct: 50, tuesday_pct: null, wednesday_pct: 0, thursday_pct: 0, friday_pct: 0, saturday_pct: 0, sunday_pct: 0 }
+    renderAsStaff(<ReportRunPage reportKey="court_use_heatmap" />, ['reporting.attendance.run'], {
+      'GET /api/v1/report-definitions': page([heat]),
+      'POST /api/v1/report-runs': { status: 200, body: { ...run, report_key: 'court_use_heatmap', totals: { utilization_pct: 20 } } },
+      'GET /api/v1/report-runs/run1/rows': rows([
+        { hour: '10:00', ...week, all_days_pct: 50 }, { hour: '20:00', ...week, monday_pct: 100, all_days_pct: 100 },
+      ], heat.columns),
+    })
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Run report' }))
+    const grid = await screen.findByRole('table', { name: /Average utilization by hour and weekday/ })
+    const ten = screen.getAllByRole('row').find((r) => r.textContent?.startsWith('10:00'))
+    expect(ten?.textContent).toContain('50.0%')
+    expect(ten?.textContent).toContain('not open')
+    expect(grid).toHaveTextContent('Busiest: Monday 20:00 at 100.0%')
+  })
+
   it('schedules a saved report for chosen recipients', async () => {
     const user = userEvent.setup()
     const saved = { id: 'sv1', report_key: 'deposits', name: 'Weekly deposits', params: {}, columns: null, is_shared: false, owner_staff_user_id: 's1', last_run_at: null, created_at: '', updated_at: '' }

@@ -98,3 +98,6 @@ Sam Scorekeeper (`scorekeeper@courtside-demo.example.com`) is assigned to the le
 its games; futsal has a "Scoring" stat table (G, A, and PTS = G + A). Morgan manages the Strikers roster in the
 portal at `/portal/teams`. Lanes seeded before Phase 14 lack the assignment and the stat table (the seed skips an
 existing league); assign Sam in the league's Staff tab.
+
+Age checks: Morgan Member's age is confirmed through the confirm action by the seed; Avery Nguyen (Downtown) has a typed
+adult birth date that waits in the age-check queue. Children such as Mia are never in the queue.

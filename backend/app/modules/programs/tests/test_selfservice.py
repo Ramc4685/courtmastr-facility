@@ -1,16 +1,30 @@
 """Session self-service (CLS-09) and its policy, the portal waitlist with open offers (CLS-06), and the staff
 session tools: series batch (CLS-02), rebook (CLS-03) and the roster message (CLS-10)."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from app.core import clock
 from app.modules.programs.tests.test_checkout import member
 from app.modules.programs.tests.test_sessions import class_of, counts, enroll, people
 from app.modules.scheduling.tests.helpers import API, at, book, facility, ok
 from conftest import add_staff, login
 
-SOON = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=3)
+CHICAGO = ZoneInfo("America/Chicago")  # facility() puts the location here
+# One clock: core.clock frozen at noon on the facility's (Chicago's) real date, and the sessions three local days
+# later, so the hour the suite runs (UTC is a day ahead of Chicago in its evening) changes nothing.
+NOW = datetime.combine(datetime.now(CHICAGO).date(), time(12), CHICAGO).astimezone(UTC)
+SOON = datetime.combine(NOW.astimezone(CHICAGO).date() + timedelta(days=3), time(0), CHICAGO).astimezone(UTC)
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock():
+    with clock.freeze(NOW):
+        yield
+
+
 POLICY = {
     "listing_mode": "bookable", "requires_active_membership": False, "visible_range_days": 30,
     "hides_full_sessions": False, "booking_cutoff_minutes": 0, "allows_self_cancel": True,

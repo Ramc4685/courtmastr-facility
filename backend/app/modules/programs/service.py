@@ -533,6 +533,14 @@ def attended_enrollments(session: Db, session_ids) -> dict[UUID, list[UUID]]:
     return found
 
 
+def enrollment_facts(session: Db, enrollment_id: UUID) -> dict | None:
+    """Internal read for coach revenue share: a session place's session and client, or None."""
+    row = session.get(Enrollment, enrollment_id)
+    if row is None or row.session_id is None:
+        return None
+    return {"session_id": row.session_id, "client_id": row.client_id, "location_id": row.location_id}
+
+
 # --- roster message (CLS-03) -------------------------------------------------------------------------------
 
 

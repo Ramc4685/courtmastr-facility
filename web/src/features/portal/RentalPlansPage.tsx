@@ -10,6 +10,7 @@ import { useToast } from '../../components/Toast'
 import { formatDate } from '../../lib/format'
 import { FormError } from '../billing/shared'
 import { PortalPage } from './PortalApp'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { NewCardField, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
 type Plan = Schemas['PortalRentalPlanOut']
@@ -22,11 +23,14 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const qc = useQueryClient()
   const { actingFor, money } = usePortal()
   const [token, setToken] = useState('')
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-rental-plan:${plan.id}`, checkPortalAttempt)
   const paid = plan.price_minor > 0
   const buy = useMutation({
     mutationFn: () => api.post('/api/v1/portal/rental-plan-purchases', { body: { rental_plan_id: plan.id, client_id: actingFor.id, method_token: token || null }, idempotencyKey: attempt.key }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
+    onSuccess: () => {
+      attempt.settle(null)
+      void qc.invalidateQueries({ queryKey: ['portal'] })
+    },
     onError: attempt.settle,
   })
   const sale = buy.data
@@ -45,7 +49,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
               Cancel
             </Button>
             <Button loading={buy.isPending} disabled={paid && !token} onClick={() => buy.mutate()}>
-              {paid ? `Pay ${money(plan.price_minor)}` : 'Get it'}
+              {attempt.locked ? 'Try again' : paid ? `Pay ${money(plan.price_minor)}` : 'Get it'}
             </Button>
           </>
         )
@@ -61,7 +65,8 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
             {plan.is_auto_renew ? '. Renews automatically; you can stop renewal at any time.' : '.'}
           </p>
           <FormError error={buy.error} />
-          {paid && <NewCardField value={token} onChange={setToken} />}
+          <AttemptLock attempt={attempt} />
+          <AttemptFields attempt={attempt}>{paid && <NewCardField value={token} onChange={setToken} />}</AttemptFields>
         </div>
       )}
     </Dialog>

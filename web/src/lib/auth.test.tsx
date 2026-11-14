@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { setCsrfToken } from '../api/client'
+import { api, setCsrfToken } from '../api/client'
 import { mockFetch } from '../test/fetchMock'
 import { AuthProvider, useAuth } from './auth'
+import { getHeld, setHeld } from './heldAttempts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -11,9 +12,11 @@ afterEach(() => {
 })
 
 let sessionStarted: ReturnType<typeof useAuth>['sessionStarted'] = () => Promise.reject(new Error('not rendered'))
+let signOut: ReturnType<typeof useAuth>['signOut'] = () => Promise.reject(new Error('not rendered'))
 function Probe() {
   const auth = useAuth()
   sessionStarted = auth.sessionStarted
+  signOut = auth.signOut
   return <p>{auth.me ? auth.me.principal.display_name : auth.isLoading ? 'loading' : 'signed out'}</p>
 }
 
@@ -82,4 +85,35 @@ it('does not leave sessionStarted waiting when the session falls back to the ren
   } finally {
     actEnv.IS_REACT_ACT_ENVIRONMENT = true
   }
+})
+
+it('keeps held payment attempts for the same person across a lapsed session; another person or a sign-out clears them', async () => {
+  let who: string | null = 'id-a'
+  const me = (id: string) => ({ principal: { kind: 'staff', display_name: id, identity_id: id }, permissions: [] })
+  mockFetch({
+    'GET /api/v1/auth/session': () => (who ? { status: 200, body: { csrf_token: 'c' } } : { status: 401, body: { code: 'unauthenticated' } }),
+    'GET /api/v1/me': () => (who ? { status: 200, body: me(who) } : { status: 401, body: { code: 'unauthenticated' } }),
+    'GET /api/v1/tender-types': { status: 401, body: { status: 401, code: 'unauthenticated' } },
+    'POST /api/v1/auth/sign-out': { status: 204 },
+  })
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    </QueryClientProvider>,
+  )
+  expect(await screen.findByText('id-a')).toBeInTheDocument()
+  setHeld('take-payment:c1', { key: 'k' }, 'id-a')
+  await act(() => api.get('/api/v1/tender-types').catch(() => undefined)) // the session lapses: a 401
+  expect(await screen.findByText('signed out')).toBeInTheDocument()
+  expect(getHeld('take-payment:c1')?.key).toBe('k') // still bound to its owner
+  await act(() => sessionStarted('c')) // the same person signs back in
+  expect(getHeld('take-payment:c1')?.key).toBe('k') // their retry keeps the key: no second charge
+  who = 'id-b'
+  await act(() => sessionStarted('c'))
+  expect(getHeld('take-payment:c1')).toBeUndefined() // another person starts empty
+  setHeld('take-payment:c1', { key: 'k2' }, 'id-b')
+  await act(() => signOut())
+  expect(getHeld('take-payment:c1')).toBeUndefined() // an explicit sign-out clears
 })

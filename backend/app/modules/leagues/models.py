@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import BigInteger, CheckConstraint, Date, Index, Numeric, UniqueConstraint, text
+from sqlalchemy import BigInteger, CheckConstraint, Date, Index, Integer, Numeric, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY, TSTZRANGE, ExcludeConstraint
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -28,6 +28,11 @@ class Format(StrEnum):
     DOUBLE_ELIMINATION = "double_elimination"
     THREE_GAMES_GUARANTEED = "three_games_guaranteed"
     LADDER = "ladder"
+
+
+class ScoringMode(StrEnum):
+    POINTS = "points"  # one score per side (the default)
+    SETS = "sets"  # badminton, volleyball, pickleball: per-set points, the score is sets won
 
 
 class CompetitionStatus(StrEnum):
@@ -157,6 +162,11 @@ def _ids() -> Mapped[list[UUID]]:
 
 DEFAULT_COLUMNS = [{"metric": m} for m in ("GP", "W", "L", "T", "GF", "GA", "PTS", "GD", "WP")]
 DEFAULT_SORT = [{"metric": m, "direction": "desc"} for m in ("PTS", "WP", "GD", "GF")]
+SETS_CHECK = (
+    "scoring_mode = 'points' OR (sets_best_of IN (1, 3, 5) AND set_points_to BETWEEN 1 AND 99"
+    " AND set_win_by BETWEEN 1 AND 5 AND (set_cap IS NULL OR set_cap > set_points_to)"
+    " AND (deciding_set_points_to IS NULL OR deciding_set_points_to BETWEEN 1 AND 99))"
+)
 
 
 class _Scoring:
@@ -171,6 +181,12 @@ class _Scoring:
     points_default_loss: Mapped[Decimal] = _points("0")
     forfeit_score_for: Mapped[int] = mapped_column(server_default=text("0"))
     tracks_sportsmanship: Mapped[bool] = mapped_column(server_default=text("false"))
+    scoring_mode: Mapped[str] = enum_column(server_default=text("'points'"))
+    sets_best_of: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    set_points_to: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    set_win_by: Mapped[int] = mapped_column(server_default=text("2"), info={"audit": "value"})
+    set_cap: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    deciding_set_points_to: Mapped[int | None] = mapped_column(info={"audit": "value"})
     standings_columns: Mapped[list] = mapped_column(JsonDict, server_default=text("'[]'"))
     standings_sort: Mapped[list] = mapped_column(JsonDict, server_default=text("'[]'"))
 
@@ -180,6 +196,8 @@ class Sport(_Scoring, TenantOwned, Timestamps, Base):
     __table_args__ = tenant_args(
         Index("uq_sport_name", "tenant_id", text("lower(name)"), unique=True),
         CheckConstraint("default_game_length_min > 0", name="game_length"),
+        enum_check("scoring_mode", ScoringMode),
+        CheckConstraint(SETS_CHECK, name="sets"),
     )
 
     name: Mapped[str] = mapped_column(info={"audit": "value"})
@@ -237,6 +255,8 @@ class Competition(_Scoring, TenantOwned, Timestamps, Base):
         CheckConstraint("ends_on IS NULL OR ends_on >= starts_on", name="dates"),
         CheckConstraint("game_length_min > 0", name="game_length"),
         CheckConstraint("team_fee_minor IS NULL OR team_fee_minor >= 0", name="team_fee"),
+        enum_check("scoring_mode", ScoringMode),
+        CheckConstraint(SETS_CHECK, name="sets"),
         Index("ix_competition_list", "tenant_id", "location_id", "kind", "status", "id"),
     )
 
@@ -509,12 +529,16 @@ class GameResult(TenantOwned, Timestamps, Base):
         UniqueConstraint("tenant_id", "game_id", "side", name="uq_game_result_game_side"),
         UniqueConstraint("tenant_id", "game_id", "competition_team_id", name="uq_game_result_game_team"),
         CheckConstraint("score IS NULL OR score >= 0", name="score"),
+        CheckConstraint("cardinality(set_scores) <= 5 AND 0 <= ALL (set_scores)", name="set_scores"),
     )
 
     game_id: Mapped[UUID]
     competition_team_id: Mapped[UUID]
     side: Mapped[str] = enum_column()
-    score: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    score: Mapped[int | None] = mapped_column(info={"audit": "value"})  # sets won, in a sets competition
+    set_scores: Mapped[list[int]] = mapped_column(  # this side's points per set, in order
+        ARRAY(Integer), server_default=text("'{}'"), info={"audit": "value"}
+    )
     went_to_overtime: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
     participation: Mapped[str] = enum_column(server_default=text("'full'"))
     sportsmanship: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), info={"audit": "value"})
@@ -548,6 +572,8 @@ class Standing(TenantOwned, Timestamps, Base):
     defaults: Mapped[int] = mapped_column(server_default=text("0"))
     goals_for: Mapped[int] = mapped_column(server_default=text("0"))
     goals_against: Mapped[int] = mapped_column(server_default=text("0"))
+    set_points_for: Mapped[int] = mapped_column(server_default=text("0"))  # rally points, sets competitions only
+    set_points_against: Mapped[int] = mapped_column(server_default=text("0"))
     bonus_points: Mapped[Decimal] = mapped_column(Numeric(7, 2), server_default=text("0"))
     adjustment_points: Mapped[Decimal] = mapped_column(Numeric(7, 2), server_default=text("0"), info={"audit": "value"})
     adjustment_reason: Mapped[str | None]

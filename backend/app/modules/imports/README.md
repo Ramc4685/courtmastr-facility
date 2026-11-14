@@ -182,3 +182,8 @@ returns nothing: a row holds no personal data.
 
 Deferred: cancelling a running job; restarting a stopped (`failed`) job in place; IMP-02 operator-assisted imports (an operator running a file for a tenant);
 custom fields, tags and notes on client rows; package balances.
+
+Ages: an import never confirms a birth date, for anyone (owner decision "Staff confirm once"). A clients row that
+brought a date reports `age-not-confirmed` ("Imported, age not confirmed.") as information; the row still imports.
+Imported adults wait in the clients age-check queue, filtered with `created_via=import` and `created_at[gte]` for the
+go-live bulk confirm (clients README).

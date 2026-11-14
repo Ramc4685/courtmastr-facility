@@ -20,7 +20,8 @@ from app.modules.billing.domain.money import net_amount, tax_amount
 from app.modules.billing.models import Charge, ChargeTax, Invoice, Payment, Refund, RevenueCategory
 
 _TEXT_FIELDS = ("description", "additional_description", "internal_remarks", "service_starts_on", "service_ends_on")
-_MONEY_FIELDS = ("quantity", "unit_price_minor", "discount_minor", "exclude_tax_ids")
+_MONEY_FIELDS = ("quantity", "unit_price_minor", "discount_minor", "discount_pct", "exclude_tax_ids")
+_REVENUE_FIELDS = ("revenue_on", "revenue_category_id")  # replace the item too, but move no price
 
 # --- items -------------------------------------------------------------------------------------------------
 
@@ -70,7 +71,8 @@ def preview_charge(session: Session, principal: Principal, data: dict) -> dict:
     authorize(principal, "billing.charge.create", location_id=data["location_id"])
     service._location_in_scope(session, principal, data["location_id"])
     quantity = Decimal(data.get("quantity", 1))
-    net = net_amount(quantity, data["unit_price_minor"], data.get("discount_minor", 0))
+    gross = net_amount(quantity, data["unit_price_minor"])
+    net = gross - service._pct_discount(gross, data.get("discount_pct"), data.get("discount_minor", 0))
     if net < 0:
         raise ValidationFailed("The discount cannot exceed the line amount.", pointer="/discount_minor")
     category = (
@@ -97,9 +99,12 @@ def create_charge(session: Session, principal: Principal, data: dict) -> Charge:
     service._location_in_scope(session, principal, data["location_id"])
     data = dict(data)
     code = data.pop("coupon_code", None)
-    if data.get("discount_minor"):
+    if data.get("discount_minor") or data.get("discount_pct"):
         authorize(principal, "billing.discount.apply_custom", location_id=data["location_id"])
     source_id, coupon_id = new_id(), None
+    if code and data.get("discount_pct") is not None:  # the coupon stacks on an amount, so the percentage becomes one
+        gross = net_amount(Decimal(data.get("quantity", 1)), data["unit_price_minor"])
+        data["discount_minor"] = service._pct_discount(gross, data.pop("discount_pct"), data.get("discount_minor", 0))
     if code:
         authorize(principal, "billing.discount.apply_preset", location_id=data["location_id"])
         net = net_amount(Decimal(data.get("quantity", 1)), data["unit_price_minor"], data.get("discount_minor", 0))
@@ -114,13 +119,15 @@ def create_charge(session: Session, principal: Principal, data: dict) -> Charge:
 
 
 def update_charge(session: Session, principal: Principal, charge_id: UUID, data: dict) -> dict:
-    """Text and service-period fields change in place. Any money field (quantity, price, discount, which
-    taxes apply) replaces the item with an adjustment (see service.adjust_charge), needs a reason and the
-    price-override permission, and returns the row that now stands for the item."""
+    """Text and service-period fields change in place. Any money field (quantity, price, discount amount or
+    percentage, which taxes apply) replaces the item with an adjustment (see service.adjust_charge), needs a
+    reason and the price-override permission, and returns the row that now stands for the item. The revenue
+    date and category replace it the same way with a reason, under the update key alone (no price moves)."""
     charge = service._lock(session, Charge, charge_id)
     authorize(principal, "billing.charge.update", location_id=charge.location_id)
     service._require_live(charge)
     money = {key: data[key] for key in _MONEY_FIELDS if data.get(key) is not None}
+    revenue = {key: data[key] for key in _REVENUE_FIELDS if data.get(key) is not None}
     for key in _TEXT_FIELDS:
         if key in data:
             setattr(charge, key, data[key])
@@ -128,11 +135,12 @@ def update_charge(session: Session, principal: Principal, charge_id: UUID, data:
     if changes:
         audit.record(session, "billing.charge.update", charge, location_id=charge.location_id, changes=changes)
         session.flush()
-    if money:
-        authorize(principal, "billing.charge.override_price", location_id=charge.location_id)
+    if money or revenue:
+        if money:
+            authorize(principal, "billing.charge.override_price", location_id=charge.location_id)
         if not data.get("reason"):
-            raise ValidationFailed("Changing an amount needs a reason.", pointer="/reason")
-        charge = service.adjust_charge(session, charge.id, reason=data["reason"], **money)
+            raise ValidationFailed("Changing an amount or the revenue needs a reason.", pointer="/reason")
+        charge = service.adjust_charge(session, charge.id, reason=data["reason"], **money, **revenue)
     return _charge_detail(session, charge)
 
 
@@ -315,10 +323,10 @@ def apply_account_credit(session: Session, principal: Principal, client_id: UUID
     }
 
 
-def refund_account_credit(session: Session, principal: Principal, client_id: UUID, data: dict, key: str) -> list:
+def refund_account_credit(session: Session, principal: Principal, client_id: UUID, data: dict, key: str) -> dict:
     authorize(principal, "billing.refund.create")
     clients.service.get(session, client_id)
-    return service.refund_credit(
+    refunds = service.refund_credit(
         session,
         client_id,
         amount_minor=data["amount_minor"],
@@ -326,3 +334,9 @@ def refund_account_credit(session: Session, principal: Principal, client_id: UUI
         idempotency_key=f"staff:{principal.actor_id}:{key}",
         location_ids=None if principal.kind == "system" else principal.location_ids,
     )
+    return {
+        "refund_batch_id": refunds[0].refund_batch_id,
+        "amount_minor": data["amount_minor"],
+        "refunded_minor": sum(r.amount_minor for r in refunds if r.status == "succeeded"),
+        "refunds": refunds,
+    }

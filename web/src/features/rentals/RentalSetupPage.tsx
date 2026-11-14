@@ -152,7 +152,7 @@ function TypeDialog({ type, locationId, resources, onClose }: { type: RentalType
 
 // ---------------------------------------------------------------- rates and rules
 
-type RuleForm = { kind: 'rate' | 'discount'; name: string; weekdays: number[]; start_time: string; end_time: string; starts_on: string; ends_on: string; amount: string; discount_pct: string; discount: string }
+type RuleForm = { kind: 'rate' | 'discount'; name: string; weekdays: number[]; start_time: string; end_time: string; starts_on: string; ends_on: string; amount: string; discount_pct: string; discount: string; is_peak: boolean }
 const ruleForm = (r?: Schemas['RateRuleOut']): RuleForm => ({
   kind: (r?.kind as RuleForm['kind']) ?? 'rate',
   name: r?.name ?? '',
@@ -164,6 +164,7 @@ const ruleForm = (r?: Schemas['RateRuleOut']): RuleForm => ({
   amount: fromMinor(r?.amount_minor),
   discount_pct: str(r?.discount_pct),
   discount: fromMinor(r?.discount_minor),
+  is_peak: r?.is_peak ?? false,
 })
 
 function RateDialog({ type, rate, onClose }: { type: RentalType; rate: RentalRate | null; onClose: () => void }) {
@@ -198,6 +199,7 @@ function RateDialog({ type, rate, onClose }: { type: RentalType; rate: RentalRat
           end_time: r.end_time || null,
           starts_on: r.starts_on || null,
           ends_on: r.ends_on || null,
+          is_peak: r.is_peak,
           ...(r.kind === 'rate' ? { amount_minor: toMinor(r.amount) } : { discount_pct: r.discount_pct || null, discount_minor: toMinor(r.discount) }),
         })),
       }
@@ -273,6 +275,9 @@ function RateDialog({ type, rate, onClose }: { type: RentalType; rate: RentalRat
                   <Input label="Discount amount" type="number" min={0} step="0.01" value={r.discount} onChange={(ev) => setRule(i, { discount: ev.target.value })} />
                 </>
               )}
+              <div className="sm:col-span-2">
+                <Checkbox label="Peak time (court use reports count these hours as peak, whatever the price)" checked={r.is_peak} onChange={(ev) => setRule(i, { is_peak: ev.target.checked })} />
+              </div>
               <div className="sm:col-span-2">
                 <Button size="sm" variant="ghost" onClick={() => setRules(rules.filter((_, j) => j !== i))}>
                   Remove rule {i + 1}

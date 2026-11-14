@@ -1,6 +1,6 @@
 ## backend/app/modules/engagement/README.md
 
-Re-run 2026-11-13 against the working tree (in-progress merge of main). Checked against `backend/app/modules/engagement/`, `docs/api/openapi-programs.yaml`, `mobile/src/adapters/api.ts` and `web/src/app/App.tsx`. Counts: stale-not-built 0, missing 1, contract 5, undocumented 9, wording 6.
+Re-run 2026-11-13 on claude/fix-browser-dates. Checked against `backend/app/modules/engagement/`, `docs/api/openapi-programs.yaml`, `mobile/src/adapters/api.ts` and `web/src/app/App.tsx`. Counts: stale-not-built 0, missing 1, contract 5, undocumented 11, wording 8. Dropped since the last run: the API-key claim at README:71 now holds (`integrations/service.py:68-78` `KEY_PERMISSIONS` lists `engagement.campaign.create`).
 
 Since the last report the README now covers inbox expiry, built-in segments and system templates, `POST /segments/preview`, the unused `sms_campaign.send` and `inbox.reply` keys, the three messaging events, `getPortalVideo`, suppression errors and the correct mobile adapter path. Those items are closed and not repeated. What still differs:
 
@@ -27,6 +27,8 @@ Since the last report the README now covers inbox expiry, built-in segments and 
 - [undocumented] Staff routes `GET|PUT /clients/{client_id}/communication-preferences` (`router.py:52,58`), with required `basis` and `note` (`schemas.py:39-42`). README:125 names only the portal route.
 - [undocumented] `handlers.py` also consumes `clients.client.created`, `memberships.contract.activated`, `memberships.contract.renewed`, `scheduling.booking.rescheduled` and `billing.payment.failed` (`handlers.py:29,75,83,90,95`). README:12 lists bookings, enrollments, waitlist and declined payments, and the import skip appears only at README:113-114. The `TRIGGERS` catalogue (`service.py:1491`) is cited but not listed.
 - [undocumented] Portal settings: slug and `portal-slug-taken`, tenant-wide `PUT /locations/{id}/portal-settings` fields, `GET /public/portal-config` payload (`service.py:1707-1760,1813`). README:150-168 covers menu, redirects and terms but not the slug rule.
+- [undocumented] Templates have a `preset` origin that is read-only (`template-read-only`), a template in use is retired instead of deleted, and a segment in use cannot be deleted (`segment-in-use`) (`router.py:101,107,148`). README:60-62 covers built-in segments and system templates only.
+- [undocumented] `automation_rule.is_system` guards (`automation-system`, built-in rules change only `is_enabled`, `delay_minutes`, `message_template_id`) exist at `service.py:1552,1565`, but no code creates a system rule. README:99-101 says there is no built-in rule and does not mention the guard.
 
 ### [wording]
 
@@ -36,3 +38,5 @@ Since the last report the README now covers inbox expiry, built-in segments and 
 - [wording] README:235-237 says the parent `/engagement` route "still requires `engagement.campaign.read`". `App.tsx:229` now accepts `campaign.read`, `portal_settings.manage` or any member content key, and the content pages sit under the `portal` route gated by `portal_settings.manage` or `app_content.manage` (`App.tsx:238`). Only the index and campaign pages need `campaign.read`.
 - [wording] README:43-45 names `express_written` or `express_verbal` as the express bases. Plain `express` is also accepted and is the default (`schemas.py:42`), and it is what the portal and the public pages record (`service.py:1183,1227`).
 - [wording] README:20-23 "Every email goes through `service._deliver`". Campaign duplicate-skip rows are written directly (`service.py:968`) and inbox items bypass it (`service.py:953,1463`); both are still logged, but not through `_deliver`.
+- [wording] `router.py:343` docstring says automation rules include "the built-in waitlist promotion notice"; README:99-101 says there is no built-in rule, and nothing sets `is_system` (see above).
+- [wording] `router.py:439` docstring says re-registering a token "moves it to this login"; README:96-98 and the code revoke the other login's row and add a new one (`service.py:1296-1303`).

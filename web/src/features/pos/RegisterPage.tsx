@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
+import { AttemptFields, AttemptLock, checkStaffAttempt, useAttemptKey } from '../billing/attempt'
 import { formatMoney, parseMoney, toMoneyInput } from '../billing/money'
 import { PaymentMethodField } from '../billing/PaymentMethodField'
 import { Money, StatusBadge, useCurrency, useLocationRef } from '../billing/shared'
@@ -598,14 +599,19 @@ function Checkout({ session, sale, onSale, onError, onDone }: SaleProps & { onDo
   const due = sale.remaining_minor
   const value = amount === '' ? due : (parseMoney(amount) ?? 0)
   const change = kind === 'cash' && received ? (parseMoney(received) ?? 0) - value : 0
+  const attempt = useAttemptKey(`pos-tender:${sale.id}`, checkStaffAttempt)
   const pay = useMutation({
-    mutationFn: (body: Schemas['PosSaleTenderCreate']) => api.post('/api/v1/pos-sales/{pos_sale_id}/tenders', { path: { pos_sale_id: sale.id }, body }),
+    mutationFn: (body: Schemas['PosSaleTenderCreate']) => api.post('/api/v1/pos-sales/{pos_sale_id}/tenders', { path: { pos_sale_id: sale.id }, body, idempotencyKey: attempt.key }),
     onSuccess: (s) => {
+      attempt.settle(null)
       onSale(s)
       setAmount('')
       setReceived('')
     },
-    onError,
+    onError: (e) => {
+      attempt.settle(e)
+      onError(e)
+    },
   })
   const removeTender = useMutation({
     mutationFn: (id: string) => api.delete('/api/v1/pos-sales/{pos_sale_id}/tenders/{pos_sale_tender_id}', { path: { pos_sale_id: sale.id, pos_sale_tender_id: id } }),
@@ -668,6 +674,8 @@ function Checkout({ session, sale, onSale, onError, onDone }: SaleProps & { onDo
               })
             }}
           >
+            <AttemptLock attempt={attempt} />
+            <AttemptFields attempt={attempt} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <Select label="Tender" value={tenderType} onChange={(e) => setTenderType(e.target.value)} options={tenders.map((t) => ({ value: t.id, label: t.label }))} />
               <Input label="Amount" inputMode="decimal" value={amount} placeholder={toMoneyInput(due)} onChange={(e) => setAmount(e.target.value)} hint="Empty: the amount still due." />
@@ -676,17 +684,18 @@ function Checkout({ session, sale, onSale, onError, onDone }: SaleProps & { onDo
               <Input label="Cash handed over" inputMode="decimal" value={received} onChange={(e) => setReceived(e.target.value)} hint={change > 0 ? `Change due: ${formatMoney(change, currency)}` : 'Optional: works out the change.'} />
             )}
             {kind === 'card' && <PaymentMethodField kind="card" value={token} onChange={setToken} label="Card" />}
+            </AttemptFields>
             <Button type="submit" loading={pay.isPending} disabled={value <= 0}>
-              Take {formatMoney(value, currency)}
+              {attempt.locked ? 'Try again:' : 'Take'} {formatMoney(value, currency)}
             </Button>
           </form>
         )}
         {due > 0 && sale.client_id && (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-            <Button variant="secondary" size="sm" onClick={() => pay.mutate({ tender: 'pay_later', amount_minor: due })}>
+            <Button variant="secondary" size="sm" disabled={attempt.locked} onClick={() => pay.mutate({ tender: 'pay_later', amount_minor: due })}>
               Put the rest on account
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => pay.mutate({ tender: 'account_credit', amount_minor: due })}>
+            <Button variant="secondary" size="sm" disabled={attempt.locked} onClick={() => pay.mutate({ tender: 'account_credit', amount_minor: due })}>
               Use account credit
             </Button>
           </div>

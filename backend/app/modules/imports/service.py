@@ -443,7 +443,7 @@ def run_chunk(session: Session, job_id: UUID) -> bool:
     _, raw = platform.files.read(session, job.source_file_id)
     headers, records = csvio.read(csvio.decode(raw))
     ctx = Context(job.location_id, job.date_format, platform.service.location_today(session, job.location_id), job.id,
-                  job.submitted_by_staff_user_id)  # fmt: skip
+                  job.submitted_by_staff_user_id, is_dry_run=job.status == JobStatus.VALIDATING)  # fmt: skip
     parsed = [kind.parse(csvio.values(r, headers, job.column_mapping), ctx) if r else None for r in records]
     heads: dict[str, list[int]] = {}
     for i, item in enumerate(parsed):

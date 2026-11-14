@@ -14,7 +14,8 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `catalog.py` | pre-defined items (BIL-14): selling, renewing and cancelling item sales, membership add-on terms |
 | `methods.py` | the processor connection and stored payment methods |
 | `autopay.py` | collection runs, dunning, the autopay-error queue, billing notices, the daily pass |
-| `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history, bulk invoicing |
+| `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history |
+| `bulk.py` | stored bulk actions from the workbench (BIL-02) and their chunked job |
 | `statements.py` | statement batches: one stored row per recipient with its status, run in the request or as a job, resend |
 | `webhooks.py` | provider webhook intake, the tenant actor that applies an event, the reconciliation sweep, `billing_daily` |
 | `checkout.py` | online checkout (`secure_online_checkout`), the payment-link confirm and the coupon release handler |
@@ -23,7 +24,7 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `router.py` | staff, portal (receipts and receipt PDFs, payment confirm, coupon quotes, billing summary), public pay-link and webhook routes, and `POST /public/fake-processor/authentications`, a dev and test stand-in for 3-D Secure (404 unless the fake processor is registered) |
 | `events.py` | the events billing publishes |
 | `subject.py` | the merge repoint and the data-subject export and erasure handlers |
-| `permissions.py` | billing's permission keys; `billing.dispute.manage` is registered but nothing checks it |
+| `permissions.py` | billing's permission keys |
 | `schemas.py` | request and response schemas |
 
 Ports and adapters: `app/ports/payment_provider.py`; `app/adapters/fake_payments.py` (scripted by token: see
@@ -66,7 +67,10 @@ take_payment(session, *, client_id, location_id, amount_minor, tender_kind, idem
 confirm_payment(session, payment_id); cancel_payment(session, payment_id)
 allocate(session, payment_id, *, invoice_id=None, allocations=None); release_allocation(session, payment_id, allocation_id)
 refund(session, payment_id, *, amount_minor, reason, idempotency_key=None, method=None, comments=None,
-       refund_batch_id=None) -> Refund;  confirm_refund(session, refund_id)
+       refund_batch_id=None, release_allocation_ids=()) -> Refund;  confirm_refund(session, refund_id)
+resume_refund(session, refund_id, *, abandon=False) -> Refund        # the sweep's half of the pre-provider row
+failed_refund_attempts(session, payment_id, key_prefix) -> int        # declined or cancelled refunds under a key
+                                                                      # prefix: append it to a fixed key ("try again")
 reverse(session, charge_id, *, reason, revenue_on=None) -> Charge       # the negating charge
 void_charge(session, charge_id, *, reason) -> Charge
 adjust_charge(session, charge_id, *, reason, quantity=None, unit_price_minor=None, discount_minor=None,
@@ -91,10 +95,14 @@ Rules a caller must know:
   debit: allocations provisional, invoice `payment_pending`); `requires_action` (the payer must authenticate;
   `payment.client_secret` is set on that call only); `failed`; `unknown` (never a decline); `cancelled`.
 - **A payment is found again by its `idempotency_key`**, whatever the tender. Make it unique to your use case
-  (`"<context>:<what>:<id>"`): the same key always returns the first payment, whatever the other arguments.
+  (`"<context>:<what>:<id>"`): the same key with the same payer, amount, tender, method and invoice returns the
+  first payment; with any of those changed it is `409 idempotency-key-reused` before the processor is called. A
+  caller that raises a fresh invoice per attempt passes `sale=` (what is sold, e.g. the staff sale body) instead,
+  so its same-key retry is the same attempt and the key cannot pay for another sale.
   Processed tenders need it. Their row is committed as `initiated` before the provider call, so a transaction
   that dies afterwards is finished by a retry with the same key or by `webhooks.reconcile`.
-- **A refund returns unapplied money only.** `reverse()` or `release_allocation()` first, then `refund()`.
+- **A refund returns unapplied money only.** `reverse()` or `release_allocation()` first, then `refund()`, or
+  pass `release_allocation_ids` to `refund()` to do both in one call.
 - **Edits to money are `adjust_charge`**, which emits `billing.charge.adjusted`, not `.reversed`: do not
   cancel what was sold when you see it. `billing.charge.voided` and `.reversed` do mean the item is gone.
 - **Dates are local** to the charge's or payment's location; instants are UTC. A posting dated on or before
@@ -130,8 +138,9 @@ invoice, receipt and statement also stores its PDF through `platform.files.store
 length) or recurring (every N days, weeks, months or years, a number of times per term), with a discount
 (percent or amount, never both), an invoicing option, autopay and auto-renew flags, a renewal lead and an
 optional item to renew as. `catalog_item_sale` freezes the item's terms at sale (`terms` JSONB), so editing
-an item changes later sales only. Staff routes: `/catalog-items` (list, create, get, update) behind
-`billing.item.manage`, `POST /catalog-items/{id}/sales` behind `billing.charge.create` at the item's location
+an item changes later sales only. Staff routes: any signed-in staff member may list and get `/catalog-items`
+(limited to their locations; owner decision 2026-11-13, question 10); create and update need `billing.item.manage`;
+`POST /catalog-items/{id}/sales` behind `billing.charge.create` at the item's location
 (a different fee or discount also needs `billing.charge.override_price`), `GET /catalog-item-sales`
 (`billing.charge.read`, client-following like the charge list) and `POST /catalog-item-sales/{id}/cancel`
 behind `billing.charge.reverse` at the sale's location.
@@ -193,7 +202,10 @@ Imports: it resolves tax codes without case.
   `billing.collections.read` / `billing.collections.manage` at the client's home location). A tag that is
   no longer in use cannot be given to a client (422), but a profile that already carries it keeps it.
   `/collections-report` lists every client in collections with the tag, balance, past-due amount and oldest
-  past-due date, location-scoped through the client's home location.
+  past-due date. The report, a client's profile and the expiring-cards list are limited to clients whose home
+  location the staff member reaches (2026-11-13 question 12: recommended, awaiting the owner's yes); a profile
+  outside it is 404. Staff
+  with every location see every client.
 - **Portal lockout (BIL-22).** `core.auth.deps.add_client_guard` runs `_portal_guard` on every portal request.
   A POST to one of `PORTAL_PURCHASE_ROUTES` (buying or booking) is refused with 403 `portal-past-due` when the
   signed-in identity, or any client it acts for, is the payer of a past-due invoice at a location whose
@@ -232,6 +244,19 @@ and record a failed attempt ("payload missing").
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 
+- **Not built, owner decisions (BIL-21 goodwill credit, PAY-14 surcharging):** the options, the recommendation and
+  what surcharging would need to configure are in `docs/status/phase9-orphans.md`.
+- **Revenue date and category edits (BIL-01)** are adjustments like a price edit: the original is negated at
+  its own revenue date in its own category and the replacement posts at the new date (period lock applies to
+  both) in the new category, which must be active and not a system category. Taxes keep the rates snapshotted
+  on the original, even when the new category maps other taxes or the new date has another rate (re-create
+  the item to re-tax it). Staff need `billing.charge.update` and a reason; no price moves, so no override key.
+- **`discount_pct` (BIL-01)** is set on `POST /charges`, `PATCH /charges/{id}` and `post_charge`, never with an
+  amount: it becomes `discount_minor` half-up once on the gross, and a quantity or price edit recomputes it.
+  An amount discount clears it. With a coupon at `POST /charges` the percentage is turned into an amount first.
+  `POST /charges/preview` takes `discount_pct` too. The add and edit item dialogs offer a percentage or a fixed
+  amount and send one of them, never both; an edit keeps a percentage item's percentage, so a new price
+  recomputes its discount.
 - **Item edits replace, they do not add a delta.** ADR 0003 section 3 describes an adjustment row "for the
   delta". A negative delta row cannot hold allocations, so the original would look open again. Instead the
   original is negated (status `reversed`) and an `adjustment` row with the full new values takes its place;
@@ -240,13 +265,109 @@ and record a failed attempt ("payload missing").
   model: security-baseline 17.2 asks for hashed at rest and single-use, which a stateless token cannot be. It
   expires after 14 days; a decline does not consume it.
 - **`payment.idempotency_key`** is a column the data model does not list; the pre-provider row needs it.
-- **The pre-provider transaction is best effort inside a larger transaction.** It cannot see rows the caller
-  has not committed and must not wait on the caller's own locks, so it gives up after 500 ms and the payment
-  is inserted in the caller's transaction (replay still safe, crash recovery not). The staff, portal, pay-link
-  and autopay paths all get the committed row once the tenant's tender rows exist.
-- **Refunds do not have a pre-provider row.** Replay is safe through the provider's idempotency key and
-  `find_refund`; a process that dies between the provider's answer and commit leaves a provider refund with
-  no row until someone retries with the same key.
+- **"What became of my attempt" is the caller's alone.** `GET /payment-attempts/{key}` and
+  `/portal/payment-attempts/{key}` match only stored keys anchored on the caller (`staff:<actor>:`,
+  `mark-paid:<actor>:`, `pos:<sale>:<staff user>:`; `portal:<identity>:`), never by household and never with an
+  empty prefix; `secure_online_checkout` binds a portal buyer's key to their identity for that reason. They answer
+  state and amount only, are rate limited per caller (`payment-attempt`), and 404 for anything else. Guest and
+  pay-link payers have no lookup: their forms offer only "try again" with the same key.
+- **A payment key is bound to its request (Phase 9 orphans, migration 1807).** `payment.request_hash` digests the
+  amount, payer, tender, stored method or method token, invoice and allocations the key was first used with. A
+  reuse with any of them changed is 409 `idempotency-key-reused` before any processor call, whatever the row's
+  status, and the row is not touched. Stripe's own `idempotency_error` (same key, other parameters) is
+  `ProviderUnavailable`, never a decline: the payment stays `unknown` and the sweep asks Stripe by key.
+- **The pre-provider payment row never waits on another request.** It is committed in a short transaction that
+  waits at most 500 ms for a lock: a longer wait (55P03) is 409 `request-in-progress` before any charge; any other
+  database error stands. Nothing is guessed from a probe. The row goes into the caller's transaction only when that
+  is positively the caller's own doing: this transaction already took the receipt counter (`_receipt_number`: a
+  record-only payment earlier in the same transaction; POS cash and card legs are separate requests,
+  `pos/sales.py` `add_tender`, so they never share one; the marker is cleared on ROLLBACK TO SAVEPOINT, which
+  releases the lock), or the short insert fails with 23503 because a referenced row is the
+  caller's uncommitted insert (a guest checkout's new client in `programs.checkout` / `billing.checkout`, a
+  tenant's first-use tender rows). On the 23503 path the receipt number is taken and committed in its own short
+  step (a rollback leaves a gap in receipt numbers), so the counter is not held over the charge. On both paths a
+  request that dies after the charge leaves no row: the provider key is the tenant plus the request's
+  Idempotency-Key, so the same key replays the same charge, and the web keeps the key after an unknown outcome
+  (5xx, network, 409 in progress). The processor's webhook for a charge or refund with no row is kept `failed`
+  (`unmatched-provider-event`, retried by the stale-event sweep in case the row commits late) and logged by event
+  id only; an operator finds it in `inbound_webhook_event` and refunds it at the processor. It is not auto-created:
+  the event names no payer, location, tender or allocation, so a row would put unattributed money on the books.
+  Staff with `billing.history.read` see the ones the sweep gave up on (S5b, below).
+- **An outcome the processor did not give is never final.** Stripe 409 (the same key in flight), 429 and 5xx
+  are `ProviderUnavailable` (`app.ports.payment_provider`). A payment is then `unknown`: the sweep asks the
+  processor by key (`find_payment`) and, finding nothing after 30 minutes, cancels it like an `initiated` one, so
+  the key stops answering 503. A refund stays `initiated` and the request is 409 `request-in-progress` (never a
+  500); the same key or the sweep's `find_refund` finishes it.
+- **A processed refund has a pre-provider row (PAY-05, Phase 9 orphans).** `refund(method="original")` commits
+  a `refund` row as `initiated` with its `idempotency_key` (migration 1801) in a short transaction before it
+  locks the payment and calls the processor. It has **no fallback**: a row the short transaction cannot commit
+  within 500 ms (another request holds a plain `FOR UPDATE` on the payment, which blocks the row's foreign key
+  check) is 409 `request-in-progress` before the processor is called, because a row written in the caller's
+  transaction is uncommitted while the processor pays, and a request that then died would leave a payout no
+  sweep can find. Every billing payment lock (`spend_credit`, which autopay holds for a whole tenant pass, the
+  payment-by-key lookup, the dispute webhook) is `FOR NO KEY UPDATE`, so ordinary refunds wait rather than
+  being refused. A retry with the key
+  finishes that row (same provider key, so the card is refunded once); `webhooks.reconcile` finishes an
+  `initiated` refund older than five minutes from `find_refund` and cancels one the processor never heard of
+  after 30 minutes. **An `initiated` refund reserves its amount**: `unapplied_minor` is the remainder less what
+  `initiated` refunds of the payment hold back (never below zero; a negative remainder is still refused by the
+  check constraint), written in the same short transaction, so autopay and staff allocations cannot spend money
+  the processor may already be returning. The row keeps `release_allocation_ids` (migration 1803). When the
+  processor did pay out, the sweep re-applies that release (it rolled back with the request) and, if the
+  remainder still falls short, releases the payment's newest live allocations until it is covered (whole
+  allocations: any excess stays as account credit). If even that cannot cover it the item is
+  `refund-unreconcilable`: each sweep item runs in its own savepoint, the error is written to the refund's
+  `failure_message` ("Could not reconcile (<code>); the next sweep tries again.": a
+  domain error's code or `internal-error`, never the error text, which can carry SQL and personal data; the log
+  names only the refund, the code and the error type) for staff, and the rest of `billing_daily` (autopay first)
+  carries on; the next sweep tries again. Billing locks rows `FOR NO KEY UPDATE`, so a caller that already
+  holds the payment (membership cancel, POS return) still gets the pre-provider row committed; only the
+  reservation then happens in the caller's transaction. The early amount check (unapplied plus what the named
+  allocations would free) runs before the row is written, so a plain mistake leaves no row; the locked
+  re-check after it can still refuse a race, which leaves an `initiated` row for the sweep to cancel.
+  **A refund key is bound to its payment and its request**: a key already used on another payment, or on
+  this payment with another amount, method or reason, is 409 `idempotency-key-reused` before anything is
+  released or sent to the processor; the same request replays the stored refund. Uniqueness is per payment
+  (`(tenant_id, payment_id, idempotency_key)`) and the processor key carries the payment id. Record-only
+  (`external`) refunds are written in the request (no call to make) but keep the key, so they replay too.
+  `release_allocation_ids` are not part of the stored request: a replay never releases, whatever it names.
+  Two requests with one key that both miss the replay lookup (the HTTP claim has expired) meet the unique index;
+  the loser is 409 `request-in-progress` (`uq_refund_idempotency_key`, and `uq_billing_bulk_action_key` for bulk
+  actions, in `CONSTRAINT_CODES`), so it retries and replays instead of seeing a 500 or "already exists".
+- **Release-then-refund (PAY-05).** `release_allocation_ids` on `refund()` and `POST /payments/{id}/refunds`
+  releases those allocations of the same payment (to credit, posted) and refunds, in one transaction and
+  one audit row for the payment; the staff route also needs `billing.payment.reallocate` at the payment's
+  location, as the separate release does. The ids are checked before anything is written; the release itself
+  happens only once the processor has accepted the refund, so a declined refund leaves the items paid and the
+  books as they were (the 201 says `failed`). A replay with the key returns the first refund before releasing
+  anything, and a retry of an `initiated` row releases what the first request named. What is released but not
+  refunded stays as account credit. A refund the processor leaves `pending` has already released (its amount
+  counts in `refunded_minor` at once, so the money must leave the items); when it later fails, `confirm_refund`
+  re-applies each allocation that refund actually released (the row keeps only those once the processor has
+  answered) to the same item, capped at what the item still owes and at the payment's free money, with one
+  reallocate audit row (`reapplied_minor`). Recording the failure always succeeds: when the payment can no
+  longer take allocations (disputed, charged back) or the item was paid another way, the money stays as
+  unapplied credit on the payment and the confirm audit row says how much was not re-applied
+  (`not_reapplied_minor`). A repeated failure webhook changes nothing. Not built: a refund the processor
+  reverses after it succeeded (Stripe `refund.failed` after `succeeded`); the `refund_returned` ledger kind
+  is reserved for it.
+- **An account-credit refund stores its plan (PAY-05, migration 1805).** `refund_credit` plans one leg per payment
+  (newest first) and commits the plan (`refund_credit_plan`: key, client, total, reason, batch, legs with their
+  amounts) before any processor call. A retry with the key replays exactly those legs, each idempotent under
+  `<key>:<payment id>`; it never re-plans from current balances, which the first attempt's `initiated` legs have
+  already lowered (re-planning paid twice: a 1000 request could pay 1500). The same key with another client,
+  amount or reason (the caller's location scope is not compared: the stored plan is replayed) is 409 `idempotency-key-reused`; a lost race on the plan is 409 `request-in-progress`. A leg
+  that can no longer be refunded (its credit was spent after a crash rolled the leg back) stops the retry with 409
+  `refund-plan-incomplete`, so what the processor paid never exceeds the plan; so is a same-key replay of a plan
+  with a declined or cancelled leg (committed: legs the replay finished stay finished). The 201 body is the
+  contract's `RefundBatch`: `amount_minor` asked, `refunded_minor` refunded (succeeded legs) and every leg with
+  its status, so a declined or pending leg is never read as success. **Every leg is reserved when the
+  plan is committed**: the same short transaction locks the client's payments and writes an `initiated` refund row
+  per leg (record-only legs too, finished without a processor call), so a second refund, autopay or a staff
+  allocation sees only genuinely free credit and the first request always completes. A plan whose request dies
+  is finished or cancelled leg by leg by the sweep; a leg nobody finishes is cancelled after 30 minutes, which
+  frees its reservation. The plan follows the client on a merge, is in the export, and erasure replaces its
+  free-text reason (the plan stays, as the refunds do).
 - **A voided invoice has total 0** (totals are projections of its items, and it has none); the audit event
   keeps what it was.
 - **Tax-exclusive only** (ADR 0003 section 10). **No late fees or interest** (ADR 0005: the reference shows
@@ -270,9 +391,41 @@ and record a failed attempt ("payload missing").
   covers this invoice; otherwise 422 `idempotency-key-reused` and nothing is sold.
 - **Portal responses use portal schemas** (`PortalInvoiceOut`, `PortalPaymentOut`, `PortalPaymentDetail`):
   no memo, external reference, failure message, refund reason, void reason or collection state (M-13).
-- **Bulk invoicing runs in the request** (up to 1000 items, by `charge_ids` or by `location_id`; a location with
-  more uninvoiced items is refused with 422 on `/location_id`) and is not stored; there is no
-  `billing_bulk_action` table.
+- **Bulk actions are stored jobs (BIL-02, `bulk.py`, migration 1802).** `POST /billing-bulk-actions` (202) stores a
+  `billing_bulk_action` at one location and one `billing_bulk_action_item` per subject: `create_invoices` (charges;
+  `charge_ids`, or the location's uninvoiced items, optionally `only_mine`; one invoice per client, never mixed,
+  whole clients per chunk), `reverse_charges` (`params.reason`, optional `params.revenue_on`), `email_invoices` and
+  `render_invoices` (`invoice_ids`; render records a `download` delivery with its stored PDF), `add_catalog_item`
+  (`client_ids`, `params.catalog_item_id` of that location, sold through `catalog.sell`). Each action needs its own
+  key at the action's location (`bulk.KEYS`); subjects at other locations, or not in a state to act on, are stored
+  as `skipped`; so is a clientless (POS) charge when invoicing (`charge-has-no-client`: it has no payer). A chunk
+  that selects nothing while items are still pending fails them (`not-processed`) instead of re-running for
+  ever. At most 1000 subjects. A dry run, or 25 items or fewer, runs in the request; more run as
+  `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, **as the person or API key that
+  started it** (risk review): each chunk loads `requested_by_staff_user_id` through `platform.staff.principal_for`, or
+  `requested_by_api_key_id` (migration 1806) through `core.auth.deps.key_principal` (registered by integrations: the
+  key bounded by its creator, None once revoked or expired), and re-checks the action's key at its location, so a
+  revoked or disabled requester or key fails what is left (`requester-not-allowed`), and audit rows name the person
+  or key, not the system. Every item (or client group) is a
+  savepoint, so a failure is recorded on its row (`error_code`, `internal-error` for an unexpected one) and the
+  rest continue. A dry run does the same work and rolls each savepoint back (result ids are null); email and
+  render dry runs run the send checks (`documents.check_invoice_send`: an address, a renderable invoice), so a
+  dry run shows `no-email-address` before the real one. **Each item stores `amount_minor`** (migration 1804; a charge's or
+  invoice's total, or the catalogue item's net fee): a run that names `preview_id` (a dry run of the same action at
+  the same location) is 409 `bulk-preview-stale` when any subject, amount or param (autopay, due date, item,
+  reason) differs, and an added item is sold only at the amount stored on its row (a catalogue price changed since
+  fails that item, `bulk-price-changed`), 422 at `/preview_id` when it
+  is not such a dry run, 404 when it does not exist. `add_catalog_item` loads each client and checks its home
+  location against a location-limited caller's locations (a client with no home location is out of reach for
+  them; an API key is held to its creator's locations, narrowed by its own): unknown or out of reach is `skipped` / `client-not-found`. **The `Idempotency-Key` is required** (an API client could otherwise
+  run an add-item twice); scoped to the caller, it is bound to a hash of the request body: the same body replays
+  the first action, another body is 409 `idempotency-key-reused`. `GET /billing-bulk-actions/{id}` and `/items`
+  need `billing.charge.read` at the action's location. Not built: saved filter presets; bulk email of a client
+  with no address fails that item (`no-email-address`).
+- **Left for the owner (risk review, Phase 9 orphans).** (1) Front desk can move the revenue date and category of a
+  paid item with only `billing.charge.update` (`desk.py`, revenue edits): no price moves, but revenue reports
+  shift; a separate key would close it. (2) Collections are scoped by the debtor's home location, so a manager at
+  location B does not see a debtor whose home is A even when the unpaid items are at B.
 - **Documents are JSON, with a PDF beside them.** `GET /invoices/{id}/document` and `/payments/{id}/receipt`
   return JSON; the PDF is a separate `/pdf` path (`/invoices/{id}/pdf`, `/payments/{id}/receipt/pdf`,
   `/clients/{id}/statement/pdf`, portal `/portal/invoices/{id}/pdf`, `/portal/statement/pdf`) instead of the
@@ -309,8 +462,8 @@ and record a failed attempt ("payload missing").
   and prevented disputes (no money withdrawn) are ignored. Shortcut: one dispute per payment for its disputed
   amount; a second one on a disputed payment moves no money. While open, the money stays in `client_credit` in
   the ledger and is parked in `disputed_funds` (the books check adds open disputes to credit). No staff screen
-  or route: evidence is submitted in the tenant's Stripe dashboard. `billing.dispute.manage` is registered but nothing
-  checks it. Events `billing.payment.disputed`,
+  or route: evidence is submitted in the tenant's Stripe dashboard. The reference only syncs chargebacks, so
+  the staff routes and `billing.dispute.manage` were struck (owner decision 2026-11-13, question 16c). Events `billing.payment.disputed`,
   `billing.payment.dispute_closed`.
 - **Stripe requests use dynamic payment methods** (`automatic_payment_methods`, redirects off), never
   `payment_method_types`; `create_setup`'s `kinds` is therefore advisory for Stripe.
@@ -366,3 +519,32 @@ and record a failed attempt ("payload missing").
   timeout stays recoverable. An autopay membership always keeps the card; `ask` asks otherwise.
 - **BIL-17 order replaces "portal always autopay".** Plans whose default was `false` became null in 1331,
   so they follow the channel setting; a plan set to `false` explicitly still wins.
+
+## Known limits
+
+- **Orphan charges (Phase 9 S5).** A request that dies after the processor charged, on a path where the payment
+  row is in the caller's transaction (a guest checkout's new payer, a tenant's first-use tender rows, a record-only
+  payment earlier in the same transaction), leaves money at the processor and no row here. The webhook handler
+  looks again for a few seconds (`UNMATCHED_RETRY_SEC`, for a row that commits late), then keeps the event
+  `failed` as `unmatched-provider-event`; the stale-event sweep retries it until `RETRY_ATTEMPTS`. Nothing
+  creates a payment from it: an operator finds it in `inbound_webhook_event` and refunds it at the processor.
+  A retry with the same Idempotency-Key replays the same processor charge (it never charges twice) but cannot
+  recover a request whose client never retries.
+- **Guest checkout stays on the own-row path (Phase 9 S5c, not changed).** `programs.checkout.guest_confirm`
+  creates the guest payer and participants in the request transaction, so its payment row takes the 23503
+  own-row path above. Committing the payer first was judged not contained: services never commit (overview
+  3.4; the request transaction belongs to `TxRoute`), so it would need a second session opened from programs
+  code; that transaction also holds the program chain locks and held places taken before the clients are
+  created; and a declined card, which today rolls the new clients back, would leave committed unverified client
+  records (personal data with no registration) that need their own clean-up and erasure path. The orphan risk
+  stays as described in the first bullet, with the S5b list as the operator's view.
+- **Unmatched processor activity shows no amount (Phase 9 S5b).** `GET /unmatched-provider-events`
+  (`billing.history.read`, keyset, `include=total` for the count; Billing set-up, Processor tab) lists the
+  events above once the sweep has stopped retrying them: provider, kind, the processor's reference and the
+  time received. No amount: the stored event keeps only kind, object and account (the event is a notification,
+  never a source of truth), so an amount would mean storing new provider payload data or calling the processor
+  for every listed row; staff look the reference up at the processor. `inbound_webhook_event` is a global
+  table, so the read is the kernel's `inbound_webhooks.given_up()` as fh_platform, like the retry sweep's
+  `stale()`, always filtered to the session's tenant. A location-scoped caller sees only events of provider
+  accounts at its locations; a tenant-wide account's events are visible to unscoped callers only. An event
+  whose payload the retention purge emptied drops off the list.

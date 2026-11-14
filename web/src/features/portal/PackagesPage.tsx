@@ -13,6 +13,7 @@ import { formatDate, formatDateTime } from '../../lib/format'
 import { FormError } from '../billing/shared'
 import { PortalPage } from './PortalApp'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { CouponField, label, LocationPicker, PACKAGE_TONE, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
 type Pack = Schemas['PortalPackageOut']
@@ -62,12 +63,15 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '')
   const pay = usePaymentChoice(actingFor.id)
   const [coupon, setCoupon] = useState('')
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-package:${plan.id}`, checkPortalAttempt)
   const gate = useTermsGate()
   const paid = (plan.fee_minor ?? 0) > 0
   const buy = useMutation({
     mutationFn: () => api.post('/api/v1/portal/client-packages', { body: { client_id: actingFor.id, package_plan_id: plan.id, location_id: locationId, ...pay.body, tender_kind: 'card', coupon_code: coupon || null, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
+    onSuccess: () => {
+      attempt.settle(null)
+      void qc.invalidateQueries({ queryKey: ['portal'] })
+    },
     onError: (error) => {
       attempt.settle(error)
       gate.onError(error)
@@ -89,7 +93,7 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
               Cancel
             </Button>
             <Button loading={buy.isPending} disabled={(paid && !pay.ready) || !gate.ready} onClick={() => buy.mutate()}>
-              {paid ? `Pay ${money(plan.fee_minor)}` : 'Get it'}
+              {attempt.locked ? 'Try again' : paid ? `Pay ${money(plan.fee_minor)}` : 'Get it'}
             </Button>
           </>
         )
@@ -103,11 +107,14 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
             {planSessions(plan)}
             {plan.validity_count ? `, valid ${plan.validity_count} ${plan.validity_unit}${plan.validity_count > 1 ? 's' : ''}` : ''}.
           </p>
-          <LocationPicker value={locationId} onChange={setLocationId} />
           <FormError error={buy.error} />
-          {paid && <CouponField subtotalMinor={plan.fee_minor ?? 0} onChange={setCoupon} />}
-          {paid && <PaymentChoice choice={pay} />}
-          {gate.box}
+          <AttemptLock attempt={attempt} />
+          <AttemptFields attempt={attempt}>
+            <LocationPicker value={locationId} onChange={setLocationId} />
+            {paid && <CouponField subtotalMinor={plan.fee_minor ?? 0} onChange={setCoupon} />}
+            {paid && <PaymentChoice choice={pay} />}
+            {gate.box}
+          </AttemptFields>
         </div>
       )}
     </Dialog>

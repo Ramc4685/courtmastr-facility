@@ -805,3 +805,12 @@ def test_own_pay_covers_commissions_relinking_and_the_calendar_column(client, te
         service.put_default_pay_rate(session, pay_manager, UUID(mine["id"]), {"pay_basis": "per_session"})
     with tenant_session(tenant.id, actor=pay_manager) as session:  # someone else's pay is fine
         service.put_default_pay_rate(session, pay_manager, UUID(unlinked["id"]), {"pay_basis": "per_session"})
+
+
+def test_year_one_dates_are_a_422_not_a_500(client, owner):
+    """Dates far outside any payroll period (year 1) overflowed the local-midnight arithmetic: a 500."""
+    summary = client.get(f"{API}/time-entries/summary?from=0001-01-01&to=0001-01-02", headers=owner)
+    assert summary.status_code == 422, summary.text
+    run = client.post(f"{API}/payroll-runs", headers=owner,
+                      json={"period_starts_on": "0001-01-01", "period_ends_on": "0001-01-07"})  # fmt: skip
+    assert run.status_code == 422, run.text

@@ -9,8 +9,8 @@ import { EmptyState, ErrorState } from '../../components/States'
 import { Tabs } from '../../components/Tabs'
 import { useAuth, useMe } from '../../lib/auth'
 import { formatDateTime, formatMoney } from '../../lib/format'
-import { fromLocalInput } from '../assessments/queries'
-import { today } from '../billing/money'
+import { useLocationToday, useLocationZone } from '../../lib/locationDate'
+import { fromWallInput } from '../scheduling/time'
 import { FormDialog, ListTable, LocationSelect } from '../billing/shared'
 import { hours, useNames, type TimeEntry } from './shared'
 
@@ -19,6 +19,8 @@ function EntryDialog({ entry, onClose }: { entry: TimeEntry | null; onClose: () 
   const me = useMe()
   const names = useNames()
   const [f, setF] = useState({ staff_user_id: '', location_id: me.primary_location_id ?? '', job_classification_id: '', clock_in_at: '', clock_out_at: '', edit_reason: '', void: false })
+  const zone = useLocationZone(entry?.location_id ?? f.location_id)
+  const fromLocalInput = (v: string) => fromWallInput(v, zone)
   const save = useMutation({
     mutationFn: () => {
       if (entry && f.void) return api.post('/api/v1/time-entries/{time_entry_id}/void', { path: { time_entry_id: entry.id }, body: { edit_reason: f.edit_reason } })
@@ -93,8 +95,9 @@ function Entries() {
 
 function Summary() {
   const names = useNames()
-  const [from, setFrom] = useState(today().slice(0, 8) + '01')
-  const [to, setTo] = useState(today())
+  const today = useLocationToday()
+  const [from, setFrom] = useState(today.slice(0, 8) + '01')
+  const [to, setTo] = useState(today)
   const summary = useQuery({ queryKey: ['staff', 'entries', 'summary', from, to], queryFn: () => api.get('/api/v1/time-entries/summary', { query: { from, to } }), enabled: Boolean(from && to) })
   return (
     <div className="space-y-3">

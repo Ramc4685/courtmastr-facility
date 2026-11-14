@@ -673,4 +673,4 @@ class ParticipantOut(Out):
 
 
 class SeriesMerge(In):
-    booking_number: Annotated[int, Field(ge=1)]
+    booking_number: Annotated[int, Field(ge=1, le=2**31 - 1)]  # an int4 column

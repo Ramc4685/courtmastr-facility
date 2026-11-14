@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page, renderAsStaff, SCREEN } from '../scheduling/testing'
 import { ClosesTab } from './PostBilled'
 
@@ -10,6 +10,22 @@ const closed = (failed: { client_package_id: string; code: string }[]) => ({
 })
 
 describe('post-billed period close', SCREEN, () => {
+  const zone = process.env.TZ
+  afterEach(() => {
+    vi.useRealTimers()
+    process.env.TZ = zone
+  })
+
+  it("defaults the closing date to the location's today, not the browser's", async () => {
+    process.env.TZ = 'Asia/Tokyo' // the browser is already on the 14th; Chicago, the location, is on the 13th
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-14T03:00:00Z'))
+    renderAsStaff(<ClosesTab />, ['packages.period.close'], { 'GET /api/v1/post-billed-closes': page([]) })
+    const closingOn = await screen.findByLabelText(/Bill usage up to/)
+    await waitFor(() => expect(closingOn).toHaveValue('2026-11-13'))
+    expect(closingOn).toHaveAttribute('max', '2026-11-13')
+  })
+
   it('lists the packages a close could not bill and retries only those', async () => {
     const calls = renderAsStaff(<ClosesTab />, ['packages.period.close'], {
       'GET /api/v1/post-billed-closes': page([closed([{ client_package_id: 'cp2', code: 'validation-failed' }])]),

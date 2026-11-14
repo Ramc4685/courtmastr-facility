@@ -92,6 +92,7 @@ export function CheckInPage() {
             {can('access.settings.manage') && <Link className="text-primary underline" to="/check-in/desk-setup">Stations and cards</Link>}
             {(can('access.settings.manage') || can('access.kiosk.launch')) && <Link className="text-primary underline" to="/check-in/kiosks">Kiosks</Link>}
             {(can('access.rule.manage') || can('access.settings.manage')) && <Link className="text-primary underline" to="/check-in/access">Access rules</Link>}
+            {can('access.checkin.read') && <Link className="text-primary underline" to="/check-in/building">Building control</Link>}
           </>
         }
       />

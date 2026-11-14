@@ -10,7 +10,7 @@ import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { useCurrentLocation, useMe } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
-import { today } from './money'
+import { useLocationToday } from '../../lib/locationDate'
 import { FormDialog, ListTable, LocationSelect, StatusBadge } from './shared'
 
 type Batch = Schemas['StatementBatchOut']
@@ -23,17 +23,18 @@ export const RECIPIENT_STATUS: Record<string, [string, Tone]> = {
   skipped_no_email: ['No email', 'warning'],
 }
 const BATCH_TONE: Record<string, Tone> = { queued: 'neutral', running: 'warning', completed: 'success', failed: 'danger' }
-const monthStart = () => `${today().slice(0, 8)}01`
 
 function NewBatchDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (b: Batch) => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const me = useMe()
   const { locationId } = useCurrentLocation()
+  const initialLocation = locationId ?? me.locations?.[0]?.id ?? ''
+  const today = useLocationToday(initialLocation)
   const [form, setForm] = useState({
-    location_id: locationId ?? me.locations?.[0]?.id ?? '',
-    period_from_on: monthStart(),
-    period_to_on: today(),
+    location_id: initialLocation,
+    period_from_on: `${today.slice(0, 8)}01`,
+    period_to_on: today,
     date_basis: 'invoice_date' as 'invoice_date' | 'due_date',
     is_open_only: false,
   })

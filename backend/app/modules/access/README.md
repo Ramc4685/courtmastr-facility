@@ -3,8 +3,8 @@
 Who came through the door, how they proved who they were, and what the front desk had to know. One check-in
 command serves the staff window (CHK-01), the client profile (CHK-03), the self check-in kiosk (CHK-05) and an
 app-card QR (CHK-13); every path writes one `check_in` row with the result, the reasons and the alerts shown. The
-staff API accepts the `staff_window`, `client_profile`, `pos` and `api` channels; `door` is reserved for hardware and
-nothing writes it yet.
+staff API accepts the `staff_window`, `client_profile`, `pos` and `api` channels; the `door` channel is written only by
+building control (below), when a booking's entry code admits its holder.
 
 ## Tables (migration `0612_access_checkin`)
 
@@ -246,13 +246,254 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   certificates, so CHK-13 stays partial.
 - **Admin clear.** The clear-digital-cards action covers app cards and wallet passes alike.
 
+## Building control (CHK-15, CHK-16; migration `1971_access_building_control`)
+
+Door entry codes tied to bookings and court lights that follow bookings, behind the vendor-neutral port
+`app/ports/building_control.py`. Code: `building.py` (service), `jobs.py` (the minute tick), `handlers.py`.
+
+- **Why in access.** The door decision is a check-in decision: it reuses `service._facts` plus `domain.evaluate`
+  and writes a normal `check_in` on the `door` channel. Access may call scheduling, programs, clients and platform
+  (overview section 2), which is everything this needs. It may not import resources or rentals: zone resources are
+  checked and their descendants found through scheduling's internal `resource_ids_at` and `resource_descendants`,
+  and bookings are read through scheduling.
+- **Port.** Every method names the site first, `(tenant_id, location_id, ...)`, so one adapter serving every tenant
+  routes by site and never acts on a bare address: `unlock(..., device_ref, seconds, timeout)`, `push_code(..., device_ref,
+  TimedCode)`, `revoke_code(..., device_ref, code_id)`, `set_zone(..., zone_ref, is_on)`, `read_zone(..., zone_ref)
+  -> bool | None`, plus `supports_code_push` (when False, the keypad
+  asks `POST /door/verify` for every code; the simulated adapter says True and also answers verify). Only `SimulatedBuildingControl` exists: it records calls (never a
+  code), can be scripted to fail or time out, and settings refuse it outside dev and test (unset means `none`
+  there, so every command fails and is surfaced). No vendor is assumed.
+- **Tables.** `door_device` (token hash only), `lighting_zone` (override, last commanded
+  state, failure count) with `lighting_zone_resource`, `entry_code` (one active per booking and person), `building_event`
+  (append-only activity, with `local_on` for the day filter). Five `access_settings` columns: `entry_code_early_min`
+  (15), `entry_code_grace_min` (10), `light_lead_in_min` (5), `light_run_on_min` (5), `requires_paid_entry` (true), and `door_alert_bad_codes_per_hour` (20, migration 1972).
+- **Keys.** `access.device.manage` (doors, zones, credentials), `access.door.unlock` (staff remote unlock, reason
+  required, and a `+` key: a step-up in the last 10 minutes, Owners included, since it opens an unmanned building),
+  and one new key, `access.lighting.override` (Admin, Manager), added to the matrix because holding a
+  court's lights for a period is a different power from managing devices. Neither `access.door.unlock` nor
+  `access.lighting.override` can be granted to an API key (`integrations.service.KEY_WITHHELD`). Reads use `access.checkin.read`.
+- **Codes.** One eight-digit code per person entitled to a confirmed booking at a location with an active door (a
+  rental's holder; each client enrolled on a session; migration 1973 adds `entry_code.client_id`), never shared, valid from start minus `entry_code_early_min` to end plus `entry_code_grace_min`, issued at most seven
+  days ahead. Issued by the booking created, rescheduled and cancelled handlers, and by the minute tick (a checkout
+  hold confirmed by `confirm_booking` publishes no event, and the tick catches anything a handler missed). A moved
+  booking's code is revoked and a new one issued and sent; a cancelled booking's code is revoked; codes are pushed
+  to and revoked from controllers that store codes, door by door. `pushed_at` is set only once every door holds the
+  code; until then the tick pushes again. A revoke goes to every door whatever was pushed (a partial push still gets
+  revoked); a revoke sets `revoke_due` (migration 1978) until every door confirms, and the tick retries it until
+  then. Each of these writes one `command_failed` row, not one per retry. Pushes and revokes run only after the
+  transaction that issued or revoked the code commits (`jobs.controller_call`, called at once from the after-commit
+  hook), each in its own transaction holding that code's row lock (FOR NO KEY UPDATE) while it calls the controller:
+  a rolled-back code never reaches a keypad, the transaction that issued or revoked the code never waits on a
+  controller, each push or revoke at a door is bounded by `building_control.command_timeout_seconds` (default 5 s,
+  the adapter must give up past it), a door verify of the code never waits on that lock (its `building_event` insert
+  takes only KEY SHARE), and a push and a revoke of one code reach it in commit order (a push that
+  finds its code revoked or already pushed does nothing). The tick syncs each booking under its own savepoint: one
+  that fails is logged with its booking id and shown to staff once as a `command_failed` event
+  (`code_sync:<booking id>`, never repeated each minute), its queued emails and controller calls are dropped, and the rest of the
+  location's issues and revokes still commit; it is retried next minute. Issue and revoke publish
+  `access.entry_code.issued` and `access.entry_code.revoked`.
+- **Codes retire (migration 1976).** At its window's end a code becomes `expired` (audited, no event) and, like a
+  revoked one, loses its sealed copy, so only an open or upcoming code can ever be shown again. The tick reads only
+  open or upcoming codes, through the partial index `ix_entry_code_open`. Retention: building events (entry times are
+  movement data) and spent codes go after `building.RETENTION` (365 days, a module constant until a tenant asks for
+  another period), through the hourly platform purge; `building_event` stays append-only for `fh_app` and is purged
+  by the owner's `app.purge_building_event` (it floors any cutoff at 365 days by the database clock and refuses a batch outside 1..50000, so the app role cannot erase recent entries), events first, then codes no event names. Merge moves codes to the
+  survivor; export lists each code's window and status (never the code; entries are the person's door check-ins);
+  erasure revokes live codes, unlinks every code from the person (audited flag-only, `client_unlinked`) and deletes
+  their `entry_code_hold` rows (merge moves them, export lists them, retention purges them after 365 days), and the
+  owner's `app.scrub_building_event_client` (1979) replaces their id with `erased` in event details, so the log no
+  longer leads to them.
+- **Code storage (decision).** A keyed HMAC (`crypto.mac`, per location) for lookup, plus the code sealed with the
+  tenant data key (`crypto.encrypt`) so the portal and the app can show it again. Regenerating on view would change
+  a code already emailed; a plain hash could not be shown again. Codes never appear in logs, the notification log
+  or audit: audit changes carry `"code": true` only. Known limits, not built: the lookup HMAC uses one key for every
+  tenant, derived from the environment's `FH_DATA_KEY`, and it is the same derived key that signs short-lived URLs
+  (`crypto.mac`); there is no rotation. Production needs a code-lookup key of its own (a separate derivation label
+  at least, ideally per tenant from the KMS), versioned so a rotation re-hashes live codes (at most seven days of
+  them) without a gap.
+- **Minors (unmanned building rule).** One function, `building.code_recipients`, decides who may receive, see or use
+  a person's code; delivery, the portal list and the portal unlock all call it. Nobody when the check-in evaluation
+  refuses the person. An adult's code goes to that adult only. A minor's, or someone of unknown age's, goes to each
+  guardian (`clients.households.guardian_ids`) who is a known adult and whom the full evaluation admits (status,
+  access mode, paid entry); never the child, a delegate, a household manager or another child. `is_known_adult` (a
+  trusted birth date at or over `platform.service.minor_age`, today at the location) runs before the "window
+  unchanged" shortcut in sync, and an active code whose person fails it is revoked. A rental's holder must be a known
+  adult themselves (else no code and one `code_withheld` row per booking and person). Shortcut: the enrollment's payer
+  is not consulted (programs does not expose it); guardianship links decide.
+- **Age check (owner decision 2026-11-13, "staff confirm once").** Anyone may sign up and book on a self-declared
+  birth date, but a known adult is an adult by birth date whose age staff have confirmed once. A holder (or, on a
+  session, a guardian) who is an adult by date but unconfirmed gets no code. The record is an `entry_code_hold` row
+  (migration 1980: booking, client, reason, under RLS with composite FKs; one per booking and person), which the
+  portal notice, the staff "Codes waiting on an age check" card (`held_codes` on the building status) and
+  `issue_held_codes` read. The `code_withheld` building event (`age-not-confirmed:booking:<number>`) is display
+  text only and is never parsed. The person is emailed once, on their first held booking, and the portal Door codes
+  list shows a held line per booking (`code: null`, `held_reason`, `message`); both use clients' one wording
+  (`clients.service.ENTRY_CODE_NOTICE` through `with_phone`, the same text the rentals checkout shows before
+  payment), and the portal Bookings page shows it once: when the page already shows the person's own notice it
+  leaves the held lines out. The booking itself is never refused. On `clients.client.age_confirmed` (fired only by
+  the staff confirm action), `issue_held_codes` issues and sends every held code at once; the handler is idempotent
+  and later bookings are self-service. Minors and people with no birth date: never. A rental's code goes to its
+  holder only; players listed on the rental (`rental_party`, children included) never get one. The check reads
+  `clients.service.is_age_confirmed(session, client_id)` fresh at issue, at the door (`_admit`) and on every
+  minute tick. **A reset publishes no event:** a staff edit of a confirmed birth date or a merge unconfirms the
+  person and fires nothing in reverse, so `clients.client.updated` and `clients.client.merged` run
+  `resync_client_codes` (each booking the person holds an active code on is synced: the code is revoked
+  `not_known_adult` and held again, with the notice), the door refuses the code at once, and a raw write is caught
+  by the tick.
+- **Entitlement at the door.** Every verify and portal unlock re-checks, for every kind of code, that the booking is
+  still confirmed and the person still entitled (still the holder, still enrolled), that the code's window equals the
+  live booking's window (a moved booking's old code fails at once, before any handler runs), that the person passes
+  the known-adult rule (a session participant who is a minor needs an adult guardian) and the check-in evaluation
+  for a booking (`domain.evaluate.for_booking`): a booking's code is refused only when the person is disabled or
+  banned (access mode always deny), the booking is cancelled or outside its window, the age rule fails, or (with
+  `requires_paid_entry`) a balance is due. A frozen, suspended, used-up, cancelled, wrong-location or
+  out-of-schedule membership never refuses it: the person paid for the rental or session and was allowed to book
+  it. The door check-in it writes uses the same rule (`service._check_in(..., booked=True)`); the front desk and the
+  kiosk still apply every membership rule.
+  Handlers revoke as soon as entitlement ends: booking cancelled or moved, session cancelled, enrolment cancelled or
+  moved (`recheck_client_codes`), and a payment failed, refunded, voided or disputed (revoked when the evaluation
+  now refuses the person). A whole-group enrolment's codes are issued by the minute tick.
+- **Delivery.** Email through the email port directly (`send_after_commit`), not the engagement notification log,
+  which stores bodies. A rental's holder gets it; every client registered on a session gets it, at issue and on later
+  enrollment (`programs.enrollment.created`). `notified_at` is set only once the email adapter has accepted the
+  message (after commit, `send_after_commit_then` in the email port, then the `mark_code_notified` actor); until then
+  the tick sends it again every minute while the window is open or upcoming, and never after it has passed. A changed
+  holder: no route changes a booking's holder today (a client merge moves the code with the person); if one ever
+  does, the tick revokes the old holder's code and issues and sends the new holder's within a minute, so no event was
+  added. There is no SMS channel, so no SMS. The portal (`GET /portal/entry-codes`)
+  and the app read the same field. The location phone travels with the email, the portal list and the refusal,
+  because the fallback when a code fails is a phone call and a staff remote unlock.
+- **The door.** `POST /door/verify` with `Authorization: Bearer fhb_...` (the door's own credential, shown once, rotatable;
+  retiring a door drops it). It answers allow (with unlock seconds) or deny, nothing more. The order is fixed
+  (migrations 1972 and 1974; the gate is frozen pending the verification pass):
+  1. The credential, always first, by indexed lookup on its hash in a short session closed at once, never cached,
+     so rotation and retirement apply to the next request. A known, active door is never subject to the per-IP
+     bucket: anyone sharing an address with a real lock (the facility network, a carrier NAT) must not be able to
+     lock it out. Unknown or retired: counted on the per-IP `door-auth` bucket (closed when Redis is down), then
+     `401`, or `429` once the address is over it; no queue, no sleep, no row. Load from a flood of unknown tokens is
+     bounded by that one indexed lookup per request plus the proxy's general rate limit.
+  2. Input that is not exactly eight digits is denied unevaluated.
+  3. The door's own queue and turn (Redis, keyed by door id, so one door never takes another door's turn): verifies
+     at a door are serialised, at most `DOOR_QUEUE` (3) wait behind the one being evaluated, anything beyond is
+     denied at once with no event, no audit row and no sleep. Then the location's delay: it grows with each denied
+     code at any door of the location in the last five minutes (0.4 s, then 1, 2, 4, and 5 s from the fourth on) and
+     decays as they age out. Every deny counts, an unknown code and a live one refused alike (outside its window,
+     cancelled, refused by the evaluation), so whether the next wait grows never tells a real code from a guess; an
+     allow never counts, so a valid in-window code is never slowed by its own success. It is per location because a code opens every door there. The route is async; waiting
+     uses `redis.asyncio` (one pool per event loop), BLPOP on the door's wake list and `asyncio.sleep`, so a waiting
+     verify holds no thread, no database connection and does not poll.
+  4. Only then does the request session open: the code is evaluated, with one activity row and one audit row.
+  A right code is always admitted, at worst about five seconds late; there is no lockout anyone could use to keep
+  the building shut. Redis unreachable: deny (fail closed; the email, the portal and every refusal carry the location
+  phone, and staff unlock remotely). The evaluation answers after `EVAL_FLOOR_SECONDS` (0.25 s, inside the
+  transaction; one at a time per door), so a matched code is not slower than an unknown one; lookup is by keyed hash.
+  Unknown codes (only those) are also counted across the location per hour for the staff alert: the one that passes
+  `door_alert_bad_codes_per_hour` (default 20) emails the alert address once and writes a `bad_code_alert` row.
+  Migration 1974 revoked every code issued before eight digits; the tick reissues and re-sends them. An admitted
+  code writes a `door` check-in for its person.
+- **Guess probability.** Eight digits is 10^8 codes. Every verify at a location waits the location's delay, which
+  sits at the five-second ceiling while guessing goes on. With d doors each serialised, a location answers at most
+  12 d guesses a minute at the ceiling; with the one front door at CIRQT (d = 1) that is 12 a minute, 17,280 a day.
+  With k codes open at the location at once, each guess hits with probability k / 10^8, so a full day of guessing
+  succeeds with about 17,280 d k / 10^8: for d = 1, 0.017 % a day with one open code and 0.14 % a day with eight
+  open at once (four courts with early and grace windows overlapping, all day: the worst case). The delay does not
+  multiply with doors, but the turns do (each door is its own queue), so the bound is linear in d. Counting every
+  deny toward the delay only reaches the ceiling sooner, so the bound is unchanged. Staff are emailed after the 21st
+  unknown code at the location in an hour. A person at the keypad can still slow the location for
+  everyone (up to five seconds a try); the portal "open the door" and the phone line are the fallback.
+  A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
+  the keypad) call the controller in the request: someone is waiting at the door and a queued unlock that lands late
+  opens it for nobody. This is a deliberate exception to "only the payment provider runs in-request". Each call is
+  given an absolute deadline (`DEVICE_TIMEOUT`, 3 s) and is made before the request writes or locks anything
+  (deviation, named: the request's connection stays checked out for those seconds, holding no row lock). Four
+  workers, no queue: with none free the unlock is refused at once (`409 device-busy`, nothing sent). The worker
+  checks the deadline immediately before calling the adapter (a worker that starts late never reaches it) and passes
+  what is left as the adapter's own request timeout; a call not yet started is cancelled. Refused or never sent:
+  `command_failed` (`unlock`), `409 device-unavailable`, audited `unlocked: false`. Still in flight at the deadline:
+  the door may yet open, so it is `unknown`, never `false`: `command_failed` (`unlock:unknown`), the location's alert
+  address is emailed, `409 device-outcome-unknown` ("it may have opened"), audited `unlocked: "unknown"`. The member path
+  opens only doors marked `is_entrance` (migration 1977; doors registered before it were marked), each with its own
+  result in the audit row; the entry (the person's `door` check-in and the `member_unlock` rows) is recorded only once
+  at least one door opened. It is rate limited per signed-in identity (`door-member-unlock`, 6 per 5 minutes).
+- **Lights.** Computed, not scheduled. Every minute (`run_building_control` in `app.scheduler.EVERY_MINUTE`) each
+  zone should be on when an override says so or when a confirmed rental, session or game holds one of its resources
+  between start minus lead-in and end plus run-on. Holds cover a resource and its descendants, never its ancestors,
+  so a zone watches each mapped resource and everything below it: a booking on a whole court lights its halves'
+  zones, and a booking on a half or quarter court lights the zone mapped to the parent court too (the CIRQT split
+  courts). Blocks never light, so a league night (an unavailable block held for a competition) stays dark; each
+  of its games takes its slot out of the night and lights its court. A zone may map several resources. The window
+  uses the booked time,
+  never the changeover buffer; a location that wants the lights on through the buffer raises lead-in and run-on.
+  Only changes are sent, so back-to-back bookings never flicker, a restarted scheduler or a missed tick catches up on
+  the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every
+  tick; the third failure in a row emails the location's alert address (or its email), and failures show in the
+  activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds.
+  Each location's codes and its lights run in their own transaction (`control_steps`, `run_control_step`), so one
+  failing step is logged and retried next minute without rolling back the others. Two ticks never sync one
+  location's codes at once (a tried, transaction-scoped advisory lock: the second skips), and a handler racing the
+  tick on the same booking and person takes the winner's row (the insert runs under a savepoint). One sync of a
+  booking's codes runs at a time (`_lock_booking_codes`, a waited-for advisory lock per booking), and every path
+  that locks codes takes them in one order: bookings ascending, then a booking's codes by id (`ORDER BY booking_id,
+  id`). Without it two connections whose cached plans read one booking's codes in different orders (an index, the
+  heap) each held the code the other wanted and deadlocked. A sync for a booking with no active code at a location
+  with no door returns before doing anything else. A staff override
+  locks the zone row, so it serialises with the tick's reconcile. With no
+  adapter configured nothing is sent and nothing is counted as failed: each zone and door shows one
+  `adapter_not_configured` state on the status line (`sync_state`), instead of a failure row a minute.
+- **Staff.** Overrides hold a zone on or off until a time within 24 hours, with a reason (`PUT /lighting-zones/{id}/override`,
+  audited, applied at once). `GET /building-events` (filters `local_on`, `kind`, door, zone) is the activity view;
+  `GET /building-status` gives per zone "should be on now", the reason and whether it matches the last command.
+
+### What the hardware must guarantee (building control)
+
+The building is unmanned and many players are children, so life safety never depends on this software, the network
+or the controller. Before any door or light is connected, the installation must provide, independently of us:
+
+- **Free egress at all times.** Every door opens from the inside by hand (lever, push bar), whatever the lock or
+  the software is doing. The software never locks a door: it only releases one for a few seconds; relocking is the
+  hardware's own spring or timer.
+- **Door release on fire alarm and on power loss.** The fire alarm panel releases access-controlled doors directly
+  (fail-safe hardware), and a power cut leaves them openable, as the fire code requires.
+- **Emergency and exit lighting never on a software-controlled circuit.** Exit signs and emergency lights are on
+  their own circuits with battery backup; only court lights are switched by `set_zone`.
+- **A manual light switch on site** for every zone, reachable without a code, that overrides the controller.
+
+Within that, the software keeps itself safe: a staff "force off" on a zone with a booking in play needs an explicit
+confirm and a reason; every hold needs a reason and lasts at most 24 hours; a booking moved or cancelled mid-play
+leaves its lights on for the run-on (at least a minute, `lighting_zone.lit_until_at`, migration 1975); and after any
+failed or unknown controller state the tick sends the wanted state again: when the controller reports a different
+state (`read_zone`) at once, and when it cannot report, a lit zone is told "on" again at least every five minutes,
+so a controller power cycle cannot leave players in the dark. Clearing a hold needs no reason: it hands the zone back
+to the bookings, the safe default.
+
+### Assumptions and shortcuts (building control)
+
+- "Unpaid when payment is required": tentative bookings never get a code, and with `requires_paid_entry` the holder
+  must have no balance due. Access cannot see the booking's own charge (its source is rentals, which access may not
+  import; its charges are keyed by rentals' own rows, not the booking), so a paid booking by someone with another
+  open balance is refused too. The setting's API description says exactly that.
+- A code is personal and never shared: it belongs to one person and checks in only that person. Participants of a
+  shared booking (other than its holder) get no code; the holder lets their party in.
+- A door check-in may consume a membership visit, like any check-in.
+- The status line compares with the last command; the tick also asks `read_zone` and re-sends when it differs.
+- A zone never commanded shows as not in sync until the first tick sends its state.
+- Changing the code window settings re-issues upcoming codes (treated as a reschedule).
+
+### Known limits (building control)
+
+- **League players get no entry code.** League games light their court (`LIT_KINDS` includes `game`), but codes go
+  only to rentals and sessions (`CODE_KINDS`), so at an unmanned building a league player has no code of their own;
+  staff open the door remotely, or someone with a rental or session code lets them in.
+- **A full `alembic downgrade base` can exhaust the lock table** on the shared dev container. The cause is
+  `migrations/env.py`, which runs the whole chain in one transaction, so every table's locks are held at once; it is
+  not this module's migrations. Downgrade a few revisions at a time instead.
+
 ## Deferred (P1 and later)
 
 CHK-20 summary analytics. CHK-21 "renew membership" and "update payment method" have no button at the window yet (staff open the
-client profile from the name on the status card); a QR on the printed card is not built. CHK-15 and CHK-16 (RFID, biometric,
-door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is built on a fake adapter only (see Wallet passes above); signed passes wait for issuer certificates.
-The permissions `access.door.unlock` and `access.device.manage` are registered for the door hardware and have no
-route yet. The staff eligible-sessions list (`listEligibleSessions`, P1, CHK-04) is not built: the window books from
+client profile from the name on the status card); a QR on the printed card is not built. RFID and biometric readers (the rest of
+CHK-15 and CHK-16) wait for v2 adapters, and building control has only the simulated adapter; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is built on a fake adapter only (see Wallet passes above); signed passes wait for issuer certificates.
+The staff eligible-sessions list (`listEligibleSessions`, P1, CHK-04) is not built: the window books from
 the schedule, and the kiosk receives its list in the check-in result. `KioskAttendanceCreate` accepts only
 `session`: places already booked and court bookings are marked by the check-in itself. Kiosk package purchase is in
 the contract but not built.

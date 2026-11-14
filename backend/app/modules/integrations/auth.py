@@ -8,6 +8,7 @@ grant, a location or the account itself narrows or stops the key at once.
 import hmac
 import logging
 from dataclasses import replace
+from uuid import UUID
 
 import redis
 from sqlalchemy import or_, select
@@ -103,3 +104,19 @@ def authenticate(session: Session, token: str) -> Principal:
     if key.last_used_at is None or (now - key.last_used_at).total_seconds() > 60:
         key.last_used_at = now  # at most one write a minute per key
     return _bounded(creator, key)
+
+
+def principal_for_key(session: Session, api_key_id: UUID) -> Principal | None:
+    """The key's principal now, for work it started earlier (a bulk job's next chunk); None once it is revoked
+    or expired, its creator can no longer act, or the tenant or plan stops keys. No rate limit: not a request."""
+    key = session.get(ApiKey, api_key_id)
+    if key is None or key.status != ApiKeyStatus.ACTIVE or (key.expires_at and key.expires_at <= clock.now()):
+        return None
+    try:
+        if platform.service.get_tenant(session).status != "active":
+            return None
+        platform.entitlements.require_feature(session, "api_access")
+    except DomainError:
+        return None
+    creator = platform.staff.principal_for(session, key.created_by_staff_user_id)
+    return None if creator is None else _bounded(creator, key)

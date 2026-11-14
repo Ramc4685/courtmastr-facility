@@ -6,6 +6,7 @@ import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
 import { StepUpDialog } from '../features/auth/StepUpDialog'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
+import { AgeChecksPage } from '../features/clients/AgeChecks'
 import { ClientProfilePage } from '../features/clients/ClientProfilePage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { MergePage } from '../features/clients/MergePage'
@@ -92,6 +93,8 @@ import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/Sales
 import { PosSetupPage } from '../features/pos/SetupPage'
 import { AssessmentSetupPage } from '../features/assessments/AssessmentSetupPage'
 import { ClockPage } from '../features/staff/ClockPage'
+import { CoachSharePage } from '../features/staff/CoachSharePage'
+import { MyEarningsPage } from '../features/staff/MyEarningsPage'
 import { PayeesPage } from '../features/staff/PayeesPage'
 import { PayrollPage } from '../features/staff/PayrollPage'
 import { ShiftsPage } from '../features/staff/ShiftsPage'
@@ -104,6 +107,7 @@ import { HistoryPage as CheckInHistoryPage } from '../features/access/HistoryPag
 import { KioskPage } from '../features/access/KioskPage'
 import { KioskSetupPage } from '../features/access/KioskSetupPage'
 import { AccessRulesPage } from '../features/access/AccessRulesPage'
+import { BuildingPage } from '../features/access/BuildingPage'
 import { DeskSetupPage, MemberCardPage, OccupancyPage } from '../features/access/DeskPages'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
@@ -222,6 +226,8 @@ export function AppRoutes() {
           <Route path="shifts" element={<RequirePermission permission="staff.shift.manage"><ShiftsPage /></RequirePermission>} />
           <Route path="payees" element={<RequirePermission permission="resources.resource.manage"><PayeesPage /></RequirePermission>} />
           <Route path="payroll" element={<RequirePermission permission="staff.payroll_run.create"><PayrollPage /></RequirePermission>} />
+          <Route path="coach-share" element={<RequirePermission permission="staff.coach_payout.create"><CoachSharePage /></RequirePermission>} />
+          <Route path="my-earnings" element={<RequirePermission permission="staff.coach_payout.read"><MyEarningsPage /></RequirePermission>} />
           <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
         <Route path="assessments/setup" element={<RequirePermission permission="assessments.definition.manage"><AssessmentSetupPage /></RequirePermission>} />
@@ -241,6 +247,7 @@ export function AppRoutes() {
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
+        <Route path="clients/age-checks" element={<RequirePermission permission="clients.client.confirm_age"><AgeChecksPage /></RequirePermission>} />
         <Route path="clients/:id" element={<RequirePermission permission="clients.client.read"><ClientProfilePage /></RequirePermission>} />
         <Route path="documents" element={<RequirePermission permission="documents.template.manage"><TemplatesPage /></RequirePermission>} />
         <Route path="documents/:id" element={<RequirePermission permission="documents.template.manage"><TemplateEditorPage /></RequirePermission>} />
@@ -263,6 +270,7 @@ export function AppRoutes() {
         <Route path="check-in/history" element={<RequirePermission permission="access.checkin.read"><CheckInHistoryPage /></RequirePermission>} />
         <Route path="check-in/kiosks" element={<KioskSetupPage />} />
         <Route path="check-in/access" element={<AccessRulesPage />} />
+        <Route path="check-in/building" element={<RequirePermission permission="access.checkin.read"><BuildingPage /></RequirePermission>} />
         <Route path="check-in/occupancy" element={<RequirePermission permission="access.checkin.read"><OccupancyPage /></RequirePermission>} />
         <Route path="check-in/desk-setup" element={<DeskSetupPage />} />
         <Route path="check-in/card/:id" element={<RequirePermission permission="access.credential.assign"><MemberCardPage /></RequirePermission>} />

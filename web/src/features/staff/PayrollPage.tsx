@@ -8,13 +8,15 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
-import { parseMoney, toMoneyInput, today } from '../billing/money'
+import { useLocationToday } from '../../lib/locationDate'
+import { parseMoney, toMoneyInput } from '../billing/money'
 import { FormDialog, ListTable, LocationSelect, Money, MoneyInput, StatusBadge } from '../billing/shared'
 import { RUN_STATUS, type PayrollRun, type Statement } from './shared'
 
 function NewRunDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (run: PayrollRun) => void }) {
   const qc = useQueryClient()
-  const [f, setF] = useState({ location_id: '', period_starts_on: today().slice(0, 8) + '01', period_ends_on: today() })
+  const today = useLocationToday()
+  const [f, setF] = useState({ location_id: '', period_starts_on: today.slice(0, 8) + '01', period_ends_on: today })
   const save = useMutation({
     mutationFn: () => api.post('/api/v1/payroll-runs', { body: { location_id: f.location_id || null, period_starts_on: f.period_starts_on, period_ends_on: f.period_ends_on, includes: ['sessions', 'commissions', 'hourly'] } }),
     onSuccess: (run) => {

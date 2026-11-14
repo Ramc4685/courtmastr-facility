@@ -11,7 +11,8 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
-import { formatMoney, parseMoney, toMoneyInput, today } from '../billing/money'
+import { useLocationToday } from '../../lib/locationDate'
+import { formatMoney, parseMoney, toMoneyInput } from '../billing/money'
 import { FormDialog, ListTable, LocationSelect, Money, MoneyInput, StatusBadge, TextArea, useCurrency } from '../billing/shared'
 import { LOAN_STATUS, options, useEquipmentCategories, useRegisters } from './shared'
 
@@ -298,8 +299,9 @@ function Report({ query, children }: { query: { isPending: boolean; isError: boo
 
 function SalesReport() {
   const [group, setGroup] = useState('category')
-  const [from, setFrom] = useState(today())
-  const [to, setTo] = useState(today())
+  const today = useLocationToday()
+  const [from, setFrom] = useState(today)
+  const [to, setTo] = useState(today)
   const [location, setLocation] = useState('')
   const q = useQuery({
     queryKey: ['pos', 'reports', 'sales', group, from, to, location],
@@ -342,7 +344,7 @@ function SalesReport() {
 function DailyRegisterReport() {
   const me = useMe()
   const [location, setLocation] = useState(me.locations?.[0]?.id ?? '')
-  const [on, setOn] = useState(today())
+  const [on, setOn] = useState(useLocationToday(location))
   const q = useQuery({ queryKey: ['pos', 'reports', 'daily', location, on], queryFn: () => api.get('/api/v1/pos-reports/daily-register', { query: { location_id: location, on } }), enabled: Boolean(location) })
   return (
     <div className="space-y-3">
@@ -408,8 +410,9 @@ function ReorderReport() {
 }
 
 function ReturnsReport() {
-  const [from, setFrom] = useState(today())
-  const [to, setTo] = useState(today())
+  const today = useLocationToday()
+  const [from, setFrom] = useState(today)
+  const [to, setTo] = useState(today)
   const q = useQuery({ queryKey: ['pos', 'reports', 'returns', from, to], queryFn: () => api.get('/api/v1/pos-reports/returns', { query: { from_on: from, to_on: to } }) })
   return (
     <div className="space-y-3">

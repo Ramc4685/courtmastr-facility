@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize
-from app.core.errors import Conflict, ValidationFailed
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.modules import platform
 from app.modules.clients import files, households, service
 from app.modules.clients.events import ClientMerged
@@ -208,6 +208,19 @@ def precheck(session: Session, principal: Principal, survivor_id: UUID, loser_id
     }  # fmt: skip
 
 
+def _guard_age_check(principal: Principal, records: list[Client]) -> None:
+    """Like a home move, a merge is never a way to gain the right to confirm: every unconfirmed record, survivor or
+    loser, must be one the caller could confirm at its current home."""
+    for record in records:
+        if service._age_confirmed(record):
+            continue
+        try:
+            authorize(principal, service.CONFIRM_AGE, location_id=record.home_location_id)
+        except (PermissionDenied, NotFound):
+            raise PermissionDenied("An age check is pending; staff at the client's current location merge them.",
+                                   code="age-check-pending") from None  # fmt: skip
+
+
 def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: list[UUID]) -> Client:
     """Merge each loser into the survivor. Blank survivor fields take the first loser's value; every handler
     re-points; the loser becomes a tombstone; one client_merge row per loser; both aggregates audited."""
@@ -215,12 +228,22 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
     if principal.staff_user_id is None:
         raise ValidationFailed("Only a staff user can merge clients.")
     survivor, losers = _load_pair(session, survivor_id, loser_ids)
+    _guard_age_check(principal, [survivor, *losers])
     blockers = _blockers(session, survivor, losers)
     if blockers:
         raise Conflict("These records cannot be merged yet.", code="merge-blocked", blockers=[
             {**b, "client_id": str(b["client_id"])} for b in blockers
         ])  # fmt: skip
     now = clock.now()
+    # "Staff confirm once": the survivor stays confirmed only if every record was confirmed for the same date and
+    # no loser brings a login the survivor lacked. A merge never confirms and never fires age_confirmed.
+    was_confirmed = service._age_confirmed(survivor)
+    logins = _own_login(session, survivor.id)
+    if was_confirmed and any(
+        not service._age_confirmed(x) or x.birth_on != survivor.birth_on or _own_login(session, x.id) - logins
+        for x in losers
+    ):
+        service._mark_age_unconfirmed(survivor)
     for loser in losers:
         filled = {}
         for field in _backfill_fields(survivor, [loser]):
@@ -230,8 +253,12 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
                 source, loser.member_number, loser.member_number_source = loser.member_number_source, None, None
                 session.flush()
                 survivor.member_number_source = source
+            if field == "birth_on":  # a merge is not an ID check: only confirm_age confirms
+                service._mark_age_unconfirmed(survivor)
             setattr(survivor, field, value)
         survivor.custom_values = loser.custom_values | survivor.custom_values
+        if loser.earliest_booking_at:  # the age-check queue keeps the loser's bookings
+            survivor.earliest_booking_at = min(filter(None, (survivor.earliest_booking_at, loser.earliest_booking_at)))
         session.flush()
         for handler in HANDLERS.values():
             handler.repoint(session, loser.id, survivor.id)
@@ -246,8 +273,10 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
                      changes={"merged_into_id": [None, str(survivor.id)]})  # fmt: skip
         events.publish(session, ClientMerged(client_id=loser.id, survivor_client_id=survivor.id), loser.id)
     survivor.version += 1
-    audit.record(session, "clients.client.merge", survivor, location_id=survivor.home_location_id,
-                 changes={"absorbed": [str(x.id) for x in losers]})  # fmt: skip
+    changes: dict = {"absorbed": [str(x.id) for x in losers]}
+    if was_confirmed and not service._age_confirmed(survivor):
+        changes["age_confirmation_reset"] = True  # flag-only: no date in the audit
+    audit.record(session, "clients.client.merge", survivor, location_id=survivor.home_location_id, changes=changes)
     events.publish(session, service.ClientUpdated(client_id=survivor.id), survivor.id)
     session.flush()
     return survivor

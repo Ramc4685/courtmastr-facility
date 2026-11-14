@@ -138,7 +138,7 @@ def test_portal_lists_signs_and_acts_for_a_dependent(client, owner, location_id,
     types = {t["code"]: t for t in client.get(f"{API}/portal/relationship-types", headers=portal).json()}
     kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json={
         "relationship_type_id": types["parent_of"]["id"], "first_name": "Kit", "last_name": "Me",
-        "birth_on": born(8)}), 201)  # fmt: skip
+        "birth_on": born(8), "birth_on_declared": True}), 201)  # fmt: skip
     plan = "0190e000-0000-7000-8000-000000000001"
     ok(client.put(f"{API}/document-bindings", headers=owner,
                   json={"scope_type": "membership_plan", "scope_id": plan, "template_id": tpl["id"]}))  # fmt: skip

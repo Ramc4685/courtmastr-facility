@@ -12,14 +12,14 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core import context, crypto, idempotency, networks
 from app.core.db.session import run_after_commit
-from app.core.errors import DomainError, PermissionDenied
+from app.core.errors import DomainError, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pan import contains_card_number
 from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL, NOT_FREE_TEXT
@@ -120,7 +120,14 @@ def _check_origin(request: Request) -> None:
 def _refuse_card_data_in_query(request: Request) -> None:
     """A write's query values are stored like body fields (a photo caption), so In's card scan applies to them by
     the same name rules. Path segments are ids and keys, and reads only filter. shortcut: no route takes a form
-    (python-multipart is not installed); scan form values here when one is added."""
+    (python-multipart is not installed); scan form values here when one is added.
+
+    First, on every method: Postgres text cannot hold NUL (a filter or path value with one is a 500), so a NUL in
+    any query name or value or path value is refused, as core.schemas.In does for request bodies."""
+    for where, pairs in (("query", request.query_params.multi_items()), ("path", request.path_params.items())):
+        for name, value in pairs:
+            if "\x00" in name or (isinstance(value, str) and "\x00" in value):
+                raise ValidationFailed("Text cannot contain a NUL character.", pointer=f"/{where}")
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return
     errors = [
@@ -360,6 +367,39 @@ def _on_integrity_error(request: Request, exc: IntegrityError):
     return problem(request, 500, "internal-error")
 
 
+def _on_data_error(request: Request, exc: DataError):
+    """A request value too big for an integer column (22003 on the INSERT or UPDATE of a write) is the caller's,
+    not a server fault. Every other DataError, a 22003 from arithmetic in a query or on a read included, is a 500
+    logged with its trace id.
+
+    shortcut: an UPDATE whose own arithmetic overflows an int4 column reads the same as a bound value; tell them
+    apart by bind position if that ever happens."""
+    diag = getattr(exc.orig, "diag", None)
+    message = (diag.message_primary if diag else None) or ""
+    statement = (exc.statement or "").lstrip().upper()
+    if (
+        getattr(exc.orig, "sqlstate", None) == "22003"
+        and request.method in ("POST", "PUT", "PATCH")
+        and statement.startswith(("INSERT", "UPDATE"))
+        and message in ("integer out of range", "smallint out of range")
+    ):
+        words = statement.split()
+        table = words[2] if words[0] == "INSERT" and len(words) > 2 else words[1] if len(words) > 1 else "?"
+        log.warning(  # names only, never the value: an operator can find a column that is too narrow
+            "number out of range on write: table %s column %s constraint %s (trace %s)", table.lower(),
+            getattr(diag, "column_name", None), getattr(diag, "constraint_name", None), context.request_id.get(),
+        )  # fmt: skip
+        detail = "A number is out of range."
+        return problem(
+            request,
+            422,
+            "validation-failed",
+            detail,
+            errors=[{"pointer": "", "code": "validation-failed", "detail": detail}],
+        )
+    return _on_unhandled(request, exc)
+
+
 def _on_http_exception(request: Request, exc: StarletteHTTPException):
     codes = {401: "unauthenticated", 403: "permission-denied", 404: "not-found", 405: "method-not-allowed"}
     return problem(request, exc.status_code, codes.get(exc.status_code, "bad-request"), headers=exc.headers)
@@ -378,5 +418,6 @@ def install(app: FastAPI) -> None:
     app.add_exception_handler(DomainError, _on_domain_error)
     app.add_exception_handler(RequestValidationError, _on_validation_error)
     app.add_exception_handler(IntegrityError, _on_integrity_error)
+    app.add_exception_handler(DataError, _on_data_error)
     app.add_exception_handler(StarletteHTTPException, _on_http_exception)
     app.add_exception_handler(Exception, _on_unhandled)

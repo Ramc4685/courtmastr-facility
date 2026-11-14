@@ -20,6 +20,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Billing & payments', to: '/billing', permission: 'billing.charge.read', icon: 'cash' },
   { label: 'Point of sale', to: '/pos', permission: 'pos.sale.read', icon: 'cart' },
   { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
+  { label: 'Age checks', to: '/clients/age-checks', permission: 'clients.client.confirm_age', icon: 'shield' },
   { label: 'Engagement', to: '/engagement', permission: ['engagement.campaign.read', 'engagement.portal_settings.manage', 'engagement.app_content.manage', 'engagement.location_contact.manage', 'engagement.app_inquiry.read', 'engagement.app_usage.read'], icon: 'mail' },
   { label: 'Documents', to: '/documents', permission: 'documents.template.manage', icon: 'pen' },
   { label: 'Memberships', to: '/memberships', permission: 'memberships.contract.read', icon: 'card' },

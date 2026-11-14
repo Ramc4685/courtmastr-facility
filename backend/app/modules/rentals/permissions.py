@@ -16,6 +16,7 @@ register(
     _p("booking.update", "Edit, extend and bill rentals", "", _FD),
     _p("booking.cancel", "Remove rentals from the schedule", "", _FD),
     _p("booking.override_rate", "Key a custom rental price or waive a late-cancel fee", "P", _MG),
+    _p("booking.override_minor", "Book a court in a minor's name, with a reason", "P", _MG),
     _p("rental_type.manage", "Manage rental types and rates", "", _MG, scope=T),
     _p("rental_plan.manage", "Manage rental plans", "", _MG, scope=T),
     _p("rental_plan.sell", "Sell rental plans", "", _FD),

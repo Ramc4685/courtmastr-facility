@@ -61,6 +61,20 @@ def set_authenticator(fn: Callable[[Session, str], Principal], prefix: str = "fh
     _authenticators[prefix] = fn
 
 
+# Re-loads an API key's principal by id for work it started (a job re-authorizes it at each step); None when the
+# key may no longer act. Registered by integrations; unregistered, no key can act.
+_key_principal: Callable[[Session, UUID], Principal | None] = lambda session, api_key_id: None  # noqa: E731
+
+
+def set_key_principal_loader(fn: Callable[[Session, UUID], Principal | None]) -> None:
+    global _key_principal
+    _key_principal = fn
+
+
+def key_principal(session: Session, api_key_id: UUID) -> Principal | None:
+    return _key_principal(session, api_key_id)
+
+
 # How a cookie session's X-CSRF-Token is checked against server state: fn(session, principal, header) -> ok.
 _csrf_verifier: Callable[[Session, Principal, str], bool] = lambda session, principal, header: False  # noqa: E731
 

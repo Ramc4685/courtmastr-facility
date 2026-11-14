@@ -52,6 +52,7 @@ export default function Buy() {
           title={o.name}
           subtitle={[o.kind === 'membership' ? 'Membership' : 'Package', price(o), o.detail, offer?.id === o.id ? 'Selected' : null].filter(Boolean).join(' · ')}
           onPress={() => {
+            if (attempt.locked) return; // the unanswered attempt keeps its offer and card
             setOffer(o);
             buy.reset();
           }}
@@ -60,14 +61,20 @@ export default function Buy() {
       {offer && (
         <>
           <Heading>Pay with a new card</Heading>
-          <NewCard value={token} onChange={setToken} />
+          {attempt.locked ? (
+            <Surface>
+              <Body>We did not get a clear answer for the last attempt, so this purchase stays as it was. Try again with the same details; nothing will be charged twice.</Body>
+            </Surface>
+          ) : (
+            <NewCard value={token} onChange={setToken} />
+          )}
           {buy.error ? <ErrorBox error={buy.error} /> : null}
           {buy.data ? (
             <Surface>
               <Body>{buy.data.payment_status === 'succeeded' || !buy.data.payment_status ? `${buy.data.name} is yours.` : `Payment is ${buy.data.payment_status.replace(/_/g, ' ')}; nothing is confirmed until it succeeds.`}</Body>
             </Surface>
           ) : (
-            <Button label={`Buy ${offer.name}`} onPress={() => buy.mutate()} loading={buy.isPending} disabled={!token || !actingFor || !locationId} />
+            <Button label={attempt.locked ? 'Try again' : `Buy ${offer.name}`} onPress={() => buy.mutate()} loading={buy.isPending} disabled={!token || !actingFor || !locationId} />
           )}
         </>
       )}

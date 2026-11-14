@@ -75,6 +75,35 @@ def enable_client(client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.
     return _view(ctx, service.enable_client(ctx.session, ctx.principal, client_id))
 
 
+@router.get("/client-age-reviews", response_model=s.Page[s.AgeReviewItem])
+def list_client_age_reviews(query: Lists, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGE))]):
+    """Clients whose self-declared birth date waits for staff, people with an online booking first (earliest
+    booking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.
+    `no_birth_date=true`: the second section, people with no birth date on file who booked; staff enter the date
+    through the confirm action."""
+    return service.list_age_reviews(ctx.session, ctx.principal, query)
+
+
+@router.post("/client-age-reviews/confirmations", response_model=s.AgeConfirmationBatchOut)
+def confirm_client_ages(body: s.AgeConfirmationBatch, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGES))]):
+    """Confirm up to 200 people at once (needs clients.client.confirm_age too, and a recent step-up). Each is
+    audited and announced once. Unknown or out-of-reach people, children and people with no birth date are skipped
+    with a reason, never failing the batch. Errors: step-up-required."""
+    return service.confirm_ages(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.post("/clients/{client_id}/age-confirmation", response_model=s.ClientOut)
+def confirm_client_age(
+    client_id: UUID, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGE))], body: s.AgeConfirmation | None = None
+):
+    """Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is
+    self-service. Clears the flag even when the date is unchanged. Errors: birth-date-required."""
+    return _view(
+        ctx,
+        service.confirm_age(ctx.session, ctx.principal, client_id, body.model_dump(exclude_unset=True) if body else {}),
+    )
+
+
 @router.get("/clients/{client_id}/emergency-contacts", response_model=s.EmergencyContactsOut)
 def get_client_emergency_contacts(
     client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.client.read_sensitive"))]

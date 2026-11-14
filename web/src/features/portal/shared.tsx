@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
-import { api, ApiError, type Schemas } from '../../api/client'
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import { api, type Schemas } from '../../api/client'
 import type { Tone } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { Input, Select } from '../../components/Field'
@@ -53,15 +53,7 @@ export function makePortalValue(clients: PortalClient[], actingId: string | null
   }
 }
 
-/** One idempotency key per purchase attempt: kept across a retry after a processor timeout (503, so the
- * server replays rather than charges twice), replaced after any other failure (a decline is a new attempt). */
-export function useAttemptKey() {
-  const [key, setKey] = useState(() => crypto.randomUUID())
-  const settle = useCallback((error: Error | null) => {
-    if (!(error instanceof ApiError && error.status === 503)) setKey(crypto.randomUUID())
-  }, [])
-  return { key, settle }
-}
+export { keepsAttemptKey, useAttemptKey } from '../billing/attempt'
 
 /** The processor behind online checkout and the keys Stripe.js mounts with, from the read-only processor
  * route (no setup intent is created just to learn the provider). `provider: null`: none connected. */

@@ -681,6 +681,9 @@ def _card(doc: Document, session: Db, competition: Competition, game: Game | Non
         ])  # fmt: skip
         teams = [(game.home_team_id, game.home_label, "Home"), (game.away_team_id, game.away_label, "Away")]
     names = core._names(session, [t[0] for t in teams if t[0]])
+    score = "Final score: ______"
+    if competition.scoring_mode == "sets":  # a box per possible set, filled in by hand
+        score = "   ".join(f"Set {n}: ____" for n in range(1, (competition.sets_best_of or 1) + 1))
     for team_id, label, side in teams:
         rows = []
         if team_id is not None:
@@ -689,9 +692,7 @@ def _card(doc: Document, session: Db, competition: Competition, game: Game | Non
             ).order_by(RosterEntry.jersey_number, RosterEntry.created_at)).all()  # fmt: skip
             rows = [[p["jersey_number"] or "", p["name"], "", ""] for p in core._roster_views(session, list(players))]
         rows += [["", "", "", ""]] * _SPARE_LINES
-        doc.text(
-            f"{side}: {(names.get(team_id) if team_id else None) or label or '________________'}    Final score: ______"
-        )
+        doc.text(f"{side}: {(names.get(team_id) if team_id else None) or label or '________________'}    {score}")
         doc.table([Column("No.", 15), Column("Player"), Column("Points", 25, "R"), Column("Fouls", 25, "R")], rows)
 
 

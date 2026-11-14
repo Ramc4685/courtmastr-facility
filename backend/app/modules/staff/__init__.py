@@ -7,6 +7,6 @@ schemas from another context.
 """
 
 from app.modules.staff import models, permissions  # isort: skip
-from app.modules.staff import service
+from app.modules.staff import coach, handlers, service
 
-__all__ = ["models", "permissions", "service"]
+__all__ = ["coach", "handlers", "models", "permissions", "service"]

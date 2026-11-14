@@ -93,6 +93,14 @@ class ProviderEvent:
     kind: EventKind
     object_ref: str | None
     event_type: str
+    # A succeeded charge or refund this app started: only such an event, with no local row, is an orphan to retry
+    # and list for staff. Any other unmatched event (a failed intent, a charge made outside the app) is ignored.
+    expects_row: bool = True
+
+
+class ProviderUnavailable(Exception):
+    """No usable answer: a timeout, a connection failure, a 5xx, a 409 (the same key's first call is still in
+    flight) or a 429 (rate limited). The outcome of the call is not known."""
 
 
 class WebhookRejected(Exception):

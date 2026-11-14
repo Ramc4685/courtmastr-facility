@@ -46,9 +46,9 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
 @pytest.mark.parametrize(
     ("context", "count"),
     [
-        ("platform", 31), ("clients", 16), ("billing", 41), ("pos", 15), ("documents", 6), ("memberships", 13),
-        ("packages", 10), ("resources", 5), ("scheduling", 21), ("rentals", 12), ("programs", 12),
-        ("access", 13), ("integrations", 6), ("engagement", 18), ("leagues", 15), ("staff", 10), ("assessments", 5),
+        ("platform", 31), ("clients", 18), ("billing", 40), ("pos", 15), ("documents", 6), ("memberships", 13),
+        ("packages", 10), ("resources", 5), ("scheduling", 21), ("rentals", 13), ("programs", 12),
+        ("access", 14), ("integrations", 6), ("engagement", 18), ("leagues", 15), ("staff", 15), ("assessments", 5),
         ("reporting", 13),
     ],
 )  # fmt: skip

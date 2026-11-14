@@ -158,3 +158,14 @@ def test_shift_variance_clips_entries_and_ignores_open_ones():
     assert (split["worked_minutes"], split["variance_minutes"]) == (180 + 240, -60)
     assert (split["first_in_at"], split["last_out_at"]) == (start, end)
     assert pay.shift_variance(start, end, [(start - 2 * hour, start - hour)])["worked_minutes"] == 0
+
+
+def test_overlap_minutes_counts_each_minute_once():
+    t = datetime(2031, 5, 5, 9, tzinfo=UTC)
+    hour = timedelta(hours=1)
+    assert pay.overlap_minutes(t, t + hour, []) == 0
+    assert pay.overlap_minutes(t, t + hour, [(t + hour, t + 2 * hour)]) == 0  # back to back
+    assert pay.overlap_minutes(t, t + 2 * hour, [(t + hour / 2, t + hour)]) == 30
+    assert pay.overlap_minutes(t, t + hour, [(t - hour, t + 2 * hour)]) == 60  # clipped to the entry
+    spans = [(t, t + hour), (t + hour / 2, t + 2 * hour)]  # two sessions that overlap each other
+    assert pay.overlap_minutes(t, t + 3 * hour, spans) == 120

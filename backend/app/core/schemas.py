@@ -2,11 +2,12 @@
 
 import html as html_text
 import re
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
+from app.core.errors import ValidationFailed
 from app.core.pan import contains_card_number
 
 # Card numbers in request bodies (security-baseline section 3). Every string field on an `In` schema is scanned on
@@ -22,8 +23,9 @@ NOT_FREE_TEXT = frozenset({
     "account_id", "account_reference", "asset_code", "client_id", "code", "coupon_code", "external_id", "external_ref",
     "host_external_user_id", "jersey_number", "member_number", "member_number_prefix",
     "number", "plan_code", "product_code", "realm_id", "sku", "terms_version_id", "pairing_code",
-    # access credentials and card scans: a fob or member-card number is a long digit run by design
-    "value", "card_payload", "combination", "exit_pin", "staff_pin",
+    # access credentials and card scans: a fob or member-card number is a long digit run by design; the door verify
+    # `code` (above) is a secret entry code; building controller addresses are installer-given device channels
+    "value", "card_payload", "combination", "exit_pin", "staff_pin", "device_ref", "zone_ref",
     # secrets and tokens (never prose; never logged either)
     "client_secret", "credential_value", "current_password", "new_password", "owner_password", "password", "passcode",
     "direct_link_token", "guest_token", "match_token", "mfa_token", "method_token", "provider_confirmation_token",
@@ -44,7 +46,7 @@ NOT_FREE_TEXT = frozenset({
     "autopay_run_time", "closes_time", "end_time", "ends_at", "ends_time", "membership_renewal_run_time", "opens_time",
     "package_renewal_run_time", "return_time", "send_time", "start_time", "starts_at", "starts_time",
     # numbers sent as decimal strings
-    "adjustment_points", "bonus_points", "commission_pct", "default_discount_pct", "deposit_pct", "discount_pct",
+    "adjustment_points", "bonus_points", "coach_share_pct", "commission_pct", "default_discount_pct", "deposit_pct", "discount_pct",
     "late_cancel_fee_pct", "min_sportsmanship", "points_default_loss", "points_forfeit_loss", "points_forfeit_win",
     "points_loss", "points_overtime_loss", "points_tie", "points_win", "quantity", "quantity_total", "rate",
     "renewal_discount_pct", "session_commission_pct", "sportsmanship",
@@ -66,7 +68,8 @@ FREE_TEXT_FIELDS = frozenset({
     "event_text", "external_name", "fees_text", "first_name", "heading", "hint", "home_label", "interest",
     "internal_description", "internal_note", "internal_notes", "internal_remarks", "invoice_description",
     "invoice_email_subject", "invoice_footer", "label", "last_name", "last_name_prefix", "medical_notes", "memo",
-    "message", "more_info", "name", "name_prefix", "note", "notes", "online_description", "organization_name",
+    "message", "minor_override_reason", "more_info", "name", "name_prefix", "note", "notes", "online_description",
+    "organization_name", "payment_reference",
     "override_reason", "owner_first_name", "owner_last_name", "portal_publish_name", "position", "preferred_name",
     "public_name", "public_title", "reason", "receipt_footer", "referral_source", "region", "registrant_comment",
     "relationship_label", "remarks", "removal_remarks", "renewal_description", "renewal_remark", "round_label",
@@ -94,12 +97,37 @@ def _has_card(value: Any, html: bool = False) -> bool:
     return False
 
 
+def _nul_pointer(value: Any, path: str = "") -> str | None:
+    """The JSON pointer of the first string holding a NUL character, if any."""
+    if isinstance(value, str):
+        return path if "\x00" in value else None
+    items = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
+    for key, item in items:
+        if isinstance(key, str) and "\x00" in key:
+            return path or "/"
+        if (found := _nul_pointer(item, f"{path}/{key}")) is not None:
+            return found
+    return None
+
+
 class Out(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# An int4 column's range; a larger number would reach Postgres and fail there.
+Int4 = Annotated[int, Field(ge=-2_147_483_648, le=2_147_483_647)]
+
+
 class In(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_nul(cls, data: Any) -> Any:
+        # Postgres text cannot hold NUL (it would be a 500): refuse it once here, for every request body.
+        if (pointer := _nul_pointer(data)) is not None:
+            raise ValidationFailed("Text cannot contain a NUL character.", pointer=pointer or "/")
+        return data
 
     @field_validator("*", mode="after")
     @classmethod

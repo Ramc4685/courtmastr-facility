@@ -38,6 +38,7 @@ OPEN_PORTAL_POSTS = {
     "/portal/favorites", "/portal/app-usage",  # phase 11 C2: favourites and anonymous usage counts; no money
     "/portal/calendar-feeds",  # open: managing one's own schedule feed buys nothing, like the auto-renew opt-outs
     "/portal/enrollments/{enrollment_id}/join",  # open: joins a place already booked, like enrollment cancel
+    "/portal/bookings/{booking_id}/door-unlock",  # open: buys nothing; a balance due already refuses entry
 }  # fmt: skip
 
 
@@ -202,6 +203,11 @@ def test_portal_post_routes_are_each_locked_or_deliberately_open():
     }
     assert posts == collections.PORTAL_PURCHASE_ROUTES | OPEN_PORTAL_POSTS
     assert not collections.PORTAL_PURCHASE_ROUTES & OPEN_PORTAL_POSTS
+    # The guard covers POSTs only, deliberately: reads such as GET /portal/rental-availability (member-priced open
+    # times) buy nothing, and the checkout POST /portal/rentals that follows is locked, so a past-due payer sees the
+    # times and is refused at the till.
+    assert "/portal/rentals" in collections.PORTAL_PURCHASE_ROUTES
+    assert "/portal/rental-availability" not in posts
 
 
 def test_tags_profiles_and_the_collections_report(api, shop, desk):
@@ -291,6 +297,25 @@ def test_expiring_cards_lists_cards_through_a_month_with_their_holder(api, shop)
     assert rows[0]["client_name"] and [r["id"] for r in api("GET", "/expiring-cards")["data"]] == [ids[0]]
     assert [r["id"] for r in api("GET", "/expiring-cards?through=2040-03&is_autopay=false")["data"]] == [ids[1]]
     api("GET", "/expiring-cards?through=2040-13", None, 422)
+
+
+def test_collections_and_expiring_cards_follow_the_staff_members_locations(api, shop, desk):
+    """2026-11-13 question 12 (recommended, awaiting the owner): limited by the client's home location; all-location
+    staff see all."""
+    tag = api("POST", "/collections-tags", {"name": "Payment plan"}, 201)
+    who = str(shop.client_id)
+    api("PUT", f"/clients/{who}/collections-profile", {"collections_tag_id": tag["id"]})
+    with work(shop.tenant) as session:
+        card = methods.attach_method(session, shop.client_id, "tok_card_ok")
+        card.exp_month, card.exp_year = 1, 2020
+    # the owner reaches every location
+    assert [r["client_id"] for r in api("GET", "/collections-report")["data"]] == [who]
+    assert [r["client_id"] for r in api("GET", "/expiring-cards")["data"]] == [who]
+    # a manager of another location sees none of this client's rows, and the profile is 404, never 403
+    west = desk.west_manager
+    assert api("GET", "/collections-report", headers=west)["data"] == []
+    assert api("GET", "/expiring-cards", headers=west)["data"] == []
+    api("GET", f"/clients/{who}/collections-profile", None, 404, headers=west)
 
 
 def test_the_daily_digest_reports_failures_and_due_autopay_once_a_day(shop, mailbox):

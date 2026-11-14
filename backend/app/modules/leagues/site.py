@@ -477,7 +477,8 @@ def public_brackets(session: Db, competition_id: UUID) -> list[dict]:
             "side": s.side, "round_no": s.round_no, "round_name": s.round_name, "position": s.position,
             "home_seed": s.home_seed, "away_seed": s.away_seed, "home_name": names.get(s.home_team_id),
             "away_name": names.get(s.away_team_id), "home_score": game.get("home_score"),
-            "away_score": game.get("away_score"), "starts_at": game.get("starts_at"), "is_bye": s.is_bye,
+            "away_score": game.get("away_score"), "set_scores": game.get("set_scores"),
+            "starts_at": game.get("starts_at"), "is_bye": s.is_bye,
             "winner": None if s.winner_competition_team_id is None
             else "home" if s.winner_competition_team_id == s.home_team_id else "away",
         })  # fmt: skip
@@ -517,7 +518,7 @@ def public_board(session: Db, location_id: UUID) -> dict:
             {"starts_at": v["starts_at"], "competition_name": competitions.get(v["competition_id"], ""),
              "venue": venues.get(v["resource_id"]), "status": v["status"],
              "home_name": v["home_name"] or v["home_label"], "away_name": v["away_name"] or v["away_label"],
-             "home_score": v["home_score"], "away_score": v["away_score"]}
+             "home_score": v["home_score"], "away_score": v["away_score"], "set_scores": v["set_scores"]}
             for v in core.game_views(session, games)
         ],
     }  # fmt: skip

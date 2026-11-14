@@ -67,3 +67,22 @@ test('dashboard tiles, revenue chart and schedule dialog pass axe', async ({ pag
   await expect(page.getByRole('dialog')).toBeVisible()
   await scan(page, 'schedule dialog')
 })
+
+test('court use chart and heat map pass axe in light and dark', async ({ page }) => {
+  test.setTimeout(120_000)  // two report builds of seconds each
+  await signIn(page, '/reports/court_use')
+  await page.getByLabel('Period').selectOption('this_month')
+  await page.getByRole('button', { name: 'Run report' }).click()
+  // a month of court use takes seconds to build (reporting README "Cost")
+  await expect(page.getByRole('img', { name: /^Utilization .* available hours$/ })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/^In all: played /)).toBeVisible()
+  await scan(page, 'court use chart')
+
+  await page.goto('/reports/court_use_heatmap')
+  await page.getByLabel('Period').selectOption('this_month')
+  await page.getByRole('button', { name: 'Run report' }).click()
+  await expect(page.getByRole('table', { name: /^Average utilization by hour and weekday/ })).toBeVisible({ timeout: 60_000 })
+  await scan(page, 'heat map')
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await scan(page, 'heat map, dark')
+})

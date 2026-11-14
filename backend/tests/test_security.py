@@ -29,6 +29,7 @@ ANONYMOUS = {
     "/webhooks/quickbooks",  # likewise (intuit-signature)
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",
+    "/door/verify",  # authenticated by the door controller's own bearer credential (fhb_...), not a session
     "/kiosk/check-ins/{check_in_id}/attendances",  # and the visit token that device was issued (access/kiosk.py)
     "/kiosk/visits/end",  # ends only this device's visit tokens
     "/files/{tenant_id}/{file_id}",  # authenticated by the URL's signature, issued after a permission check

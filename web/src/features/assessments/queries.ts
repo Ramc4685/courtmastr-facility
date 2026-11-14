@@ -18,10 +18,3 @@ export function measure(value: string | number | null | undefined, field?: { dec
   const n = field?.decimal_places === undefined ? String(Number(value)) : Number(value).toFixed(field.decimal_places)
   return field?.unit_label ? `${n} ${field.unit_label}` : n
 }
-
-/** A datetime-local input value as an ISO instant (the browser's zone), and back. */
-export const fromLocalInput = (v: string) => new Date(v).toISOString()
-export const toLocalInput = (iso: string) => {
-  const d = new Date(iso)
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}

@@ -3841,7 +3841,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, blackout, series-too-large, rate-not-applicable, insufficient-plan-balance, idempotency-key-reused,
-        request-in-progress, document-required]
+        request-in-progress, minor-cannot-hold-rental, minor-needs-guardian, document-required]
   /rentals/preview:
     post:
       operationId: previewRental
@@ -3977,7 +3977,9 @@ paths:
       tags: [rentals]
       summary: Bookable slots for a rental type on a local date
       description: 'Gaps between holds inside facility hours, availability windows and blackouts; starts snap to slot_granularity_min,
-        lengths obey min/max, lead time obeys min_lead_min. Advisory only: the hold insert at checkout is the truth.'
+        lengths obey min/max, lead time obeys min_lead_min. Advisory only: the hold insert at checkout is the truth.
+        The whole local day (or the from_time/to_time band), ordered by court then start, in keyset pages of at most
+        `limit` (default and maximum 200): follow page.next_cursor while page.has_more; nothing is cut off silently.'
       x-priority: P0
       x-permission: public
       x-features: [RNT-06, RNT-05, RES-02]
@@ -3998,14 +4000,81 @@ paths:
       - name: resource_id
         in: query
         schema: {type: string, format: uuid}
+      - name: from_time
+        in: query
+        schema: {type: string, format: time, example: '18:00'}
+        description: Location-local time; only slots starting at or after it
+      - name: to_time
+        in: query
+        schema: {type: string, format: time, example: '22:00'}
+        description: Location-local time; only slots starting before it. Must be after from_time; equal or earlier is 422 at /to_time
+      - name: limit
+        in: query
+        description: Page size
+        schema: {type: integer, default: 200, minimum: 1, maximum: 200}
+      - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: OK (guest prices; signed-in members use searchPortalRentalAvailability)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, page]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/RentalSlot'}
+                  page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        default: {$ref: '#/components/responses/Problem'}
+  /portal/rental-availability:
+    get:
+      operationId: searchPortalRentalAvailability
+      tags: [rentals]
+      summary: Bookable slots priced for the client who will hold the rental
+      description: 'The public search priced for `client_id` (self or a client the identity holds direct access to): member
+        prices from the same pricing function as the checkout charge, membership read on the slot''s local date. Advisory
+        only; a membership that lapses before checkout is charged the guest price, which the checkout quote shows. Same
+        day coverage, band, court order and keyset pages as searchRentalAvailability.'
+      x-priority: P0
+      x-permission: client:can_act_for
+      x-features: [RNT-06, RNT-02]
+      parameters:
       - name: client_id
         in: query
         schema: {type: string, format: uuid}
-        description: 'Signed-in only: member price and eligibility'
-      - {$ref: '#/components/parameters/Limit'}
+        required: true
+      - name: rental_type_id
+        in: query
+        schema: {type: string, format: uuid}
+        required: true
+      - name: 'on'
+        in: query
+        schema: {type: string, format: date}
+        required: true
+        description: Location-local date
+      - name: length_min
+        in: query
+        schema: {type: integer}
+      - name: resource_id
+        in: query
+        schema: {type: string, format: uuid}
+      - name: from_time
+        in: query
+        schema: {type: string, format: time, example: '18:00'}
+        description: Location-local time; only slots starting at or after it
+      - name: to_time
+        in: query
+        schema: {type: string, format: time, example: '22:00'}
+        description: Location-local time; only slots starting before it. Must be after from_time; equal or earlier is 422 at /to_time
+      - name: limit
+        in: query
+        description: Page size
+        schema: {type: integer, default: 200, minimum: 1, maximum: 200}
       - {$ref: '#/components/parameters/Cursor'}
-      - {$ref: '#/components/parameters/Sort'}
-      - {$ref: '#/components/parameters/Include'}
       responses:
         '200':
           description: OK
@@ -4017,8 +4086,12 @@ paths:
                 properties:
                   data:
                     type: array
-                    items: {$ref: '#/components/schemas/RentalSlot'}
+                    items: {$ref: '#/components/schemas/PortalRentalSlot'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
         default: {$ref: '#/components/responses/Problem'}
@@ -4089,7 +4162,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, not-eligible, outside-booking-window, too-many-open-holds, insufficient-plan-balance,
-        idempotency-key-reused, request-in-progress, document-required]
+        idempotency-key-reused, request-in-progress, minor-cannot-hold-rental, minor-needs-guardian, document-required]
   /portal/rentals/{rental_id}/confirm:
     post:
       operationId: confirmPortalRental
@@ -4164,6 +4237,8 @@ paths:
       operationId: extendRental
       tags: [rentals]
       summary: Add more occurrences to an existing rental series
+      description: 'A series held by a minor extends only with a fresh `minor_override_reason` (needs
+        rentals.booking.override_minor), else 422 minor-cannot-hold-rental; the original reason is never copied.'
       x-priority: P1
       x-permission: rentals.booking.update
       x-features: [RNT-04]
@@ -5881,6 +5956,12 @@ components:
         buffer_after_min: {type: integer}
         recurrence: {$ref: '#/components/schemas/RecurrenceRule'}
         charge: {$ref: '#/components/schemas/RentalChargeDecision'}
+        minor_override_reason:
+          type: string
+          maxLength: 500
+          description: 'Books a court in a minor''s name (or a minor as a party without their guardian holding it): needs
+            rentals.booking.override_minor and this reason, else 422 minor-cannot-hold-rental / minor-needs-guardian. The reason
+            is kept on the rental; the audit record carries only a flag.'
         on_conflict: {type: string, enum: [skip, abort]}
         override_policy: {type: boolean}
     RentalQuoteLine:
@@ -5923,11 +6004,18 @@ components:
         requested_count: {type: integer}
         conflict_count: {type: integer}
         quote: {$ref: '#/components/schemas/RentalQuote'}
+        birth_on_unknown:
+          type: array
+          items: {type: string, format: uuid}
+          description: holder or players with no birth date; the desk counts them as adults (ADR 0002 section 5), staff are warned
     Rental:
       type: object
       description: One rental occurrence (rental_booking 1:1 booking). `status`, times and `version` are read from the booking.
       required: [id, booking_id, rental_type_id, client_id, starts_at, ends_at, status, charge_state]
       properties:
+        minor_override_reason:
+          type: [string, 'null']
+          description: why staff booked it in a minor's name (rentals.booking.override_minor); staff view only
         id: {type: string, format: uuid}
         location_id: {type: string, format: uuid}
         booking_id: {type: string, format: uuid}
@@ -5972,6 +6060,10 @@ components:
         invoice_ids:
           type: array
           items: {type: string, format: uuid}
+        birth_on_unknown:
+          type: array
+          items: {type: string, format: uuid}
+          description: holder or players with no birth date; the desk counts them as adults (ADR 0002 section 5), staff are warned
     RentalCancel:
       type: object
       description: 'Unpaid charge shares are always reversed; `charge_action` decides paid money: account credit (default),
@@ -6000,6 +6092,16 @@ components:
     RentalSlot:
       type: object
       required: [starts_at, ends_at, resource_id, price_minor]
+      properties:
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        resource_id: {type: string, format: uuid}
+        resource_name: {type: string}
+        price_minor: {type: integer, description: Minor units of tenant.currency}
+        is_member_price: {type: boolean}
+    PortalRentalSlot:
+      type: object
+      required: [starts_at, ends_at, resource_id, resource_name, price_minor, is_member_price]
       properties:
         starts_at: {type: string, format: date-time}
         ends_at: {type: string, format: date-time}
@@ -6042,6 +6144,14 @@ components:
           type: string
           format: uuid
           description: must satisfy can_use_entitlement(client_id, plan purchase) (ADR 0009 section 8.3), else 403
+        player_client_ids:
+          type: array
+          maxItems: 10
+          items: {type: string, format: uuid}
+          description: 'Household members who will play (not charged): each must be a client the identity can act for, else
+            404. A minor may play only when `client_id` is one of their guardians (minor-needs-guardian); a minor never
+            holds a rental (minor-cannot-hold-rental): the parent books in their own name and names the child here.
+            Online the holder needs a birth date on file (birth-date-required) and a player with no birth date counts as a minor.'
     RentalCheckout:
       type: object
       description: 'pay_in_full: tentative booking with real holds and `expires_at` (checkout clock, default 10 minutes).

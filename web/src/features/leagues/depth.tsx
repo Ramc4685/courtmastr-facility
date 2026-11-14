@@ -18,7 +18,7 @@ import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { useResources } from '../resources/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
 import { label, STATUS_TONE, useEntries, useSports, type Competition, type Entry, type Game } from './queries'
-import { Alert, CardButton, List, matchup, ScoreDialog } from './shared'
+import { Alert, CardButton, List, matchup, ScoreDialog, scoreText } from './shared'
 
 const MANAGE = 'leagues.competition.manage'
 type Venue = Schemas['VenueOut']
@@ -282,7 +282,7 @@ export function ScoresPage() {
           { header: 'When', cell: (g) => formatDateTime(g.starts_at) },
           { header: 'Competition', cell: (g) => g.competition_name ?? '—' },
           { header: 'Game', cell: matchup },
-          { header: 'Score', cell: (g) => (g.status === 'played' ? `${g.home_score} - ${g.away_score}` : '—') },
+          { header: 'Score', cell: (g) => (g.status === 'played' ? scoreText(g) : '—') },
           { header: 'Status', cell: (g) => <Badge tone={STATUS_TONE[g.status]}>{label(g.status)}</Badge> },
           {
             header: 'Actions',

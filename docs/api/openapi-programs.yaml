@@ -2391,6 +2391,7 @@ paths:
       operationId: updateCompetition
       tags: [leagues]
       summary: Update competition
+      description: The scoring mode and set rules are locked once any game has a result (409 results-recorded); clear the results first.
       x-priority: P0
       x-permission: leagues.competition.manage
       x-features: [LGE-01, LGE-02, LGE-06]
@@ -2407,7 +2408,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
-      x-problem-codes: [version-conflict]
+      x-problem-codes: [version-conflict, results-recorded]
     delete:
       operationId: deleteCompetition
       tags: [leagues]
@@ -3393,6 +3394,32 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
       x-problem-codes: [booking-conflict]
+  /competitions/{competition_id}/league-nights:
+    parameters: [{name: competition_id, in: path, required: true, schema: {type: string, format: uuid}}]
+    post:
+      operationId: blockLeagueNight
+      tags: [leagues]
+      summary: Hold courts for a competition ahead of its schedule (league night)
+      description: A block whose purpose is the competition. Rentals and other competitions' games clash with it; this
+        competition's games take their slots out of it when booked (the block is split around each game) and the rest
+        of the night stays held.
+      x-priority: P1
+      x-permission: leagues.game.manage
+      x-features: [LGE-08]
+      security: [{staffSession: []}, {apiKey: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/LeagueNightInput'}}}
+      responses:
+        '201':
+          description: Created.
+          content: {application/json: {schema: {$ref: '#/components/schemas/LeagueNight'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
+      x-problem-codes: [booking-conflict]
   /games/{game_id}:
     parameters: [{name: game_id, in: path, required: true, schema: {type: string, format: uuid}}]
     get:
@@ -3532,7 +3559,7 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
-      x-problem-codes: [invalid-state-transition]
+      x-problem-codes: [invalid-state-transition, invalid-set-score]
     delete:
       operationId: deleteGameResult
       tags: [leagues]
@@ -8088,6 +8115,12 @@ components:
         points_loss: {type: integer}
         standings_columns: {type: array, items: {type: string}}
         tiebreakers: {type: array, items: {type: string}}
+        scoring_mode: {type: string, enum: [points, sets], description: 'points (one score per side, the default) or sets (badminton, volleyball, pickleball)'}
+        sets_best_of: {type: [integer, 'null'], enum: [1, 3, 5, null]}
+        set_points_to: {type: [integer, 'null'], description: points that win a set}
+        set_win_by: {type: integer, description: winning margin of a set, default 2}
+        set_cap: {type: [integer, 'null'], description: score that ends a set however close (badminton 30)}
+        deciding_set_points_to: {type: [integer, 'null'], description: target of the last possible set (volleyball 15)}
         is_active: {type: boolean}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
@@ -8103,6 +8136,12 @@ components:
         points_loss: {type: integer}
         standings_columns: {type: array, items: {type: string}}
         tiebreakers: {type: array, items: {type: string}}
+        scoring_mode: {type: string, enum: [points, sets], description: 'points (one score per side, the default) or sets (badminton, volleyball, pickleball)'}
+        sets_best_of: {type: [integer, 'null'], enum: [1, 3, 5, null]}
+        set_points_to: {type: [integer, 'null'], description: points that win a set}
+        set_win_by: {type: integer, description: winning margin of a set, default 2}
+        set_cap: {type: [integer, 'null'], description: score that ends a set however close (badminton 30)}
+        deciding_set_points_to: {type: [integer, 'null'], description: target of the last possible set (volleyball 15)}
         is_active: {type: boolean}
     AgeGroup:
       type: object
@@ -8173,7 +8212,14 @@ components:
         standings:
           type: object
           additionalProperties: true
-          description: columns, tiebreaker order, forfeit and bonus point rules (LGE-06)
+          description: columns, tiebreaker order (adds SW, SL, SR set ratio and PR points ratio for sets), forfeit
+            and bonus point rules (LGE-06)
+        scoring_mode: {type: string, enum: [points, sets], description: 'points (one score per side, the default) or sets (badminton, volleyball, pickleball)'}
+        sets_best_of: {type: [integer, 'null'], enum: [1, 3, 5, null]}
+        set_points_to: {type: [integer, 'null'], description: points that win a set}
+        set_win_by: {type: integer, description: winning margin of a set, default 2}
+        set_cap: {type: [integer, 'null'], description: score that ends a set however close (badminton 30)}
+        deciding_set_points_to: {type: [integer, 'null'], description: target of the last possible set (volleyball 15)}
         max_defaults: {type: [integer, 'null']}
         source_program_group_id: {type: [string, 'null'], format: uuid}
         status: {type: string, enum: [draft, active, completed, archived]}
@@ -8208,7 +8254,14 @@ components:
         standings:
           type: object
           additionalProperties: true
-          description: columns, tiebreaker order, forfeit and bonus point rules (LGE-06)
+          description: columns, tiebreaker order (adds SW, SL, SR set ratio and PR points ratio for sets), forfeit
+            and bonus point rules (LGE-06)
+        scoring_mode: {type: string, enum: [points, sets], description: 'points (one score per side, the default) or sets (badminton, volleyball, pickleball)'}
+        sets_best_of: {type: [integer, 'null'], enum: [1, 3, 5, null]}
+        set_points_to: {type: [integer, 'null'], description: points that win a set}
+        set_win_by: {type: integer, description: winning margin of a set, default 2}
+        set_cap: {type: [integer, 'null'], description: score that ends a set however close (badminton 30)}
+        deciding_set_points_to: {type: [integer, 'null'], description: target of the last possible set (volleyball 15)}
         max_defaults: {type: [integer, 'null']}
         source_program_group_id: {type: [string, 'null'], format: uuid}
     Division:
@@ -8343,6 +8396,8 @@ components:
         points: {type: integer}
         points_for: {type: integer}
         points_against: {type: integer}
+        set_points_for: {type: integer, description: rally points of played sets (sets competitions)}
+        set_points_against: {type: integer}
         adjustment_points: {type: integer}
         defaults: {type: integer}
         is_over_default_cap: {type: boolean}
@@ -8455,11 +8510,33 @@ components:
         bracket_slot_id: {type: [string, 'null'], format: uuid}
         is_bye: {type: boolean}
         doubleheader_of_game_id: {type: [string, 'null'], format: uuid}
-        home_score: {type: [integer, 'null']}
+        home_score: {type: [integer, 'null'], description: sets won in a sets competition}
         away_score: {type: [integer, 'null']}
+        set_scores: {type: [string, 'null'], description: "per-set points from the home side, e.g. 21-18, 19-21, 21-15"}
+        sets_best_of: {type: [integer, 'null'], description: the competition's best-of when it scores by sets}
         officials: {type: array, items: {$ref: '#/components/schemas/GameOfficial'}}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
+    LeagueNightInput:
+      type: object
+      description: Courts and times to hold for one competition.
+      required: [resource_ids, starts_at, ends_at]
+      properties:
+        resource_ids: {type: array, minItems: 1, maxItems: 50, items: {type: string, format: uuid}}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        notes: {type: [string, 'null']}
+    LeagueNight:
+      type: object
+      description: The block holding a league night.
+      required: [booking_id, competition_id, starts_at, ends_at, resource_ids]
+      properties:
+        booking_id: {type: string, format: uuid}
+        competition_id: {type: string, format: uuid}
+        title: {type: string}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        resource_ids: {type: array, items: {type: string, format: uuid}}
     GameReschedule:
       type: object
       description: Move a game; the booking is moved under the hold exclusion constraint.
@@ -8474,7 +8551,14 @@ components:
       required: [competition_team_id]
       properties:
         competition_team_id: {type: string, format: uuid}
-        score: {type: integer}
+        score: {type: integer, description: sets won in a sets competition; derived from `sets` when they are given}
+        sets:
+          type: array
+          maxItems: 5
+          items: {type: integer, minimum: 0}
+          description: this side's points per set, in order. Checked against the competition's sets format (a set
+            ends only at a legal score, no set after the match is decided, the match decided); refused on a points
+            competition and on a forfeit or default (422 invalid-set-score).
         outcome:
           type: string
           enum: [win, loss, tie, forfeit_win, forfeit_loss, double_forfeit, default_loss]

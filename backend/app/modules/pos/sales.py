@@ -693,8 +693,10 @@ def remove_tender(
             billing.service.void_payment(session, leg.payment_id, reason=reason)
         else:
             authorize(principal, "billing.refund.create", location_id=sale.location_id)
+            prefix = f"pos:tender-remove:{leg.id}:"  # a declined attempt is kept; the next one gets a new number
+            attempt = billing.service.failed_refund_attempts(session, leg.payment_id, prefix)
             refund = billing.service.refund(session, leg.payment_id, amount_minor=leg.amount_minor, reason=reason,
-                                            idempotency_key=f"pos:tender-remove:{leg.id}")  # fmt: skip
+                                            idempotency_key=f"{prefix}{attempt}")  # fmt: skip
             if refund.status in ("failed", "cancelled"):
                 raise DomainError("The card refund did not go through; try again.", status=502,
                                   code="refund-failed", persist=True)  # fmt: skip

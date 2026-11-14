@@ -105,12 +105,15 @@ const PRE_SESSION = [
 // Kiosk routes answer 401 for an unpaired device, never for a staff session (the kiosk cookie is not one).
 const notSession = (template: string) => PRE_SESSION.includes(template) || template.startsWith('/api/v1/kiosk/')
 
-type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string }
+type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | string[] | null | undefined>; body?: unknown; idempotencyKey?: string }
 
 function buildUrl(template: string, opts: Options): string {
   const path = template.replace(/\{(\w+)\}/g, (_, k: string) => encodeURIComponent(opts.path?.[k] ?? ''))
   const qs = new URLSearchParams()
-  for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  for (const [k, v] of Object.entries(opts.query ?? {})) {
+    if (Array.isArray(v)) for (const item of v) qs.append(k, item) // a list parameter repeats its name
+    else if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  }
   const q = qs.toString()
   return q ? `${path}?${q}` : path
 }

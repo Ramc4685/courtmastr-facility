@@ -72,6 +72,15 @@ export function addMonths(date: string, n: number): string {
 
 export const today = (timeZone: string) => zoned(new Date(), timeZone).date
 
+/** A datetime-local value ("YYYY-MM-DDTHH:MM") read as wall time in `timeZone`, as a UTC instant; and back. Never
+ * `new Date(value)`, which reads it in the browser's zone. */
+export const fromWallInput = (value: string, timeZone: string) => toInstant(value.slice(0, 10), parseHhmm(value.slice(11, 16)), timeZone)
+export function toWallInput(iso: string | null | undefined, timeZone: string): string {
+  if (!iso) return ''
+  const z = zoned(iso, timeZone)
+  return `${z.date}T${hhmm(z.minutes)}`
+}
+
 /** "HH:MM" <-> minutes after midnight. */
 export const hhmm = (minutes: number) => `${pad(Math.floor(minutes / 60) % 24)}:${pad(minutes % 60)}`
 export function parseHhmm(value: string): number {

@@ -64,7 +64,8 @@ SECRET_ROTATION_GRACE = timedelta(hours=24)
 # The documented public API resources (docs/status/phase15-api.md): only their contexts' keys may go on a key.
 # An allow-list, so a new context's keys reach machines only when someone adds it here. Platform (audit, staff
 # directory), reporting (person-bound runs and schedules), integrations (keys, sync, a delivery log wider than
-# the key's scopes) and staff stay with signed-in people.
+# the key's scopes) and staff (pay, payroll, coach earnings and payouts: `staff.coach_payout.*`) stay with signed-in
+# people.
 KEY_CONTEXTS = frozenset({
     "access", "assessments", "billing", "clients", "documents", "leagues", "memberships", "packages", "pos",
     "programs", "rentals", "resources", "scheduling",
@@ -82,8 +83,19 @@ KEY_PERMISSIONS = frozenset({
 
 
 # Single keys withheld from a listed context: portal on/off switches and online defaults, a person's decision like
-# engagement's portal settings (which never made the list above).
-KEY_WITHHELD = frozenset({"rentals.portal_setting.manage"})
+# engagement's portal settings (which never made the list above); and opening an unmanned building's doors or holding
+# its court lights, which a person at the facility's end of a phone line decides, never an integration.
+# clients.client.confirm_age: a person saw the ID; it releases held entry codes (owner decision 2026-11-13).
+# rentals.booking.override_minor: lifting the minors rule is a person's judgment, with a reason.
+KEY_WITHHELD = frozenset(
+    {
+        "rentals.portal_setting.manage",
+        "clients.client.confirm_age",
+        "rentals.booking.override_minor",
+        "access.door.unlock",
+        "access.lighting.override",
+    }
+)
 
 
 def grantable_to_key(permission: Permission) -> bool:

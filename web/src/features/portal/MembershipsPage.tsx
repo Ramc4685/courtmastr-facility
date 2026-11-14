@@ -13,6 +13,7 @@ import { formatDate, todayIn } from '../../lib/format'
 import { FormError, ListTable } from '../billing/shared'
 import { PortalPage } from './PortalApp'
 import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { AttemptFields, AttemptLock, checkPortalAttempt } from '../billing/attempt'
 import { CONTRACT_TONE, CouponField, label, LocationPicker, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
 type Contract = Schemas['PortalContractOut']
@@ -29,13 +30,16 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const pay = usePaymentChoice(actingFor.id)
   const [coupon, setCoupon] = useState('')
   const [saveCard, setSaveCard] = useState(false)
-  const attempt = useAttemptKey()
+  const attempt = useAttemptKey(`portal-membership:${plan.id}`, checkPortalAttempt)
   const gate = useTermsGate()
   const terms = { client_id: actingFor.id, membership_plan_id: plan.id, location_id: locationId, start_on: startOn || null, is_auto_renew: autoRenew, tender_kind: 'card' as const }
   const quote = useQuery({ queryKey: ['portal', 'membership-quote', terms], queryFn: () => api.post('/api/v1/portal/membership-contracts/quote', { body: terms }), retry: false })
   const buy = useMutation({
     mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, ...pay.body, coupon_code: coupon || null, save_method: pay.isNew && saveCard, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
+    onSuccess: () => {
+      attempt.settle(null)
+      void qc.invalidateQueries({ queryKey: ['portal'] })
+    },
     onError: (error) => {
       attempt.settle(error)
       gate.onError(error)
@@ -62,7 +66,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
               Cancel
             </Button>
             <Button loading={buy.isPending} disabled={!q || (needsCard && !pay.ready) || !gate.ready} onClick={() => buy.mutate()}>
-              {q && q.due_now_minor > 0 ? `Pay ${money(q.due_now_minor)} and buy` : 'Buy'}
+              {attempt.locked ? 'Try again' : q && q.due_now_minor > 0 ? `Pay ${money(q.due_now_minor)} and buy` : 'Buy'}
             </Button>
           </>
         )
@@ -75,6 +79,8 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
         </div>
       ) : (
         <div className="space-y-4">
+          <AttemptLock attempt={attempt} />
+          <AttemptFields attempt={attempt}>
           <div className="grid gap-4 sm:grid-cols-2">
             <LocationPicker value={locationId} onChange={setLocationId} />
             <Input label="Start date" type="date" value={startOn} min={todayIn(zoneOf(locationId))} onChange={(e) => setStartOn(e.target.value)} error={errors.start_on} />
@@ -132,6 +138,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
               {errors.method_token}
             </p>
           )}
+          </AttemptFields>
         </div>
       )}
     </Dialog>

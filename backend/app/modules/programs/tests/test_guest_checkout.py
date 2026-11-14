@@ -31,10 +31,12 @@ def allow_guests(client, owner, group_id: str):
     ok(client.put(f"{API}/program-groups/{group_id}/registration-config", headers=owner, json=body), 200)
 
 
-def start(client, tenant, f, camp, fee, email="guest@example.com"):
+def start(client, tenant, f, camp, fee, email="guest@example.com", declared: bool | None = True):
     body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest", "email": email, "birth_on": "1985-02-03"},
             "participants": [{"first_name": "Kit", "last_name": "Guest", "birth_on": "2015-04-01"}],
             "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"], "participant": 0}]}  # fmt: skip
+    if declared is not None:
+        body["birth_on_declared"] = declared
     return client.post(GUEST, headers=public(tenant), json=body)
 
 
@@ -189,7 +191,7 @@ def test_guest_create_is_limited_per_address_and_per_ip(client, owner, tenant, f
 
     camp, fee = online(client, owner, f, "immediate_card_payment")
     allow_guests(client, owner, camp["id"])
-    body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest", "email": "g@example.com",
+    body = {"location_id": f.location, "birth_on_declared": True, "payer": {"first_name": "Gale", "last_name": "Guest", "email": "g@example.com",
             "birth_on": "1985-02-03"}, "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"]}],
             "participants": [{"first_name": f"K{n}", "last_name": "Guest", "birth_on": "2015-04-01"} for n in range(5)]}  # fmt: skip
     assert client.post(GUEST, headers=public(tenant), json=body).status_code == 422  # at most 4 participants
@@ -328,7 +330,13 @@ def test_one_address_holds_at_most_four_unpaid_places_in_a_program(client, owner
 
     def basket(group, fee_id, people: list[int | None]):
         items = [{"program_group_id": group["id"], "program_fee_id": fee_id, "participant": p} for p in people]
-        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         return client.post(GUEST, headers=public(tenant), json=body)
 
     assert basket(camp, fee["id"], [None, 0, 1, 2, 3]).status_code == 422  # five items in one basket
@@ -363,7 +371,13 @@ def test_the_hold_cap_counts_every_week_of_a_program(client, owner, tenant, f):
 
     def basket(week, fee, people):
         items = [{"program_group_id": week["id"], "program_fee_id": fee["id"], "participant": p} for p in people]
-        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         return client.post(GUEST, headers=public(tenant), json=body)
 
     ok(basket(*weeks[0], [0, 1]))
@@ -393,7 +407,13 @@ def test_one_ipv6_slash_64_shares_the_hold_cap_and_the_create_bucket(client, own
 
     def basket(address, people):
         items = [{"program_group_id": camp["id"], "program_fee_id": fee["id"], "participant": p} for p in people]
-        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         return _from(address).post(GUEST, headers=public(tenant), json=body)
 
     ok(basket(f"{net}::a", [0, 1, 2, 3]))
@@ -429,7 +449,13 @@ def test_guest_baskets_naming_two_programs_in_opposite_order_both_hold_and_pay(c
     for pair in ((camp, fee, other, other_fee), (other, other_fee, camp, fee)):
         items = [{"program_group_id": pair[0]["id"], "program_fee_id": pair[1]["id"], "participant": 0},
                  {"program_group_id": pair[2]["id"], "program_fee_id": pair[3]["id"], "participant": 0}]  # fmt: skip
-        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        body = {
+            "location_id": f.location,
+            "birth_on_declared": True,
+            "payer": payer,
+            "participants": kids,
+            "items": items,
+        }
         carts.append(ok(client.post(GUEST, headers=public(tenant), json=body)))
     for cart in carts:
         ok(client.post(f"{GUEST}/{cart['id']}/confirm", headers=keyed(public(tenant)),
@@ -446,7 +472,7 @@ def test_staff_may_cancel_open_guest_holds_to_delete_or_archive(client, owner, t
         allow_guests(client, owner, camp["id"])
         other, other_fee = online(client, owner, f, "immediate_card_payment", name=f"Other {action}")
         allow_guests(client, owner, other["id"])
-        body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest",
+        body = {"location_id": f.location, "birth_on_declared": True, "payer": {"first_name": "Gale", "last_name": "Guest",
                 "email": f"{action}@example.com", "birth_on": "1985-02-03"}, "participants": [],
                 "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"]},
                           {"program_group_id": other["id"], "program_fee_id": other_fee["id"]}]}  # fmt: skip
@@ -472,7 +498,7 @@ def test_cancelling_guest_holds_needs_the_online_registration_key_too(client, ow
 
     camp, fee = online(client, owner, f, "immediate_card_payment", name="Gated")
     allow_guests(client, owner, camp["id"])
-    body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest",
+    body = {"location_id": f.location, "birth_on_declared": True, "payer": {"first_name": "Gale", "last_name": "Guest",
             "email": "gated@example.com", "birth_on": "1985-02-03"}, "participants": [],
             "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"]}]}  # fmt: skip
     cart = ok(client.post(GUEST, headers=public(tenant), json=body))

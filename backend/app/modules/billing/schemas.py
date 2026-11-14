@@ -5,9 +5,12 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, StringConstraints, computed_field
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, computed_field, field_validator
+from pydantic_core import PydanticCustomError
 
-from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
+from app.core.errors import ValidationFailed
+from app.core.pan import contains_card_number
+from app.core.schemas import CARD_DATA, CARD_DATA_DETAIL, In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
 from app.ports import payment_provider
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
@@ -33,6 +36,7 @@ class ChargeCreate(In):
     unit_price_minor: Minor
     quantity: Annotated[Decimal, Field(gt=0, le=100000, decimal_places=3)] = Decimal(1)
     discount_minor: Minor = 0
+    discount_pct: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None = None
     revenue_category_id: UUID | None = None
     revenue_on: date | None = None
     additional_description: Text | None = None
@@ -63,6 +67,7 @@ class ChargeOut(Out):
     quantity: Decimal
     unit_price_minor: int
     discount_minor: int
+    discount_pct: Decimal | None = None
     net_minor: int
     tax_minor: int
     total_minor: int
@@ -156,6 +161,16 @@ class RefundCreate(In):
     reason: Text
     method: Literal["original", "external"] | None = None
     comments: Text | None = None
+    release_allocation_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class AttemptOut(Out):
+    """What became of the payments and refunds made under one Idempotency-Key. `settled` false: the processor's
+    answer is not known yet (a row `initiated` or `unknown`); keep the form as it was and try again or ask later."""
+
+    settled: bool
+    statuses: list[str]
+    amount_minor: int
 
 
 class RefundOut(Out):
@@ -164,12 +179,22 @@ class RefundOut(Out):
     amount_minor: int
     currency: str
     method: Literal["original", "external"]
-    status: Literal["pending", "succeeded", "failed", "cancelled"]
+    status: Literal["initiated", "pending", "succeeded", "failed", "cancelled"]
     refund_on: date
     refund_batch_id: UUID | None
     reason: str
     failure_message: str | None
     created_at: datetime
+
+
+class RefundBatchOut(Out):
+    """An account-credit refund: what was asked, what the processor has refunded (`succeeded` legs), and each leg
+    with its status, so a declined or pending leg is never read as success."""
+
+    refund_batch_id: UUID
+    amount_minor: int
+    refunded_minor: int
+    refunds: list[RefundOut]
 
 
 class PaymentOut(Out):
@@ -434,6 +459,7 @@ class ChargePreviewRequest(In):
     unit_price_minor: Minor
     quantity: Quantity = Decimal(1)
     discount_minor: Minor = 0
+    discount_pct: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None = None
     revenue_category_id: UUID | None = None
     revenue_on: date | None = None
     exclude_tax_ids: Annotated[list[UUID], Field(max_length=20)] = []
@@ -469,7 +495,10 @@ class ChargeUpdate(In):
     quantity: Quantity | None = None
     unit_price_minor: Minor | None = None
     discount_minor: Minor | None = None
+    discount_pct: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None = None
     exclude_tax_ids: Annotated[list[UUID], Field(max_length=20)] | None = None
+    revenue_on: date | None = None
+    revenue_category_id: UUID | None = None
     reason: Text | None = None
 
 
@@ -587,31 +616,69 @@ class InvoiceDocument(Out):
     instalments: list[DocumentInstalment]
 
 
-class BulkInvoiceRequest(In):
-    """`action` is fixed to creating invoices: one per client. Give charge_ids, or a location."""
+class BulkActionCreate(In):
+    """`charge_ids` for create_invoices (or `location_id` alone, optionally `only_mine`) and reverse_charges;
+    `invoice_ids` for email_invoices and render_invoices; `client_ids` for add_catalog_item. `params`: `reason`
+    and `revenue_on` for a reversal, `catalog_item_id` to add an item, `due_on` and `is_autopay` for invoicing."""
 
-    action: Literal["create_invoices"] = "create_invoices"
-    charge_ids: Annotated[list[UUID], Field(max_length=1000)] | None = None
-    location_id: UUID | None = None
+    location_id: UUID
+    action: Literal["create_invoices", "reverse_charges", "email_invoices", "render_invoices", "add_catalog_item"]
+    charge_ids: Annotated[list[UUID], Field(max_length=1000)] = []
+    invoice_ids: Annotated[list[UUID], Field(max_length=1000)] = []
+    client_ids: Annotated[list[UUID], Field(max_length=1000)] = []
     only_mine: bool = False
-    due_on: date | None = None
-    is_autopay: bool = False
+    params: dict[str, str | bool | None] = {}
     is_dry_run: bool = False
+    preview_id: UUID | None = None  # the dry run this run was previewed as: refused if its amounts changed
+
+    @field_validator("params")
+    @classmethod
+    def _check_params(cls, params: dict) -> dict:
+        # `params` is allow-listed for In's card scan (structured options); its one free-text value is scanned here
+        if contains_card_number(str(params.get("reason") or "")):
+            raise PydanticCustomError(CARD_DATA, CARD_DATA_DETAIL)
+        if due_on := params.get("due_on"):
+            try:
+                date.fromisoformat(str(due_on))
+            except ValueError:
+                raise ValidationFailed("Give the due date as YYYY-MM-DD.", pointer="/params/due_on") from None
+        return params
 
 
-class BulkInvoiceItem(Out):
-    client_id: UUID | None
-    location_id: UUID | None
-    charge_ids: list[UUID]
-    total_minor: int
-    invoice_id: UUID | None
+class BulkActionOut(Out):
+    id: UUID
+    location_id: UUID
+    action: str
+    is_dry_run: bool
+    status: Literal["queued", "running", "completed", "completed_with_errors"]
+    item_count: int
+    done_count: int
+    failed_count: int
+    requested_by_staff_user_id: UUID | None
+    finished_at: datetime | None
+    created_at: datetime
+
+
+class BulkActionItemOut(Out):
+    id: UUID
+    subject_type: Literal["charge", "invoice", "client"]
+    subject_id: UUID
+    group_client_id: UUID | None
+    amount_minor: int | None
     status: Literal["pending", "done", "failed", "skipped"]
+    result_type: str | None
+    result_id: UUID | None
     error_code: str | None
 
 
-class BulkInvoiceResult(Out):
-    is_dry_run: bool
-    items: list[BulkInvoiceItem]
+class UnmatchedProviderEventOut(Out):
+    """A processor charge or refund with no payment or refund here (S5). No amount: the stored event has none."""
+
+    id: UUID
+    provider: str
+    kind: str | None
+    provider_ref: str | None
+    received_at: datetime
 
 
 class HistoryOut(Out):
@@ -935,6 +1002,14 @@ class PortalPaymentConfirm(In):
     invoice_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
 
 
+class PortalAttemptOut(Out):
+    """The portal's own copy of AttemptOut (portal routes never reuse staff schemas): state and amount only."""
+
+    settled: bool
+    statuses: list[str]
+    amount_minor: int
+
+
 class PortalReceiptLine(Out):
     description: str
     invoice_id: UUID | None
@@ -1019,7 +1094,7 @@ class PortalRefundOut(Out):
     amount_minor: int
     currency: str
     method: Literal["original", "external"]
-    status: Literal["pending", "succeeded", "failed", "cancelled"]
+    status: Literal["initiated", "pending", "succeeded", "failed", "cancelled"]
     refund_on: date
     created_at: datetime
 
