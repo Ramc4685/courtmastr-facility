@@ -1506,3 +1506,15 @@ def test_one_failing_booking_never_rolls_back_the_ticks_other_codes_or_reaches_a
             building.sync_booking_code(session, UUID(bad))
             assert sim.calls == []  # nothing reaches the controller before the commit
         assert [c[0] for c in sim.calls] == ["push_code"]
+
+
+def test_a_booking_that_fails_every_tick_is_shown_to_staff_once(b, sim, monkeypatch):
+    def broken(session, row, client_id):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(building, "deliver_code_to", broken)
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        for _ in range(3):
+            tick(b)
+    assert codes(b, booking) == [] and details_of(b, "command_failed") == [f"code_sync:{booking}"]

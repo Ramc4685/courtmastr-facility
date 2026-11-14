@@ -288,7 +288,8 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   the adapter must give up past it), a door verify of the code never waits on that lock (its `building_event` insert
   takes only KEY SHARE), and a push and a revoke of one code reach it in commit order (a push that
   finds its code revoked or already pushed does nothing). The tick syncs each booking under its own savepoint: one
-  that fails is logged with its booking id, its queued emails and controller calls are dropped, and the rest of the
+  that fails is logged with its booking id and shown to staff once as a `command_failed` event
+  (`code_sync:<booking id>`, never repeated each minute), its queued emails and controller calls are dropped, and the rest of the
   location's issues and revokes still commit; it is retried next minute. Issue and revoke publish
   `access.entry_code.issued` and `access.entry_code.revoked`.
 - **Codes retire (migration 1976).** At its window's end a code becomes `expired` (audited, no event) and, like a

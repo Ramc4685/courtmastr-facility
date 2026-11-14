@@ -1268,6 +1268,16 @@ def expire_codes(session: Session, location_id: UUID) -> int:
     return len(rows)
 
 
+def _note_sync_failed(session: Session, location_id: UUID, booking_id: UUID) -> None:
+    """A booking whose codes cannot be synced: one `command_failed` row naming it on the activity view, the first
+    time only (the tick retries it every minute without writing again). Never the code or the error text."""
+    detail = f"code_sync:{booking_id}"
+    if session.scalar(select(exists().where(BuildingEvent.location_id == location_id,
+                                            BuildingEvent.kind == "command_failed", BuildingEvent.detail == detail))):  # fmt: skip
+        return
+    _event(session, location_id, "command_failed", detail=detail)
+
+
 def sync_location_codes(session: Session, location_id: UUID) -> None:
     """Internal: every booking that may need a code at the location, and every open or upcoming code, are synced
     (catches a confirmation that published no event, and anything a handler missed). Spent codes expire first."""
@@ -1287,6 +1297,7 @@ def sync_location_codes(session: Session, location_id: UUID) -> None:
         except Exception as exc:
             del hooks[queued:]  # its emails and controller calls belong to rows that were rolled back
             log.error("entry code sync failed for booking %s (%s)", booking_id, type(exc).__name__)
+            _note_sync_failed(session, location_id, booking_id)
     _retry_pushes(session, location_id)
     _retry_revokes(session, location_id)
 
