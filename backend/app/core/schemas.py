@@ -2,9 +2,9 @@
 
 import html as html_text
 import re
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 from app.core.errors import ValidationFailed
@@ -110,6 +110,10 @@ def _nul_pointer(value: Any, path: str = "") -> str | None:
 
 class Out(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+# An int4 column's range; a larger number would reach Postgres and fail there.
+Int4 = Annotated[int, Field(ge=-2_147_483_648, le=2_147_483_647)]
 
 
 class In(BaseModel):

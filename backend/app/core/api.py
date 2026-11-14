@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -367,6 +367,21 @@ def _on_integrity_error(request: Request, exc: IntegrityError):
     return problem(request, 500, "internal-error")
 
 
+def _on_data_error(request: Request, exc: DataError):
+    """A number past its column's range (22003) is the caller's value, not a server fault."""
+    if getattr(exc.orig, "sqlstate", None) == "22003":
+        detail = "A number is out of range."
+        return problem(
+            request,
+            422,
+            "validation-failed",
+            detail,
+            errors=[{"pointer": "", "code": "validation-failed", "detail": detail}],
+        )
+    log.error("unmapped data error", exc_info=exc)
+    return problem(request, 500, "internal-error")
+
+
 def _on_http_exception(request: Request, exc: StarletteHTTPException):
     codes = {401: "unauthenticated", 403: "permission-denied", 404: "not-found", 405: "method-not-allowed"}
     return problem(request, exc.status_code, codes.get(exc.status_code, "bad-request"), headers=exc.headers)
@@ -385,5 +400,6 @@ def install(app: FastAPI) -> None:
     app.add_exception_handler(DomainError, _on_domain_error)
     app.add_exception_handler(RequestValidationError, _on_validation_error)
     app.add_exception_handler(IntegrityError, _on_integrity_error)
+    app.add_exception_handler(DataError, _on_data_error)
     app.add_exception_handler(StarletteHTTPException, _on_http_exception)
     app.add_exception_handler(Exception, _on_unhandled)

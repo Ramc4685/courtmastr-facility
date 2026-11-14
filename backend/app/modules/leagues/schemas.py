@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, Field
 
-from app.core.schemas import In, Out, Page
+from app.core.schemas import In, Int4, Out, Page
 
 __all__ = ["Page"]
 
@@ -20,7 +20,6 @@ Color = Annotated[str, Field(pattern=r"^#[0-9a-f]{6}$")]
 Metric = Literal["GP", "W", "L", "T", "GF", "GA", "PTS", "GD", "WP", "OTL", "FF", "BP", "SPT", "H2H"]
 Email = Annotated[str, Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
 # int4 columns: a larger number overflowed Postgres (a 500)
-Int4 = Annotated[int, Field(ge=-2_147_483_648, le=2_147_483_647)]
 Fee = Annotated[int, Field(ge=0, le=2_147_483_647)]
 
 
