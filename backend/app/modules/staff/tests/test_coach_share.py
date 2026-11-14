@@ -235,7 +235,12 @@ def test_deleting_a_rule_dated_before_today_is_refused_like_a_back_dated_change(
                         json={"unit_price_minor": 45000, "reason": "Price corrected"}), 200)  # fmt: skip
     deliver_events()
     lines = _lines(tenant, c.payee["id"])
-    assert sum(x[3] for x in lines) == 9450 and [x for x in lines if x[0] == "lesson"][-1] == ("lesson", 4500, 1350, 3150)
+    assert sum(x[3] for x in lines) == 9450 and [x for x in lines if x[0] == "lesson"][-1] == (
+        "lesson",
+        4500,
+        1350,
+        3150,
+    )
 
 
 def test_a_lesson_with_no_share_rule_is_recorded_wholly_the_facilitys(client, tenant, owner, coached):
