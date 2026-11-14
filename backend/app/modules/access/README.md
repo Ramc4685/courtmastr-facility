@@ -359,9 +359,11 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   2. Input that is not exactly eight digits is denied unevaluated.
   3. The door's own queue and turn (Redis, keyed by door id, so one door never takes another door's turn): verifies
      at a door are serialised, at most `DOOR_QUEUE` (3) wait behind the one being evaluated, anything beyond is
-     denied at once with no event, no audit row and no sleep. Then the location's delay: it grows with each wrong
+     denied at once with no event, no audit row and no sleep. Then the location's delay: it grows with each denied
      code at any door of the location in the last five minutes (0.4 s, then 1, 2, 4, and 5 s from the fourth on) and
-     decays as they age out. It is per location because a code opens every door there. The route is async; waiting
+     decays as they age out. Every deny counts, an unknown code and a live one refused alike (outside its window,
+     cancelled, refused by the evaluation), so whether the next wait grows never tells a real code from a guess; an
+     allow never counts, so a valid in-window code is never slowed by its own success. It is per location because a code opens every door there. The route is async; waiting
      uses `redis.asyncio` (one pool per event loop), BLPOP on the door's wake list and `asyncio.sleep`, so a waiting
      verify holds no thread, no database connection and does not poll.
   4. Only then does the request session open: the code is evaluated, with one activity row and one audit row.
@@ -369,7 +371,7 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   the building shut. Redis unreachable: deny (fail closed; the email, the portal and every refusal carry the location
   phone, and staff unlock remotely). The evaluation answers after `EVAL_FLOOR_SECONDS` (0.25 s, inside the
   transaction; one at a time per door), so a matched code is not slower than an unknown one; lookup is by keyed hash.
-  Wrong codes are also counted across the location per hour for the staff alert only: the one that passes
+  Unknown codes (only those) are also counted across the location per hour for the staff alert: the one that passes
   `door_alert_bad_codes_per_hour` (default 20) emails the alert address once and writes a `bad_code_alert` row.
   Migration 1974 revoked every code issued before eight digits; the tick reissues and re-sends them. An admitted
   code writes a `door` check-in for its person.
@@ -379,8 +381,9 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   With k codes open at the location at once, each guess hits with probability k / 10^8, so a full day of guessing
   succeeds with about 17,280 d k / 10^8: for d = 1, 0.017 % a day with one open code and 0.14 % a day with eight
   open at once (four courts with early and grace windows overlapping, all day: the worst case). The delay does not
-  multiply with doors, but the turns do (each door is its own queue), so the bound is linear in d. Staff are emailed
-  after the 21st wrong code at the location in an hour. A person at the keypad can still slow the location for
+  multiply with doors, but the turns do (each door is its own queue), so the bound is linear in d. Counting every
+  deny toward the delay only reaches the ceiling sooner, so the bound is unchanged. Staff are emailed after the 21st
+  unknown code at the location in an hour. A person at the keypad can still slow the location for
   everyone (up to five seconds a try); the portal "open the door" and the phone line are the fallback.
   A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
   the keypad) call the controller in the request: someone is waiting at the door and a queued unlock that lands late

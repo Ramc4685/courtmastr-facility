@@ -800,8 +800,8 @@ def _note_wrong(location_id: UUID) -> None:
 
 
 def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
-    """Internal (device-authenticated, after `door_enter`): a keypad's code, allow or deny and nothing else. A wrong
-    code raises the location's delay and counts toward the hourly staff alert; there is no lockout, so a right code
+    """Internal (device-authenticated, after `door_enter`): a keypad's code, allow or deny and nothing else. Every
+    deny raises the location's delay; an unknown code also counts toward the hourly staff alert; there is no lockout, so a right code
     is always admitted, at worst a few seconds late. The evaluation answers after EVAL_FLOOR_SECONDS, so timing does
     not tell a matched code from a wrong one."""
     began, location_id = time.monotonic(), door.location_id
@@ -812,8 +812,9 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
     check_in = _enter(session, row) if row and not reason else None  # the keypad releases the door on our allow
     if check_in is not None and check_in.result == "denied":
         reason = check_in.denial_reason
-    if reason == "unknown_code":
+    if reason:  # every deny, so the next wait does not tell a live code (early, refused) from a guess
         _note_wrong(location_id)
+    if reason == "unknown_code":
         _note_bad_code(session, door)
     kind = "entry_denied" if reason else "entry_granted"
     _event(session, location_id, kind, door_device_id=door.id, entry_code_id=row.id if row else None,

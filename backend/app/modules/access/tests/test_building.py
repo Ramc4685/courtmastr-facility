@@ -740,6 +740,24 @@ def test_wrong_codes_raise_the_delay_which_decays(client, b):
         assert delay_at(location) == building.DOOR_DELAYS[0]  # wrong codes stopped: back to the floor
 
 
+def test_a_live_code_outside_its_window_raises_the_delay_like_an_unknown_one(client, b):
+    """Every deny counts, so the next wait does not tell a real code tried early from a guess; an allow never does,
+    and only unknown codes count toward the staff alert."""
+    with clock.freeze(at(8)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        code = clear(b, codes(b, booking)[0])
+        location = UUID(b.location)
+        assert verify(client, b, code)["result"] == "deny"  # before the window
+        assert delay_at(location) == building.DOOR_DELAYS[1]
+        assert verify(client, b, wrong_for(code))["result"] == "deny"
+        assert delay_at(location) == building.DOOR_DELAYS[2]
+    with clock.freeze(at(9.8)):
+        assert verify(client, b, code)["result"] == "allow"
+        assert verify(client, b, code)["result"] == "allow"
+        assert delay_at(location) == building.DOOR_DELAYS[0]  # the earlier denies decayed; success adds nothing
+
+
 def test_fifty_concurrent_wrong_codes_are_mostly_refused_unevaluated_and_alert_at_most_once(
     client, b, mailbox, monkeypatch
 ):
