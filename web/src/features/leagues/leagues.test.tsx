@@ -93,6 +93,12 @@ describe('LeaguesPage', SCREEN, () => {
     await userEvent.click(await screen.findByRole('tab', { name: 'Schedule & results' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Enter the score of Strikers vs Rovers' }))
     const dialog = await screen.findByRole('dialog', { name: 'Score: Strikers vs Rovers' })
+    // a set with one side blank is refused, never saved as 21-0
+    await userEvent.type(within(dialog).getByLabelText('Set 1: Strikers'), '21')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save result' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Set 1 needs a score for both sides')
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+    await userEvent.clear(within(dialog).getByLabelText('Set 1: Strikers'))
     for (const [field, value] of [['Set 1: Strikers', '21'], ['Set 1: Rovers', '18'], ['Set 2: Strikers', '19'], ['Set 2: Rovers', '21'], ['Set 3: Strikers', '21'], ['Set 3: Rovers', '15']] as const) {
       await userEvent.type(within(dialog).getByLabelText(field), value)
     }

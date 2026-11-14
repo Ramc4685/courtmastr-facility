@@ -41,9 +41,12 @@ export const scoreText = (g: { home_score?: number | null; away_score?: number |
 
 const side = (score: string) => ({ score: Number(score), participation: 'full' as const, went_to_overtime: false, bonus_points: 0 })
 
-/** Per-set points of the filled rows only: a best-of-three won 2-0 leaves the third row blank. */
+/** Per-set points of the filled rows only: a best-of-three won 2-0 leaves the third row blank. A half-filled set
+ * is refused rather than saved as 0. */
 const setSides = (rows: { home: string; away: string }[]) => {
-  const played = rows.filter((r) => r.home !== '' || r.away !== '')
+  const half = rows.findIndex((r) => (r.home.trim() === '') !== (r.away.trim() === ''))
+  if (half >= 0) throw new Error(`Set ${half + 1} needs a score for both sides, or leave both blank if it was not played.`)
+  const played = rows.filter((r) => r.home.trim() !== '')
   const base = { participation: 'full' as const, went_to_overtime: false, bonus_points: 0 }
   return { home: { ...base, sets: played.map((r) => Number(r.home)) }, away: { ...base, sets: played.map((r) => Number(r.away)) } }
 }
